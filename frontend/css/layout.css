@@ -1,0 +1,222 @@
+/* ==========================================================================
+   MyKnowledge — 主布局
+   结构: Sidebar (260px) + Header + Content
+   设计系统: Raycast · v1.0
+   ========================================================================== */
+
+/* ── App Shell ──────────────────────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--glass-border);
+  transition: var(--transition-theme);
+  z-index: 20;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-brand__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--button-primary-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-md);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.sidebar-brand__name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.sidebar-footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-footer__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* ── Main Content Area ──────────────────────────────────────────────────── */
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top Header ─────────────────────────────────────────────────────────── */
+
+.top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-6);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  min-height: 52px;
+  flex-shrink: 0;
+  transition: var(--transition-theme);
+  z-index: 10;
+}
+
+.top-header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.top-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ── Breadcrumb ─────────────────────────────────────────────────────────── */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.breadcrumb__item {
+  color: var(--text-tertiary);
+  transition: var(--transition-interactive);
+}
+
+.breadcrumb__item:hover {
+  color: var(--text-primary);
+}
+
+.breadcrumb__item--active {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.breadcrumb__sep {
+  color: var(--text-muted);
+  margin: 0 var(--space-1);
+  user-select: none;
+}
+
+/* ── Content Panel ──────────────────────────────────────────────────────── */
+
+.content-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+/* ── Locked Banner ──────────────────────────────────────────────────────── */
+
+.lock-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--locked-banner-bg);
+  border-bottom: 1px solid var(--locked-banner-border);
+  color: var(--locked-banner-text);
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  transition: var(--transition-theme);
+}
+
+.lock-banner__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -260px;
+    transition: left 0.25s ease;
+  }
+
+  .sidebar--open {
+    left: 0;
+  }
+
+  .top-header {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .content-panel {
+    padding: var(--space-4);
+  }
+}
+
+/* ── Scrollable content area ────────────────────────────────────────────── */
+
+.content-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content-panel::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}

@@ -1,0 +1,25 @@
+# MyKnowledge
+
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# IDE / editor
+.codebuddy/
+.workbuddy/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / local KB
+.myknowledge_test/
+
+# Build artifacts
+frontend/index.standalone.html
