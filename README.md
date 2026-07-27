@@ -1,22 +1,104 @@
-<h1 align="center">MyKnowledge</h1>
+# MyKnowledge
 
-<p align="center">
-  <strong>Local-first 知识管理平台</strong>
-  <br/>
-  Markdown 为真相源 · Git 为版本底座 · MCP 为 AI 接口
-  <br/>
-  <sub>让任意 AI agent 客户端存取你的知识，越用越厚</sub>
-</p>
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.10-blue)](https://www.python.org/)
+[![MCP](https://img.shields.io/badge/MCP-ready-green)](https://modelcontextprotocol.io/)
+[![PyPI](https://img.shields.io/pypi/v/myknowledge)](https://pypi.org/project/myknowledge/)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"/>
-  <img src="https://img.shields.io/badge/python-≥3.10-blue" alt="Python"/>
-  <img src="https://img.shields.io/badge/MCP-ready-green" alt="MCP"/>
-</p>
+Local-first knowledge management platform. Markdown as source of truth, Git for versioning, MCP for AI agent integration.
+
+Allows any MCP-compatible AI agent client to read and write your knowledge base — the more you use it, the richer it becomes.
 
 ---
 
-## 📦 安装
+## Features
+
+- **Plain text storage** — Markdown files with YAML frontmatter, no lock-in
+- **Git versioning** — Every write is automatically committed, fully traceable
+- **MCP native** — 18 tools for AI agents: navigate, read, write, rename, archive, share
+- **Local first** — All data stays on your machine, optional cloud sync
+- **Auto archive** — Completed / cancelled / abandoned projects move to `archive/` automatically
+- **Web UI** — Alpine.js SPA with TipTap editor (in development)
+- **Encrypted sharing** — `.mkpkg` packages with field-level encryption
+
+## Quick Start
+
+```bash
+# Install
+pip install myknowledge
+
+# Initialize
+myknowledge init                      # creates ~/.myknowledge/
+myknowledge login your@email.com name # required for write operations
+
+# Start web UI
+myknowledge serve                     # → http://127.0.0.1:8080
+```
+
+## Usage
+
+### AI Agent (MCP)
+
+Configure in your MCP-compatible agent client (CodeBuddy, WorkBuddy, etc.):
+
+```json
+{
+  "mcpServers": {
+    "myknowledge": {
+      "type": "stdio",
+      "command": "myknowledge",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+The agent acquires a lock, reads the knowledge base, writes changes, and releases the lock. The system automatically rebuilds indices, commits to git, and broadcasts updates via SSE.
+
+### Web UI
+
+```bash
+myknowledge serve --port 8080
+# Open http://127.0.0.1:8080
+```
+
+## Project Structure
+
+```
+myknowledge/
+├── backend/
+│   ├── cli.py               # CLI entry: init / mcp / serve / login
+│   ├── mcp_server.py        # 18 MCP tools
+│   ├── main.py              # FastAPI REST API
+│   ├── storage.py           # Markdown I/O
+│   ├── readme_generator.py  # Readme index generation
+│   ├── git_manager.py       # Git operations
+│   ├── events.py            # SSE real-time updates
+│   ├── share.py             # .mkpkg encrypted sharing
+│   └── config.py            # Identity + environment
+├── frontend/                # Alpine.js SPA (WIP)
+├── docs/                    # Design documents
+└── tests/
+```
+
+## Knowledge Base Layout
+
+```
+~/.myknowledge/
+├── readme.md                # Route index
+├── common-knowledge/        # Documents (.md)
+├── projects/                # Projects (recursive)
+│   └── ProjectA/
+│       ├── readme.md
+│       ├── common-knowledge/
+│       ├── projects/        # Sub-projects
+│       └── archive/         # Archived sub-projects
+├── archive/                 # Archived projects
+├── project-status.md        # Project status overview
+└── _templates/              # Readme templates
+```
+
+## Development
 
 ```bash
 git clone https://github.com/CoderMoray/MyKnowledgePlatform
@@ -24,125 +106,23 @@ cd MyKnowledgePlatform
 pip install -e .
 ```
 
-## 🚀 快速开始
-
-```bash
-# 1. 初始化知识库
-myknowledge init                     # → ~/.myknowledge/
-myknowledge login your@email.com 昵称 # 设置身份（写操作必需）
-
-# 2. 启动 Web UI
-myknowledge serve                    # → http://127.0.0.1:8080
-
-# 3. 配置 AI Agent MCP
-# 在 CodeBuddy / WorkBuddy 等 agent client 的 MCP 配置中添加：
-# command: myknowledge mcp
-```
-
-## 🧠 使用方式
-
-### 方式 A：AI Agent（核心）
-
-通过 MCP 协议让 AI 直接管理知识库。支持 18 个工具：
-
-| 分组 | 用途 | 工具数 |
-|------|------|:-----:|
-| `nav__` | 导航和阅读 | 4 |
-| `write__` | 创建、更新、删除、改名 | 6 |
-| `maint__` | 加锁、读 diff、重建索引、验证 | 6 |
-| `share__` | 导出/导入分享包 | 2 |
-
-```text
-AI 工作流：acquire_lock → read → write → release_lock
-```
-
-### 方式 B：Web UI（开发中）
-
-FastAPI + Alpine.js SPA，浏览器中浏览和编辑知识。
-
-```bash
-myknowledge serve --port 8080
-# → http://127.0.0.1:8080
-```
-
-## 📁 项目结构
-
-```
-MyKnowledge/
-├── backend/                 # Python 后端
-│   ├── cli.py              # CLI 入口（init / mcp / serve / login）
-│   ├── mcp_server.py       # 18 个 MCP 工具
-│   ├── main.py             # FastAPI REST API
-│   ├── storage.py          # Markdown 文件读写
-│   ├── readme_generator.py # Readme 索引生成
-│   ├── git_manager.py      # Git 版本控制
-│   ├── events.py           # SSE 实时更新
-│   ├── share.py            # 分享包（.mkpkg）加密/导入导出
-│   ├── config.py           # 身份管理 + 环境变量
-│   └── templates/          # Readme 模板
-├── frontend/               # Web UI（Alpine.js SPA）
-│   ├── index.html          # 主页面
-│   ├── css/                # 样式（Raycast 设计系统）
-│   └── js/                 # JavaScript
-├── docs/                   # 设计文档
-├── tests/                  # 测试
-└── pyproject.toml          # 包配置
-```
-
-## 🏗️ 知识库结构
-
-```
-~/.myknowledge/              ← 知识库根
-├── readme.md                ← 路由索引
-├── common-knowledge/        ← 知识文档（.md）
-├── projects/                ← 项目（递归）
-│   ├── 项目A/              ← 每个项目一层
-│   │   ├── readme.md
-│   │   ├── common-knowledge/
-│   │   ├── projects/        ← 子项目
-│   │   └── archive/         ← 已归档子项
-│   └── ...
-├── archive/                 ← 已归档项目
-├── project-status.md        ← 所有项目状态一览
-└── _templates/              ← 模板文件
-```
-
-## 🧩 核心特性
-
-| 特性 | 说明 |
-|------|------|
-| **纯文本存储** | Markdown + YAML frontmatter，无锁定 |
-| **Git 版本控制** | 每次 AI 写入自动 commit，全程可追溯 |
-| **MCP 原生支持** | 18 个工具，AI agent 开箱即用 |
-| **本地优先** | 数据全在你本地，可选 OSS 云同步 |
-| **路径安全** | 白名单校验，防止 AI 误写系统目录 |
-| **自动归档** | 项目状态变更自动移入 archive/ |
-| **Web UI** | Alpine.js SPA + TipTap 编辑器 |
-| **加密分享** | .mkpkg 格式，字段池加密 |
-| **无 LLM 依赖** | 不内置模型，推理在 agent client |
-
-## 📖 文档
-
-- [`docs/DESIGN.md`](docs/DESIGN.md) — 完整设计文档
-- [`docs/product-flow/workflow.md`](docs/product-flow/workflow.md) — 产品工作流（Mermaid 流程图）
-- [`docs/FRONTEND.md`](docs/FRONTEND.md) — 前端开发参考
-- [`backend/`](backend/) — 后端源码，各文件独立文档
-
-## 🧪 测试
+Run tests:
 
 ```bash
 pytest tests/ -v
 ```
 
-## 🙏 致谢
+## Versioning
 
-**设计者 & 创建者**：[Moray Liang](https://github.com/CoderMoray)
+- **System version**: defined in `backend/__version__.py` (currently 0.5.0)
+- **KB version**: git commit hash from `agent-commit.txt` checkpoint
 
-MyKnowledge 的设计与初始实现由 Moray Liang 完成。后续所有贡献者将
-在 [`NOTICE`](NOTICE) 文件中记录署名。
+## License
 
-## 📄 许可
+[Apache License 2.0](LICENSE) — Copyright 2026 Moray Liang
 
-[Apache License 2.0](LICENSE) — © 2026 Moray Liang
+## Acknowledgments
 
-允许自由使用、修改、分发，但必须保留原始版权声明和许可文本。
+**Designer & Creator**: [Moray Liang](https://github.com/CoderMoray)
+
+Contributors are recorded in [`NOTICE`](NOTICE).
