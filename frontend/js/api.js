@@ -7,7 +7,9 @@
 const API_BASE = window.__MYK_API_BASE__ ||
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://127.0.0.1:8080'
-    : window.location.origin);
+    : window.location.protocol === 'file:'
+      ? 'http://127.0.0.1:8080'
+      : window.location.origin);
 
 /**
  * 通用 API 请求封装

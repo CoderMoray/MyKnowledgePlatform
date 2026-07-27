@@ -1,31 +1,31 @@
 /* ==========================================================================
-   MyKnowledge — TipTap 编辑器 + 工具栏样式
-   设计系统: Raycast · v1.0
+   MyKnowledge — TipTap 编辑器 + 工具栏
+   设计系统: Raycast · v2.0
    ========================================================================== */
 
-/* ── 编辑器整体容器 ─────────────────────────────────────────────────────── */
+/* ── 编辑器外壳 ─────────────────────────────────────────────────────────── */
 
 .editor-shell {
-  max-width: 820px;
+  max-width: 780px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
-/* ── 编辑元信息区 ───────────────────────────────────────────────────────── */
+/* ── 元信息区 ───────────────────────────────────────────────────────────── */
 
 .editor-meta {
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 0.5px solid var(--border-subtle);
+  margin-bottom: var(--space-3);
 }
 
 .editor-meta__row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .editor-meta__row:last-child {
@@ -36,7 +36,7 @@
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-tertiary);
-  width: 60px;
+  width: 48px;
   flex-shrink: 0;
 }
 
@@ -46,7 +46,7 @@
 
 .editor-meta__input {
   width: 100%;
-  padding: var(--input-padding-y) var(--input-padding-x);
+  padding: 4px var(--space-2);
   border: var(--input-border);
   border-radius: var(--input-radius);
   background: var(--input-bg);
@@ -61,7 +61,6 @@
   box-shadow: var(--input-focus-ring);
 }
 
-/* 只读 badge 字段 */
 .editor-meta__badges {
   display: flex;
   flex-wrap: wrap;
@@ -71,12 +70,12 @@
 .editor-meta__badge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--tag-padding-y) var(--tag-padding-x);
-  border-radius: var(--tag-radius);
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
   background: var(--tag-bg);
   color: var(--tag-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 
 .editor-meta__badge-label {
@@ -89,11 +88,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2);
+  gap: 2px;
+  padding: 4px;
   margin-bottom: var(--space-3);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
   border-radius: var(--radius-md);
   position: sticky;
   top: 0;
@@ -103,28 +102,27 @@
 .editor-toolbar__group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .editor-toolbar__divider {
   width: 1px;
-  height: 20px;
+  height: 18px;
   background: var(--border-default);
-  margin: 0 var(--space-1);
+  margin: 0 3px;
 }
 
 .editor-toolbar__btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: var(--text-base);
   cursor: pointer;
   transition: var(--transition-interactive);
-  position: relative;
 }
 
 .editor-toolbar__btn:hover {
@@ -147,12 +145,11 @@
 .editor-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-4) 0;
+  padding: var(--space-3) 0;
 }
 
-/* TipTap 编辑器核心样式 */
 .ProseMirror {
-  min-height: 400px;
+  min-height: 360px;
   outline: none;
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
@@ -164,7 +161,7 @@
 }
 
 .ProseMirror h1 {
-  font-size: var(--text-3xl);
+  font-size: var(--text-4xl);
   font-weight: 700;
   line-height: var(--leading-tight);
   letter-spacing: -0.02em;
@@ -173,7 +170,7 @@
 }
 
 .ProseMirror h2 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-3xl);
   font-weight: 600;
   line-height: var(--leading-tight);
   margin-top: var(--space-6);
@@ -198,13 +195,8 @@
   padding-left: var(--space-6);
 }
 
-.ProseMirror ul {
-  list-style-type: disc;
-}
-
-.ProseMirror ol {
-  list-style-type: decimal;
-}
+.ProseMirror ul { list-style-type: disc; }
+.ProseMirror ol { list-style-type: decimal; }
 
 .ProseMirror li {
   margin-bottom: var(--space-1);
@@ -231,7 +223,7 @@
   overflow-x: auto;
   font-size: var(--text-sm);
   line-height: 1.6;
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
 }
 
 .ProseMirror code {
@@ -281,18 +273,17 @@
   height: 0;
 }
 
-/* 选中样式 */
+/* Selection */
 .ProseMirror ::selection {
   background: rgba(99, 102, 241, 0.18);
 }
 
-/* ── 编辑模式下的 ref 标记 ──────────────────────────────────────────────── */
-
+/* Ref marker */
 .ref-marker {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
+  padding: 0 3px;
+  border-radius: 3px;
   background: var(--accent-subtle);
   color: var(--accent);
   font-size: 0.9em;
@@ -301,19 +292,19 @@
 }
 
 .ref-marker::before {
-  content: "⟐ ";
+  content: "\27D0 ";
   font-size: 0.8em;
 }
 
-/* ── 编辑器底部操作栏 ──────────────────────────────────────────────────── */
+/* ── 底部操作栏 ─────────────────────────────────────────────────────────── */
 
 .editor-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--border-subtle);
-  margin-top: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 0.5px solid var(--border-subtle);
+  margin-top: var(--space-3);
 }
 
 .editor-actions__left {
@@ -329,21 +320,6 @@
 }
 
 .editor-actions__status {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--text-muted);
-}
-
-/* ── 删除确认弹窗 ──────────────────────────────────────────────────────── */
-
-.editor-danger-zone {
-  padding: var(--space-3);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
-  margin-top: var(--space-4);
-}
-
-.editor-danger-zone__text {
-  font-size: var(--text-sm);
-  color: var(--color-danger);
-  margin-bottom: var(--space-2);
 }

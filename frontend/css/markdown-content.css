@@ -1,9 +1,7 @@
 /* ==========================================================================
-   MyKnowledge — Markdown 渲染内容样式（对标 GitHub）
-   设计系统: Raycast · v1.0
+   MyKnowledge — Markdown 渲染内容样式（GitHub-alike）
+   设计系统: Raycast · v2.0
    ========================================================================== */
-
-/* ── 容器 ───────────────────────────────────────────────────────────────── */
 
 .markdown-body {
   font-size: var(--text-md);
@@ -21,17 +19,17 @@
   letter-spacing: -0.02em;
   margin: var(--space-7) 0 var(--space-3);
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 0.5px solid var(--border-subtle);
 }
 
 .markdown-body h2 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-3xl);
   font-weight: 600;
   line-height: var(--leading-tight);
   letter-spacing: -0.015em;
   margin: var(--space-6) 0 var(--space-2);
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 0.5px solid var(--border-subtle);
 }
 
 .markdown-body h3 {
@@ -93,37 +91,18 @@
   margin: 0 0 var(--space-4);
 }
 
-.markdown-body ul {
-  list-style-type: disc;
-}
-
-.markdown-body ul ul {
-  list-style-type: circle;
-}
-
-.markdown-body ul ul ul {
-  list-style-type: square;
-}
-
-.markdown-body ol {
-  list-style-type: decimal;
-}
-
-.markdown-body ol ol {
-  list-style-type: lower-alpha;
-}
+.markdown-body ul { list-style-type: disc; }
+.markdown-body ul ul { list-style-type: circle; }
+.markdown-body ul ul ul { list-style-type: square; }
+.markdown-body ol { list-style-type: decimal; }
+.markdown-body ol ol { list-style-type: lower-alpha; }
 
 .markdown-body li {
   margin-bottom: var(--space-1);
 }
 
-.markdown-body li > p {
-  margin: 0;
-}
-
-.markdown-body li + li {
-  margin-top: var(--space-1);
-}
+.markdown-body li > p { margin: 0; }
+.markdown-body li + li { margin-top: var(--space-1); }
 
 /* ── 引用 ───────────────────────────────────────────────────────────────── */
 
@@ -138,7 +117,7 @@
   margin-bottom: 0;
 }
 
-/* ── 代码（内联）────────────────────────────────────────────────────────── */
+/* ── 行内代码 ───────────────────────────────────────────────────────────── */
 
 .markdown-body code {
   font-family: var(--font-mono);
@@ -147,7 +126,7 @@
   border-radius: 3px;
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
 }
 
 .markdown-body a code {
@@ -160,7 +139,7 @@
   margin: 0 0 var(--space-4);
   border-radius: var(--radius-md);
   overflow-x: auto;
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
 }
 
 .markdown-body pre code {
@@ -174,7 +153,6 @@
   overflow-x: auto;
 }
 
-/* highlight.js 兼容 */
 .markdown-body pre code.hljs {
   padding: var(--space-4);
   background: var(--bg-tertiary);
@@ -194,14 +172,14 @@
   font-weight: 600;
   text-align: left;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-default);
+  border: 0.5px solid var(--border-default);
   background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
 .markdown-body td {
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 
@@ -209,7 +187,7 @@
   background: var(--bg-secondary);
 }
 
-/* ── 水平线 ─────────────────────────────────────────────────────────────── */
+/* ── 水平线 / 图片 / 任务列表 / 键盘 / 其它 ──────────────────────────── */
 
 .markdown-body hr {
   border: none;
@@ -217,16 +195,12 @@
   margin: var(--space-6) 0;
 }
 
-/* ── 图片 ───────────────────────────────────────────────────────────────── */
-
 .markdown-body img {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-md);
   margin: var(--space-3) 0;
 }
-
-/* ── 任务列表 ───────────────────────────────────────────────────────────── */
 
 .markdown-body .task-list-item {
   list-style-type: none;
@@ -237,16 +211,6 @@
   accent-color: var(--accent);
 }
 
-/* ── 脚注 ───────────────────────────────────────────────────────────────── */
-
-.markdown-body .footnote-ref {
-  font-size: 0.85em;
-  color: var(--accent);
-  text-decoration: none;
-}
-
-/* ── 键盘标签 ───────────────────────────────────────────────────────────── */
-
 .markdown-body kbd {
   display: inline-block;
   padding: 2px 5px;
@@ -255,17 +219,15 @@
   line-height: 1.4;
   color: var(--text-secondary);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
+  border: 0.5px solid var(--border-default);
   border-radius: 3px;
   box-shadow: 0 1px 0 var(--border-default);
 }
 
-/* ── 详情/展开 ──────────────────────────────────────────────────────────── */
-
 .markdown-body details {
   margin: 0 0 var(--space-4);
   padding: var(--space-3);
-  border: 1px solid var(--border-subtle);
+  border: 0.5px solid var(--border-subtle);
   border-radius: var(--radius-md);
 }
 
@@ -275,8 +237,6 @@
   color: var(--text-primary);
 }
 
-/* ── 高亮文本 ───────────────────────────────────────────────────────────── */
-
 .markdown-body mark {
   background: rgba(245, 158, 11, 0.15);
   color: var(--text-primary);
@@ -284,13 +244,9 @@
   border-radius: 2px;
 }
 
-/* ── 删除线 ─────────────────────────────────────────────────────────────── */
-
 .markdown-body del {
   color: var(--text-muted);
 }
-
-/* ── 上标/下标 ──────────────────────────────────────────────────────────── */
 
 .markdown-body sup,
 .markdown-body sub {

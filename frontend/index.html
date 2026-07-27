@@ -1,8 +1,40 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="system">
+<html lang="zh-CN" data-theme="system" style="background:#fafafa">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="color-scheme" content="light dark" />
+  <!-- 防白屏 + 防主题闪：CSS 加载前同步设好主题 -->
+  <script>
+    (function(){
+      var theme = localStorage.getItem("myknowledge-theme") || "system";
+      var design = localStorage.getItem("myknowledge-design") || "raycast";
+      var effective;
+      if (design !== "raycast") {
+        effective = design;
+      } else if (theme === "system") {
+        effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } else {
+        effective = theme;
+      }
+      document.documentElement.setAttribute("data-theme", effective);
+      document.documentElement.style.colorScheme = effective;
+      if (effective === "dark") document.documentElement.style.background = "#1c1c1e";
+      // 告知浏览器只用一种配色，防系统暗色闪黑
+      document.querySelector('meta[name="color-scheme"]').content = effective === "dark" ? "dark" : "only light";
+    })();
+  </script>
+  <!-- 关键背景：CSS 加载前的防闪色 -->
+  <style>
+    html{background:#fafafa}
+    html[data-theme="dark"]{background:#1c1c1e}
+    .splash{background:#fafafa}
+    [data-theme="dark"] .splash{background:#1c1c1e}
+  </style>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236366f1'/><text x='16' y='23' text-anchor='middle' font-size='20' font-weight='700' fill='white'>M</text></svg>">
   <title>MyKnowledge</title>
 
   <!-- Critical: x-cloak must load before any other CSS to prevent FOUC -->
@@ -24,24 +56,12 @@
         id="hljs-theme" />
 
   <!-- ═══ JS CDN ═════════════════════════════════════════════════════════ -->
-  <!-- Alpine.js -->
-  <script defer
-          src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js">
-  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/turndown@7.1.3/dist/turndown.js"></script>
 
-  <!-- marked -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js">
-  </script>
-
-  <!-- highlight.js -->
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js">
-  </script>
-
-  <!-- turndown -->
-  <script src="https://cdn.jsdelivr.net/npm/turndown@7.1.3/dist/turndown.js">
-  </script>
-
-  <!-- TipTap (ESM CDN via import map) -->
+  <!-- TipTap ESM CDN -->
   <script type="importmap">
   {
     "imports": {
@@ -56,6 +76,7 @@
   <script src="js/api.js"></script>
   <script src="js/converter.js"></script>
   <script src="js/renderer.js"></script>
+  <script src="js/splash.js"></script>
   <script src="js/store.js"></script>
   <script src="js/router.js"></script>
   <script src="js/app.js"></script>
@@ -69,19 +90,57 @@
   "
   @click.outside="$store.app.hidePopover()">
 
+  <!-- 加载屏 -->
+  <div class="splash" x-show="$store.app.loading"
+       x-transition:leave="splash-out"
+       x-transition:leave-start="splash-out-start"
+       x-transition:leave-end="splash-out-end">
+    <div class="splash__logo">M</div>
+    <div class="splash__title">MyKnowledge</div>
+    <div class="splash__bar">
+      <div class="splash__bar-fill" id="splashBar" style="width:0%">
+        <span class="splash__bar-text">加载成功</span>
+      </div>
+    </div>
+  </div>
+
   <!-- ════════════════════════════════════════════════════════════════════
        App Shell
        ════════════════════════════════════════════════════════════════════ -->
 
   <div class="app-shell">
 
-    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <!-- ── Sidebar (168px) ─────────────────────────────────────────────── -->
     <aside class="sidebar" x-data="sidebarComponent"
-           :class="{ 'sidebar--open': sidebarOpen }">
+           :class="{
+             'sidebar--collapsed': collapsed && !hovering,
+             'sidebar--hovering': hovering && !pinned
+           }"
+           :style="(collapsed && !hovering) ? '' : ('--sidebar-hover-width:' + sidebarWidth + 'px')"
+           @mousedown.self="startResize($event)"
+           @mouseenter="onHoverEnter()"
+           @mouseleave="onHoverLeave()">
+
       <!-- Brand -->
       <div class="sidebar-brand">
-        <div class="sidebar-brand__icon">M</div>
+        <button class="sidebar-toggle" @click="smoothPin()"
+                title="固定/收起侧边栏">
+          <!-- 固定态：panel-left-close -->
+          <svg x-show="$store.app.sidebarOpen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/>
+            <path d="M9 3v18"/>
+            <path d="m16 15-3-3 3-3"/>
+          </svg>
+          <!-- 收起/悬浮态：panel-left-open -->
+          <svg x-show="!$store.app.sidebarOpen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/>
+            <path d="M9 3v18"/>
+            <path d="m14 9 3 3-3 3"/>
+          </svg>
+        </button>
+        <div class="sidebar-brand__logo">M</div>
         <span class="sidebar-brand__name">MyKnowledge</span>
+        <span class="sidebar-brand__version" x-text="'v' + ($store.app.systemVersion || '0')"></span>
       </div>
 
       <!-- 新建按钮 -->
@@ -93,7 +152,7 @@
             <line x1="8" y1="2" x2="8" y2="14"/>
             <line x1="2" y1="8" x2="14" y2="8"/>
           </svg>
-          新建文档
+          新建
         </button>
       </div>
 
@@ -115,69 +174,70 @@
           </div>
         </div>
 
-    <!-- 项目分组 -->
-    <template x-for="project in $store.app.projects" :key="project.name">
-          <div class="sidebar-section"
-               :class="{ 'sidebar-section--collapsed': isCollapsed(project.path) }">
-            <div class="sidebar-section__title" @click="toggleSection(project.path); goToProject(project.path)">
-              <svg class="sidebar-item__icon-sm" viewBox="0 0 16 16" fill="none"
+        <!-- 项目列表 -->
+        <div class="sidebar-section">
+          <span class="sidebar-section__label">项目</span>
+          <template x-for="project in $store.app.projects" :key="project.name">
+            <div class="sidebar-item"
+                 :class="{
+                   'sidebar-item--active':
+                     $store.app.currentPath === project.path &&
+                     $store.app.currentView === 'project'
+                 }"
+                 @click="goToProject(project.path)">
+              <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
                    stroke="currentColor" stroke-width="1.5">
                 <path d="M2 3.5h4l1.5 2h5.5v7H2V3.5z"/>
               </svg>
-              <span x-text="project.name" class="sidebar-item__name"></span>
-              <span class="sidebar-section__toggle">
-                <svg viewBox="0 0 16 16" fill="currentColor" class="sidebar-section__toggle-icon">
-                  <path d="M5 6l3 3 3-3" stroke="currentColor" stroke-width="1.5"
-                        fill="none" stroke-linecap="round"/>
+              <span class="sidebar-item__name" x-text="project.name"></span>
+            </div>
+          </template>
+
+          <!-- 空状态 -->
+          <div class="sidebar-empty" x-show="$store.app.projects.length === 0 && !$store.app.loading">
+            暂无项目
+          </div>
+        </div>
+
+        <!-- 分类（非项目文件夹） -->
+        <template x-if="$store.app.categories && $store.app.categories.length > 0">
+          <div class="sidebar-section">
+            <span class="sidebar-section__label">分类</span>
+            <template x-for="cat in $store.app.categories" :key="cat.name">
+              <div class="sidebar-item sidebar-item--category"
+                   :class="{
+                     'sidebar-item--active':
+                       $store.app.currentPath === cat.path &&
+                       $store.app.currentView === 'project'
+                   }"
+                   @click="goToProject(cat.path)">
+                <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
+                     stroke="currentColor" stroke-width="1.5">
+                  <path d="M2 3.5h4l1.5 2h5.5v7H2V3.5z"/>
                 </svg>
-              </span>
-            </div>
-
-            <div class="sidebar-section__items">
-              <template x-for="doc in (project.children || [])" :key="doc.path">
-                <div class="sidebar-item"
-                     :class="{
-                       'sidebar-item--active':
-                         $store.app.currentPath === doc.path &&
-                         ($store.app.currentView === 'view' || $store.app.currentView === 'edit')
-                     }"
-                     @click="goToDocument(doc.path)">
-                  <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
-                       stroke="currentColor" stroke-width="1.5">
-                    <path d="M3 2h7l3 3v9H3V2z"/>
-                    <line x1="5" y1="6" x2="11" y2="6"/>
-                    <line x1="5" y1="9" x2="11" y2="9"/>
-                  </svg>
-                  <span class="sidebar-item__name" x-text="fileName(doc.name || doc.path)"></span>
-                </div>
-              </template>
-
-              <!-- 空项目提示 -->
-              <div class="sidebar-empty"
-                   x-show="!project.children || project.children.length === 0">
-                暂无文档
+                <span class="sidebar-item__name" x-text="cat.name"></span>
               </div>
-            </div>
+            </template>
           </div>
         </template>
-
-        <!-- 空状态 -->
-        <div class="sidebar-empty" x-show="$store.app.projects.length === 0 && !$store.app.loading">
-          尚无项目，创建第一个文档吧
-        </div>
       </nav>
 
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">
-        <div class="sidebar-footer__status">
+        <span class="sidebar-footer__version"
+              x-text="$store.app.kbVersion ? '知识库版本 ' + $store.app.kbVersion : '知识库版本 —'"></span>
+        <a href="#status" class="sidebar-footer__status">
           <span class="status-dot"
-                :class="$store.app.isLocked ? 'status-dot--warning' : 'status-dot--online'">
+                :class="$store.app.systemStatus.dotClass"
+                style="width:6px;height:6px;flex-shrink:0;">
           </span>
-          <span x-text="$store.app.isLocked ? '只读中' : '就绪'"></span>
-        </div>
-        <span class="sidebar-footer__version">v1.0</span>
+          <span x-text="$store.app.systemStatus.label"></span>
+        </a>
       </div>
     </aside>
+
+    <!-- 收起态左侧边缘触发器 -->
+    <div class="sidebar-edge" id="sidebarEdge"></div>
 
     <!-- ── Main Content Area ───────────────────────────────────────────── -->
     <div class="main-area">
@@ -208,18 +268,9 @@
         无法连接到后端服务。请确认已启动：<code>uvicorn backend.main:app --port 8080</code>
       </div>
 
-      <!-- Top Header -->
+      <!-- ═══ Top Header (Glass) ══════════════════════════════════════════ -->
       <header class="top-header">
         <div class="top-header__left">
-          <!-- Hamburger (mobile) -->
-          <button class="sidebar-toggle" @click="$store.app.toggleSidebar()"
-                  title="菜单">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <line x1="2" y1="4" x2="14" y2="4"/>
-              <line x1="2" y1="8" x2="14" y2="8"/>
-              <line x1="2" y1="12" x2="14" y2="12"/>
-            </svg>
-          </button>
 
           <!-- Breadcrumb -->
           <nav class="breadcrumb">
@@ -283,20 +334,29 @@
         </div>
 
         <div class="top-header__right">
-          <!-- 系统状态入口 -->
-          <a href="#status" class="btn btn--ghost btn--xs">
-            <span class="status-dot status-dot-sm"
-                  :class="$store.app.isLocked ? 'status-dot--warning' : 'status-dot--online'">
-            </span>
-            状态
-          </a>
+          <!-- 状态指示器 -->
+          <div class="status-indicator">
+            <span class="status-dot__dot"
+                  :class="$store.app.isLocked ? 'status-indicator__dot--warning' : ''"></span>
+            <span x-text="$store.app.isLocked ? '只读' : '可编辑'"></span>
+          </div>
 
-          <!-- 主题切换（仅 Raycast 支持亮暗切换） -->
+          <!-- 新建按钮 -->
+          <button class="btn-new" @click="$store.app.openModal('new-doc', { parentPath: $store.app.currentPath || '' })"
+                  :disabled="$store.app.isLocked">
+            <svg class="btn-new__icon" viewBox="0 0 16 16" fill="none"
+                 stroke="currentColor" stroke-width="1.5">
+              <line x1="8" y1="2" x2="8" y2="14"/>
+              <line x1="2" y1="8" x2="14" y2="8"/>
+            </svg>
+            新建
+          </button>
+
+          <!-- 主题切换（仅 Raycast 显示） -->
           <div class="theme-switcher" x-show="$store.app.showColorMode">
             <button class="theme-switcher__btn"
                     :class="{ 'theme-switcher__btn--active': $store.app.theme === 'light' }"
-                    @click="$store.app.switchTheme('light')"
-                    title="浅色模式">
+                    @click="$store.app.switchTheme('light')" title="浅色模式">
               <svg viewBox="0 0 16 16" fill="currentColor">
                 <circle cx="8" cy="8" r="3"/>
                 <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"
@@ -305,16 +365,14 @@
             </button>
             <button class="theme-switcher__btn"
                     :class="{ 'theme-switcher__btn--active': $store.app.theme === 'dark' }"
-                    @click="$store.app.switchTheme('dark')"
-                    title="深色模式">
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.1 10.6A5.5 5.5 0 007.2 2.3 6 6 0 1013.1 10.6z"/>
+                    @click="$store.app.switchTheme('dark')" title="深色模式">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
               </svg>
             </button>
             <button class="theme-switcher__btn"
                     :class="{ 'theme-switcher__btn--active': $store.app.theme === 'system' }"
-                    @click="$store.app.switchTheme('system')"
-                    title="跟随系统">
+                    @click="$store.app.switchTheme('system')" title="跟随系统">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
                 <rect x="1" y="2" width="14" height="10" rx="2"/>
                 <path d="M5 15h6"/>
@@ -323,11 +381,11 @@
             </button>
           </div>
 
-          <!-- 用户身份 -->
+          <!-- 用户菜单 -->
           <div class="user-menu" x-data="{ open: false, themeOpen: false }" @click.outside="open = false">
             <button class="user-menu__trigger" @click="open = !open">
-              <span class="avatar avatar--fallback"
-                   style="width:24px;height:24px;font-size:11px;font-weight:600;"
+              <span class="avatar avatar--fallback avatar--fallback-sm"
+                   style="width:22px;height:22px;font-size:10px;"
                    x-text="$store.app.nickname ? $store.app.nickname[0].toUpperCase() : '?'"></span>
               <span class="user-menu__name" x-text="$store.app.identitySet ? $store.app.nickname : '未设置'"></span>
               <svg class="user-menu__chevron" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.2">
@@ -335,7 +393,7 @@
               </svg>
             </button>
             <div class="user-menu__dropdown" x-show="open" x-cloak>
-              <!-- 选择主题（次级菜单） -->
+              <!-- 选择主题 -->
               <div style="position:relative;">
                 <button class="user-menu__item"
                         :class="{ 'user-menu__item--active': themeOpen }"
@@ -345,12 +403,12 @@
                     <circle cx="7" cy="7" r="2.5" fill="currentColor"/>
                   </svg>
                   选择主题
-                  <svg style="margin-left:auto;width:10px;opacity:0.5;" viewBox="0 0 6 10" fill="none" stroke="currentColor" stroke-width="1.2">
+                  <svg style="margin-left:auto;width:8px;opacity:0.4;" viewBox="0 0 6 10" fill="none" stroke="currentColor" stroke-width="1.2">
                     <path d="M1 1l4 4-4 4"/>
                   </svg>
                 </button>
                 <div x-show="themeOpen" x-cloak
-                     style="position:absolute;right:calc(100% + 4px);top:0;min-width:180px;background:var(--card-bg);border:1px solid var(--border-default);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:4px;z-index:51;">
+                     style="position:absolute;right:calc(100% + 4px);top:0;min-width:170px;background:var(--card-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:0.5px solid rgba(0,0,0,0.06);border-radius:var(--radius-lg);box-shadow:0 8px 32px rgba(0,0,0,0.08);padding:4px;z-index:51;">
                   <button class="user-menu__item"
                           :class="{ 'user-menu__item--active': $store.app.designTheme === 'raycast' }"
                           @click="$store.app.switchDesignTheme('raycast'); themeOpen = false">
@@ -396,96 +454,204 @@
         </div>
       </header>
 
-      <!-- ── Content Panel (动态视图) ──────────────────────────────────── -->
+      <!-- ═══ Content Panel (动态视图) ════════════════════════════════════ -->
       <main class="content-panel" id="content-panel">
 
         <!-- ═══ Dashboard View ═══════════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'dashboard'"
              x-data="dashboardComponent" x-cloak>
-          <div class="page-header">
-            <h1 class="page-header__title">仪表盘</h1>
-            <div class="page-header__actions">
-              <button class="btn btn--primary"
-                      @click="newDocument()"
-                      :disabled="$store.app.isLocked">
-                <svg class="btn__icon" viewBox="0 0 16 16" fill="none"
-                     stroke="currentColor" stroke-width="1.5">
-                  <line x1="8" y1="2" x2="8" y2="14"/>
-                  <line x1="2" y1="8" x2="14" y2="8"/>
-                </svg>
-                新建文档
-              </button>
-            </div>
-          </div>
+
+          <div class="page-label">知识库总览</div>
+          <h1 class="page-title">仪表盘</h1>
+          <p class="page-subtitle">
+            <span x-text="$store.app.dashboardProjects.length">—</span> 个项目 ·
+            <span x-text="(($store.app.statusSummary && $store.app.statusSummary.documents) || 0)">—</span> 篇文档
+          </p>
 
           <!-- 指标卡片 -->
-          <div class="metric-cards">
+          <div class="metric-cards" x-show="$store.app.statusSummary && !$store.app.loading">
             <div class="metric-card">
               <div class="metric-card__icon">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M2 3.5h4l1.5 2h5.5v7H2V3.5z"/>
-                </svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 19a5 5 0 0 1-5-5v8"/><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5"/><circle cx="13" cy="12" r="2"/><circle cx="20" cy="19" r="2"/></svg>
               </div>
-              <div class="metric-card__label">项目数</div>
-              <div class="metric-card__value" x-text="projectCount">—</div>
+              <div class="metric-card__label">项目</div>
+              <div class="metric-card__value" x-text="projectStats.total">—</div>
+              <div class="metric-card__detail">
+                <span class="status-dot status-dot--active"></span><span x-text="projectStats.active + ' 活跃'"></span>
+                <span class="status-dot status-dot--completed"></span><span x-text="projectStats.completed + ' 完成'"></span>
+                <span class="status-dot status-dot--cancelled"></span><span x-text="projectStats.cancelled + ' 取消'"></span>
+                <span class="status-dot status-dot--abandoned"></span><span x-text="projectStats.abandoned + ' 废弃'"></span>
+              </div>
             </div>
             <div class="metric-card">
               <div class="metric-card__icon">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M3 2h7l3 3v9H3V2z"/>
-                  <line x1="5" y1="6" x2="11" y2="6"/>
-                  <line x1="5" y1="9" x2="11" y2="9"/>
-                </svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="18" x="3" y="3" rx="1"/><path d="M7 3v18"/><path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"/></svg>
               </div>
-              <div class="metric-card__label">文档数</div>
-              <div class="metric-card__value" x-text="documentCount">—</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-card__icon">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <circle cx="8" cy="8" r="6"/>
-                  <polyline points="8 4 8 8 11 10"/>
-                </svg>
+              <div class="metric-card__label">文档</div>
+              <div class="metric-card__value" x-text="($store.app.statusSummary && $store.app.statusSummary.documents) || 0">—</div>
+              <div class="metric-card__detail">
+                <span class="metric-card__kv">版本 <code x-text="$store.app.kbVersion ? $store.app.kbVersion.slice(0,7) : '—'"></code></span>
               </div>
-              <div class="metric-card__label">最近更新</div>
-              <div class="metric-card__value"
-                   x-text="$store.app.recentUpdates.length">—</div>
             </div>
           </div>
 
-          <!-- 最近更新列表 -->
-          <h2 class="section-title">最近更新</h2>
-          <div class="card">
-            <div class="recent-list">
-              <template x-for="item in $store.app.recentUpdates" :key="item.path">
-                <div class="recent-list__item"
-                     @click="goToDocument(item.path)">
-                  <div class="recent-list__item-icon">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <path d="M3 2h7l3 3v9H3V2z"/>
-                    </svg>
-                  </div>
-                  <div class="recent-list__item-info">
-                    <div class="recent-list__item-name"
-                         x-text="fileName(item.name || item.path)"></div>
-                    <div class="recent-list__item-path"
-                         x-text="item.project ? item.project + ' /' : ''"></div>
-                  </div>
-                  <div class="recent-list__item-date"
-                       x-text="formatDate(item.updated_at)"></div>
+          <!-- ── 分区 1：公共知识 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);">公共知识</h2>
+          <div class="doc-grid" x-show="$store.app.commonKnowledge.length > 0 && !$store.app.loading">
+            <template x-for="doc in $store.app.commonKnowledge" :key="doc.path">
+              <div class="doc-card" @click="goToDocument(doc.path)">
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>
                 </div>
-              </template>
+                <div class="doc-card__title" x-text="fileName(doc.name)"></div>
+                <div class="doc-card__summary" x-text="doc.summary || '暂无摘要'"></div>
+                <div class="doc-card__meta">
+                  <div class="doc-card__date">
+                    <span x-text="formatDate(doc.modified)"></span>
+                  </div>
+                  <div class="doc-card__tags">
+                    <span class="doc-card__tag" x-show="doc.author" x-text="doc.author"></span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <p class="empty-hint" x-show="$store.app.commonKnowledge.length === 0 && !$store.app.loading">暂无文档</p>
 
-              <!-- 空状态 -->
-              <div class="loading-state"
-                   x-show="$store.app.recentUpdates.length === 0 && !$store.app.loading">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                     stroke-width="1" class="empty-icon">
-                  <path d="M3 2h7l3 3v9H3V2z"/>
-                </svg>
-                <span>创建第一个文档，开始整理知识</span>
+          <!-- ── 分区 2：项目 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);">项目</h2>
+          <div class="doc-grid" x-show="$store.app.dashboardProjects.length > 0 && !$store.app.loading">
+            <template x-for="project in $store.app.dashboardProjects" :key="project.path">
+              <div class="doc-card"
+                   @click="goToProject(project.path)"
+                   @mouseenter="openPreview(project.path)"
+                   @mouseleave="closePreview()">
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                </div>
+                <div class="doc-card__title" x-text="project.name"></div>
+                <div class="doc-card__summary" x-text="project.summary || project.description || '项目知识库'"></div>
+                <div class="doc-card__meta">
+                  <div class="doc-card__date">
+                    <span x-text="project.modified ? formatDate(project.modified) : '—'"></span>
+                  </div>
+                  <div class="doc-card__tags">
+                    <span class="doc-card__tag" x-show="project.doc_count" x-text="project.doc_count + ' 篇文档'"></span>
+                  </div>
+                </div>
+
+                <div class="project-panel"
+                     :class="{ 'project-panel--open': hoverProject === project.path }">
+                  <div class="project-panel__inner">
+                  <template x-if="projectPreview.docs.length">
+                    <div>
+                      <div class="project-panel__section">知识</div>
+                      <template x-for="d in projectPreview.docs" :key="d.path">
+                        <div class="project-panel__item" @click.stop="goToDocument(d.path)">
+                          <span class="project-panel__item-name" x-text="fileName(d.name)"></span>
+                          <span class="project-panel__item-summary" x-text="d.summary || ''"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="projectPreview.subprojects.length">
+                    <div>
+                      <div class="project-panel__section">子项目</div>
+                      <template x-for="s in projectPreview.subprojects" :key="s.path">
+                        <div class="project-panel__item" @click.stop="goToProject(s.path)">
+                          <span class="project-panel__item-name" x-text="s.name"></span>
+                          <span class="project-panel__item-summary" x-text="s.summary || ''"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="projectPreview.archived.length">
+                    <div>
+                      <div class="project-panel__section">归档</div>
+                      <template x-for="a in projectPreview.archived" :key="a.path">
+                        <div class="project-panel__item" @click.stop="goToProject(a.path)">
+                          <div class="project-panel__item-row">
+                            <span class="project-panel__item-name" x-text="a.name"></span>
+                            <span class="badge"
+                                  :class="'badge--' + (a.status || 'abandoned')"
+                                  x-text="statusLabel(a.status)"></span>
+                          </div>
+                          <span class="project-panel__item-summary" x-text="a.summary || ''"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="!projectPreview.docs.length && !projectPreview.subprojects.length && !projectPreview.archived.length">
+                    <div class="project-panel__empty">暂无内容</div>
+                  </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <p class="empty-hint" x-show="$store.app.dashboardProjects.length === 0 && !$store.app.loading">暂无项目</p>
+
+          <!-- ── 分区 3：已归档 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);" x-show="$store.app.archived.length > 0">已归档</h2>
+          <div class="doc-grid" x-show="$store.app.archived.length > 0 && !$store.app.loading">
+            <template x-for="project in $store.app.archived" :key="project.path">
+              <div class="doc-card" @click="goToProject(project.path)">
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
+                </div>
+                <div class="doc-card__title">
+                  <span x-text="project.name"></span>
+                  <span class="badge"
+                        :class="'badge--' + (project.status || 'abandoned')"
+                        x-text="statusLabel(project.status)"
+                        style="margin-left:8px;"></span>
+                </div>
+                <div class="doc-card__summary" x-text="project.summary || '已归档项目'"></div>
+                <div class="doc-card__meta">
+                  <div class="doc-card__date">
+                    <span x-text="project.modified ? formatDate(project.modified) : '—'"></span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- ── 最近更新 ── -->
+          <template x-if="$store.app.recentUpdates.length > 0">
+            <div>
+              <h2 class="section-title" style="margin-top:var(--space-6);">最近更新</h2>
+              <div class="card">
+                <div class="recent-list">
+                  <template x-for="item in $store.app.recentUpdates" :key="item.path">
+                    <div class="recent-list__item" @click="goToDocument(item.path)">
+                      <div class="recent-list__item-icon">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <path d="M3 2h7l3 3v9H3V2z"/>
+                        </svg>
+                      </div>
+                      <div class="recent-list__item-info">
+                        <div class="recent-list__item-name" x-text="fileName(item.name || item.path)"></div>
+                        <div class="recent-list__item-path" x-text="item.summary || ''"></div>
+                      </div>
+                      <div class="recent-list__item-date" x-text="formatDate(item.updated_at)"></div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
+          </template>
+
+          <!-- 空状态 -->
+          <div class="empty-state"
+               x-show="$store.app.commonKnowledge.length === 0 && $store.app.dashboardProjects.length === 0 && $store.app.archived.length === 0 && !$store.app.loading">
+            <svg class="empty-state__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M3 2h7l3 3v9H3V2z"/>
+            </svg>
+            <div class="empty-state__title">创建第一个项目</div>
+            <div class="empty-state__description">开始整理你的知识库</div>
+            <button class="btn btn--primary" @click="newDocument()" :disabled="$store.app.isLocked">
+              新建文档
+            </button>
           </div>
 
           <!-- 加载中 -->
@@ -498,76 +664,106 @@
         <!-- ═══ Project View ═════════════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'project'"
              x-data="projectComponent" x-cloak>
-          <div class="page-header">
-            <h1 class="page-header__title" x-text="$store.app.currentPath"></h1>
-            <div class="page-header__actions">
-              <button class="btn btn--ghost btn--sm"
-                      @click="renameProject()"
-                      :disabled="$store.app.isLocked">
-                重命名
-              </button>
-              <button class="btn btn--primary"
-                      @click="newDocument()"
-                      :disabled="$store.app.isLocked">
-                <svg class="btn__icon" viewBox="0 0 16 16" fill="none"
-                     stroke="currentColor" stroke-width="1.5">
-                  <line x1="8" y1="2" x2="8" y2="14"/>
-                  <line x1="2" y1="8" x2="14" y2="8"/>
-                </svg>
-                新建文档
-              </button>
-            </div>
-          </div>
 
-          <!-- 文档卡片网格 -->
-          <div class="doc-grid">
-            <template x-for="doc in $store.app.documents.filter(d => d.type === 'document')"
-                      :key="doc.path">
+          <div class="page-label">
+            <button class="page-label__back" x-show="parentPath" @click="goToProject(parentPath)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="11 7 5 12 11 17"/></svg>
+            </button>
+            <template x-for="(crumb, i) in parentBreadcrumbs" :key="crumb.path">
+              <span>
+                <a href="#" @click.prevent="goToProject(crumb.path)" x-text="crumb.label"></a>
+                <span x-show="i < parentBreadcrumbs.length - 1"> / </span>
+              </span>
+            </template>
+            <span x-show="!parentBreadcrumbs.length">项目</span>
+          </div>
+          <h1 class="page-title" x-text="projectDisplayName"></h1>
+          <p class="page-subtitle" x-text="projectDescription"></p>
+
+          <!-- ── 分区 1：知识 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);">知识</h2>
+          <div class="doc-grid" x-show="$store.app.projectDocs.length > 0 && !$store.app.loading">
+            <template x-for="doc in $store.app.projectDocs" :key="doc.path">
               <div class="doc-card" @click="goToDocument(doc.path)">
-                <div class="doc-card__title"
-                     x-text="fileName(doc.name || doc.path)"></div>
-                <div class="doc-card__summary"
-                     x-text="doc.summary || '暂无摘要'"></div>
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>
+                </div>
+                <div class="doc-card__title" x-text="fileName(doc.name || doc.path)"></div>
+                <div class="doc-card__summary" x-text="doc.summary || ''"></div>
                 <div class="doc-card__meta">
                   <div class="doc-card__date">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                         stroke-width="1.3" class="icon-xs">
-                      <circle cx="8" cy="8" r="6"/>
-                      <polyline points="8 4 8 8 11 10"/>
-                    </svg>
-                    <span x-text="formatDate(doc.updated_at)"></span>
+                    <span x-text="doc.modified ? formatDate(doc.modified) : '—'"></span>
                   </div>
-                  <div class="doc-card__refs" x-show="doc.ref_count">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
-                         stroke-width="1.3" class="icon-xs">
-                      <path d="M7 4l4 4-4 4"/>
-                      <path d="M3 8h8"/>
-                    </svg>
-                    <span x-text="doc.ref_count + ' 关联'"></span>
+                  <div class="doc-card__tags">
+                    <span class="doc-card__tag" x-show="doc.author" x-text="doc.author"></span>
                   </div>
                 </div>
               </div>
             </template>
+          </div>
+          <p class="empty-hint" x-show="$store.app.projectDocs.length === 0 && !$store.app.loading">暂无文档</p>
 
-            <!-- 空状态 -->
-            <div class="empty-state"
-                 x-show="$store.app.documents.length === 0 && !$store.app.loading">
-              <svg class="empty-state__icon" viewBox="0 0 16 16" fill="none"
-                   stroke="currentColor" stroke-width="1">
-                <path d="M3 2h7l3 3v9H3V2z"/>
-                <line x1="5" y1="6" x2="11" y2="6"/>
-                <line x1="5" y1="9" x2="11" y2="9"/>
-              </svg>
-              <div class="empty-state__title">暂无文档</div>
-              <div class="empty-state__description">
-                在此项目中创建第一个知识文档
+          <!-- ── 分区 2：子项目 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);">子项目</h2>
+          <div class="doc-grid" x-show="$store.app.projectSubprojects.length > 0 && !$store.app.loading">
+            <template x-for="sub in $store.app.projectSubprojects" :key="sub.path">
+              <div class="doc-card" @click="goToProject(sub.path)">
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                </div>
+                <div class="doc-card__title" x-text="sub.name"></div>
+                <div class="doc-card__summary" x-text="sub.summary || ''"></div>
+                <div class="doc-card__meta">
+                  <div class="doc-card__date">
+                    <span x-text="sub.modified ? formatDate(sub.modified) : '—'"></span>
+                  </div>
+                  <div class="doc-card__tags">
+                    <span class="badge"
+                          :class="'badge--' + (sub.status || 'abandoned')"
+                          x-show="sub.status && sub.status !== 'active'"
+                          x-text="statusLabel(sub.status)"></span>
+                  </div>
+                </div>
               </div>
-              <button class="btn btn--primary"
-                      @click="newDocument()"
-                      :disabled="$store.app.isLocked">
-                新建文档
-              </button>
-            </div>
+            </template>
+          </div>
+          <p class="empty-hint" x-show="$store.app.projectSubprojects.length === 0 && !$store.app.loading">暂无子项目</p>
+
+          <!-- ── 分区 3：归档 ── -->
+          <h2 class="section-title" style="margin-top:var(--space-6);">归档</h2>
+          <div class="doc-grid" x-show="$store.app.projectArchived.length > 0 && !$store.app.loading">
+            <template x-for="a in $store.app.projectArchived" :key="a.path">
+              <div class="doc-card" @click="goToProject(a.path)">
+                <div class="doc-card__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+                </div>
+                <div class="doc-card__title">
+                  <span x-text="a.name"></span>
+                  <span class="badge"
+                        :class="'badge--' + (a.status || 'abandoned')"
+                        x-text="statusLabel(a.status)"
+                        style="margin-left:8px;"></span>
+                </div>
+                <div class="doc-card__summary" x-text="a.summary || ''"></div>
+                <div class="doc-card__meta">
+                  <div class="doc-card__date">
+                    <span x-text="a.modified ? formatDate(a.modified) : '—'"></span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <p class="empty-hint" x-show="$store.app.projectArchived.length === 0 && !$store.app.loading">暂无归档</p>
+
+          <!-- 所有分区都空时显示统一空状态 -->
+          <div class="empty-state"
+               x-show="$store.app.projectDocs.length === 0 && $store.app.projectSubprojects.length === 0 && $store.app.projectArchived.length === 0 && !$store.app.loading">
+            <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/></svg>
+            <div class="empty-state__title">暂无内容</div>
+            <div class="empty-state__description">此项目暂无内容，通过 AI 或手动添加</div>
+            <button class="btn btn--primary" @click="newDocument()" :disabled="$store.app.isLocked">
+              新建文档
+            </button>
           </div>
 
           <!-- 加载中 -->
@@ -580,11 +776,11 @@
         <!-- ═══ Document View (阅读) ══════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'view'"
              x-data="viewerComponent" x-cloak>
+
           <!-- 工具栏 -->
           <div class="viewer__toolbar">
             <button class="viewer__toolbar-btn viewer__toolbar-btn--primary"
-                    @click="goToEdit()"
-                    :disabled="$store.app.isLocked">
+                    @click="goToEdit()" :disabled="$store.app.isLocked">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
                    stroke-width="1.5" class="icon-sm">
                 <path d="M11 3l2 2-8 8H3v-2l8-8z"/>
@@ -675,8 +871,7 @@
           <!-- 空文档 -->
           <div class="viewer--empty"
                x-show="!$store.app.loading && !$store.app.document && !$store.app.error">
-            <svg class="viewer--empty__icon" viewBox="0 0 16 16" fill="none"
-                 stroke="currentColor" stroke-width="1">
+            <svg class="viewer--empty__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1">
               <path d="M3 2h7l3 3v9H3V2z"/>
             </svg>
             <p class="viewer--empty__text">文档不存在或无法加载</p>
@@ -714,21 +909,13 @@
                 <div class="ref-popover__title" x-text="refPreview.title"></div>
                 <div class="ref-popover__summary" x-text="refPreview.summary || '暂无摘要'"></div>
                 <div class="ref-popover__actions">
-                  <span class="ref-popover__action"
-                        @click="goToRef(refPreview.path)">
-                    查看文档
-                  </span>
-                  <span class="ref-popover__action"
-                        @click="closePopover()">
-                    关闭
-                  </span>
+                  <span class="ref-popover__action" @click="goToRef(refPreview.path)">查看文档</span>
+                  <span class="ref-popover__action" @click="closePopover()">关闭</span>
                 </div>
               </div>
             </template>
             <template x-if="!refLoading && !refPreview">
-              <div class="ref-popover__error">
-                无法加载关联文档
-              </div>
+              <div class="ref-popover__error">无法加载关联文档</div>
             </template>
           </div>
         </div>
@@ -739,7 +926,6 @@
           <div class="editor-shell">
             <!-- 元信息区 -->
             <div class="editor-meta">
-              <!-- 可编辑字段 -->
               <div class="editor-meta__row">
                 <label class="editor-meta__label">标题</label>
                 <div class="editor-meta__value">
@@ -780,17 +966,15 @@
                 </div>
               </div>
 
-              <!-- 只读字段：显示 badge -->
+              <!-- 只读字段 -->
               <div class="editor-meta__row">
                 <label class="editor-meta__label">信息</label>
                 <div class="editor-meta__badges">
-                  <span class="editor-meta__badge"
-                        x-show="$store.app.document?.author">
+                  <span class="editor-meta__badge" x-show="$store.app.document?.author">
                     <span class="editor-meta__badge-label">作者</span>
                     <span x-text="$store.app.document?.author"></span>
                   </span>
-                  <span class="editor-meta__badge"
-                        x-show="$store.app.document?.maintainer">
+                  <span class="editor-meta__badge" x-show="$store.app.document?.maintainer">
                     <span class="editor-meta__badge-label">维护</span>
                     <span x-text="$store.app.document?.maintainer"></span>
                   </span>
@@ -821,18 +1005,10 @@
               </div>
               <span class="editor-toolbar__divider"></span>
               <div class="editor-toolbar__group">
-                <button class="editor-toolbar__btn" title="加粗" data-action="toggleBold">
-                  <strong>B</strong>
-                </button>
-                <button class="editor-toolbar__btn" title="斜体" data-action="toggleItalic">
-                  <em>I</em>
-                </button>
-                <button class="editor-toolbar__btn" title="删除线" data-action="toggleStrike">
-                  <s>S</s>
-                </button>
-                <button class="editor-toolbar__btn" title="行内代码" data-action="toggleCode">
-                  &lt;/&gt;
-                </button>
+                <button class="editor-toolbar__btn" title="加粗" data-action="toggleBold"><strong>B</strong></button>
+                <button class="editor-toolbar__btn" title="斜体" data-action="toggleItalic"><em>I</em></button>
+                <button class="editor-toolbar__btn" title="删除线" data-action="toggleStrike"><s>S</s></button>
+                <button class="editor-toolbar__btn" title="行内代码" data-action="toggleCode">&lt;/&gt;</button>
               </div>
               <span class="editor-toolbar__divider"></span>
               <div class="editor-toolbar__group">
@@ -879,17 +1055,11 @@
             <!-- 底部操作栏 -->
             <div class="editor-actions">
               <div class="editor-actions__left">
-                <span class="editor-actions__status"
-                      x-show="$store.app.isDirty">
-                  有未保存的修改
-                </span>
+                <span class="editor-actions__status" x-show="$store.app.isDirty">有未保存的修改</span>
               </div>
               <div class="editor-actions__right">
-                <button class="btn" @click="discard()">
-                  放弃
-                </button>
-                <button class="btn btn--primary"
-                        @click="saveDocument()"
+                <button class="btn" @click="discard()">放弃</button>
+                <button class="btn btn--primary" @click="saveDocument()"
                         :disabled="$store.app.isLocked || saving">
                   <span x-show="saving">保存中...</span>
                   <span x-show="!saving">保存文档</span>
@@ -920,8 +1090,7 @@
             <div class="metric-cards">
               <div class="metric-card">
                 <div class="metric-card__label">锁状态</div>
-                <div class="metric-card__value"
-                     x-text="$store.app.isLocked ? '已锁定' : '正常'"></div>
+                <div class="metric-card__value" x-text="$store.app.isLocked ? '已锁定' : '正常'"></div>
               </div>
               <div class="metric-card">
                 <div class="metric-card__label">后端状态</div>
@@ -951,9 +1120,7 @@
       <div class="modal">
         <h2 class="modal__title">新建文档</h2>
         <p class="modal__description">
-          在
-          <strong x-text="$store.app.modalData?.parentPath || '根目录'"></strong>
-          下创建新文档
+          在 <strong x-text="$store.app.modalData?.parentPath || '根目录'"></strong> 下创建新文档
         </p>
         <input class="modal__input" type="text"
                x-model="newDocName"
@@ -982,9 +1149,7 @@
       <div class="modal">
         <h2 class="modal__title">确认删除</h2>
         <p class="modal__description">
-          确定要删除文档
-          <strong x-text="$store.app.modalData?.title"></strong>
-          吗？此操作不可撤销。
+          确定要删除文档 <strong x-text="$store.app.modalData?.title"></strong> 吗？此操作不可撤销。
         </p>
         <div class="modal__actions">
           <button class="btn" @click="$store.app.closeModal()">取消</button>
@@ -1004,9 +1169,7 @@
          @click.self="$store.app.closeModal()">
       <div class="modal">
         <h2 class="modal__title">重命名文档</h2>
-        <p class="modal__description">
-          输入新名称（无需输入扩展名）
-        </p>
+        <p class="modal__description">输入新名称（无需输入扩展名）</p>
         <input class="modal__input" type="text"
                x-model="renameValue"
                :placeholder="$store.app.modalData?.title || ''"
@@ -1029,9 +1192,7 @@
          @click.self="$store.app.closeModal()">
       <div class="modal">
         <h2 class="modal__title">重命名项目</h2>
-        <p class="modal__description">
-          为项目输入新名称
-        </p>
+        <p class="modal__description">为项目输入新名称</p>
         <input class="modal__input" type="text"
                x-model="renameValue"
                :placeholder="$store.app.modalData?.name || ''"
@@ -1063,8 +1224,7 @@
         <input class="modal__input" type="email"
                x-model="identityEmail"
                placeholder="如：zhangsan@example.com" />
-        <p class="modal__hint" style="color:var(--color-danger);font-size:11px;margin:4px 0 0;"
-           x-show="identityEmail && !isValidEmail(identityEmail)"
+        <p class="modal__hint" x-show="identityEmail && !isValidEmail(identityEmail)"
            x-text="'邮箱格式不正确'"></p>
         <div class="modal__actions">
           <button class="btn" @click="$store.app.closeModal()">取消</button>
@@ -1081,12 +1241,12 @@
     <div class="modal-overlay"
          x-show="$store.app.currentView === 'setup'"
          x-cloak>
-      <div class="modal modal--setup" style="max-width:420px;">
+      <div class="modal modal--setup">
         <div style="text-align:center;margin-bottom:20px;">
           <div class="avatar-row" style="justify-content:center;margin-bottom:12px;">
             <div class="avatar avatar--fallback avatar--lg"
                  x-text="setupNickname ? setupNickname[0] : '?'"
-                 style="width:64px;height:64px;border-radius:50%;font-size:28px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto;"></div>
+                 style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto;"></div>
           </div>
           <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
           <p class="modal__description" style="margin-bottom:0;">设置你的昵称和邮箱，开始管理知识</p>
@@ -1100,8 +1260,7 @@
         <input class="modal__input" type="email"
                x-model="setupEmail"
                placeholder="如：zhangsan@example.com" />
-        <p class="modal__hint" style="color:var(--color-danger);font-size:11px;margin:4px 0 0;"
-           x-show="setupEmail && !isValidEmail(setupEmail)"
+        <p class="modal__hint" x-show="setupEmail && !isValidEmail(setupEmail)"
            x-text="'邮箱格式不正确'"></p>
         <div class="modal__actions" style="justify-content:center;margin-top:16px;">
           <button class="btn btn--primary"
@@ -1120,14 +1279,12 @@
        ════════════════════════════════════════════════════════════════════ -->
 
   <script type="module">
-    // 动态导入 TipTap，挂载到 window 供 app.js 使用
     import { Editor } from '@tiptap/core';
     import StarterKit from '@tiptap/starter-kit';
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };
 
-    // 全局工具栏绑定函数（由 editorComponent 调用）
     window._mykBindToolbar = function (editor) {
       if (!editor) return;
 
@@ -1158,7 +1315,6 @@
         }
       });
 
-      // 更新工具栏 active 状态
       editor.on('selectionUpdate', () => {
         document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
           const action = btn.dataset.action;
@@ -1188,7 +1344,6 @@
        ════════════════════════════════════════════════════════════════════ -->
 
   <script>
-    // 监听主题切换，更新 highlight.js 主题
     function updateHljsTheme() {
       const link = document.getElementById('hljs-theme');
       const theme = document.documentElement.getAttribute('data-theme');
@@ -1202,17 +1357,14 @@
         : 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css';
     }
 
-    // 初始调用
     updateHljsTheme();
 
-    // 监听 data-theme 变化
     const themeObserver = new MutationObserver(updateHljsTheme);
     themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['data-theme'],
     });
 
-    // 监听系统主题变化
     window
       .matchMedia('(prefers-color-scheme: dark)')
       .addEventListener('change', updateHljsTheme);

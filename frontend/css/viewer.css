@@ -1,29 +1,29 @@
 /* ==========================================================================
-   MyKnowledge — Markdown 阅读视图样式
-   设计系统: Raycast · v1.0
+   MyKnowledge — 文档阅读视图
+   设计系统: Raycast · v2.0
    ========================================================================== */
 
 /* ── 阅读容器 ───────────────────────────────────────────────────────────── */
 
 .viewer {
-  max-width: 780px;
+  max-width: 740px;
   margin: 0 auto;
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-7) 0;
 }
 
 .viewer__header {
-  margin-bottom: var(--space-7);
-  padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 0.5px solid var(--border-subtle);
 }
 
 .viewer__title {
-  font-size: var(--text-3xl);
+  font-size: var(--text-4xl);
   font-weight: 700;
   color: var(--text-primary);
   line-height: var(--leading-tight);
   letter-spacing: -0.02em;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .viewer__meta {
@@ -46,41 +46,40 @@
 }
 
 .viewer__meta--avatar {
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 /* ── 摘要 ───────────────────────────────────────────────────────────────── */
 
 .viewer__summary {
   margin-bottom: var(--space-6);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   background: var(--accent-subtle);
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--accent);
   color: var(--text-secondary);
   font-size: var(--text-base);
   line-height: var(--leading-relaxed);
 }
 
-/* ── 正文内容区 ─────────────────────────────────────────────────────────── */
+/* ── 正文 ───────────────────────────────────────────────────────────────── */
 
 .viewer__body {
   color: var(--text-primary);
 }
 
-/* ── 关联文档区 ─────────────────────────────────────────────────────────── */
+/* ── 关联文档 ───────────────────────────────────────────────────────────── */
 
 .viewer__refs {
   margin-top: var(--space-8);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-5);
+  border-top: 0.5px solid var(--border-subtle);
 }
 
 .viewer__refs-title {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .viewer__refs-list {
@@ -92,19 +91,21 @@
 .viewer__ref-tag {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--tag-radius);
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 10px;
   background: var(--tag-bg);
   color: var(--tag-text);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: var(--transition-interactive);
+  border: 0.5px solid transparent;
 }
 
 .viewer__ref-tag:hover {
   background: var(--accent-subtle);
   color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.1);
 }
 
 /* ── Ref 浮层 ───────────────────────────────────────────────────────────── */
@@ -112,13 +113,15 @@
 .ref-popover {
   position: absolute;
   z-index: 100;
-  width: 340px;
-  max-height: 280px;
+  width: 320px;
+  max-height: 260px;
   overflow-y: auto;
   background: var(--card-bg);
-  border: var(--card-border);
-  border-radius: var(--card-radius);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   padding: var(--space-4);
 }
 
@@ -131,7 +134,7 @@
 }
 
 .ref-popover__summary {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   line-height: var(--leading-normal);
   margin-bottom: var(--space-3);
@@ -150,13 +153,19 @@
   font-size: var(--text-sm);
   color: var(--accent);
   cursor: pointer;
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--radius-sm);
   transition: var(--transition-interactive);
 }
 
 .ref-popover__action:hover {
   background: var(--accent-subtle);
+}
+
+.ref-popover__error {
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 /* ── 空文档 ─────────────────────────────────────────────────────────────── */
@@ -166,17 +175,17 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
+  min-height: 360px;
   text-align: center;
   color: var(--text-tertiary);
 }
 
 .viewer--empty__icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   margin-bottom: var(--space-4);
   color: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 .viewer--empty__text {
@@ -184,19 +193,19 @@
   margin-bottom: var(--space-3);
 }
 
-/* ── 操作按钮栏 ─────────────────────────────────────────────────────────── */
+/* ── 操作工具栏 ─────────────────────────────────────────────────────────── */
 
 .viewer__toolbar {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
 }
 
 .viewer__toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 4px;
   padding: var(--button-padding-y) var(--button-padding-x);
   border-radius: var(--button-radius);
   background: var(--button-bg);

@@ -1,17 +1,15 @@
 /* ==========================================================================
    MyKnowledge — Alpine.js 应用入口
    整合所有组件：路由、存储、编辑器、渲染器
-   设计系统: Raycast · v1.0
+   设计系统: Raycast · v2.0
    ========================================================================== */
 
 /**
  * 全局 ref 链接点击处理（供 marked 渲染的 onclick 调用）
- * 在 Alpine x-html 中无法使用 @click 指令，因此使用全局函数桥接
  */
 window._mykRefClick = function (event, refPath) {
   event.preventDefault();
 
-  // 找到 viewerComponent 实例并调用其 openRefPopover 方法
   const viewerEl = document.querySelector('[x-data="viewerComponent"]');
   if (viewerEl && viewerEl.__x) {
     const data = viewerEl.__x.$data;
@@ -21,11 +19,9 @@ window._mykRefClick = function (event, refPath) {
     }
   }
 
-  // Fallback: 直接通过 store 打开浮层
   try {
     const store = Alpine.store("app");
     store.showPopover(event, refPath);
-    // 异步加载预览
     loadRefPreview(refPath).then((preview) => {
       if (viewerEl && viewerEl.__x) {
         viewerEl.__x.$data.refPreview = preview;
@@ -37,7 +33,7 @@ window._mykRefClick = function (event, refPath) {
   }
 };
 
-/** Gravatar URL 辅助（供 HTML 中 x-bind:src 调用） */
+/** Gravatar URL 辅助 */
 window.gravatarUrl = function (email, size) {
   return utils.gravatarUrl(email, size);
 };
@@ -55,7 +51,6 @@ document.addEventListener("alpine:init", () => {
       const store = Alpine.store("app");
       const path = store.currentPath;
 
-      // 加载文档后初始化编辑器
       if (!store.document && path) {
         await store.loadDocument(path);
       }
@@ -63,7 +58,6 @@ document.addEventListener("alpine:init", () => {
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
 
-      // 等待 DOM 渲染后初始化编辑器
       await this.$nextTick();
       const el = document.getElementById("tiptap-editor");
       if (el) {
@@ -72,9 +66,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 等待 TipTap ESM 模块加载完成
-     */
     async waitForTipTap() {
       for (let i = 0; i < 50; i++) {
         if (window.TipTapCore && window.TipTapStarterKit) return;
@@ -82,17 +73,12 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 初始化 TipTap 编辑器
-     * @param {HTMLElement} el - 编辑器挂载元素
-     */
     initEditor(el) {
       if (!el || this.editorInstance) return;
 
       const store = Alpine.store("app");
       const initialContent = store.htmlContent || "";
 
-      // 使用 TipTap 扩展
       const { Editor } = window.TipTapCore || {};
       const { StarterKit } = window.TipTapStarterKit || {};
 
@@ -101,9 +87,7 @@ document.addEventListener("alpine:init", () => {
         return;
       }
 
-      const extensions = [StarterKit ? StarterKit.configure() : null].filter(
-        Boolean
-      );
+      const extensions = [StarterKit ? StarterKit.configure() : null].filter(Boolean);
 
       this.editorInstance = new Editor({
         element: el,
@@ -121,15 +105,11 @@ document.addEventListener("alpine:init", () => {
 
       store.editor = this.editorInstance;
 
-      // 绑定工具栏
       if (typeof window._mykBindToolbar === "function") {
         window._mykBindToolbar(this.editorInstance);
       }
     },
 
-    /**
-     * 销毁编辑器
-     */
     destroyEditor() {
       if (this.editorInstance) {
         this.editorInstance.destroy();
@@ -148,14 +128,6 @@ document.addEventListener("alpine:init", () => {
       return authorAvatar(author, 32);
     },
 
-    get maintainerAvatar() {
-      const store = Alpine.store("app");
-      const meta = store.documentMeta;
-      const doc = store.document;
-      const maintainer = (meta && meta.maintainer) || (doc && doc.maintainer) || "";
-      return maintainer ? authorAvatar(maintainer, 24) : null;
-    },
-
     onAvatarError(event) {
       const img = event.target;
       const fallback = img.nextElementSibling;
@@ -165,9 +137,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 保存文档
-     */
     async saveDocument() {
       const store = Alpine.store("app");
       if (store.isLocked) return;
@@ -191,9 +160,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 放弃编辑
-     */
     discard() {
       const store = Alpine.store("app");
       if (store.currentPath) {
@@ -201,19 +167,6 @@ document.addEventListener("alpine:init", () => {
       } else {
         window.location.hash = "dashboard";
       }
-    },
-
-    /**
-     * 自动保存
-     */
-    autoSave() {
-      const store = Alpine.store("app");
-      if (store.isLocked || !store.isDirty) return;
-
-      clearTimeout(store.autoSaveTimer);
-      store.autoSaveTimer = setTimeout(() => {
-        this.saveDocument();
-      }, 3000);
     },
   }));
 
@@ -224,14 +177,12 @@ document.addEventListener("alpine:init", () => {
     refLoading: false,
 
     init() {
-      // 监听 htmlContent 变化，执行后处理
       this.$watch("$store.app.htmlContent", () => {
         this.$nextTick(() => {
           this.postRenderViewer();
         });
       });
 
-      // 初始渲染（x-html 可能尚未完成，使用 requestAnimationFrame 确保 DOM 就绪）
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           this.postRenderViewer();
@@ -239,64 +190,34 @@ document.addEventListener("alpine:init", () => {
       });
     },
 
-    /**
-     * 对 x-html 渲染后的内容进行后处理：
-     * - 绑定 ref-link 点击事件
-     * - highlight.js 代码高亮
-     */
     postRenderViewer() {
       const container = document.getElementById("viewer-content");
       if (!container) return;
       renderToContainer(null, container);
     },
 
-    /**
-     * 打开 ref 浮层
-     * @param {MouseEvent} event
-     * @param {string} refPath
-     */
     async openRefPopover(event, refPath) {
       const store = Alpine.store("app");
       this.refLoading = true;
       store.showPopover(event, refPath);
-
       this.refPreview = await loadRefPreview(refPath);
       this.refLoading = false;
     },
 
-    /** 关闭 ref 浮层 */
     closePopover() {
       const store = Alpine.store("app");
       store.hidePopover();
       this.refPreview = null;
     },
 
-    /**
-     * 获取当前文档的作者头像信息
-     */
     get authorAvatar() {
       const store = Alpine.store("app");
       const meta = store.documentMeta;
       const doc = store.document;
-      // 优先使用 meta 中的 author，其次使用 document.author
       const author = (meta && meta.author) || (doc && doc.author) || "";
       return authorAvatar(author, 32);
     },
 
-    /**
-     * 获取当前文档的维护者头像信息
-     */
-    get maintainerAvatar() {
-      const store = Alpine.store("app");
-      const meta = store.documentMeta;
-      const doc = store.document;
-      const maintainer = (meta && meta.maintainer) || (doc && doc.maintainer) || "";
-      return maintainer ? authorAvatar(maintainer, 24) : null;
-    },
-
-    /**
-     * Gravatar 头像加载失败时的回退处理
-     */
     onAvatarError(event) {
       const img = event.target;
       const fallback = img.nextElementSibling;
@@ -306,18 +227,11 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 导航到引用文档
-     * @param {string} path
-     */
     goToRef(path) {
       this.closePopover();
       window.location.hash = `view/${encodeURIComponent(path)}`;
     },
 
-    /**
-     * 前往编辑
-     */
     goToEdit() {
       const store = Alpine.store("app");
       if (store.currentPath) {
@@ -325,9 +239,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 删除文档
-     */
     confirmDelete() {
       const store = Alpine.store("app");
       store.openModal("delete-doc", {
@@ -340,53 +251,108 @@ document.addEventListener("alpine:init", () => {
   /* ── 侧边栏组件 ──────────────────────────────────────────────────────── */
 
   Alpine.data("sidebarComponent", () => ({
-    collapsedSections: {},
+    sidebarWidth: 168,
+    resizing: false,
+    hovering: false,
+    startX: 0,
+    startWidth: 0,
 
-    get sidebarOpen() {
-      return Alpine.store("app").sidebarOpen;
-    },
+    /** 折叠态 = store 的 sidebarOpen 取反 */
+    get collapsed() { return !Alpine.store("app").sidebarOpen; },
+    get pinned() { return Alpine.store("app").sidebarOpen; },
+    get sidebarOpen() { return Alpine.store("app").sidebarOpen; },
 
-    toggleSidebar() {
+    toggle() {
       Alpine.store("app").toggleSidebar();
     },
 
-    toggleSection(name) {
-      this.collapsedSections[name] = !this.collapsedSections[name];
+    /** hover 进入：sidebar 在流内展开，flex 自动收缩内容 */
+    onHoverEnter() {
+      if (this.pinned) return;
+      this.hovering = true;
     },
 
-    isCollapsed(name) {
-      return !!this.collapsedSections[name];
+    /** hover 离开：sidebar 在流内收窄，flex 自动扩展内容 */
+    onHoverLeave() {
+      if (this.pinned) return;
+      this.hovering = false;
     },
 
-    /**
-     * 导航到项目页
-     * @param {string} projectPath
-     */
+    /** 固定：sidebar 已在流内（hover 时），固定操作只切标志位 */
+    smoothPin() {
+      if (!this.pinned) {
+        Alpine.store("app").sidebarOpen = true;
+        this.hovering = false;
+      } else {
+        Alpine.store("app").sidebarOpen = false;
+      }
+    },
+
+    startResize(e) {
+      // 只响应右侧 5px 以内的 mousedown（通过 handle 触发）
+      const rect = e.currentTarget.getBoundingClientRect();
+      const edgeX = e.clientX - rect.right;
+      if (edgeX > 5 || edgeX < -5) return;
+
+      this.resizing = true;
+      this.startX = e.clientX;
+      this.startWidth = this.sidebarWidth;
+
+      const onMove = (ev) => {
+        if (!this.resizing) return;
+        const delta = ev.clientX - this.startX;
+        const newW = Math.max(120, Math.min(window.innerWidth * 0.5, this.startWidth + delta));
+        this.sidebarWidth = newW;
+      };
+
+      const onUp = () => {
+        this.resizing = false;
+        // 吸附到默认宽度（±2px）
+        if (Math.abs(this.sidebarWidth - 168) <= 2) {
+          this.sidebarWidth = 168;
+        }
+        localStorage.setItem("myknowledge-sidebar-width", String(this.sidebarWidth));
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+
+    init() {
+      // 恢复状态
+      const wasCollapsed = localStorage.getItem("myknowledge-sidebar-collapsed") === "1";
+      Alpine.store("app").sidebarOpen = !wasCollapsed;
+      const saved = parseInt(localStorage.getItem("myknowledge-sidebar-width"));
+      if (saved && saved >= 120 && saved <= window.innerWidth * 0.5) {
+        this.sidebarWidth = saved;
+      }
+      // 初始化 CSS 变量
+      document.documentElement.style.setProperty("--sidebar-width", this.sidebarWidth + "px");
+      this.$watch("sidebarWidth", (v) => {
+        document.documentElement.style.setProperty("--sidebar-width", v + "px");
+      });
+      // 边缘触发器
+      const self = this;
+      const edge = document.getElementById("sidebarEdge");
+      if (edge) {
+        edge.addEventListener("mouseenter", () => self.onHoverEnter());
+      }
+    },
+
     goToProject(projectPath) {
       window.location.hash = `project/${encodeURIComponent(projectPath)}`;
     },
 
-    /**
-     * 导航到文档视图
-     * @param {string} docPath
-     */
     goToDocument(docPath) {
       window.location.hash = `view/${encodeURIComponent(docPath)}`;
     },
 
-    /**
-     * 当前高亮项
-     * @param {string} path
-     * @returns {boolean}
-     */
-    isActive(path) {
-      const store = Alpine.store("app");
-      return store.currentPath === path;
-    },
-
-    /**
-     * 新建文档
-     */
     newDocument() {
       const store = Alpine.store("app");
       store.openModal("new-doc", {
@@ -407,16 +373,10 @@ document.addEventListener("alpine:init", () => {
     setupNickname: "",
     setupEmail: "",
 
-    /**
-     * 邮箱格式校验
-     */
     isValidEmail(email) {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || "");
     },
 
-    /**
-     * 创建文档
-     */
     async createDocument() {
       const store = Alpine.store("app");
       if (!this.newDocName.trim() || store.isLocked) return;
@@ -435,8 +395,6 @@ document.addEventListener("alpine:init", () => {
 
         showToast("文档已创建", "success");
         store.closeModal();
-
-        // 导航到编辑页
         window.location.hash = `edit/${encodeURIComponent(fullPath)}`;
       } catch (err) {
         if (err.isLocked) {
@@ -449,9 +407,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 确认删除
-     */
     async confirmDelete() {
       const store = Alpine.store("app");
       const path = store.modalData?.path;
@@ -462,10 +417,9 @@ document.addEventListener("alpine:init", () => {
         showToast("文档已删除", "success");
         store.closeModal();
 
-        // 返回上级
-        const projectPath = projectName(path);
-        if (projectPath) {
-          window.location.hash = `project/${encodeURIComponent(projectPath)}`;
+        const projPath = projectName(path);
+        if (projPath) {
+          window.location.hash = `project/${encodeURIComponent(projPath)}`;
         } else {
           window.location.hash = "dashboard";
         }
@@ -474,9 +428,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 确认改名
-     */
     async confirmRename() {
       const store = Alpine.store("app");
       const path = store.modalData?.path;
@@ -484,11 +435,15 @@ document.addEventListener("alpine:init", () => {
       if (!path || !newName || store.isLocked) return;
 
       try {
-        await api.renameDocument(path, newName);
+        // 判断是项目改名还是文档改名
+        if (store.modal === "rename-project") {
+          await api.renameProject(path, newName);
+        } else {
+          await api.renameDocument(path, newName);
+        }
         showToast("已改名", "success");
         store.closeModal();
 
-        // 导航到新路径
         const parts = path.replace(/\\/g, "/").split("/");
         parts[parts.length - 1] = newName.includes(".") ? newName : newName + ".md";
         const newPath = parts.join("/");
@@ -498,9 +453,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 保存用户身份
-     */
     async saveIdentity() {
       const store = Alpine.store("app");
       const nick = this.identityNickname.trim();
@@ -515,9 +467,6 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /**
-     * 首次设置身份
-     */
     async saveSetup() {
       const store = Alpine.store("app");
       const nick = this.setupNickname.trim();
@@ -533,7 +482,6 @@ document.addEventListener("alpine:init", () => {
     },
 
     init() {
-      // 打开编辑身份弹窗时预填现有信息
       const store = Alpine.store("app");
       this.$watch("$store.app.modal", (val) => {
         if (val === "edit-identity") {
@@ -547,14 +495,18 @@ document.addEventListener("alpine:init", () => {
   /* ── 仪表盘组件 ──────────────────────────────────────────────────────── */
 
   Alpine.data("dashboardComponent", () => ({
-    get projectCount() {
-      const s = Alpine.store("app").statusSummary;
-      return s ? s.projects.total : 0;
-    },
-
-    get documentCount() {
-      const s = Alpine.store("app").statusSummary;
-      return s ? s.documents : 0;
+    /** 从 dashboardProjects + archived 合并算出项目统计 */
+    get projectStats() {
+      const s = Alpine.store("app");
+      const active = s.dashboardProjects ? s.dashboardProjects.length : 0;
+      const archived = s.archived || [];
+      const completed = archived.filter(p => p.status === "completed").length;
+      const cancelled = archived.filter(p => p.status === "cancelled").length;
+      const abandoned = archived.filter(p => p.status === "abandoned").length;
+      return {
+        total: active + archived.length,
+        active, completed, cancelled, abandoned,
+      };
     },
 
     goToProject(path) {
@@ -569,13 +521,82 @@ document.addEventListener("alpine:init", () => {
       const store = Alpine.store("app");
       store.openModal("new-doc", { parentPath: "" });
     },
+
+    /** B2 hover 面板状态 */
+    hoverProject: null,
+    hoverTimer: null,
+    projectPreview: { docs: [], subprojects: [], archived: [] },
+
+    openPreview(path) {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = setTimeout(() => {
+        this.hoverProject = path;
+        this.loadProjectPreview(path);
+      }, 300);
+    },
+
+    closePreview() {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = setTimeout(() => {
+        this.hoverProject = null;
+      }, 150);
+    },
+
+    async loadProjectPreview(path) {
+      try {
+        // 按 2.5.1 嵌套架构：每个项目下有 common-knowledge/ projects/ archive/ 三个子目录
+        const [docData, subData, archData] = await Promise.all([
+          api.list(path + "/common-knowledge").catch(() => ({ items: [] })),
+          api.list(path + "/projects").catch(() => ({ items: [] })),
+          api.list(path + "/archive").catch(() => ({ items: [] })),
+        ]);
+        const excludeReadme = (i) => !/^readme\.md$/i.test(i.name || "");
+
+        this.projectPreview = {
+          docs: (docData.items || []).filter(i => !i.is_dir && excludeReadme(i)),
+          subprojects: (subData.items || []).filter(i => i.is_dir),
+          archived: (archData.items || []).filter(i => excludeReadme(i)),
+        };
+      } catch(e) {
+        this.projectPreview = { docs: [], subprojects: [], archived: [] };
+      }
+    },
   }));
 
   /* ── 项目页组件 ──────────────────────────────────────────────────────── */
 
   Alpine.data("projectComponent", () => ({
+    get projectMeta() {
+      return Alpine.store("app").projectMeta || {};
+    },
+
+    get projectDisplayName() {
+      return this.projectMeta.name || Alpine.store("app").currentPath || "";
+    },
+
+    get projectDescription() {
+      return this.projectMeta.summary || this.projectMeta.description || "";
+    },
+
+    /** 父级面包屑（可点击，不含系统前缀目录） */
+    get parentBreadcrumbs() {
+      const crumbs = Alpine.store("app").breadcrumbs || [];
+      // 跳过首个系统前缀（"projects"），取中间所有层级，过滤掉 "projects" 目录段
+      return crumbs.slice(1, -1).filter(c => c.label !== "projects");
+    },
+
+    /** 直接父级路径（用于返回按钮） */
+    get parentPath() {
+      const crumbs = this.parentBreadcrumbs;
+      return crumbs.length > 0 ? crumbs[crumbs.length - 1].path : "";
+    },
+
     goToDocument(path) {
       window.location.hash = `view/${encodeURIComponent(path)}`;
+    },
+
+    goToProject(path) {
+      window.location.hash = `project/${encodeURIComponent(path)}`;
     },
 
     goToEdit(path) {

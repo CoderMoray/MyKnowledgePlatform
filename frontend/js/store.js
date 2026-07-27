@@ -17,7 +17,7 @@ document.addEventListener("alpine:init", () => {
     breadcrumbs: [],
 
     /** 是否正在加载 */
-    loading: false,
+    loading: true,
 
     /** 错误信息 */
     error: null,
@@ -32,6 +32,13 @@ document.addEventListener("alpine:init", () => {
 
     /** 后端是否离线 */
     backendOffline: false,
+
+    /** 系统三态状态（全局统一） */
+    get systemStatus() {
+      if (this.isLocked) return { dotClass: "status-dot--danger", label: "AI 编辑中" };
+      if (this.currentView === "edit") return { dotClass: "status-dot--warning", label: "用户编辑中" };
+      return { dotClass: "status-dot--online", label: "用户使用中" };
+    },
 
     /* ── 主题 ──────────────────────────────────────────────────────────── */
 
@@ -60,8 +67,17 @@ document.addEventListener("alpine:init", () => {
     /** 侧边栏项目列表 */
     projects: [],
 
-    /** 当前项目下的文档列表 */
-    documents: [],
+    /** 当前项目下的文档列表（common-knowledge/） */
+    projectDocs: [],
+
+    /** 当前项目下的子项目列表（projects/） */
+    projectSubprojects: [],
+
+    /** 当前项目下的归档列表（archive/） */
+    projectArchived: [],
+
+    /** 当前项目元信息 */
+    projectMeta: null,
 
     /** 当前文档内容 */
     document: null,
@@ -75,8 +91,8 @@ document.addEventListener("alpine:init", () => {
     /** 当前文档的元信息（作者头像等） */
     documentMeta: null,
 
-    /** 侧边栏是否打开（移动端） */
-    sidebarOpen: false,
+    /** 侧边栏是否打开 */
+    sidebarOpen: true,
 
     /* ── 编辑器状态 ────────────────────────────────────────────────────── */
 
@@ -94,8 +110,22 @@ document.addEventListener("alpine:init", () => {
     /** 状态摘要 */
     statusSummary: null,
 
+    /** 公共知识区文档列表 */
+    commonKnowledge: [],
+
+    /** 仪表盘项目列表（projects/ 目录） */
+    dashboardProjects: [],
+
+    /** 归档列表 */
+    archived: [],
+
     /** 最近更新列表 */
     recentUpdates: [],
+
+    /** 系统版本号 */
+    systemVersion: "",
+    /** 知识库 git commit hash */
+    kbVersion: "",
 
     /* ── 弹窗状态 ──────────────────────────────────────────────────────── */
 
@@ -148,20 +178,29 @@ document.addEventListener("alpine:init", () => {
     },
 
     /**
-     * 加载项目下的文档列表
+     * 加载项目下的文档列表（按嵌套架构分三个子目录）
      * @param {string} projectPath
      */
     async loadProjectDocuments(projectPath) {
-      this.loading = true;
       this.error = null;
       try {
-        const data = await api.list(projectPath);
-        this.documents = data && data.items ? data.items : [];
+        const [docData, subData, archData, projectData] = await Promise.all([
+          api.list(projectPath + "/common-knowledge").catch(() => ({ items: [] })),
+          api.list(projectPath + "/projects").catch(() => ({ items: [] })),
+          api.list(projectPath + "/archive").catch(() => ({ items: [] })),
+          api.getProject(projectPath).catch(() => null),
+        ]);
+        const excludeReadme = (i) => !/^readme\.md$/i.test(i.name || "");
+        this.projectDocs = (docData.items || []).filter(i => !i.is_dir && excludeReadme(i));
+        this.projectSubprojects = (subData.items || []).filter(i => i.is_dir);
+        this.projectArchived = (archData.items || []).filter(i => excludeReadme(i));
+        this.projectMeta = projectData || {};
       } catch (err) {
-        this.error = err.message || "加载文档列表失败";
-        this.documents = [];
-      } finally {
-        this.loading = false;
+        this.error = err.message || "加载项目数据失败";
+        this.projectDocs = [];
+        this.projectSubprojects = [];
+        this.projectArchived = [];
+        this.projectMeta = {};
       }
     },
 
@@ -170,7 +209,6 @@ document.addEventListener("alpine:init", () => {
      * @param {string} path
      */
     async loadDocument(path) {
-      this.loading = true;
       this.error = null;
       try {
         const data = await api.getDocumentWithRefs(path);
@@ -186,8 +224,6 @@ document.addEventListener("alpine:init", () => {
         this.htmlContent = "";
         this.refs = [];
         this.documentMeta = null;
-      } finally {
-        this.loading = false;
       }
     },
 
@@ -204,9 +240,10 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
-    /** 切换侧边栏（移动端） */
+    /** 切换侧边栏 */
     toggleSidebar() {
       this.sidebarOpen = !this.sidebarOpen;
+      localStorage.setItem("myknowledge-sidebar-collapsed", this.sidebarOpen ? "0" : "1");
     },
 
     /**
@@ -248,20 +285,33 @@ document.addEventListener("alpine:init", () => {
      * 加载仪表盘数据
      */
     async loadDashboard() {
-      this.loading = true;
       this.error = null;
       try {
-        const [listData, statusData] = await Promise.all([
-          api.list(),
+        const [knowledgeRes, projectsRes, archiveRes, statusData] = await Promise.all([
+          api.list("common-knowledge").catch(() => ({ items: [] })),
+          api.list("projects").catch(() => ({ items: [] })),
+          api.list("archive").catch(() => ({ items: [] })),
           api.getStatus().catch(() => null),
         ]);
-        this.projects = listData && listData.items ? listData.items : [];
+
+        this.commonKnowledge = (knowledgeRes && knowledgeRes.items || [])
+          .filter(item => !item.is_dir);
+
+        this.dashboardProjects = projectsRes && projectsRes.items || [];
+        this.archived = archiveRes && archiveRes.items || [];
         this.statusSummary = statusData;
         this.recentUpdates = (statusData && statusData.recent) || [];
+
+        // 存缓存：下次刷新秒出
+        try {
+          localStorage.setItem("myk-dash", JSON.stringify({
+            c: this.commonKnowledge, p: this.dashboardProjects,
+            a: this.archived, s: this.statusSummary, r: this.recentUpdates,
+            ts: Date.now()
+          }));
+        } catch(e) {}
       } catch (err) {
         this.error = err.message || "加载仪表盘失败";
-      } finally {
-        this.loading = false;
       }
     },
 
@@ -269,6 +319,9 @@ document.addEventListener("alpine:init", () => {
      * 初始化应用
      */
     async init() {
+      const S = window._mykSplash;
+      S.init(performance.now());
+
       // 恢复主题
       const savedTheme = localStorage.getItem("myknowledge-theme") || "system";
       const savedDesign = localStorage.getItem("myknowledge-design") || "raycast";
@@ -276,36 +329,38 @@ document.addEventListener("alpine:init", () => {
       this.designTheme = savedDesign;
       this.applyTheme();
 
-      // 加载锁状态、项目列表和用户身份
-      await Promise.all([
-        this.checkLock(),
-        this.loadProjects(),
-        this.loadIdentity(),
-      ]);
+      // 首页 vs 非首页：每步随机间隔不同
+      const hash = window.location.hash.replace(/^#/, "");
+      const isHome = !hash || hash === "dashboard";
+      const homeStep = () => 60 + Math.random() * 30;       // 60~90
+      const fastStep = () => Math.random() * 30;            // 0~30
+      const slowStep = () => 30 + Math.random() * 30;      // 30~60
+
+      S.set(10);
+      await S.step(this.checkLock(),  30, isHome ? homeStep() : fastStep());
+      await S.step(this.loadProjects(), 55, isHome ? homeStep() : fastStep());
+      await S.step(this.loadIdentity(), 75, isHome ? homeStep() : fastStep());
+      await S.step(this.loadVersion(),  90, isHome ? homeStep() : slowStep());
 
       // 启动锁轮询
       setInterval(() => this.checkLock(), 15000);
 
-      // 订阅 SSE 实时更新 — KB 有变更时自动重新加载当前视图
+      // 订阅 SSE 实时更新
       api.subscribeEvents(() => {
         const view = this.currentView;
-        if (view === "dashboard") {
-          this.loadDashboard();
-        } else if (view === "project" && this.currentPath) {
-          this.loadProjectDocuments(this.currentPath);
-        } else if ((view === "view" || view === "edit") && this.currentPath) {
-          this.loadDocument(this.currentPath);
-        }
+        if (view === "dashboard") this.loadDashboard();
+        else if (view === "project" && this.currentPath) this.loadProjectDocuments(this.currentPath);
+        else if ((view === "view" || view === "edit") && this.currentPath) this.loadDocument(this.currentPath);
       });
 
       // 处理初始 hash
       this.handleRoute();
       window.addEventListener("hashchange", () => this.handleRoute());
 
-      // 首次使用：未设置身份时强制到 setup
-      if (!this.identitySet) {
-        window.location.hash = "setup";
-      }
+      if (!this.identitySet) window.location.hash = "setup";
+
+      await S.sprint();
+      this.loading = false;
     },
 
     /**
@@ -407,6 +462,18 @@ document.addEventListener("alpine:init", () => {
       await api.setIdentity(email, nickname);
       this.nickname = nickname;
       this.email = email;
+    },
+
+    /* ── 版本管理 ─────────────────────────────────────────────────── */
+
+    async loadVersion() {
+      try {
+        const v = await apiRequest("/api/version");
+        this.systemVersion = v.system || "";
+        this.kbVersion = v.kb || "";
+      } catch {
+        // 后端不可达时不阻塞
+      }
     },
 
     /**

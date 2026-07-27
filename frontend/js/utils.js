@@ -109,6 +109,16 @@ function fileName(path) {
 }
 
 /**
+ * 状态标签映射
+ * @param {string} status
+ * @returns {string}
+ */
+function statusLabel(status) {
+  const map = { completed: "已完成", cancelled: "已取消", abandoned: "已废弃" };
+  return map[status] || "已废弃";
+}
+
+/**
  * 从路径中提取项目名
  * @param {string} path
  * @returns {string}
@@ -341,4 +351,45 @@ function authorAvatar(authorStr, size = 32) {
     initial,
     email,
   };
+}
+
+/* ==========================================================================
+   card-icon 关键词匹配（v0.1，后续精进）
+   ========================================================================== */
+
+/** Lucide icon 原始 SVG path（16×16 viewBox） */
+const _ICON_SVGS = {
+  folders:    '<path d="M10 4H4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V8a2 2 0 00-2-2h-2l-2-2H5"/>',
+  "credit-card": '<rect width="14" height="10" x="1" y="3" rx="2"/><path d="M1 7h14"/>',
+  "arrow-left-right": '<path d="M8 3L4 7l4 4"/><path d="M8 13l4-4-4-4"/><path d="M4 7h8"/>',
+  user:        '<path d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  "clipboard-check": '<rect width="8" height="4" x="4" y="2" rx="1"/><path d="M8 2v2"/><rect width="12" height="14" x="2" y="6" rx="2"/><path d="m6 12 3 3 5-5"/>',
+  "file-text": '<path d="M15 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7Z"/><path d="M14 2v4a2 2 0 002 2h2"/><path d="M10 9H8"/><path d="M14 13H8"/><path d="M14 17H8"/>',
+};
+
+/** 关键词 → icon 名映射（不区分大小写，匹配到第一个即返回） */
+const _ICON_RULES = [
+  { kw: ["myknowledge","知识"],        icon: "folders" },
+  { kw: ["financing","分期"],           icon: "credit-card" },
+  { kw: ["以旧换新","trade in","trade-in"], icon: "arrow-left-right" },
+  { kw: ["mycoach","我的私教","私教"],    icon: "user" },
+  { kw: ["training","培训","新人评估"],    icon: "clipboard-check" },
+];
+
+/**
+ * 根据名称匹配 card icon
+ * @param {string} name - 文档/项目名称
+ * @returns {string} SVG 标签
+ */
+function cardIconSvg(name) {
+  const lower = (name || "").toLowerCase();
+  let iconKey = "file-text";
+  for (const rule of _ICON_RULES) {
+    if (rule.kw.some(k => lower.includes(k.toLowerCase()))) {
+      iconKey = rule.icon;
+      break;
+    }
+  }
+  const paths = _ICON_SVGS[iconKey] || _ICON_SVGS["file-text"];
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
 }
