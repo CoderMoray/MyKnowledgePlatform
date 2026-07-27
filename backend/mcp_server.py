@@ -906,37 +906,76 @@ def create_mcp_app(storage: Storage,
         """Release the AI session write lock.
 
         Call this after completing all write operations.
+        Automatically updates the checkpoint to the latest HEAD.
         """
+        # Update checkpoint before releasing lock
+        try:
+            cp_file = storage.kb_root / "agent-commit.txt"
+            head = gm._run("rev-parse", "--short", "HEAD").strip()
+            gm.write_checkpoint(head, cp_file)
+        except Exception:
+            pass  # non-fatal
         release_lock(storage)
         return "LOCK RELEASED"
 
     @mcp.prompt()
     def nav__maintenance_procedure() -> str:
         """每次对话开始时执行的知识库维护流程。"""
-        return """## 知识库维护流程
+        return """## 知识库工作流
 
-每次与用户对话开始时，请按以下顺序自动执行：
+每次与用户对话开始时，按以下流程自动执行。
 
-### 1. 获取锁
+### 一、获取锁
 调 `maint__acquire_lock`：
-- 返回 "LOCK ACQUIRED" → 继续
-- 返回 "LOCK BUSY" → 等待几秒后重试，最多 3 次，仍忙则通知用户稍后再试
+- "LOCK ACQUIRED" → 继续
+- "LOCK BUSY" → 等待后重试，最多 3 次
 
-### 2. 检查待处理的变更
+### 二、检查待处理变更
 调 `maint__read_diff` 对比 checkpoint 到 HEAD：
-
 - 无差异 → 开始对话
-- 有差异 → 读 diff → `maint__validate_doc` 检查 frontmatter
-  → `maint__rebuild_index` 修复索引
-  → 总结变更给用户 → 用户确认 → 不做额外 commit（用户确认即可）
-  → 更新 checkpoint（写 agent-commit.txt 或用 write__update_project_meta）
+- 有差异 → 读 diff → `maint__validate_doc`
+  → `maint__rebuild_index`（如 readme 过时）
+  → 总结变更 → 用户确认 → 继续
 
-### 3. 回答问题
-正常与用户对话，需要读写时调对应的 MCP 工具。
+### 三、路径规则（重要）
 
-### 4. 结束前
+所有写工具接受以下路径格式，不符会报错：
+
+| 用途 | 路径格式 | 示例 |
+|------|---------|------|
+| 根层知识 | `common-knowledge/文件名.md` | `common-knowledge/技术选型.md` |
+| 项目内知识 | `projects/项目名/common-knowledge/文件名.md` | `projects/首页重构/common-knowledge/改版方案.md` |
+| 子项目内知识 | `projects/父项目/projects/子项目/common-knowledge/文件名.md` | — |
+| 归档项目 | `archive/项目名/...` | `archive/首页重构/readme.md` |
+
+禁止：`..`、绝对路径、非 `.md` 后缀、`projects`（系统目录）等。
+不确定路径时，先调 `nav__list_dir(project_rel="projects")` 列出项目。
+
+### 四、写操作与自动流程
+
+写完自动触发：
+1. `readme` 索引重建
+2. `project-status.md` 更新
+3. Git 自动 commit
+4. SSE 通知前端
+
+**project meta 更新时额外自动归档：**
+- status 改为 `completed` / `cancelled` / `abandoned` 后
+- 项目目录从 `projects/` 自动移入 `archive/`
+- 无需手动操作
+
+### 五、对话中
+
+正常交互，需要时调对应的 MCP 工具：
+- **导航**：`nav__read_readme` → `nav__list_dir` → `nav__get_document_with_refs`
+- **写**：`write__create_document` / `write__update_document` / `write__update_project_meta`
+- **改名**：`write__rename_project` / `write__rename_document`
+- **维护**：`maint__validate_doc` / `maint__rebuild_index`
+- **分享**：`share__publish` / `share__import_share`
+
+### 六、结束前
 完成所有工作后：
-1. `maint__release_lock`
+1. `maint__release_lock`（自动更新 checkpoint）
 2. 告知用户「知识库已同步」
 """
 
