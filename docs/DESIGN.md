@@ -345,10 +345,28 @@ create_document / update_document（agent 调 MCP）
         │     ├── 不改 body（不触发 rebuild，因为 body 是派生数据）
         │     └── git commit
         │
-        └── ⑦ 系统自动触发 rebuild 父层 readme（祖父层 body 重算）
+          └── ⑦ 系统自动触发 rebuild 父层 readme（祖父层 body 重算）
               → 让 agent 再次判断祖父层的 summary 要不要改
               → 递归直到根或某层说「不需要改」
+
+#### 自动归档钩子
+
+写完 + rebuild 完成后，`_write_through()` 和 REST API 写处理器会自动检查项目 readme 的 `status`：
+
 ```
+⑧ 检查 status（_auto_archive 函数）
+    │
+    ├── status == "active" → 不动
+    └── status != "active" → shutil.move("projects/X", "archive/X")
+         ├── 替换已移动文件内的 ref: 路径前缀
+         ├── gen.rebuild("") 重建根 readme
+         ├── gen.rebuild_project_status()
+         └── git commit + SSE broadcast
+```
+
+- **`completed`** / **`cancelled`** / **`abandoned`** 都会触发生成目录移动。
+- `archive/` 不再只是"导航加速"，而是**非活跃项目的物理归宿**。
+- 每个归档项目在 `archive/` 下保持其完整结构（`readme.md` + `common-knowledge/`）。
 
 **MCP 工具清单（完整见 5 节末，共 15 个）**：
 
@@ -416,7 +434,7 @@ create_document / update_document（agent 调 MCP）
 ### 2.5.10 待确认 / 待补强的设计点
 
 - **模板自描述**：`_templates/common-knowledge.md` 通过自身 frontmatter 声明 `name` 与 `required_fields`，check 工具扫 `_templates/` 即可发现并查字段完整性。
-- **archive = 导航加速，非状态管理**：状态在 `project-status.md`。
+- ~~archive = 导航加速，非状态管理~~（已废弃）：archive 现在是**非活跃项目的物理归宿**。状态变更（completed/cancelled/abandoned）自动触发 `shutil.move` 移入 archive/，见 2.5.8 自动归档钩子。
 - **订阅/只读库落点**：待确认。
 - **_refs/ 的生命周期**：发布时带上下文会引入 `_refs/`，但目前没有 GC 清理本地已删除引用源的 `_refs/` 残留。后续可加 `garbage_collect_refs()`。
 
@@ -606,26 +624,54 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 
 > **不引入**：任何 LLM/推理框架、向量数据库。
 
-### MCP 工具清单（共 15 个）
+### MCP 工具清单（共 18 个）
 
 按前缀分组。建议 agent client 显式配置只暴露需要的分组，减少工具干扰。
 
 | 分组 | 工具 | 说明 |
 |------|------|------|
-| `nav:` | `nav__read_readme` | 读路由索引 |
+| `nav:` (4) | `nav__read_readme` | 读路由索引 |
 | | `nav__list_dir` | 列目录 |
 | | `nav__get_document` | 读全文 |
 | | `nav__get_document_with_refs` | 读全文 + 拼接引用 |
-| `write:` | `write__create_document` | 新建知识 |
+| `write:` (6) | `write__create_document` | 新建知识 |
 | | `write__update_document` | 更新知识 |
 | | `write__update_project_meta` | 改项目 frontmatter |
 | | `write__delete_document` | 删除文档 |
-| `maint:` | `maint__validate_doc` | 检查 frontmatter 完整性 |
-| | `maint__read_diff` | 读 git diff |
+| | `write__rename_project` | 改名项目（移动目录 + 替换 ref） |
+| | `write__rename_document` | 改名文档（移动文件 + 替换 ref） |
+| `maint:` (6) | `maint__acquire_lock` | 获取写锁 |
+| | `maint__release_lock` | 释放写锁 |
+| | `maint__read_diff` | 读 git diff（对比 checkpoint） |
 | | `maint__rebuild_index` | 手动重建 readme |
 | | `maint__check_integrity` | GC + 项目状态更新 |
-| `share:` | `share__publish` | 导出分享包 |
+| | `maint__validate_doc` | 检查 frontmatter 完整性 |
+| `share:` (2) | `share__publish` | 导出分享包 |
 | | `share__import_share` | 导入分享包 |
+
+### 路径校验
+
+所有写工具接受路径后先过 `_validate_path(kind="file"|"dir")` 检查：
+
+| 检查项 | 说明 |
+|--------|------|
+| 路径穿越 | 禁止 `..` |
+| 绝对路径 | 禁止以 `/` 开头 |
+| 扩展名 | 文档必须 `.md` |
+| 前缀 | 文档路径必须以 `common-knowledge/`、`projects/` 或 `archive/` 开头 |
+| 存在性 | 更新/删除/改名操作会检查文件或目录是否存在 |
+
+校验失败的报错包含**恢复指引**（什么工具能列出正确路径），AI 可自助恢复。
+
+### 版本
+
+系统版本号在 `backend/__version__.py`，硬编码 `0.5.0`。`GET /api/version` 返回 `{system, kb}`：
+- `system` — 系统版本（手动更新）
+- `kb` — 知识库版本（从 `agent-commit.txt` checkpoint 读取，无则空）
+
+### 自动项目骨架
+
+`ReadmeGenerator.rebuild()` 首次为项目建立 readme 时，自动创建 `common-knowledge/`、`projects/`、`archive/` 子目录。无需手动初始化。
 
 > **待办**：MCP 协议目前无原生工具分组功能。如后续协议支持，将按组分别暴露。
 

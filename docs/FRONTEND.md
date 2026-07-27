@@ -22,26 +22,20 @@ frontend/
 - **未设置时**：默认 `~/.myknowledge/`（全局知识库）
 - **设为 `.myknowledge_test`**：读取项目内的测试知识库
 
-### 开发时
+### 启动
 
 ```bash
-# 终端 1：启动后端（不带 --root 则用全局 ~/.myknowledge/）
+# 后端 API + 前端静态文件，一个命令搞定
 myknowledge serve --root .myknowledge_test --port 8080 --reload
 
-# 终端 2：启动前端 HTTP 服务器
-cd frontend && python3 -m http.server 8081
-
-# 浏览器打开 http://127.0.0.1:8081/index.html
+# 浏览器打开 http://127.0.0.1:8080/
 ```
 
-### 生产环境
+后端自动挂载 `frontend/` 目录的静态文件，`GET /` 直接返回 `index.standalone.html`。
 
-最终由 `myknowledge serve` 统一启动：
+### 开发（改前端代码时）
 
-```bash
-myknowledge serve                 # 启动 FastAPI + 自动打开浏览器
-                                  # 或走 pywebview 原生窗口
-```
+如果频繁改 `index.html` / `css/` / `js/`，需要跑 `python3 frontend/build.py` 重建 standalone 文件 → 刷新浏览器。
 
 ## API 参考
 
