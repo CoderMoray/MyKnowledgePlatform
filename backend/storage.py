@@ -201,6 +201,9 @@ class Storage:
             meta["id"] = generate_doc_id()
         if "updated" not in meta:
             meta["updated"] = date.today().isoformat()
+        if "created" not in meta:
+            # 首次创建时注入，更新时保留原值
+            meta["created"] = date.today().isoformat()
 
         full.write_text(dump_frontmatter(meta, body), encoding="utf-8")
         return meta
