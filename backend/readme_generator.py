@@ -45,9 +45,11 @@ class ReadmeGenerator:
         Returns the generated markdown text (also written to disk).
         """
         # ── Ensure project directory structure ───────────────
-        if project_rel and project_rel not in ("", "."):
-            for d in ("common-knowledge", "projects", "archive"):
-                (self.storage.kb_root / project_rel / d).mkdir(parents=True, exist_ok=True)
+        # 白名单：只有 projects/xxx 或 archive/xxx 才视作项目层
+        if project_rel and (project_rel.startswith("projects/")
+                            or project_rel.startswith("archive/")):
+            for _d in ("common-knowledge", "projects", "archive"):
+                (self.storage.kb_root / project_rel / _d).mkdir(parents=True, exist_ok=True)
 
         # ── Gather data ──────────────────────────────────────
         try:

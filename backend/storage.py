@@ -171,7 +171,7 @@ class Storage:
         if not full.is_dir():
             return []
 
-        hidden = {".git", "__pycache__"}
+        hidden = {".git", "__pycache__", ".events", ".lock"}
         top_level_hidden = {"_templates", "publish", "config.yaml", "agent-commit.txt"}
 
         entries: list[DirEntry] = []

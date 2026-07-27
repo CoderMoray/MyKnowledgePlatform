@@ -12,10 +12,12 @@ access is possible.
 from __future__ import annotations
 
 import asyncio, os, time, json
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.config import resolve_root
 from backend.events import poll_version
@@ -183,17 +185,29 @@ def api_list_dir(project_rel: str = ""):
     """List files and directories in a KB layer."""
     storage, _ = get_storage()
     entries = storage.list_children(project_rel)
-    return {
-        "items": [
-            {
-                "name": e.name,
-                "path": f"{project_rel}/{e.name}" if project_rel else e.name,
-                "is_dir": e.is_dir,
-                "modified": e.modified,
-            }
-            for e in entries
-        ]
-    }
+    items = []
+    for e in entries:
+        entry = {
+            "name": e.name,
+            "path": f"{project_rel}/{e.name}" if project_rel else e.name,
+            "is_dir": e.is_dir,
+            "modified": e.modified,
+        }
+        if e.is_dir:
+            try:
+                meta, _ = storage.read_document(f"{entry['path']}/readme.md")
+                entry["status"] = meta.get("status") or "active"
+                entry["summary"] = meta.get("summary") or ""
+            except FileNotFoundError:
+                entry["summary"] = ""
+        elif e.name.endswith(".md"):
+            try:
+                meta, _ = storage.read_document(entry["path"])
+                entry["summary"] = meta.get("summary") or ""
+            except Exception:
+                entry["summary"] = ""
+        items.append(entry)
+    return {"items": items}
 
 
 @app.get("/api/document/{path:path}/meta")
@@ -402,8 +416,15 @@ def api_update_project_meta(project_rel: str, payload: ProjectMetaPayload):
 
     storage.write_document(readme_path, new_meta, old_body, auto_id=False)
     parent = "/".join(project_rel.split("/")[:-1]) if project_rel else ""
-    gen.rebuild(parent if parent else "")
+    # projects/ 是根级系统目录，不是项目层，应重建根 readme
+    rebuild_rel = "" if parent == "projects" else (parent or "")
+    gen.rebuild(rebuild_rel)
     gen.rebuild_project_status()
+
+    # Auto-archive non-active projects
+    from backend.mcp_server import _auto_archive
+    _auto_archive(project_rel, storage, gen)
+
     from backend.events import broadcast
     broadcast(storage.kb_root)
     return {"status": "ok"}
@@ -523,6 +544,36 @@ def api_status_detail():
 
 
 # ══════════════════════════════════════════════════════════════
+#  Version
+# ══════════════════════════════════════════════════════════════
+
+
+def _kb_version(kb_root: Path) -> str:
+    """Return the AI-processed checkpoint commit hash (``agent-commit.txt``).
+
+    Returns empty string if no checkpoint exists (no AI has ever processed).
+    """
+    try:
+        from backend.git_manager import GitManager
+        gm = GitManager(kb_root)
+        cp = gm.read_checkpoint(kb_root / "agent-commit.txt")
+        return (cp[:7] + "...") if cp and len(cp) > 7 else (cp or "")
+    except Exception:
+        return ""
+
+
+@app.get("/api/version")
+def api_version():
+    """Return system version + KB git commit hash."""
+    kb_root = resolve_root()
+    from backend.__version__ import __version__
+    return {
+        "system": __version__,
+        "kb": _kb_version(kb_root),
+    }
+
+
+# ══════════════════════════════════════════════════════════════
 #  Lock status
 # ══════════════════════════════════════════════════════════════
 
@@ -591,6 +642,21 @@ def api_set_identity(payload: IdentityPayload):
         raise HTTPException(400, "昵称和邮箱不能为空")
     set_identity(payload.email.strip(), payload.nickname.strip())
     return {"status": "ok", "nickname": payload.nickname, "email": payload.email}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Static frontend (mount after all API routes)
+# ══════════════════════════════════════════════════════════════
+
+_FRONTEND_DIR = (Path.cwd() / "frontend").resolve()
+if _FRONTEND_DIR.is_dir():
+    @app.get("/")
+    def _serve_index():
+        idx = _FRONTEND_DIR / "index.standalone.html"
+        if idx.exists():
+            return PlainTextResponse(idx.read_text(encoding="utf-8"), media_type="text/html")
+        return PlainTextResponse("Frontend not built - run python3 frontend/build.py", status_code=500)
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
 
 
 # ══════════════════════════════════════════════════════════════

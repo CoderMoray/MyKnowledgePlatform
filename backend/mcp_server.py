@@ -253,6 +253,158 @@ def _parent_rel(path: str) -> str:
     return path[:idx] if idx > 0 else ""
 
 
+def _validate_path(
+    path: str,
+    kind: str = "auto",
+    storage: object = None,
+) -> None:
+    """Validate a knowledge base path and raise a helpful ``ValueError``.
+
+    Parameters
+    ----------
+    path:
+        KB-relative path to validate.
+    kind:
+        ``"file"`` — must be a ``.md`` file under ``common-knowledge/``,
+        ``projects/``, or ``archive/``.
+        ``"dir"``  — must be a project directory under ``projects/`` or
+        ``archive/`` (used by rebuild, rename, project-meta).
+        ``"auto"`` — if ``path`` ends with ``.md`` → file, else → dir.
+    storage:
+        When provided, also verifies the path exists on disk.
+        If ``None``, only checks format.
+
+    The error message includes recovery instructions so AI agents can
+    self-correct without human intervention.
+    """
+    # ── Guard 1: path traversal ──────────────────────────────
+    if ".." in path.split("/"):
+        _raise_path_error(
+            path,
+            f"路径包含非法字符「..」，禁止路径穿越。\n"
+            f"请使用 KB 相对路径，例如：\"projects/首页重构/common-knowledge/xxx.md\"",
+        )
+
+    # ── Guard 2: absolute prefix ────────────────────────────
+    if path.startswith("/"):
+        _raise_path_error(
+            path,
+            f"路径以「/」开头，这是绝对路径。\n"
+            f"请使用 KB 相对路径，例如：\"projects/首页重构/common-knowledge/xxx.md\"",
+        )
+
+    # ── Determine kind ──────────────────────────────────────
+    is_dir = kind == "dir" or (kind == "auto" and not path.endswith(".md"))
+    is_file = kind == "file" or (kind == "auto" and path.endswith(".md"))
+
+    # Empty string is only valid for dir kind (root)
+    if not path:
+        if kind == "file":
+            _raise_path_error(path, "文档路径不能为空。")
+        return  # root dir — always valid
+
+    # ── Guard 3: file-specific rules ────────────────────────
+    if is_file:
+        if not path.endswith(".md"):
+            _raise_path_error(
+                path,
+                f"文档文件必须以「.md」结尾。\n\n"
+                f"正确示例：\n"
+                f'  • write__create_document(path="common-knowledge/术语表.md", ...)\n'
+                f'  • write__create_document(path="projects/首页重构/common-knowledge/改版方案.md", ...)\n'
+                f'  • write__create_document(path="archive/平台 Logo 设计/common-knowledge/设计需求.md", ...)',
+            )
+        valid_prefixes = ("common-knowledge/", "projects/", "archive/")
+        if not path.startswith(valid_prefixes):
+            _raise_path_error(
+                path,
+                f"文档路径必须以「common-knowledge/」「projects/」或「archive/」开头。\n\n"
+                f"恢复方法：\n"
+                f"  1. 调 nav__list_dir(project_rel=\"projects\") 列出所有活跃项目\n"
+                f"  2. 调 nav__list_dir(project_rel=\"archive\") 列出所有归档项目\n"
+                f"  3. 选择一个项目，路径格式为：projects/项目名/common-knowledge/文件名.md\n\n"
+                f"正确示例：\n"
+                f'  write__create_document(path="common-knowledge/术语表.md", ...)\n'
+                f'  write__create_document(path="projects/首页重构/common-knowledge/改版方案.md", ...)',
+            )
+
+    # ── Guard 4: dir-specific rules ─────────────────────────
+    if is_dir:
+        if path in ("projects", "archive"):
+            _raise_path_error(
+                path,
+                f"「{path}」是系统目录，不是项目。\n\n"
+                f"正确用法：\n"
+                f"  • 根层（重建根 readme）：不传 project_rel 或传 \"\"\n"
+                f"  • 具体项目：\"projects/项目名称\"（例如：\"projects/首页重构\"）\n"
+                f"  • 已归档项目：\"archive/项目名称\"\n"
+                f"  • 子项目：\"projects/父项目/projects/子项目\"\n\n"
+                f"恢复方法：\n"
+                f"  1. 调 nav__list_dir(project_rel=\"projects\") 列出所有活跃项目\n"
+                f"  2. 调 nav__list_dir(project_rel=\"archive\") 列出所有归档项目\n"
+                f"  3. 用列出的项目名构造正确路径重试\n\n"
+                f"例如：maint__rebuild_index(project_rel=\"projects/首页重构\")",
+            )
+        if not path.startswith(("projects/", "archive/")):
+            _raise_path_error(
+                path,
+                f"项目路径应以「projects/」或「archive/」开头。\n\n"
+                f"恢复方法：\n"
+                f"  1. 调 nav__list_dir(project_rel=\"projects\") 列出所有活跃项目\n"
+                f"  2. 调 nav__list_dir(project_rel=\"archive\") 列出所有归档项目\n"
+                f"  3. 用列出的项目名构造正确路径重试\n\n"
+                f"例如：maint__rebuild_index(project_rel=\"projects/首页重构\")",
+            )
+
+    # ── Guard 5: existence check ────────────────────────────
+    if storage is not None:
+        target = storage.kb_root / path
+        if is_file and not target.is_file():
+            tool_hint = ('write__update_document' if kind != 'file' else 'write__create_document')
+            _raise_path_error(
+                path,
+                f"文档不存在：{path}\n\n"
+                f"可能的原因：\n"
+                f"  • 文件名或路径拼写错误\n"
+                f"  • 文件在另一个项目下\n\n"
+                f"恢复方法：\n"
+                f"  1. 如果是新建文档，用 write__create_document（不要用{kind}）\n"
+                f"  2. 调 nav__get_document_with_refs(path) 确认路径是否正确\n"
+                f"  3. 调 nav__list_dir(project_rel=\"projects\") 列出所有项目，确认正确的项目名",
+            )
+        if is_dir and not target.is_dir():
+            _raise_path_error(
+                path,
+                f"项目目录不存在：{path}\n\n"
+                f"恢复方法：\n"
+                f"  1. 调 nav__list_dir(project_rel=\"projects\") 列出所有活跃项目\n"
+                f"  2. 调 nav__list_dir(project_rel=\"archive\") 列出所有归档项目\n"
+                f"  3. 确认项目名是否正确（注意空格和大小写），重试",
+            )
+
+
+def _raise_path_error(path: str, detail: str) -> None:
+    """Raise a formatted ``ValueError`` with recovery instructions.
+
+    The error message is designed for AI agents to self-correct:
+    what went wrong → correct format → how to discover correct paths → example.
+    """
+    raise ValueError(
+        f"路径错误：{path or '(空)'}\n\n"
+        f"{detail}\n\n"
+        f"──\n"
+        f"💡 如果不确定当前有哪些项目，请先调 nav__list_dir 查看。"
+    )
+
+
+def _validate_project_rel(project_rel: str, storage: object) -> None:
+    """(Legacy alias) """  # kept for backward compat — delegates to _validate_path
+    try:
+        _validate_path(project_rel, kind="dir", storage=storage)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def _git_commit(kb_root: Path, message: str) -> None:
     """Helper: git commit (no-op if git is not initialized)."""
     from backend.git_manager import GitManager
@@ -261,6 +413,31 @@ def _git_commit(kb_root: Path, message: str) -> None:
         gm.commit(message)
     except Exception:
         pass  # non-fatal for MCP tools
+
+
+def _auto_archive(parent_rel: str, storage: Storage, gen: object) -> None:
+    """Move non-active projects from ``projects/`` to ``archive/``."""
+    if not parent_rel.startswith("projects/"):
+        return
+    project_name = parent_rel.split("/")[-1]
+    src = storage.kb_root / parent_rel
+    dst = storage.kb_root / "archive" / project_name
+    if dst.exists():
+        return
+    try:
+        meta, _ = storage.read_document(f"{parent_rel}/readme.md")
+    except FileNotFoundError:
+        return
+    if meta.get("status", "active") == "active":
+        return
+
+    import shutil
+    shutil.move(str(src), str(dst))
+    gen.rebuild("")   # type: ignore[union-attr]
+    gen.rebuild_project_status()   # type: ignore[union-attr]
+    _git_commit(storage.kb_root, f"archive: {project_name} → {meta.get('status', '?')}")
+    from backend.events import broadcast as _evt
+    _evt(storage.kb_root)
 
 
 def create_mcp_app(storage: Storage,
@@ -346,6 +523,11 @@ def create_mcp_app(storage: Storage,
         gen.rebuild(parent_rel)               # type: ignore[union-attr]
         gen.rebuild_project_status()          # type: ignore[union-attr]
         _git_commit(storage.kb_root, msg)
+
+        # ── Auto-archive: non-active projects move to archive/ ──
+        if parent_rel.startswith("projects/") and gen is not None:
+            _auto_archive(parent_rel, storage, gen)
+
         from backend.events import broadcast as _evt
         _evt(storage.kb_root)
 
@@ -364,6 +546,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             The document id (auto-generated).
         """
+        _validate_path(path, kind="file")
         meta = {"type": doc_type}
         if summary:
             meta["summary"] = summary
@@ -386,6 +569,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             The document id.
         """
+        _validate_path(path, kind="file", storage=storage)
         old_meta, old_body = storage.read_document(path)
         if content:
             new_body = content
@@ -421,6 +605,8 @@ def create_mcp_app(storage: Storage,
         Returns:
             The project id.
         """
+        if project_rel:
+            _validate_path(project_rel, kind="dir", storage=storage)
         readme_path = f"{project_rel}/readme.md" if project_rel else "readme.md"
         old_meta, old_body = storage.read_document(readme_path)
 
@@ -459,6 +645,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Confirmation message.
         """
+        _validate_path(path, kind="file", storage=storage)
         import os
         full = storage.kb_root / path
         if not full.exists():
@@ -479,6 +666,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Confirmation or error message.
         """
+        _validate_path(project_rel, kind="dir", storage=storage)
         from backend.mcp_server import rename_project as _rename
         try:
             return _rename(storage, project_rel, new_name)
@@ -495,6 +683,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Confirmation or error message.
         """
+        _validate_path(path, kind="file", storage=storage)
         from backend.mcp_server import rename_document as _rd
         try:
             return _rd(storage, path, new_name)
@@ -510,6 +699,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Validation report (issues listed, or "✓ 格式正常").
         """
+        _validate_path(path, kind="file", storage=storage)
         try:
             meta, body = storage.read_document(path)
         except FileNotFoundError:
@@ -627,6 +817,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Confirmation message.
         """
+        _validate_project_rel(project_rel, storage)
         if gen is not None:
             gen.rebuild(project_rel)
             if project_rel == "":
