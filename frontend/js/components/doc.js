@@ -270,7 +270,7 @@ Alpine.data("docComponent", () => ({
         while (p.firstChild) parent.insertBefore(p.firstChild, p);
         parent.removeChild(p);
       });
-      // TipTap 表格 → 标记占位（turndown 会吃掉 \n）
+      // TipTap 表格 → 纯文本标记（无特殊字符，turndown 不动）
       const tableMarkers = [];
       tmp.querySelectorAll(".tableWrapper").forEach((wrapper, idx) => {
         const table = wrapper.querySelector("table");
@@ -285,15 +285,22 @@ Alpine.data("docComponent", () => ({
           const cols = table.querySelector("tr").querySelectorAll("th, td").length;
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
-        const marker = document.createComment("MYTABLE_" + idx);
-        tableMarkers.push({ idx, md: "\n\n" + rows.join("\n") + "\n\n" });
-        wrapper.replaceWith(marker);
+        const marker = "MYKTABLE" + idx + "MARK";
+        tableMarkers.push({ marker, md: "\n\n" + rows.join("\n") + "\n\n" });
+        wrapper.replaceWith(document.createTextNode(marker));
       });
-      // 修复链接 href
-      tmp.querySelectorAll("a").forEach(a => {
-        const real = a.getAttribute("data-myk-href");
-        if (real && !real.startsWith("ref:")) a.setAttribute("href", real);
-      });
+      // 链接修复：Turndown 自定义规则从 data-myk-href 取值
+      const linkRule = {
+        filter: (node, options) => node.nodeName === "A" && node.getAttribute("data-myk-href"),
+        replacement: (content, node) => {
+          const href = node.getAttribute("data-myk-href");
+          if (href && href.startsWith("ref:")) {
+            const ref = href.slice(4).replace(/%20/g, " ");
+            return "[" + content + "](ref:" + ref + ")";
+          }
+          return "[" + content + "](" + (href || "") + ")";
+        }
+      };
       const cleanHtml = tmp.innerHTML;
 
       // HTML → Markdown（turndown + 自定义规则）
@@ -308,11 +315,12 @@ Alpine.data("docComponent", () => ({
           return "\n\n```" + lang + "\n" + node.firstChild.textContent + "\n```\n\n";
         }
       });
+      td.addRule("mykLink", linkRule);
       let markdown = td.turndown(cleanHtml);
 
-      // 还原表格标记 → 实际 Markdown 表格
-      tableMarkers.forEach(({ idx, md }) => {
-        markdown = markdown.replace("<!--MYTABLE_" + idx + "-->", md);
+      // 还原表格标记
+      tableMarkers.forEach(({ marker, md }) => {
+        markdown = markdown.replace(marker, md);
       });
 
       // turndown 后处理
