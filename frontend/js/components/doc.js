@@ -1,6 +1,9 @@
 document.addEventListener("alpine:init", () => {
 Alpine.data("docComponent", () => ({
     editorInstance: null,
+    editorReady: false,
+    titleValue: "",
+    summaryValue: "",
     titleValue: "",
     summaryValue: "",
     saving: false,
@@ -242,6 +245,7 @@ Alpine.data("docComponent", () => ({
         this.editorInstance.destroy();
         this.editorInstance = null;
       }
+      this.editorReady = false;
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
     },
@@ -278,6 +282,7 @@ Alpine.data("docComponent", () => ({
       });
 
       store.editor = this.editorInstance;
+      this.editorReady = true;
 
       if (typeof window._mykBindToolbar === "function") {
         window._mykBindToolbar(this.editorInstance);
