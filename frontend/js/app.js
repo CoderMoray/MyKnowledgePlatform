@@ -23,7 +23,7 @@ window._mykRefClick = function (event, refPath) {
     const store = Alpine.store("app");
     store.showPopover(event, refPath);
     loadRefPreview(refPath).then((preview) => {
-      if (viewerEl && viewerEl.__x) {
+      if (docEl && docEl.__x) {
         docEl.__x.$data.refPreview = preview;
         docEl.__x.$data.refLoading = false;
       }

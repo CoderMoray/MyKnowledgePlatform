@@ -111,6 +111,18 @@ def main():
         for name in sorted(orphaned):
             check(f"未使用的组件 {name}", False, f"Alpine.data(\"{name}\") 注册了但模板未引用")
 
+    # Ref 链接渲染检查（marked renderer 必须正确处理 ref: 协议）
+    ref_links = re.findall(r'data-ref-path="([^"]+)"', html)
+    if len(ref_links) >= 2:
+        check(f"ref 链接渲染 ({len(ref_links)} 处)", True, "")
+    else:
+        check("ref 链接渲染", len(ref_links) >= 2,
+              f"ref 链接不足 2 处（当前 {len(ref_links)}），marked renderer 可能未生效")
+    # 确保 ref 链接路径不含 :: 后缀（已 stripped）
+    bad_refs = [p for p in ref_links if "::" in p]
+    check("ref 路径无 :: 后缀", len(bad_refs) == 0,
+          f"存在 {len(bad_refs)} 处含 :: 的 ref 路径")
+
     # 渲染一致性检查
     print("\n── 渲染一致性 ──")
     selectors = [

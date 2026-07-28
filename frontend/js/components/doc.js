@@ -18,28 +18,24 @@ Alpine.data("docComponent", () => ({
 
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
-      this.$nextTick(() => this.initEditor());
+      this.$nextTick(() => {
+        this.initEditor();
+        this._bindViewerRefLinks(store);  // 立即绑定阅读态 ref 链接
+      });
     },
 
     /* --- 阅读态 --- */
 
     async openRefPopover(el, refPath) {
-      const store = Alpine.store("app");
       this.refLoading = true;
-      const rect = el.getBoundingClientRect();
-      store.popoverPos = {
-        top: Math.max(4, rect.top - 220),
-        left: Math.max(8, rect.left),
-      };
-      store.popoverVisible = true;
-      store.popoverRefPath = refPath;
       this.refPreview = await loadRefPreview(refPath);
       this.refLoading = false;
+      if (!this.refPreview) return;
+      this._showRefCard(el, this.refPreview, refPath);
     },
 
     closePopover() {
-      const store = Alpine.store("app");
-      store.hidePopover();
+      this._hideRefCard();
       this.refPreview = null;
     },
 
@@ -48,8 +44,138 @@ Alpine.data("docComponent", () => ({
     },
 
     goToRef(path) {
-      this.closePopover();
+      this._hideRefCard(true);
       window.location.hash = "doc/" + encodeURIComponent(path);
+    },
+
+    /** 创建并展示 ref 悬浮卡片（DOM 直接管理） */
+    _showRefCard(linkEl, preview, refPath) {
+      const existing = document.getElementById("ref-card");
+      if (existing) existing.remove();
+
+      const card = document.createElement("div");
+      card.id = "ref-card";
+      card.className = "ref-card";
+
+      const author = preview.author || "";
+      const updated = preview.updated ? formatDate(preview.updated) : "";
+      const summary = preview.summary || "";
+
+      // 生成来源面包屑 HTML
+      const sourceHtml = (preview.source || []).map((crumb, i) => {
+        if (crumb.path) {
+          return `<a class="ref-card__crumb" data-crumb="${crumb.path}" href="#project/${encodeURIComponent(crumb.path)}">${escapeHtml(crumb.label)}</a>`;
+        }
+        return `<span class="ref-card__crumb">${escapeHtml(crumb.label)}</span>`;
+      }).join(' <span class="ref-card__sep">/</span> ');
+      const sourceBlock = sourceHtml ? `<div class="ref-card__source">${sourceHtml}</div>` : "";
+
+      card.innerHTML = `
+        <div class="ref-card__title">${escapeHtml(preview.title)}</div>
+        ${sourceBlock}
+        <div class="ref-card__meta">${author}${updated ? " · 更新于 " + updated : ""}</div>
+        <div class="ref-card__divider"></div>
+        <div class="ref-card__summary">${escapeHtml(summary)}</div>
+        <div class="ref-card__footer">
+          <span class="ref-card__open">打开文档 →</span>
+        </div>
+      `;
+
+      // 点击面包屑 → 跳转项目
+      card.querySelectorAll(".ref-card__crumb[data-crumb]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          this._hideRefCard(true);
+          window.location.hash = "project/" + encodeURIComponent(el.dataset.crumb);
+        });
+      });
+
+      // 点击 "打开文档"
+      card.querySelector(".ref-card__open").addEventListener("click", () => {
+        this.goToRef(refPath);
+      });
+
+      // 鼠标移入卡片 → 取消关闭定时器
+      card.addEventListener("mouseenter", () => {
+        clearTimeout(this._hoverTimer);
+      });
+      card.addEventListener("mouseleave", () => {
+        this._hoverTimer = setTimeout(() => this.closePopover(), 300);
+      });
+
+      document.body.appendChild(card);
+
+      // 定位：链接右下方
+      const linkRect = linkEl.getBoundingClientRect();
+      const cardWidth = 300;
+      let left = linkRect.right + 8;
+      let top = linkRect.top - 4;
+      // 确保不超出右边界
+      if (left + cardWidth > window.innerWidth - 16) {
+        left = window.innerWidth - cardWidth - 16;
+      }
+      // 确保不超出上边界
+      if (top < 8) top = linkRect.bottom + 4;
+
+      card.style.left = left + "px";
+      card.style.top = top + "px";
+      card.style.position = "fixed";
+
+      // 入场动画：从链接位置向右下放大+淡入
+      requestAnimationFrame(() => {
+        card.classList.add("ref-card--enter");
+      });
+    },
+
+    /** 隐藏并销毁 ref 卡片 */
+    _hideRefCard(instant) {
+      const card = document.getElementById("ref-card");
+      if (!card) return;
+      if (instant) {
+        card.remove();
+        return;
+      }
+      card.classList.remove("ref-card--enter");
+      card.classList.add("ref-card--exit");
+      card.addEventListener("transitionend", () => card.remove(), { once: true });
+    },
+
+    /** 阅读态 ref 链接事件委托（viewer__body 容器） */
+    _bindViewerRefLinks(store) {
+      const viewer = document.getElementById("viewer-content");
+      if (!viewer || this._viewerBound) return;
+      this._viewerBound = true;
+      this._hoverTimer = null;
+      const self = this;
+
+      const findRefLink = (target) => {
+        let el = target;
+        while (el && el !== viewer) {
+          if (el.tagName === "A" && el.title.startsWith("关联文档:")) return el;
+          el = el.parentElement;
+        }
+        return null;
+      };
+
+      viewer.addEventListener("mouseover", (e) => {
+        const link = findRefLink(e.target);
+        if (!link) return;
+        if (store.editingMode || store.isLocked) return;
+        clearTimeout(self._hoverTimer);
+        const refPath = link.title.replace(/^关联文档:\s*/, "").trim();
+        if (refPath) {
+          self._hoverTimer = setTimeout(() => {
+            self.openRefPopover(link, refPath);
+          }, 200);
+        }
+      });
+
+      viewer.addEventListener("mouseout", (e) => {
+        const link = findRefLink(e.relatedTarget);
+        if (link) return;
+        clearTimeout(self._hoverTimer);
+        self._hoverTimer = setTimeout(() => self.closePopover(), 300);
+      });
     },
 
     confirmDelete() {

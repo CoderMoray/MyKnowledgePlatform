@@ -14,10 +14,14 @@ function setupMarkedRenderer() {
   const origLink =
     renderer.link.bind(renderer);
 
-  renderer.link = function ({ href, title, text }) {
+  renderer.link = function (href, title, text) {
     // ref: 协议的链接渲染为可点击的关联文档链接
     if (href && href.startsWith("ref:")) {
-      const refPath = href.slice(4);
+      const rawPath = href.slice(4);
+      // 解码空格编码（避免后续 encodeURIComponent 二次编码）
+      const decodedPath = rawPath.replace(/%20/g, " ");
+      // 去掉 ::section 后缀
+      const refPath = decodedPath.split("::")[0];
       const displayText = text || refPath;
       return `<a href="javascript:void(0)"
                  class="ref-link"
@@ -59,6 +63,41 @@ function renderToContainer(html, container) {
 }
 
 /**
+ * 从 refPath 解析来源面包屑
+ * "common-knowledge/xxx.md" → [{label:"知识库总览", path:""}]
+ * "projects/项目名/common-knowledge/xxx.md" → [{label:"项目名", path:"projects/项目名"}]
+ */
+function refSourceBreadcrumb(refPath) {
+  const clean = refPath.replace(/\\/g, "/");
+  const parts = clean.split("/");
+  const sysDirs = new Set(["common-knowledge", "projects", "archive", "_templates", "publish"]);
+  let seenSys = false;
+  const crumbs = [];
+  let accumulated = "";
+  for (const p of parts) {
+    if (!seenSys && sysDirs.has(p)) { seenSys = true; continue; }
+    if (sysDirs.has(p)) continue;
+    if (p.endsWith(".md")) continue;
+    accumulated += (accumulated ? "/" : "") + p;
+    const label = fileName(p + ".md");
+    crumbs.push({ label, path: accumulated });
+  }
+  if (crumbs.length === 0) crumbs.push({ label: "知识库总览", path: "" });
+  return crumbs;
+}
+
+/**
+ * 从 ref 对象生成来源路径字符串（用于 viewer__refs 列表）
+ * @param {{ path: string }} ref
+ * @returns {string}
+ */
+function refSourcePath(ref) {
+  if (!ref || !ref.path) return "";
+  const crumbs = refSourceBreadcrumb(ref.path);
+  return crumbs.map((c) => c.label).join(" / ");
+}
+
+/**
  * 加载引用文档内容到浮层
  * @param {string} refPath
  * @returns {Promise<{title: string, summary: string, path: string}|null>}
@@ -66,10 +105,15 @@ function renderToContainer(html, container) {
 async function loadRefPreview(refPath) {
   try {
     const data = await api.getDocument(refPath);
+    const meta = data.meta || {};
     return {
-      title: (data.meta && data.meta.title) || fileName(refPath),
-      summary: (data.meta && data.meta.summary) || "",
+      title: meta.title || fileName(refPath),
+      summary: meta.summary || "",
+      author: meta.author ? extractDisplayName(meta.author) : "",
+      updated: meta.updated || "",
+      body: data.content || "",
       path: refPath,
+      source: refSourceBreadcrumb(refPath),
     };
   } catch {
     return null;

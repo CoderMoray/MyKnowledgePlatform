@@ -88,7 +88,7 @@ def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
 
     from backend.mcp_server import _resolve_ref, _extract_section
 
-    refs = re.findall(r'\]\(ref:([^\s)]+?)(?:::([^)]*))?\)', payload.content)
+    refs = re.findall(r'\]\(ref:([^)]+?)(?:::([^)]*))?\)', payload.content)
     for ref_path, section in refs:
         try:
             if section:
@@ -246,7 +246,7 @@ def api_get_document_with_refs(path: str):
         raise HTTPException(404, "document not found")
 
     content = f"---\n{_yaml_dump(meta)}---\n\n{body}"
-    refs = re.findall(r'\]\(ref:([^\s)]+?)(?:::([^)]*))?\)', body)
+    refs = re.findall(r'\]\(ref:([^)]+?)(?:::([^)]*))?\)', body)
     seen = {path}
     ref_list = [(r, s) for r, s in refs if r not in seen and not seen.add(r)]
 

@@ -164,17 +164,44 @@
 .markdown-body table {
   width: 100%;
   margin: 0 0 var(--space-4);
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--text-sm);
+  border-radius: 12px;
+  overflow: hidden;
+  border: none;
 }
 
 .markdown-body th {
   font-weight: 600;
   text-align: left;
   padding: var(--space-2) var(--space-3);
-  border: 0.5px solid var(--border-default);
+  border-bottom: 0.5px solid var(--border-default);
+  border-right: 0.5px solid var(--border-default);
   background: var(--bg-secondary);
   color: var(--text-primary);
+}
+
+.markdown-body th:last-child {
+  border-right: none;
+}
+
+.markdown-body td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 0.5px solid var(--border-default);
+  border-right: 0.5px solid var(--border-default);
+}
+
+.markdown-body td:last-child {
+  border-right: none;
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-body tr:last-child th {
+  border-bottom: none;
 }
 
 .markdown-body td {

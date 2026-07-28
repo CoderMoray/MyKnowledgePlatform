@@ -93,7 +93,14 @@ function setupRouter() {
     store.loadProjectDocuments(path);
   });
 
-  // #view/{path}
+  // #doc/{path}（统一文档路由，取代 #view 和 #edit）
+  router.on("doc/:path", (params) => {
+    const path = decodeURIComponent(params.path);
+    store.setView("view", path);
+    store.loadDocument(path);
+  });
+
+  // #view/{path}（兼容旧链接）
   router.on("view/:path", (params) => {
     const path = decodeURIComponent(params.path);
     store.setView("view", path);

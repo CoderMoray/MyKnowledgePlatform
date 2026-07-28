@@ -27,10 +27,10 @@
 }
 
 .viewer__meta {
+  margin-top: var(--space-5);
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-1);
   font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
@@ -45,8 +45,23 @@
   color: var(--text-muted);
 }
 
-.viewer__meta--avatar {
-  margin-bottom: var(--space-2);
+.viewer__meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.viewer__meta-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.viewer__meta-date {
+  color: var(--text-tertiary);
+  margin-left: 2px;
 }
 
 /* ── 摘要 ───────────────────────────────────────────────────────────────── */
@@ -55,7 +70,7 @@
   margin-top: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--accent-subtle);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   color: var(--text-secondary);
   font-size: var(--text-base);
   line-height: var(--leading-relaxed);
@@ -80,42 +95,80 @@
 /* ── 关联文档 ───────────────────────────────────────────────────────────── */
 
 .viewer__refs {
-  margin-top: var(--space-8);
-  padding-top: var(--space-5);
-  border-top: 0.5px solid var(--border-subtle);
+  margin-top: 60px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: var(--space-4) var(--space-4);
+  border: none;
+}
+
+.viewer__refs-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .viewer__refs-title {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: var(--space-2);
 }
 
-.viewer__refs-list {
+  .viewer__refs-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: 2px;
 }
 
-.viewer__ref-tag {
-  display: inline-flex;
+.viewer__ref-item {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 10px;
-  background: var(--tag-bg);
-  color: var(--tag-text);
-  font-size: var(--text-xs);
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: var(--transition-interactive);
-  border: 0.5px solid transparent;
+  transition: background 0.15s;
 }
 
-.viewer__ref-tag:hover {
+.viewer__ref-item:hover {
   background: var(--accent-subtle);
+}
+
+.viewer__ref-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   color: var(--accent);
-  border-color: rgba(99, 102, 241, 0.1);
+}
+
+.viewer__ref-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.viewer__ref-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.viewer__ref-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.viewer__ref-source {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Ref 浮层 ───────────────────────────────────────────────────────────── */
@@ -238,4 +291,103 @@
 
 .viewer__toolbar-btn--primary:hover {
   background: var(--button-primary-hover-bg);
+}
+
+/* ── Ref 链接悬浮卡片（DOM 直接管理） ──────────────────────────── */
+
+.ref-card {
+  position: fixed;
+  z-index: 1000;
+  width: 300px;
+  background: var(--color-bg-primary, #fff);
+  border: 0.5px solid var(--color-border-secondary, #d3d1c7);
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans, system-ui);
+  pointer-events: auto;
+
+  /* 初始状态：隐藏 */
+  transform: scale(0);
+  opacity: 0;
+  transform-origin: 0 0;
+  transition: none;
+}
+
+.ref-card--enter {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+  transform: scale(1);
+  opacity: 1;
+}
+
+.ref-card--exit {
+  transition: transform 0.25s ease-in, opacity 0.25s ease-in;
+  transform: scale(0);
+  opacity: 0;
+}
+
+.ref-card__title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.ref-card__source {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.ref-card__crumb {
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ref-card__crumb[data-crumb]:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ref-card__sep {
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+.ref-card__meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+
+.ref-card__divider {
+  height: 0.5px;
+  background: var(--border-subtle);
+  margin-bottom: 10px;
+}
+
+.ref-card__summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.ref-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.ref-card__open {
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.ref-card__open:hover {
+  text-decoration: underline;
 }

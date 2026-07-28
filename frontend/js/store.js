@@ -211,10 +211,29 @@ document.addEventListener("alpine:init", () => {
     async loadDocument(path) {
       this.error = null;
       try {
-        const data = await api.getDocumentWithRefs(path);
-        this.document = data;
-        this.htmlContent = data.html || (data.content ? marked.parse(data.content) : "");
-        this.refs = data.refs || [];
+        // 双 API：getDocument 取纯净内容+meta，getDocumentWithRefs 只取 refs
+        const [data, refsData] = await Promise.all([
+          api.getDocument(path),
+          api.getDocumentWithRefs(path).catch(() => ({ refs: [] })),
+        ]);
+
+        this.document = {
+          ...data,
+          meta: data.meta || {},
+          // 将 meta 字段拍平到顶层，方便模板直接读取
+          ...(data.meta || {}),
+          summary: (data.meta && data.meta.summary) || "",
+          // 字段名统一：后端 meta 返回 created/updated，模板用 created_at/updated_at
+          created_at: (data.meta && data.meta.created) || "",
+          updated_at: (data.meta && data.meta.updated) || "",
+          // 最后编辑人
+          maintainer: (data.meta && data.meta.maintainer) || "",
+        };
+        this.htmlContent = data.html || (data.content ? marked.parse(
+          // 编码 ref: URL 中的空格，防止 marked 截断
+          data.content.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/ /g, "%20") + ")")
+        ) : "");
+        this.refs = refsData.refs || [];
 
         // 并行加载元信息（不阻塞主内容渲染）
         this.loadDocumentMeta(path).catch(() => {});

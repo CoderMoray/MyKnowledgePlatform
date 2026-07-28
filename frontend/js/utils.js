@@ -20,13 +20,14 @@ function formatDate(date) {
 
   if (mins < 1) return "刚刚";
   if (mins < 60) return `${mins} 分钟前`;
-  if (hours < 24) return `${hours} 小时前`;
-  if (days < 7) return `${days} 天前`;
+  if (days === 0) return "今天";
+  if (days === 1) return "昨天";
+  if (days <= 14) return `${days} 天前`;
 
+  // 14天以上显示完整日期
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  if (y === now.getFullYear()) return `${m}-${day}`;
   return `${y}-${m}-${day}`;
 }
 
