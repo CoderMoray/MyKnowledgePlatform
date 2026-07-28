@@ -30,14 +30,15 @@ Alpine.data("projectComponent", () => ({
     },
 
     goToProject(path) {
-      window.location.hash = `project/${encodeURIComponent(path)}`;
+      const clean = (path || "").replace(/^projects\//, "");
+      window.location.hash = "project/" + encodeURIComponent(clean);
     },
 
     /** 返回上级（一级项目 → 仪表盘，深层 → 父项目） */
     goBack() {
       const parent = this.parentPath;
       if (parent) {
-        window.location.hash = "project/" + encodeURIComponent(parent);
+        window.location.hash = "project/" + encodeURIComponent(parent.replace(/^projects\//, ""));
       } else {
         window.location.hash = "dashboard";
       }

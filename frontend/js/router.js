@@ -88,7 +88,11 @@ function setupRouter() {
 
   // #project/{name}
   router.on("project/:name", (params) => {
-    const path = params.name;
+    // URL 中去掉了 projects/ 前缀，这里加回来
+    let path = params.name;
+    if (!path.startsWith("projects/") && !path.startsWith("archive/") && !path.startsWith("common-knowledge/")) {
+      path = "projects/" + path;
+    }
     store.setView("project", path);
     store.loadProjectDocuments(path);
   });

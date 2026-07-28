@@ -15,7 +15,8 @@ Alpine.data("dashboardComponent", () => ({
     },
 
     goToProject(path) {
-      window.location.hash = `project/${encodeURIComponent(path)}`;
+      const clean = (path || "").replace(/^projects\//, "");
+      window.location.hash = "project/" + encodeURIComponent(clean);
     },
 
     goToDocument(path) {

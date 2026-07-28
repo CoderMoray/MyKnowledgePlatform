@@ -161,7 +161,8 @@ function openCardPanel(cardEl, path) {
       inner.querySelectorAll("[data-sub-path]").forEach(el => {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          window.location.hash = "project/" + encodeURIComponent(el.dataset.subPath);
+          const clean = (el.dataset.subPath || "").replace(/^projects\//, "");
+          window.location.hash = "project/" + encodeURIComponent(clean);
         });
       });
     });
