@@ -269,17 +269,19 @@
         <div class="top-header__left">
 
           <!-- Breadcrumb -->
-          <nav class="breadcrumb">
-            <template x-if="$store.app.currentView === 'dashboard'">
-              <span class="breadcrumb__item breadcrumb__item--active">仪表盘</span>
-            </template>
+          <nav class="breadcrumb" x-show="$store.app.currentView !== 'dashboard'">
+            
 
             <template x-if="$store.app.currentView === 'project'">
               <>
                 <a href="#dashboard" class="breadcrumb__item">仪表盘</a>
-                <span class="breadcrumb__sep">/</span>
-                <span class="breadcrumb__item breadcrumb__item--active"
-                      x-text="$store.app.currentPath"></span>
+                <template x-for="crumb in $store.app.breadcrumbs" :key="crumb.path">
+                  <span x-show="crumb.label !== 'projects'">
+                    <span class="breadcrumb__sep">/</span>
+                    <span class="breadcrumb__item breadcrumb__item--active"
+                          x-text="crumb.label"></span>
+                  </span>
+                </template>
               </>
             </template>
 
@@ -290,7 +292,7 @@
                   <>
                     <span class="breadcrumb__sep">/</span>
                     <a x-show="i < $store.app.breadcrumbs.length - 1"
-                       :href="'#project/' + encodeURIComponent(crumb.path)"
+                       :href="'#project/' + crumb.path.replace(/^projects\//, '')"
                        class="breadcrumb__item"
                        x-text="crumb.label"></a>
                     <span x-show="i === $store.app.breadcrumbs.length - 1"
@@ -311,7 +313,7 @@
                           class="breadcrumb__item breadcrumb__item--active"
                           x-text="'编辑: ' + crumb.label"></span>
                     <a x-show="i < $store.app.breadcrumbs.length - 1"
-                       :href="'#project/' + encodeURIComponent(crumb.path)"
+                       :href="'#project/' + crumb.path.replace(/^projects\//, '')"
                        class="breadcrumb__item"
                        x-text="crumb.label"></a>
                   </>
