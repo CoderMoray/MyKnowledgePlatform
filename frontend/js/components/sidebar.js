@@ -95,11 +95,11 @@ Alpine.data("sidebarComponent", () => ({
     },
 
     goToProject(projectPath) {
-      window.location.hash = `project/${encodeURIComponent(projectPath)}`;
+      window.location.hash = `project/${projectPath}`;
     },
 
     goToDocument(docPath) {
-      window.location.hash = "doc/" + encodeURIComponent(docPath);
+      window.location.hash = "doc/" + hashEncode(docPath);
     },
 
     newDocument() {

@@ -121,7 +121,7 @@ Alpine.data("editorComponent", () => ({
     discard() {
       const store = Alpine.store("app");
       if (store.currentPath) {
-        window.location.hash = `doc/${encodeURIComponent(store.currentPath)}`;
+        window.location.hash = `doc/${hashEncode(store.currentPath)}`;
       } else {
         window.location.hash = "dashboard";
       }

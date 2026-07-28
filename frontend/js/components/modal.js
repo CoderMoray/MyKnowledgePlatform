@@ -31,7 +31,7 @@ Alpine.data("modalComponent", () => ({
 
         showToast("文档已创建", "success");
         store.closeModal();
-        window.location.hash = `edit/${encodeURIComponent(fullPath)}`;
+        window.location.hash = `edit/${hashEncode(fullPath)}`;
       } catch (err) {
         if (err.isLocked) {
           showToast("知识库正在整理中，暂时只读", "warning");
@@ -55,7 +55,7 @@ Alpine.data("modalComponent", () => ({
 
         const projPath = projectName(path);
         if (projPath) {
-          window.location.hash = `project/${encodeURIComponent(projPath)}`;
+          window.location.hash = `project/\$\{projPath\}`;
         } else {
           window.location.hash = "dashboard";
         }
@@ -83,7 +83,7 @@ Alpine.data("modalComponent", () => ({
         const parts = path.replace(/\\/g, "/").split("/");
         parts[parts.length - 1] = newName.includes(".") ? newName : newName + ".md";
         const newPath = parts.join("/");
-        window.location.hash = `doc/${encodeURIComponent(newPath)}`;
+        window.location.hash = `doc/${hashEncode(newPath)}`;
       } catch (err) {
         showToast(err.message || "改名失败", "error");
       }

@@ -26,26 +26,26 @@ Alpine.data("projectComponent", () => ({
     },
 
     goToDocument(path) {
-      window.location.hash = `doc/${encodeURIComponent(path)}`;
+      window.location.hash = `doc/${hashEncode(path)}`;
     },
 
     goToProject(path) {
       const clean = (path || "").replace(/^projects\//, "");
-      window.location.hash = "project/" + encodeURIComponent(clean);
+      window.location.hash = "project/" + clean;
     },
 
     /** 返回上级（一级项目 → 仪表盘，深层 → 父项目） */
     goBack() {
       const parent = this.parentPath;
       if (parent) {
-        window.location.hash = "project/" + encodeURIComponent(parent.replace(/^projects\//, ""));
+        window.location.hash = "project/" + parent.replace(/^projects\//, "");
       } else {
         window.location.hash = "dashboard";
       }
     },
 
     goToEdit(path) {
-      window.location.hash = `edit/${encodeURIComponent(path)}`;
+      window.location.hash = `edit/${hashEncode(path)}`;
     },
 
     newDocument() {

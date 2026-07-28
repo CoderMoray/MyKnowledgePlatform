@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyKnowledge — 产品工作流</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+/* ==========================================================================
+   MyKnowledge — Product Flow Diagram Viewer
+   Raycast Dark Theme · Indigo Accent · Glass Morphism
+   Independent from frontend/ directory
+   ========================================================================== */
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;tab-size:4}
+body{min-height:100vh;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:#f5f5f7;background:#1c1c1e}
+img,svg{display:block;max-width:100%}
+input,button,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+a{color:inherit;text-decoration:none}
+ul,ol{list-style:none}
+h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit;line-height:1.25}
+code,kbd,pre,samp{font-family:'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',Consolas,monospace}
+table{border-collapse:collapse;border-spacing:0}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#545458;border-radius:9999px}
+
+/* ── Design Tokens (Raycast Dark) ──────────────────────────────────────── */
+:root{--bg-primary:#1c1c1e;--bg-secondary:#242426;--bg-tertiary:#2c2c2e;--surface:rgba(44,44,46,0.82);--text-primary:#f5f5f7;--text-secondary:#98989d;--text-tertiary:#636366;--text-muted:#48484a;--border-subtle:#2c2c2e;--border-default:#3a3a3c;--border-strong:#545458;--accent:#818cf8;--accent-hover:#a5b4fc;--accent-subtle:rgba(129,140,248,0.12);--accent-gradient:linear-gradient(135deg,#a5b4fc,#818cf8);--color-success:#34d399;--color-warning:#fbbf24;--color-danger:#f87171;--color-info:#60a5fa;--glass-bg:rgba(44,44,46,0.82);--glass-blur:blur(24px);--glass-border:0.5px solid #3a3a3c;--card-glass-bg:rgba(44,44,46,0.7);--card-glass-blur:blur(12px);--card-glass-border:0.5px solid rgba(255,255,255,0.04);--radius-sm:4px;--radius-md:8px;--radius-lg:10px;--radius-xl:14px;--radius-2xl:20px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:32px;--space-8:36px;--space-9:48px;--shadow-card:none;--font-sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;--font-mono:'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',Consolas,monospace;--transition-theme:background-color 0.5s ease,color 0.5s ease,border-color 0.5s ease;--transition-interactive:background-color 0.15s ease,color 0.15s ease,border-color 0.15s ease,box-shadow 0.15s ease,opacity 0.15s ease;--transition-card:all 0.25s cubic-bezier(0.16,1,0.3,1)}
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
+.app-shell{display:flex;height:100vh;overflow:hidden;background:var(--bg-primary)}
+
+/* ── Sidebar (TOC) ─────────────────────────────────────────────────────── */
+.sidebar{width:220px;min-width:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-right:var(--glass-border);z-index:20;position:relative;flex-shrink:0;transition:var(--transition-theme)}
+.sidebar-brand{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-3);border-bottom:0.5px solid var(--border-subtle)}
+.sidebar-brand__logo{width:26px;height:26px;border-radius:8px;background:var(--accent-gradient);color:#1c1c1e;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar-brand__name{font-size:14px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+.sidebar-nav{flex:1;overflow-y:auto;padding:var(--space-3)}
+.sidebar-section{margin-bottom:var(--space-2)}
+.sidebar-section__label{display:block;padding:var(--space-2) 0 var(--space-1);font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:1.2px;user-select:none}
+.sidebar-item{display:flex;align-items:center;gap:6px;padding:5px var(--space-2);margin:1px 0;border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary);cursor:pointer;transition:var(--transition-interactive);user-select:none}
+.sidebar-item:hover{background:var(--accent-subtle)}
+.sidebar-item--active{background:var(--accent-subtle);color:var(--accent);font-weight:600}
+.sidebar-item__name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-item__tag{font-size:9px;color:var(--text-muted);background:var(--bg-tertiary);border-radius:9999px;padding:0 5px;flex-shrink:0}
+
+/* ── Main Area ─────────────────────────────────────────────────────────── */
+.main-area{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+.top-header{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-6);background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:var(--glass-border);min-height:48px;flex-shrink:0;z-index:10}
+.top-header__left{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.header-logo{display:flex;align-items:center;gap:6px}
+.header-logo__dot{width:10px;height:10px;border-radius:50%;background:var(--accent-gradient);flex-shrink:0}
+.header-logo__text{font-size:14px;font-weight:600;color:var(--text-primary)}
+.status-indicator{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--radius-2xl);background:var(--accent-subtle);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:11px;color:var(--text-secondary);font-weight:500;border:0.5px solid transparent}
+.status-indicator__dot{width:6px;height:6px;border-radius:50%;background:var(--color-success);flex-shrink:0}
+
+/* ── Content ───────────────────────────────────────────────────────────── */
+.content-panel{flex:1;overflow-y:auto;padding:var(--space-7) var(--space-8)}
+.content-panel::-webkit-scrollbar{width:6px}
+.content-panel::-webkit-scrollbar-track{background:transparent}
+.content-panel::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:9999px}
+
+/* ── Typography ────────────────────────────────────────────────────────── */
+.page-label{font-size:11px;font-weight:600;color:#a5b4fc;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:var(--space-1)}
+.page-title{font-size:26px;font-weight:600;color:var(--text-primary);line-height:1.25;letter-spacing:-0.02em;margin-bottom:4px}
+.page-subtitle{font-size:12px;color:var(--text-tertiary);margin-bottom:var(--space-6)}
+.section-title{font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:var(--space-4);letter-spacing:-0.01em;margin-top:var(--space-9);padding-top:var(--space-4);border-top:0.5px solid var(--border-subtle)}
+.section-title:first-of-type{border-top:none;margin-top:0;padding-top:0}
+.section-desc{font-size:12px;color:var(--text-tertiary);margin-bottom:var(--space-4);line-height:1.6}
+
+/* ── Diagram Card ──────────────────────────────────────────────────────── */
+.diagram-card{background:var(--card-glass-bg);backdrop-filter:var(--card-glass-blur);-webkit-backdrop-filter:var(--card-glass-blur);border:var(--card-glass-border);border-radius:var(--radius-xl);box-shadow:var(--shadow-card);padding:var(--space-5);margin-bottom:var(--space-6);cursor:pointer;transition:var(--transition-card);overflow:hidden}
+.diagram-card:hover{transform:translateY(-2px);background:rgba(44,44,46,0.85)}
+.diagram-card__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)}
+.diagram-card__title{font-size:14px;font-weight:600;color:var(--text-primary)}
+.diagram-card__hint{font-size:10px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px;opacity:0.6}
+.diagram-card__mermaid{overflow:auto;text-align:center;min-height:120px}
+.diagram-card__mermaid svg{max-width:100%;height:auto}
+.diagram-card__mermaid::-webkit-scrollbar{height:4px}
+.diagram-card__mermaid::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:9999px}
+
+/* ── Modal (Zoom) ──────────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:fade-in 0.2s ease}
+.modal-overlay--open{display:flex}
+.modal{background:var(--bg-primary);border:0.5px solid var(--border-default);border-radius:var(--radius-xl);box-shadow:0 16px 48px rgba(0,0,0,0.4);padding:var(--space-6);width:90%;max-width:1200px;max-height:90vh;display:flex;flex-direction:column;animation:modal-in 0.25s cubic-bezier(0.16,1,0.3,1)}
+.modal__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-4);flex-shrink:0}
+.modal__title{font-size:16px;font-weight:600;color:var(--text-primary)}
+.modal__close{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);color:var(--text-tertiary);transition:var(--transition-interactive)}
+.modal__close:hover{background:var(--accent-subtle);color:var(--accent)}
+.modal__body{flex:1;overflow:auto;text-align:center;min-height:200px}
+.modal__body svg{max-width:100%;height:auto}
+.modal__body::-webkit-scrollbar{width:6px;height:6px}
+.modal__body::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:9999px}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes modal-in{from{opacity:0;transform:scale(0.96) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media(max-width:768px){
+  .sidebar{position:fixed;left:-220px;width:220px!important;transition:left 0.24s ease;z-index:30}
+  .sidebar--open{left:0}
+  .top-header{padding:var(--space-3) var(--space-4)}
+  .content-panel{padding:var(--space-6)}
+  .sidebar-toggle{display:flex!important}
+}
+.sidebar-toggle{display:none;width:26px;height:26px;align-items:center;justify-content:center;border-radius:var(--radius-sm);color:var(--text-secondary);cursor:pointer;transition:var(--transition-interactive);flex-shrink:0;opacity:0.65}
+.sidebar-toggle:hover{opacity:1;color:var(--accent);background:var(--accent-subtle)}
+.sidebar-toggle svg{width:16px;height:16px}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:25}
+.mobile-overlay--open{display:block}
+
+/* ── Mermaid 主题覆盖 ──────────────────────────────────────────────────── */
+.mermaid .label{color:var(--text-primary)!important;font-family:var(--font-sans)!important}
+.mermaid .node rect,.mermaid .node circle,.mermaid .node polygon,.mermaid .node path{fill:var(--bg-tertiary)!important;stroke:var(--border-default)!important}
+.mermaid .edgePath .path{stroke:var(--text-tertiary)!important}
+.mermaid .edgeLabel{background:var(--bg-primary)!important;color:var(--text-secondary)!important;border:0.5px solid var(--border-subtle)!important;border-radius:4px!important;padding:2px 6px!important;font-size:11px!important}
+.mermaid .cluster rect{fill:var(--bg-secondary)!important;stroke:var(--border-default)!important;stroke-dasharray:none!important}
+.mermaid .cluster-label{color:var(--text-primary)!important;font-weight:600!important}
+.mermaid .flowchart-link{stroke:var(--text-tertiary)!important}
+.mermaid marker{fill:var(--text-tertiary)!important}
+.mermaid .stateGroup rect,.mermaid .stateGroup line{fill:var(--bg-tertiary)!important;stroke:var(--border-default)!important}
+.mermaid .stateGroup .state-title{fill:var(--text-primary)!important;font-weight:600!important}
+.mermaid .stateGroup .state-description{fill:var(--text-secondary)!important}
+.mermaid .stateGroup .stateGroup rect{fill:var(--bg-secondary)!important;stroke:var(--border-default)!important}
+.mermaid .stateGroup .stateGroup .state-title{fill:var(--text-primary)!important}
+.mermaid .stateGroup .transition{stroke:var(--text-tertiary)!important}
+.mermaid .stateGroup .transition-text{fill:var(--text-secondary)!important;font-size:11px!important}
+</style>
+</head>
+<body>
+<div class="app-shell" id="app">
+
+  <!-- Mobile Overlay -->
+  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- Sidebar / TOC -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand__logo">M</div>
+      <div class="sidebar-brand__name">MyKnowledge</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-section">
+        <span class="sidebar-section__label">目录</span>
+        <div class="sidebar-item" data-target="section-1" onclick="scrollToSection('section-1')">
+          <span class="sidebar-item__name">一、系统全景</span>
+          <span class="sidebar-item__tag">1</span>
+        </div>
+        <div class="sidebar-item" data-target="section-2" onclick="scrollToSection('section-2')">
+          <span class="sidebar-item__name">二、安装与初始化</span>
+          <span class="sidebar-item__tag">2</span>
+        </div>
+        <div class="sidebar-item" data-target="section-3" onclick="scrollToSection('section-3')">
+          <span class="sidebar-item__name">三、Agent 核心工作流</span>
+          <span class="sidebar-item__tag">3</span>
+        </div>
+        <div class="sidebar-item" data-target="section-4" onclick="scrollToSection('section-4')">
+          <span class="sidebar-item__name">四、路径规则</span>
+          <span class="sidebar-item__tag">4</span>
+        </div>
+        <div class="sidebar-item" data-target="section-5" onclick="scrollToSection('section-5')">
+          <span class="sidebar-item__name">五、状态与归档</span>
+          <span class="sidebar-item__tag">5</span>
+        </div>
+        <div class="sidebar-item" data-target="section-6" onclick="scrollToSection('section-6')">
+          <span class="sidebar-item__name">六、版本</span>
+          <span class="sidebar-item__tag">6</span>
+        </div>
+        <div class="sidebar-item" data-target="section-7" onclick="scrollToSection('section-7')">
+          <span class="sidebar-item__name">七、异常处理</span>
+          <span class="sidebar-item__tag">7</span>
+        </div>
+      </div>
+      <div class="sidebar-section" style="margin-top:var(--space-6)">
+        <span class="sidebar-section__label">流程图</span>
+        <div class="sidebar-item sidebar-item--active" data-target="diag-1" onclick="scrollToSection('diag-1')">
+          <span class="sidebar-item__name">系统全景</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-2" onclick="scrollToSection('diag-2')">
+          <span class="sidebar-item__name">安装初始化</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-3" onclick="scrollToSection('diag-3')">
+          <span class="sidebar-item__name">Agent 工作流</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-5" onclick="scrollToSection('diag-5')">
+          <span class="sidebar-item__name">状态与归档</span>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Header -->
+    <header class="top-header">
+      <div class="top-header__left">
+        <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换目录">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="header-logo">
+          <div class="header-logo__dot"></div>
+          <span class="header-logo__text">产品工作流</span>
+        </div>
+      </div>
+      <div class="top-header__right">
+        <div class="status-indicator">
+          <span class="status-indicator__dot"></span>
+          流程图概览
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content-panel" id="contentPanel">
+
+      <!-- Page Title -->
+      <span class="page-label">MyKnowledge</span>
+      <h1 class="page-title">产品工作流</h1>
+      <p class="page-subtitle">从人类安装到 AI Agent 完成知识管理的完整工作流 · 4 个 Mermaid 流程图</p>
+
+      <!-- ===== Section 1: 系统全景 ===== -->
+      <section id="section-1">
+        <h2 class="section-title">一、系统全景</h2>
+        <p class="section-desc">系统由人类用户、AI Agent Client、知识库（MCP Server + Storage + REST API）和 Web UI 四部分组成。</p>
+        <div id="diag-1" class="diagram-card" onclick="openModal('diagram-1')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">系统架构图</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
+              flowchart TB
+                subgraph Human["👤 人类用户"]
+                    A1[终端操作]
+                    A2[Web UI ⏳]
+                end
+
+                subgraph Agent["🤖 AI Agent Client (Enchante)"]
+                    B[MCP Client]
+                end
+
+                subgraph KB["📁 知识库 ~/.myknowledge/"]
+                    C[MCP Server<br/>python -m backend.cli mcp]
+                    C --- D[Storage<br/>Markdown + Git]
+                    C --- E[REST API<br/>uvicorn]
+                end
+
+                subgraph Frontend["🖥️ Web UI (开发中)"]
+                    F[Alpine.js SPA]
+                    F ---|http| E
+                end
+
+                Human -->|mcp.json 配置| B
+                B -->|stdio MCP| C
+                A1 -->|myknowledge init| KB
+                A1 -->|myknowledge serve| E
+                A2 -->|浏览器| F
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 2: 安装与初始化 ===== -->
+      <section id="section-2">
+        <h2 class="section-title">二、安装与初始化</h2>
+        <p class="section-desc">从 pip 安装到配置 MCP 的完整流程，支持在线安装和直接运行两种方式。</p>
+        <div id="diag-2" class="diagram-card" onclick="openModal('diagram-2')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">安装流程图</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
+              flowchart LR
+                Start(("开始")) --> Install["安装包<br/>pip install myknowledge"]
+                Install --> Init["初始化知识库<br/>myknowledge init<br/>→ ~/.myknowledge/"]
+                Init --> Login["设置身份<br/>myknowledge login<br/><email> <昵称>"]
+                Login --> MCPConfig["配置 MCP<br/>在 agent client 的 mcp.json 写入"]
+
+                MCPConfig --> MCPConfigSub{两种方式}
+                MCPConfigSub -->|方式 A：在线安装| Online["pip install -e .<br/>command: myknowledge mcp"]
+                MCPConfigSub -->|方式 B：直接运行| Offline["command: python -m backend.cli mcp"]
+
+                Online --> Done(("✅ 就绪"))
+                Offline --> Done
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 3: Agent Client 工作流 ===== -->
+      <section id="section-3">
+        <h2 class="section-title">三、Agent Client 工作流（核心）</h2>
+        <p class="section-desc">AI Agent 与知识库交互的完整流程。MCP 先获取锁才能读 diff；写完释放锁。</p>
+        <div id="diag-3" class="diagram-card" onclick="openModal('diagram-3')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">Agent 工作流</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
+              flowchart TD
+                Start(["🤖 Agent 开始会话"])
+
+                Start --> AcquireLock["🔒 maint__acquire_lock<br/>获取写锁"]
+
+                AcquireLock --> ReadKB["📖 导航阶段"]
+                ReadKB -->|nav__read_readme| ReadRoot{"阅读根 readme<br/>了解项目结构"}
+                ReadRoot -->|有项目| ListProjects["nav__list_dir projects/<br/>列出所有项目"]
+                ReadRoot -->|无项目| CreateFirst["write__create_document<br/>创建第一篇文档<br/>→ 自动创建项目"]
+                ReadRoot -->|直接读文档| ReadDoc["nav__get_document<br/>或 nav__get_document_with_refs"]
+
+                ListProjects --> ReadMoreDocs["nav__get_document<br/>阅读具体文档"]
+                CreateFirst --> ReadKB
+
+                ReadMoreDocs --> Decide{"判断下一步"}
+
+                Decide -->|"修改已有知识"| Update["✏️ write__update_document<br/>更新文档内容/summary"]
+                Decide -->|"新建知识"| Create["📄 write__create_document<br/>需指定路径和 summary"]
+                Decide -->|"改项目元信息"| ProjectMeta["📋 write__update_project_meta<br/>改 name / summary / status"]
+                Decide -->|"改名"| Rename{"改名类型"}
+                Decide -->|"读 diff"| ReadDiff["🔍 maint__read_diff<br/>读未处理的变更"]
+                Decide -->|"验证完整性"| Validate["✅ maint__validate_doc<br/>检查 frontmatter + ref"]
+                Decide -->|"重建索引"| Rebuild["🔄 maint__rebuild_index<br/>手动重建 readme + 索引"]
+                Decide -->|"分享"| Share["📦 share__publish<br/>导出分享包 .mkpkg"]
+                Decide -->|"导入"| Import["📥 share__import_share<br/>导入分享包"]
+                Decide -->|"完成工作"| Release["🔓 maint__release_lock"]
+
+                Rename -->|"项目改名"| RenameProj["write__rename_project<br/>目录 + ref 全部替换"]
+                Rename -->|"文档改名"| RenameDoc["write__rename_document<br/>文件 + ref 全部替换"]
+
+                Update --> WriteThrough["⏳ 自动流程：<br/>① write_document<br/>② gen.rebuild（更新 readme）<br/>③ gen.rebuild_project_status<br/>④ git commit<br/>⑤ broadcast（SSE 通知前端）"]
+                Create --> WriteThrough
+                ProjectMeta --> WriteThrough
+                RenameProj --> WriteThrough
+                RenameDoc --> WriteThrough
+
+                WriteThrough --> AutoArchive{"⑥ status 检查"}
+                AutoArchive -->|"非 active"| Archive["📦 shutil.move<br/>projects/X → archive/X<br/>+ rebuild + commit"]
+                AutoArchive -->|"active"| Keep[("不动")]
+                Archive --> Keep
+
+                Keep --> Decide
+
+                ReadDiff --> ProcessDiff{"有差异?"}
+                ProcessDiff -->|"有"| Decide
+                ProcessDiff -->|"无"| Decide
+
+                Release --> End(["结束会话"])
+            </pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 4: 路径规则 ===== -->
+      <section id="section-4">
+        <h2 class="section-title">四、路径规则（AI 必读）</h2>
+        <p class="section-desc">所有写工具接受的路径规则。禁止路径穿越、绝对路径和非 Markdown 文件。</p>
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">路径规则速查</span>
+          </div>
+          <div style="overflow-x:auto;font-size:12px;color:var(--text-secondary)">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="border-bottom:0.5px solid var(--border-default)">
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">禁止</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">..</code></td><td style="padding:8px 12px">路径穿越</td></tr>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">/</code> 开头</td><td style="padding:8px 12px">绝对路径</td></tr>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px">非 <code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">.md</code> 结尾</td><td style="padding:8px 12px">只支持 Markdown</td></tr>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">projects</code> / <code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">archive</code></td><td style="padding:8px 12px">系统目录</td></tr>
+                <tr><td style="padding:8px 12px">不存在的项目目录</td><td style="padding:8px 12px">先用 <code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">nav__list_dir</code> 列出</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:var(--space-4);padding:var(--space-3);background:var(--bg-secondary);border-radius:var(--radius-md);font-size:11px;color:var(--text-secondary);line-height:1.6">
+            <strong style="color:var(--text-primary)">正确示例：</strong><br>
+            <code style="color:var(--accent)">common-knowledge/术语表.md</code><br>
+            <code style="color:var(--accent)">projects/首页重构/common-knowledge/改版方案.md</code><br>
+            <code style="color:var(--accent)">projects/MyKnowledge 项目知识管理平台/projects/前端设计与开发</code><br>
+            <code style="color:var(--accent)">archive/首页重构</code>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 5: 状态与归档 ===== -->
+      <section id="section-5">
+        <h2 class="section-title">五、状态与归档</h2>
+        <p class="section-desc">项目的状态流转与自动归档机制。非 active 状态的项目自动移入 archive/ 目录，30 天后垃圾回收。</p>
+        <div id="diag-5" class="diagram-card" onclick="openModal('diagram-5')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">状态流转图</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
+              stateDiagram-v2
+                [*] --> active：创建项目
+                active --> completed：完成
+                active --> cancelled：取消
+                active --> abandoned：废弃
+
+                completed --> Archived：_auto_archive
+                cancelled --> Archived：_auto_archive
+                abandoned --> Archived：_auto_archive
+
+                Archived --> [*]：30天后 garbage_collect
+            </pre>
+          </div>
+        </div>
+
+        <!-- Status Table -->
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">状态说明表</span>
+          </div>
+          <div style="overflow-x:auto;font-size:12px;color:var(--text-secondary)">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="border-bottom:0.5px solid var(--border-default)">
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">状态</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">位置</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:var(--text-primary);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">前台显示</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><span class="status-badge" style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block"></span>active</span></td><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">projects/</code></td><td style="padding:8px 12px">🟢 进行中</td></tr>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><span class="status-badge" style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#60a5fa;display:inline-block"></span>completed</span></td><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">archive/</code></td><td style="padding:8px 12px">✅ 已完成</td></tr>
+                <tr style="border-bottom:0.5px solid var(--border-subtle)"><td style="padding:8px 12px"><span class="status-badge" style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#fbbf24;display:inline-block"></span>cancelled</span></td><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">archive/</code></td><td style="padding:8px 12px">⏹ 已取消</td></tr>
+                <tr><td style="padding:8px 12px"><span class="status-badge" style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:#f87171;display:inline-block"></span>abandoned</span></td><td style="padding:8px 12px"><code style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;font-size:11px">archive/</code></td><td style="padding:8px 12px">❌ 已废弃</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 6: 版本 ===== -->
+      <section id="section-6">
+        <h2 class="section-title">六、版本</h2>
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">版本信息</span>
+          </div>
+          <div style="background:var(--bg-tertiary);padding:var(--space-4);border-radius:var(--radius-md);overflow:auto;font-size:12px;color:var(--text-secondary);font-family:var(--font-mono);white-space:pre-wrap;word-break:break-all">
+            // GET /api/version
+            {
+              "system": "0.5.0",   // 后端 __version__.py
+              "kb": "c10b1c4"       // AI checkpoint 对应的 commit hash
+            }
+          </div>
+          <div style="margin-top:var(--space-3);font-size:12px;color:var(--text-tertiary);line-height:1.6">
+            <strong style="color:var(--text-secondary)">system</strong>：系统版本，手动维护<br>
+            <strong style="color:var(--text-secondary)">kb</strong>：知识库版本，来自 <code style="background:var(--bg-tertiary);padding:1px 4px;border-radius:3px;font-size:10px">agent-commit.txt</code>（AI 处理完变更后写入）。首次使用时空，显示"当前未创建任何知识"
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Section 7: 异常处理 ===== -->
+      <section id="section-7">
+        <h2 class="section-title">七、异常处理</h2>
+        <p class="section-desc">常见错误及其恢复方法。</p>
+
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">锁被占用</span>
+          </div>
+          <div style="background:var(--bg-tertiary);padding:var(--space-3);border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary);font-family:var(--font-mono);line-height:1.6">
+            错误：写锁不存在 → 调 maint__acquire_lock<br>
+            错误：LOCK BUSY    → 其他 AI 正在操作，稍后重试
+          </div>
+        </div>
+
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">路径错误</span>
+          </div>
+          <div style="background:var(--bg-tertiary);padding:var(--space-3);border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary);font-family:var(--font-mono);line-height:1.6">
+            路径不存在 → 调 nav__list_dir 列出现有项目<br>
+            路径格式错误 → 参考第四节正确格式<br>
+            路径穿越禁止 → 使用 KB 相对路径
+          </div>
+        </div>
+
+        <div class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">写操作失败</span>
+          </div>
+          <div style="background:var(--bg-tertiary);padding:var(--space-3);border-radius:var(--radius-md);font-size:12px;color:var(--text-secondary);font-family:var(--font-mono);line-height:1.6">
+            文档已存在 → 用 write__update_document 替代 write__create_document<br>
+            无写锁     → 先调 maint__acquire_lock<br>
+            git 冲突   → 调 maint__read_diff 查看差异，确认后重试
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <div style="margin-top:var(--space-9);padding-top:var(--space-4);border-top:0.5px solid var(--border-subtle);font-size:10px;color:var(--text-muted);text-align:center">
+        MyKnowledge — 产品工作流文档 · 使用 Mermaid.js 渲染
+      </div>
+
+    </div><!-- /content-panel -->
+  </div><!-- /main-area -->
+</div><!-- /app-shell -->
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal" onclick="event.stopPropagation()">
+    <div class="modal__header">
+      <span class="modal__title" id="modalTitle">流程图</span>
+      <button class="modal__close" onclick="closeModal()" aria-label="关闭">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal__body" id="modalBody">
+      <!-- Cloned diagram content goes here -->
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Mermaid 初始化 ──────────────────────────────────────────────────────
+mermaid.initialize({
+  startOnLoad: true,
+  theme: 'base',
+  themeVariables: {
+    primaryColor: '#2c2c2e',
+    primaryTextColor: '#f5f5f7',
+    primaryBorderColor: '#3a3a3c',
+    lineColor: '#636366',
+    secondaryColor: '#242426',
+    tertiaryColor: '#1c1c1e',
+    clusterBkg: '#242426',
+    clusterBorder: '#3a3a3c',
+    nodeBorder: '#3a3a3c',
+    nodeTextColor: '#f5f5f7',
+    edgeLabelBackground: '#1c1c1e',
+    edgeLabelColor: '#98989d',
+    edgeLabelBorder: '#2c2c2e',
+    titleColor: '#f5f5f7'
+  },
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+  state: { useMaxWidth: true }
+});
+
+// ── Section 名称映射 ───────────────────────────────────────────────────
+const sectionTitles = {
+  'diagram-1': '一、系统全景 — 系统架构图',
+  'diagram-2': '二、安装与初始化 — 安装流程图',
+  'diagram-3': '三、Agent Client 工作流（核心）',
+  'diagram-5': '五、状态与归档 — 状态流转图'
+};
+
+// ── Modal 控制 ──────────────────────────────────────────────────────────
+function openModal(diagramId) {
+  const overlay = document.getElementById('modalOverlay');
+  const body = document.getElementById('modalBody');
+  const title = document.getElementById('modalTitle');
+
+  // 找到对应的 mermaid 容器
+  const card = document.getElementById(diagramId);
+  if (!card) return;
+
+  const mermaidPre = card.querySelector('.mermaid');
+  if (!mermaidPre) return;
+
+  // 设置标题
+  title.textContent = sectionTitles[diagramId] || '流程图';
+
+  // 克隆 mermaid 内容
+  // 我们重新渲染，避免缩放问题：从 pre 的文本内容重新生成
+  const sourceText = mermaidPre.textContent || mermaidPre.innerText;
+
+  // 清空并重新渲染
+  body.innerHTML = '';
+  const tempPre = document.createElement('pre');
+  tempPre.className = 'mermaid';
+  tempPre.textContent = sourceText;
+  body.appendChild(tempPre);
+
+  // 重新渲染
+  try {
+    mermaid.run({ nodes: [tempPre] });
+  } catch(e) {
+    console.warn('Mermaid re-render error:', e);
+  }
+
+  overlay.classList.add('modal-overlay--open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(event) {
+  // 如果点击的是 overlay 本身或关闭按钮
+  const overlay = document.getElementById('modalOverlay');
+  overlay.classList.remove('modal-overlay--open');
+  document.body.style.overflow = '';
+  // 延迟清空避免闪烁
+  setTimeout(() => {
+    if (!overlay.classList.contains('modal-overlay--open')) {
+      document.getElementById('modalBody').innerHTML = '';
+    }
+  }, 300);
+}
+
+// ESC 键关闭
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay.classList.contains('modal-overlay--open')) {
+      closeModal();
+    }
+  }
+});
+
+// ── 目录导航 ────────────────────────────────────────────────────────────
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  // 如果是在 sidebar 的流程图分组中点击，找到对应的 section
+  const sectionEl = id.startsWith('diag-') ? el.closest('section') || el : el;
+  const target = id.startsWith('diag-') ? el : sectionEl;
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // 高亮 sidebar 项
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.remove('sidebar-item--active');
+  });
+  document.querySelectorAll(`.sidebar-item[data-target="${id}"]`).forEach(item => {
+    item.classList.add('sidebar-item--active');
+  });
+
+  // 移动端关闭 sidebar
+  closeSidebar();
+}
+
+// ── Sidebar 切换（移动端）───────────────────────────────────────────────
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileOverlay');
+  sidebar.classList.toggle('sidebar--open');
+  overlay.classList.toggle('mobile-overlay--open');
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileOverlay');
+  sidebar.classList.remove('sidebar--open');
+  overlay.classList.remove('mobile-overlay--open');
+}
+
+// ── 滚动监听：高亮当前章节 ──────────────────────────────────────────────
+const contentPanel = document.getElementById('contentPanel');
+const sectionIds = ['section-1', 'section-2', 'section-3', 'section-4', 'section-5', 'section-6', 'section-7'];
+const diagramMap = {
+  'section-1': 'diag-1',
+  'section-2': 'diag-2',
+  'section-3': 'diag-3',
+  'section-5': 'diag-5'
+};
+
+contentPanel.addEventListener('scroll', function() {
+  const scrollTop = contentPanel.scrollTop + 100;
+  let currentSection = 'section-1';
+
+  for (const id of sectionIds) {
+    const el = document.getElementById(id);
+    if (el && el.offsetTop <= scrollTop) {
+      currentSection = id;
+    }
+  }
+
+  // 更新高亮
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.remove('sidebar-item--active');
+  });
+
+  // 高亮当前 section
+  document.querySelectorAll(`.sidebar-item[data-target="${currentSection}"]`).forEach(item => {
+    item.classList.add('sidebar-item--active');
+  });
+
+  // 也高亮对应的 diagram
+  const diagId = diagramMap[currentSection];
+  if (diagId) {
+    document.querySelectorAll(`.sidebar-item[data-target="${diagId}"]`).forEach(item => {
+      item.classList.add('sidebar-item--active');
+    });
+  }
+});
+</script>
+</body>
+</html>

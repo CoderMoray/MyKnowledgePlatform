@@ -45,7 +45,7 @@ Alpine.data("docComponent", () => ({
 
     goToRef(path) {
       this._hideRefCard(true);
-      window.location.hash = "doc/" + encodeURIComponent(path);
+      window.location.hash = "doc/" + hashEncode(path);
     },
 
     /** 创建并展示 ref 悬浮卡片（DOM 直接管理） */
@@ -86,7 +86,7 @@ Alpine.data("docComponent", () => ({
         el.addEventListener("click", (e) => {
           e.preventDefault();
           this._hideRefCard(true);
-          window.location.hash = "project/" + encodeURIComponent(el.dataset.crumb);
+          window.location.hash = "project/" + el.dataset.crumb;
         });
       });
 

@@ -56,13 +56,13 @@ Alpine.data("viewerComponent", () => ({
 
     goToRef(path) {
       this.closePopover();
-      window.location.hash = `doc/${encodeURIComponent(path)}`;
+      window.location.hash = `doc/${hashEncode(path)}`;
     },
 
     goToEdit() {
       const store = Alpine.store("app");
       if (store.currentPath) {
-        window.location.hash = `edit/${encodeURIComponent(store.currentPath)}`;
+        window.location.hash = `edit/${hashEncode(store.currentPath)}`;
       }
     },
 

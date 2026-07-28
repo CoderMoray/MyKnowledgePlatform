@@ -16,11 +16,11 @@ Alpine.data("dashboardComponent", () => ({
 
     goToProject(path) {
       const clean = (path || "").replace(/^projects\//, "");
-      window.location.hash = "project/" + encodeURIComponent(clean);
+      window.location.hash = "project/" + clean;
     },
 
     goToDocument(path) {
-      window.location.hash = "doc/" + encodeURIComponent(path);
+      window.location.hash = "doc/" + hashEncode(path);
     },
 
     newDocument() {

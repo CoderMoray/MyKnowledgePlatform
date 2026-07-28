@@ -1,8 +1,15 @@
 /* ==========================================================================
    MyKnowledge — Hash 路由
-   路由: #dashboard | #project/{name} | #view/{path} | #edit/{path} | #new | #status
+   路由: #dashboard | #project/*name | #doc/:path | #edit/:path | #new | #status
    设计系统: Raycast · v1.0
    ========================================================================== */
+
+/**
+ * 轻量 URL hash 编码：仅转义 / 防止路由误解析，保留中文和空格原样
+ */
+function hashEncode(path) {
+  return (path || "").replace(/\//g, "%2F");
+}
 
 class Router {
   constructor() {
@@ -54,7 +61,8 @@ class Router {
   _patternToRegex(pattern) {
     const escaped = pattern
       .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-      .replace(/:([\w]+)/g, "([^/]+)");
+      .replace(/:([\w]+)/g, "([^/]+)")
+      .replace(/\*([\w]+)/g, "(.+)");  // *param 匹配多段（含 /）
     return new RegExp(`^${escaped}$`);
   }
 
@@ -65,7 +73,7 @@ class Router {
    */
   _extractParamNames(pattern) {
     const names = [];
-    const regex = /:([\w]+)/g;
+    const regex = /[:*]([\w]+)/g;
     let match;
     while ((match = regex.exec(pattern)) !== null) {
       names.push(match[1]);
@@ -86,9 +94,8 @@ function setupRouter() {
     store.loadDashboard();
   });
 
-  // #project/{name}
-  router.on("project/:name", (params) => {
-    // URL 中去掉了 projects/ 前缀，这里加回来
+  // #project/*name（接受多段路径，带 /）
+  router.on("project/*name", (params) => {
     let path = params.name;
     if (!path.startsWith("projects/") && !path.startsWith("archive/") && !path.startsWith("common-knowledge/")) {
       path = "projects/" + path;
