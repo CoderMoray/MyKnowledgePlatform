@@ -40,7 +40,7 @@ document.addEventListener("alpine:init", () => {
     get systemStatus() {
       if (this.isLocked) return { dotClass: "status-dot--danger", label: "AI 编辑中" };
       if (this.currentView === "edit") return { dotClass: "status-dot--warning", label: "用户编辑中" };
-      return { dotClass: "status-dot--online", label: "用户使用中" };
+      return this.mcpStatusInfo;
     },
 
     /** MCP 状态对应的颜色和文字 */

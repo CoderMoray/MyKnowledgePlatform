@@ -385,6 +385,51 @@ class TestRebuildIndex:
         assert (tmp_kb_root / "projects" / "Child").is_dir()
         assert not (tmp_kb_root / "projects" / "ParentB" / "projects" / "Child").exists()
 
+    def test_delete_project(self, app, storage: Storage,
+                            tmp_kb_root: Path) -> None:
+        """Delete a project directory via write__delete_project."""
+        from backend.readme_generator import ReadmeGenerator
+
+        # Ensure template and initial setup
+        tmpl = tmp_kb_root / "_templates" / "readme.md"
+        if not tmpl.exists():
+            tmpl.parent.mkdir(parents=True, exist_ok=True)
+            shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
+            tmpl.write_text(shipped.read_text())
+        gen = ReadmeGenerator(storage=storage, template_path=tmpl)
+        gen.rebuild("", name="TestKB", summary="test")
+
+        # Create a project with some content
+        (tmp_kb_root / "projects" / "ToDelete" / "common-knowledge").mkdir(parents=True)
+        storage.write_readme("projects/ToDelete", {}, dump_frontmatter(
+            {"id": "td", "name": "ToDelete", "summary": "will be deleted"},
+            "# ToDelete",
+        ))
+        storage.write_document(
+            "projects/ToDelete/common-knowledge/doc.md",
+            {"summary": "will be deleted too"},
+            "# Doc to delete",
+        )
+        gen.rebuild("projects/ToDelete")
+
+        # Confirm it exists
+        assert (tmp_kb_root / "projects" / "ToDelete").is_dir()
+
+        # Delete it via MCP
+        result = asyncio.run(app.call_tool(
+            "write__delete_project",
+            {"project_rel": "projects/ToDelete"},
+        ))
+        text = _tool_text(result)
+        assert "已删除" in text
+
+        # Should no longer exist on disk
+        assert not (tmp_kb_root / "projects" / "ToDelete").exists()
+
+        # Parent readme should have been rebuilt
+        root_readme = storage.read_content("readme.md")
+        assert "ToDelete" not in root_readme
+
 
 class TestCheckIntegrity:
     def test_runs_without_error(self, app) -> None:

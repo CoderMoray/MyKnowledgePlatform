@@ -250,6 +250,110 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
     return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
 
 
+def delete_project(storage: Storage, project_rel: str) -> str:
+    """Permanently delete a project directory and all its contents.
+
+    The directory is removed from disk (git history preserves it).
+    All ``ref:`` links pointing into this project are replaced
+    with a ``(已删除)`` marker.  Parent readme and project-status
+    are rebuilt.
+
+    Returns a confirmation message.  Raises ``ValueError`` if the
+    project has uncommitted changes (user must handle them first).
+    """
+    import shutil
+    from backend.git_manager import GitManager
+    from backend.readme_generator import ReadmeGenerator
+
+    kb_root = storage.kb_root
+
+    # ── Lock check ──────────────────────────────
+    if not _lock_file(kb_root).exists():
+        raise RuntimeError(
+            "错误：写锁不存在。\n\n"
+            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
+            "请按以下步骤修正：\n"
+            "  1. maint__acquire_lock\n"
+            "  2. maint__read_diff（处理待提交的变更）\n"
+            "  3. 确认变更后继续\n\n"
+            "完成这三步后再重新调用本工具。"
+        )
+
+    old_dir = kb_root / project_rel
+    if not old_dir.is_dir():
+        raise FileNotFoundError(f"项目不存在: {project_rel}")
+
+    project_name = project_rel.rstrip("/").split("/")[-1]
+
+    # ── 1. Check for dirty files ──────────────────────────
+    gm = GitManager(kb_root)
+    dirty = gm.has_uncommitted_changes()
+    if dirty:
+        status = gm._run("status", "--porcelain", "--", str(old_dir))
+        if status:
+            dirty_files = []
+            for line in status.strip().split("\n"):
+                if line.strip():
+                    dirty_files.append(line.strip().split()[-1])
+            raise ValueError(
+                f"项目有未提交的变更，请先处理：\n"
+                + "\n".join(f"  • {f}" for f in dirty_files)
+                + "\n\n请调 maint__read_diff 处理后再重试。"
+            )
+
+    # ── 2. Replace ref: links with (已删除) marker ────────
+    import re
+    prefix = f"{project_rel}/"
+    pattern = re.compile(r'(ref:)' + re.escape(prefix))
+
+    for md_file in kb_root.rglob("*.md"):
+        if ".git" in md_file.parts:
+            continue
+        text = md_file.read_text(encoding="utf-8")
+        if prefix in text:
+            updated = pattern.sub(
+                r'\g<1>' + f"({project_name} 已删除)/",
+                text
+            )
+            md_file.write_text(updated, encoding="utf-8")
+
+    # ── 3. Remove directory ───────────────────────────────
+    shutil.rmtree(str(old_dir))
+
+    # ── 4. Rebuild ────────────────────────────────────────
+    template = kb_root / "_templates" / "readme.md"
+    committed_files = set()
+    if template.exists():
+        gen = ReadmeGenerator(storage=storage, template_path=template)
+        # Rebuild parent
+        parent_parts = project_rel.rstrip("/").split("/")
+        if len(parent_parts) > 2 and parent_parts[-2] == "projects":
+            parent_rel = "/".join(parent_parts[:-2])
+        else:
+            parent_rel = "/".join(parent_parts[:-1])
+        if parent_rel and parent_rel not in ("projects", "archive", ""):
+            gen.rebuild(parent_rel)
+        gen.rebuild("")
+        gen.rebuild_project_status()
+        for f in [kb_root / "readme.md", kb_root / "project-status.md"]:
+            if f.exists():
+                committed_files.add(str(f))
+
+    # ── 5. Git commit ────────────────────────────────────
+    try:
+        committed_files.add(str(kb_root / project_rel))  # track deletion
+        if committed_files:
+            gm._run("add", "--", *sorted(str(f) for f in committed_files if Path(f).is_file()))
+            gm._run("add", "--all", str(kb_root))  # ensure deletions tracked
+            gm.commit(f"delete: {project_rel}")
+        from backend.events import broadcast as _evt
+        _evt(kb_root)
+    except Exception:
+        pass
+
+    return f"✓ 已删除项目: {project_rel}"
+
+
 def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> str:
     """Move a project from its current parent to a different parent directory.
 
@@ -1068,6 +1172,26 @@ def create_mcp_app(storage: Storage,
             return str(e)
 
     @mcp.tool()
+    def write__delete_project(project_rel: str) -> str:
+        """Permanently delete a project (directory and all contents).
+
+        Ref links pointing into the deleted project are replaced with
+        a ``(已删除)`` marker.  Parent readme and project-status are
+        rebuilt and committed.
+
+        Args:
+            project_rel: KB-relative path, e.g. ``"projects/已归档旧项目"``.
+        Returns:
+            Confirmation or error message.
+        """
+        _validate_path(project_rel, kind="dir", storage=storage)
+        from backend.mcp_server import delete_project as _dp
+        try:
+            return _dp(storage, project_rel)
+        except (ValueError, FileNotFoundError, FileExistsError) as e:
+            return str(e)
+
+    @mcp.tool()
     def maint__validate_doc(path: str) -> str:
         """[maint] Check a document's frontmatter integrity.
 
@@ -1342,6 +1466,7 @@ def create_mcp_app(storage: Storage,
 |-----------|---------|
 | 创建/更新文档 | `write__create_document` / `write__update_document` |
 | 删除文档 | `write__delete_document` |
+| 删除项目 | `write__delete_project` |
 | 改名项目 | `write__rename_project` |
 | 移动项目（换父级） | `write__move_project` |
 | 改名文档 | `write__rename_document` |
@@ -1382,7 +1507,7 @@ def create_mcp_app(storage: Storage,
 
 正常交互，需要时调对应的 MCP 工具：
 - **导航**：`nav__read_readme` → `nav__list_dir` → `nav__exists` → `nav__find` → `nav__get_document_with_refs`
-- **写**：`write__create_document`(支持 `dry_run=True` 预览 + `if_exists="error|skip|overwrite"`) / `write__update_document` / `write__update_project_meta`
+- **写**：`write__create_document`(支持 `dry_run=True` 预览 + `if_exists="error|skip|overwrite"`) / `write__update_document` / `write__update_project_meta` / `write__delete_project`
 - **改名/移动**：`write__rename_project` / `write__rename_document` / `write__move_project`
 - **维护**：`maint__validate_doc` / `maint__rebuild_index`
 - **分享**：`share__publish` / `share__import_share`

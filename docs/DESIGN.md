@@ -2,7 +2,7 @@
 
 > 状态：v0.5 定稿
 > 日期：2026-07-29
-> 对应实现：backend/ 21 个 MCP 工具 + CLI + 150 项测试
+> 对应实现：backend/ 22 个 MCP 工具 + CLI + 150 项测试
 
 ---
 
@@ -47,7 +47,7 @@
 
 - 纯 Markdown（人类可读、可手改、可带走）
 - Git 原生版本化与可审计
-- 原生 MCP、agent-first（21 个工具，write-through + 锁/checkpoint 维护机制）
+- 原生 MCP、agent-first（22 个工具，write-through + 锁/checkpoint 维护机制）
 - 企业合规（不内置 LLM，数据不出域，接入可审计）
 - OSS 自账号云同步 + 加密分享包（归属仍在企业自己账号）
 
@@ -368,7 +368,7 @@ create_document / update_document（agent 调 MCP）
 - `archive/` 不再只是"导航加速"，而是**非活跃项目的物理归宿**。
 - 每个归档项目在 `archive/` 下保持其完整结构（`readme.md` + `common-knowledge/`）。
 
-**MCP 工具清单（完整见 5 节末，共 21 个）**：
+**MCP 工具清单（完整见 5 节末，共 22 个）**：
 
 > **没有 `write_readme` 工具。** Readme 是派生数据，AI 不应直接写入正文。
 >
@@ -603,7 +603,7 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 └──────────────────┬─────────────────────┘
                    │ MCP 协议 (stdio)
 ┌──────────────────▼─────────────────────┐
-│              mcp_server.py              │ ← 21 个 MCP 工具
+│              mcp_server.py              │ ← 22 个 MCP 工具
 │   storage.py  ·  readme_generator.py   │
 │   config.py   ·  git_manager.py        │
 │   share.py    ·  cli.py                │
@@ -630,7 +630,7 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 
 > **不引入**：任何 LLM/推理框架、向量数据库。
 
-### MCP 工具清单（共 21 个）
+### MCP 工具清单（共 22 个）
 
 按前缀分组。建议 agent client 显式配置只暴露需要的分组，减少工具干扰。
 
@@ -642,10 +642,11 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 | | `nav__find` | 按名称模糊搜索（不区分大小写，支持 scope） |
 | | `nav__get_document` | 读全文 |
 | | `nav__get_document_with_refs` | 读全文 + 拼接引用 |
-| `write:` (7) | `write__create_document` | 新建知识（支持 `dry_run` 预览 + `if_exists` 策略） |
+| `write:` (8) | `write__create_document` | 新建知识（支持 `dry_run` 预览 + `if_exists` 策略） |
 | | `write__update_document` | 更新知识 |
 | | `write__update_project_meta` | 改项目 frontmatter |
 | | `write__delete_document` | 删除文档 |
+| | `write__delete_project` | 删除整个项目目录（替换 ref + rebuild） |
 | | `write__rename_project` | 改名项目（移动目录 + 替换 ref） |
 | | `write__move_project` | 移动项目到不同父级（替换 ref + 重建 readme） |
 | | `write__rename_document` | 改名文档（移动文件 + 替换 ref） |
@@ -776,7 +777,7 @@ SSE /api/events                ← 纯 HTTP
 
 - **Phase 0（已完成）**：PRD + 设计文档
 - **Phase 1（已完成）**：`storage.py`, `git_manager.py`, `readme_generator.py`, `_templates/`
-- **Phase 2（已完成）**：21 个 MCP 工具 + `cli.py`（init/mcp/check/login/whoami）
+- **Phase 2（已完成）**：22 个 MCP 工具 + `cli.py`（init/mcp/check/login/whoami）
 - **Phase 4（已完成）**：`share.py`（publish / import_share / 加密 / 合并 / --with-context）
 - **Phase 7（已完成）**：按 `maintainer` + 字节对比的文件级合并
 - **Phase 3** — Web UI 最小闭环（`main.py` FastAPI）

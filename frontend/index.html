@@ -289,10 +289,10 @@
           <div class="status-indicator" :class="'status-indicator--' + $store.app.mcpStatus">
             <span class="status-indicator__dot"
                   :class="{
-                    'status-indicator__dot--danger': $store.app.mcpStatus === 'disconnected',
-                    'status-indicator__dot--warning': $store.app.mcpStatus === 'writing'
+                    'status-indicator__dot--danger': $store.app.systemStatus.dotClass === 'status-dot--danger',
+                    'status-indicator__dot--warning': $store.app.systemStatus.dotClass === 'status-dot--warning'
                   }"></span>
-            <span x-text="$store.app.mcpStatusInfo.label"></span>
+            <span x-text="$store.app.systemStatus.label"></span>
           </div>
 
           <!-- 文档页删除按钮（仅阅读态显示） -->
