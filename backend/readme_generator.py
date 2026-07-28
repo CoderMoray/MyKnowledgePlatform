@@ -97,6 +97,25 @@ class ReadmeGenerator:
             if arch_entries else ""
         )
 
+        # ── Identity + created ──────────────────────────────
+        from backend.config import get_identity
+        try:
+            nick, email = get_identity()
+            author = f"{nick} <{email}>"
+            maintainer = author
+        except Exception:
+            author = "unknown"
+            maintainer = "unknown"
+
+        # Preserve `created` from the existing readme, if any
+        try:
+            existing = self.storage.get_readme_meta(project_rel)
+            existing_created = getattr(existing, "created", None) or ""
+        except FileNotFoundError:
+            existing_created = ""
+        if not existing_created:
+            existing_created = generated
+
         # ── Fill template ────────────────────────────────────
         content = self._template
         replacements = {
@@ -104,6 +123,9 @@ class ReadmeGenerator:
             "{name}": name,
             "{summary}": summary,
             "{status}": status,
+            "{author}": author,
+            "{maintainer}": maintainer,
+            "{created}": existing_created,
             "{updated}": updated or generated,
             "{generated}": generated,
             "{parent}": parent_id,
@@ -125,6 +147,9 @@ class ReadmeGenerator:
             "name": name,
             "summary": summary,
             "status": status,
+            "author": author,
+            "maintainer": maintainer,
+            "created": existing_created,
             "updated": updated or generated,
             "generated": generated,
             "parent": parent_id,
@@ -266,6 +291,7 @@ class ReadmeGenerator:
         """Basic sanity: ensure no unresolved placeholders remain."""
         remaining = [p for p in
                      ["{layer_id}", "{name}", "{summary}", "{status}",
+                      "{author}", "{maintainer}", "{created}",
                       "{updated}", "{generated}", "{parent}",
                       "{doc_entries}", "{project_entries}", "{archive_entries}",
                       "{archive_footer}"]

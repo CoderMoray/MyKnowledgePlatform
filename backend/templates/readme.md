@@ -4,6 +4,9 @@ type: readme
 name: {name}
 summary: {summary}
 status: {status}
+author: {author}
+maintainer: {maintainer}
+created: {created}
 updated: {updated}
 generated: {generated}
 parent: {parent}

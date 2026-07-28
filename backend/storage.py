@@ -100,6 +100,9 @@ class ReadmeMeta:
     name: str
     summary: str
     status: str = "active"
+    author: str = ""
+    maintainer: str = ""
+    created: str = ""
     updated: str = ""
     generated: str = ""
 
@@ -232,6 +235,9 @@ class Storage:
             name=meta.get("name") or "",
             summary=meta.get("summary") or "",
             status=meta.get("status") or "active",
+            author=meta.get("author") or "",
+            maintainer=meta.get("maintainer") or "",
+            created=meta.get("created") or "",
             updated=meta.get("updated") or "",
             generated=meta.get("generated") or "",
         )
