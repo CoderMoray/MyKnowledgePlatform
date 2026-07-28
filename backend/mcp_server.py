@@ -469,11 +469,9 @@ def create_mcp_app(storage: Storage,
     mcp = FastMCP("MyKnowledge")
 
     # ── Auto-inject heartbeat on every tool invocation ──
-    # We use the decorator form @mcp.tool() which always has parens,
-    # so we can just wrap that return value.
-    _orig_tool_reg = mcp.tool
+    _orig_tool = mcp.tool
 
-    def _decorated_tool(fn=None, **kwargs):
+    def _hb_decorator(fn=None, **kwargs):
         """Wrap mcp.tool() to inject heartbeat."""
         if fn is not None:
             @functools.wraps(fn)
@@ -481,12 +479,13 @@ def create_mcp_app(storage: Storage,
                 kind = "nav" if fn.__name__.startswith("nav__") else "write"
                 _heartbeat(storage.kb_root, kind)
                 return fn(*args, **fn_kwargs)
-            return _orig_tool_reg(_wrapper, **kwargs)
-        # Called as @mcp.tool() → returns a decorator
+            # Call the ORIGINAL tool() with parentheses to get a decorator
+            return _orig_tool(**kwargs)(_wrapper)
+        # Decorator form: @mcp.tool(**kwargs) → returns a decorator
         def _deco(f):
-            return _decorated_tool(f, **kwargs)
+            return _hb_decorator(f, **kwargs)
         return _deco
-    mcp.tool = _decorated_tool
+    mcp.tool = _hb_decorator
     # ───────────────────────────────────────────────────
 
     # ══════════════════════════════════════════════════════════

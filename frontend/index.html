@@ -295,7 +295,7 @@
           </div>
 
           <!-- 文档页删除按钮（仅阅读态显示） -->
-          <button class="btn-delete" x-show="$store.app.currentView === 'view'"
+          <button class="btn-delete" x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
                   @click="confirmDeleteDocument()">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 4h12"/>
@@ -694,11 +694,9 @@
           </div>
         </div>
 
-        <!-- ═══ Document View (阅读) ══════════════════════════════════════ -->
-        <div x-show="$store.app.currentView === 'view'"
+        <!-- ═══ Document View + Edit (共享 header/refs) ═══════════════════ -->
+        <div x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
              x-data="docComponent" x-cloak>
-
-          <!-- 文档元信息和正文 -->
 
           <!-- 文档阅读区 -->
           <article class="viewer" x-show="!$store.app.loading && $store.app.document">
@@ -732,12 +730,62 @@
               </div>
             </div>
 
-            <!-- 正文 -->
-            <div @click="enterEdit()" class="viewer__body-wrapper">
+            <!-- 正文: 阅读态 -->
+            <div @click="enterEdit()" class="viewer__body-wrapper" x-show="$store.app.currentView === 'view'">
             <div class="viewer__body markdown-body"
                  id="viewer-content"
                  x-html="$store.app.htmlContent">
             </div>
+            </div>
+
+            <!-- 正文: 编辑态 -->
+            <div x-show="$store.app.currentView === 'edit'">
+              <div class="editor-shell" @click.outside="exitEdit()">
+                <div class="editor-meta">
+                  <div class="editor-meta__row">
+                    <label class="editor-meta__label">标题</label>
+                    <div class="editor-meta__value">
+                      <input class="editor-meta__input" type="text"
+                             x-model="titleValue"
+                             placeholder="输入文档标题..."
+                             :disabled="$store.app.isLocked" />
+                    </div>
+                  </div>
+                  <div class="editor-meta__row">
+                    <label class="editor-meta__label">摘要</label>
+                    <div class="editor-meta__value">
+                      <input class="editor-meta__input" type="text"
+                             x-model="summaryValue"
+                             placeholder="简短描述..."
+                             :disabled="$store.app.isLocked" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TipTap 工具栏 -->
+                <div class="editor-toolbar" x-show="editorReady" id="tiptap-toolbar">
+                  <button class="editor-toolbar__btn" title="标题1" data-action="toggleHeading" data-level="1">H1</button>
+                  <button class="editor-toolbar__btn" title="标题2" data-action="toggleHeading" data-level="2">H2</button>
+                  <button class="editor-toolbar__btn" title="标题3" data-action="toggleHeading" data-level="3">H3</button>
+                  <span class="editor-toolbar__sep"></span>
+                  <button class="editor-toolbar__btn" title="加粗" data-action="toggleBold"><b>B</b></button>
+                  <button class="editor-toolbar__btn" title="斜体" data-action="toggleItalic"><i>I</i></button>
+                  <button class="editor-toolbar__btn" title="删除线" data-action="toggleStrike"><s>S</s></button>
+                  <button class="editor-toolbar__btn" title="行内代码" data-action="toggleCode">&lt;/&gt;</button>
+                  <span class="editor-toolbar__sep"></span>
+                  <button class="editor-toolbar__btn" title="无序列表" data-action="toggleBulletList">&bull;</button>
+                  <button class="editor-toolbar__btn" title="有序列表" data-action="toggleOrderedList">1.</button>
+                  <button class="editor-toolbar__btn" title="引用" data-action="toggleBlockquote">&ldquo;</button>
+                  <button class="editor-toolbar__btn" title="分割线" data-action="setHorizontalRule">&mdash;</button>
+                  <button class="editor-toolbar__btn" title="代码块" data-action="toggleCodeBlock">{ }</button>
+                  <button class="editor-toolbar__btn" title="链接" data-action="toggleLink">&#x1f517;</button>
+                </div>
+
+                <!-- TipTap 编辑器 -->
+                <div class="editor-content">
+                  <div id="tiptap-editor"></div>
+                </div>
+              </div>
             </div>
 
             <!-- 关联文档 -->
@@ -791,153 +839,6 @@
           </div>
         </div>
 
-        <!-- ═══ Document Edit (编辑) ══════════════════════════════════════ -->
-        <div x-show="$store.app.currentView === 'edit'"
-             x-data="docComponent" x-cloak>
-          <div class="editor-shell" @click.outside="exitEdit()">
-            <!-- 元信息区 -->
-            <div class="editor-meta">
-              <div class="editor-meta__row">
-                <label class="editor-meta__label">标题</label>
-                <div class="editor-meta__value">
-                  <input class="editor-meta__input" type="text"
-                         x-model="titleValue"
-                         placeholder="输入文档标题..."
-                         :disabled="$store.app.isLocked"
-                         @input="$store.app.isDirty = true" />
-                </div>
-              </div>
-              <div class="editor-meta__row">
-                <label class="editor-meta__label">摘要</label>
-                <div class="editor-meta__value">
-                  <input class="editor-meta__input" type="text"
-                         x-model="summaryValue"
-                         placeholder="简短描述..."
-                         :disabled="$store.app.isLocked"
-                         @input="$store.app.isDirty = true" />
-                </div>
-              </div>
-
-              <!-- 作者头像行 -->
-              <div class="editor-meta__row" x-show="authorAvatar.initial">
-                <label class="editor-meta__label">作者</label>
-                <div class="avatar-row">
-                  <span class="avatar--fallback"
-                        x-text="authorAvatar.initial"
-                        style="display:inline-flex;"></span>
-                  <span class="text-sm text-muted"
-                        x-text="$store.app.document?.author || extractDisplayName($store.app.documentMeta?.author || '')"></span>
-                </div>
-              </div>
-
-              <!-- 只读字段 -->
-              <div class="editor-meta__row">
-                <label class="editor-meta__label">信息</label>
-                <div class="editor-meta__badges">
-                  <span class="editor-meta__badge" x-show="$store.app.document?.author">
-                    <span class="editor-meta__badge-label">作者</span>
-                    <span x-text="$store.app.document?.author"></span>
-                  </span>
-                  <span class="editor-meta__badge" x-show="$store.app.document?.maintainer">
-                    <span class="editor-meta__badge-label">维护</span>
-                    <span x-text="$store.app.document?.maintainer"></span>
-                  </span>
-                  <span class="editor-meta__badge">
-                    <span class="editor-meta__badge-label">创建</span>
-                    <span x-text="formatDate($store.app.document?.created_at)"></span>
-                  </span>
-                  <span class="editor-meta__badge">
-                    <span class="editor-meta__badge-label">更新</span>
-                    <span x-text="formatDate($store.app.document?.updated_at)"></span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <!-- TipTap 工具栏 -->
-            <div class="editor-toolbar" id="editor-toolbar">
-              <div class="editor-toolbar__group">
-                <button class="editor-toolbar__btn" title="标题1" data-action="toggleHeading" data-level="1">
-                  <strong>H1</strong>
-                </button>
-                <button class="editor-toolbar__btn" title="标题2" data-action="toggleHeading" data-level="2">
-                  <strong class="toolbar-h2">H2</strong>
-                </button>
-                <button class="editor-toolbar__btn" title="标题3" data-action="toggleHeading" data-level="3">
-                  <strong class="toolbar-h3">H3</strong>
-                </button>
-              </div>
-              <span class="editor-toolbar__divider"></span>
-              <div class="editor-toolbar__group">
-                <button class="editor-toolbar__btn" title="加粗" data-action="toggleBold"><strong>B</strong></button>
-                <button class="editor-toolbar__btn" title="斜体" data-action="toggleItalic"><em>I</em></button>
-                <button class="editor-toolbar__btn" title="删除线" data-action="toggleStrike"><s>S</s></button>
-                <button class="editor-toolbar__btn" title="行内代码" data-action="toggleCode">&lt;/&gt;</button>
-              </div>
-              <span class="editor-toolbar__divider"></span>
-              <div class="editor-toolbar__group">
-                <button class="editor-toolbar__btn" title="无序列表" data-action="toggleBulletList">
-                  <svg viewBox="0 0 16 16" fill="currentColor" class="icon-sm">
-                    <circle cx="3" cy="4" r="1.2"/><rect x="6" y="3" width="8" height="2" rx="0.5"/>
-                    <circle cx="3" cy="8" r="1.2"/><rect x="6" y="7" width="8" height="2" rx="0.5"/>
-                    <circle cx="3" cy="12" r="1.2"/><rect x="6" y="11" width="8" height="2" rx="0.5"/>
-                  </svg>
-                </button>
-                <button class="editor-toolbar__btn" title="有序列表" data-action="toggleOrderedList">
-                  <svg viewBox="0 0 16 16" fill="currentColor" class="icon-sm">
-                    <text x="1" y="5" font-size="6">1.</text>
-                    <rect x="8" y="3" width="6" height="2" rx="0.5"/>
-                    <text x="1" y="10.5" font-size="6">2.</text>
-                    <rect x="8" y="8.5" width="6" height="2" rx="0.5"/>
-                  </svg>
-                </button>
-                <button class="editor-toolbar__btn" title="引用" data-action="toggleBlockquote">
-                  <svg viewBox="0 0 16 16" fill="currentColor" class="icon-sm">
-                    <path d="M3 3h3v5H4v2h2v2H3V3zm7 0h3v5h-2v2h2v2h-3V3z"/>
-                  </svg>
-                </button>
-                <button class="editor-toolbar__btn" title="代码块" data-action="toggleCodeBlock">
-                  <svg viewBox="0 0 16 16" fill="currentColor" class="icon-sm">
-                    <rect x="2" y="2" width="12" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
-                    <line x1="5.5" y1="5.5" x2="3.5" y2="8"/><line x1="3.5" y1="8" x2="5.5" y2="10.5"/>
-                    <line x1="10.5" y1="5.5" x2="12.5" y2="8"/><line x1="12.5" y1="8" x2="10.5" y2="10.5"/>
-                  </svg>
-                </button>
-                <button class="editor-toolbar__btn" title="水平线" data-action="setHorizontalRule">
-                  <svg viewBox="0 0 16 16" fill="currentColor" class="icon-sm">
-                    <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- TipTap 编辑区 -->
-            <div class="editor-content">
-              <div id="tiptap-editor"></div>
-            </div>
-
-            <!-- 底部操作栏 -->
-            <div class="editor-actions">
-              <div class="editor-actions__left">
-                <span class="editor-actions__status" x-show="$store.app.isDirty">有未保存的修改</span>
-              </div>
-              <div class="editor-actions__right">
-                <button class="btn" @click="discard()">放弃</button>
-                <button class="btn btn--primary" @click="saveDocument()"
-                        :disabled="$store.app.isLocked || saving">
-                  <span x-show="saving">保存中...</span>
-                  <span x-show="!saving">保存文档</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 加载中 -->
-          <div class="loading-state" x-show="$store.app.loading" x-cloak>
-            <div class="spinner"></div>
-            <span>加载编辑器...</span>
-          </div>
-        </div>
 
         <!-- ═══ Status View ═══════════════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'status'" x-cloak>
