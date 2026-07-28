@@ -733,9 +733,11 @@
             </div>
 
             <!-- 正文 -->
+            <div @click="enterEdit()" class="viewer__body-wrapper">
             <div class="viewer__body markdown-body"
                  id="viewer-content"
                  x-html="$store.app.htmlContent">
+            </div>
             </div>
 
             <!-- 关联文档 -->
@@ -792,7 +794,7 @@
         <!-- ═══ Document Edit (编辑) ══════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'edit'"
              x-data="docComponent" x-cloak>
-          <div class="editor-shell">
+          <div class="editor-shell" @click.outside="exitEdit()">
             <!-- 元信息区 -->
             <div class="editor-meta">
               <div class="editor-meta__row">

@@ -205,19 +205,45 @@ Alpine.data("docComponent", () => ({
 
     /* --- 编辑态 --- */
 
+    /** 点击正文 → 进入编辑 */
     enterEdit() {
       const store = Alpine.store("app");
-      if (store.isLocked || !this.editorInstance) return;
-      if (this.editorInstance.isEditable) return;
-      this.editorInstance.setEditable(true);
-      store.editingMode = true;
+      if (store.isLocked) return;
+      store.setView("edit", store.currentPath);
+      store.loadDocument(store.currentPath);
     },
 
-    exitEdit() {
+    /** 点击外部 → 退出编辑并保存 */
+    async exitEdit() {
       const store = Alpine.store("app");
-      if (!store.editingMode || !this.editorInstance) return;
-      this.editorInstance.setEditable(false);
-      store.editingMode = false;
+      if (store.currentView !== "edit") return;
+
+      // 从 TipTap 提取内容并保存
+      if (this.editorInstance && this.editorInstance.isEditable) {
+        const html = this.editorInstance.getHTML();
+        const tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        const h1 = tmp.querySelector("h1");
+        const title = h1 ? h1.textContent.trim() : (this.titleValue || "");
+        if (h1) h1.remove();
+        const bodyHtml = tmp.innerHTML;
+
+        // 构造保存 payload
+        const payload = { content: `# ${title}\n\n${bodyHtml}`, summary: this.summaryValue || "" };
+        try {
+          await store.saveDocument(store.currentPath, payload);
+        } catch (e) {
+          // 保存失败不阻塞切换
+        }
+      }
+
+      // 销毁编辑器
+      if (this.editorInstance) {
+        this.editorInstance.destroy();
+        this.editorInstance = null;
+      }
+      store.setView("view", store.currentPath);
+      store.loadDocument(store.currentPath);
     },
 
     async initEditor() {
