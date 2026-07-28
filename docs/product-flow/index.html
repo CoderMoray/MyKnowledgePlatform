@@ -79,7 +79,7 @@ table{border-collapse:collapse;border-spacing:0}
 
 /* ── Diagram Card ──────────────────────────────────────────────────────── */
 .diagram-card{background:var(--card-glass-bg);backdrop-filter:var(--card-glass-blur);-webkit-backdrop-filter:var(--card-glass-blur);border:var(--card-glass-border);border-radius:var(--radius-xl);box-shadow:var(--shadow-card);padding:var(--space-5);margin-bottom:var(--space-6);cursor:pointer;transition:var(--transition-card);overflow:hidden}
-.diagram-card:hover{transform:translateY(-2px);background:rgba(44,44,46,0.85)}
+.diagram-card:hover{transform:translateY(-2px)}
 .diagram-card__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)}
 .diagram-card__title{font-size:14px;font-weight:600;color:var(--text-primary)}
 .diagram-card__hint{font-size:10px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px;opacity:0.6}
@@ -142,6 +142,20 @@ table{border-collapse:collapse;border-spacing:0}
 .mermaid .stateGroup .stateGroup .state-title{fill:var(--text-primary)!important}
 .mermaid .stateGroup .transition{stroke:var(--text-tertiary)!important}
 .mermaid .stateGroup .transition-text{fill:var(--text-secondary)!important;font-size:11px!important}
+
+/* ── Mermaid 亮色模式额外修正 ──────────────────────────────────────────── */
+[data-theme="light"] .mermaid .label{color:#1c1c1e!important}
+[data-theme="light"] .mermaid .node rect,[data-theme="light"] .mermaid .node circle,[data-theme="light"] .mermaid .node polygon,[data-theme="light"] .mermaid .node path{fill:#f3f4f6!important;stroke:#d1d1d6!important}
+[data-theme="light"] .mermaid .cluster rect{fill:#ffffff!important;stroke:#d1d1d6!important}
+[data-theme="light"] .mermaid .cluster-label{color:#1c1c1e!important}
+[data-theme="light"] .mermaid .stateGroup rect,[data-theme="light"] .mermaid .stateGroup line{fill:#f3f4f6!important;stroke:#d1d1d6!important}
+[data-theme="light"] .mermaid .stateGroup .state-title{fill:#1c1c1e!important}
+[data-theme="light"] .mermaid .stateGroup .state-description{fill:#6b7280!important}
+[data-theme="light"] .mermaid .stateGroup .stateGroup rect{fill:#ffffff!important;stroke:#d1d1d6!important}
+[data-theme="light"] .mermaid .edgeLabel{background:#ffffff!important;color:#6b7280!important;border:0.5px solid #e5e5ea!important}
+[data-theme="light"] .mermaid .edgePath .path{stroke:#9ca3af!important}
+[data-theme="light"] .mermaid .flowchart-link{stroke:#9ca3af!important}
+[data-theme="light"] .mermaid marker{fill:#9ca3af!important}
 
 /* ── Status Flow (纯 HTML 卡片) ────────────────────────────────────────── */
 .status-flow{display:flex;flex-direction:column;align-items:center;gap:var(--space-4);padding:var(--space-4) 0}
@@ -420,7 +434,6 @@ table{border-collapse:collapse;border-spacing:0}
           </div>
           <div class="diagram-card__mermaid">
             <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
               flowchart LR
                 Start(("开始")) --> Install["安装包<br/>pip install myknowledge"]
                 Install --> Init["初始化知识库<br/>myknowledge init<br/>→ ~/.myknowledge/"]
@@ -454,7 +467,6 @@ table{border-collapse:collapse;border-spacing:0}
           </div>
           <div class="diagram-card__mermaid">
             <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
               flowchart LR
                 Start(("开始")) --> Lock["🔒 acquire_lock"]
                 Lock --> Nav["📖 nav | write | read_diff"]
@@ -475,7 +487,6 @@ table{border-collapse:collapse;border-spacing:0}
           </div>
           <div class="diagram-card__mermaid">
             <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
               flowchart TB
                 Create["write__create_document"]
                 Update["write__update_document"]
@@ -515,7 +526,6 @@ table{border-collapse:collapse;border-spacing:0}
           </div>
           <div class="diagram-card__mermaid">
             <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
               flowchart LR
                 Diff["🔍 read_diff"] --> Validate["✅ validate_doc"]
                 Validate --> Index["🔄 rebuild_index"]
@@ -830,28 +840,78 @@ table{border-collapse:collapse;border-spacing:0}
 </div>
 
 <script>
-// ── Mermaid 初始化 ──────────────────────────────────────────────────────
-mermaid.initialize({
-  startOnLoad: true,
-  theme: 'base',
-  themeVariables: {
-    primaryColor: '#2c2c2e',
-    primaryTextColor: '#f5f5f7',
-    primaryBorderColor: '#3a3a3c',
-    lineColor: '#636366',
-    secondaryColor: '#242426',
-    tertiaryColor: '#1c1c1e',
-    clusterBkg: '#242426',
-    clusterBorder: '#3a3a3c',
-    nodeBorder: '#3a3a3c',
-    nodeTextColor: '#f5f5f7',
-    edgeLabelBackground: '#1c1c1e',
-    edgeLabelColor: '#98989d',
-    edgeLabelBorder: '#2c2c2e',
-    titleColor: '#f5f5f7'
-  },
-  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-  state: { useMaxWidth: true }
+// ── Mermaid 主题配置 ──────────────────────────────────────────────────
+const mermaidDarkVars = {
+  primaryColor: '#2c2c2e',
+  primaryTextColor: '#f5f5f7',
+  primaryBorderColor: '#3a3a3c',
+  lineColor: '#636366',
+  secondaryColor: '#242426',
+  tertiaryColor: '#1c1c1e',
+  clusterBkg: '#242426',
+  clusterBorder: '#3a3a3c',
+  nodeBorder: '#3a3a3c',
+  nodeTextColor: '#f5f5f7',
+  edgeLabelBackground: '#1c1c1e',
+  edgeLabelColor: '#98989d',
+  edgeLabelBorder: '#2c2c2e',
+  titleColor: '#f5f5f7'
+};
+
+const mermaidLightVars = {
+  primaryColor: '#f0f0f0',
+  primaryTextColor: '#1c1c1e',
+  primaryBorderColor: '#d1d1d6',
+  lineColor: '#9ca3af',
+  secondaryColor: '#ffffff',
+  tertiaryColor: '#fafafa',
+  clusterBkg: '#ffffff',
+  clusterBorder: '#d1d1d6',
+  nodeBorder: '#d1d1d6',
+  nodeTextColor: '#1c1c1e',
+  edgeLabelBackground: '#ffffff',
+  edgeLabelColor: '#6b7280',
+  edgeLabelBorder: '#e5e5ea',
+  titleColor: '#1c1c1e'
+};
+
+function getMermaidThemeVars() {
+  const theme = document.documentElement.getAttribute('data-theme');
+  return theme === 'light' ? mermaidLightVars : mermaidDarkVars;
+}
+
+function initMermaid() {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    themeVariables: getMermaidThemeVars(),
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    state: { useMaxWidth: true }
+  });
+}
+
+function renderAllMermaidDiagrams() {
+  const mermaidElements = document.querySelectorAll('.mermaid');
+  if (mermaidElements.length === 0) return;
+  // 先清空所有已渲染的 SVG（保留原始 pre）
+  mermaidElements.forEach(pre => {
+    // 只清空后续渲染的 svg，保留 pre 的文本内容
+    const svg = pre.querySelector('svg');
+    if (svg) svg.remove();
+  });
+  // 重新渲染
+  try {
+    mermaid.run({ nodes: Array.from(mermaidElements) });
+  } catch(e) {
+    console.warn('Mermaid render error:', e);
+  }
+}
+
+initMermaid();
+
+// 初始渲染所有 Mermaid 图（startOnLoad=false 时需要手动触发）
+document.addEventListener('DOMContentLoaded', function() {
+  renderAllMermaidDiagrams();
 });
 
 // ── Section 名称映射 ───────────────────────────────────────────────────
@@ -1011,6 +1071,9 @@ function getPreferredTheme() {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('mk-theme', theme);
+  // 重新初始化 Mermaid 并重新渲染所有图
+  initMermaid();
+  renderAllMermaidDiagrams();
 }
 
 function toggleTheme() {
