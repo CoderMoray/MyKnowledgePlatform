@@ -60,9 +60,9 @@ class Router {
    */
   _patternToRegex(pattern) {
     const escaped = pattern
-      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*([\w]+)/g, "(.+)")   // *param 先替换（避免被转义）
       .replace(/:([\w]+)/g, "([^/]+)")
-      .replace(/\*([\w]+)/g, "(.+)");  // *param 匹配多段（含 /）
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`^${escaped}$`);
   }
 
