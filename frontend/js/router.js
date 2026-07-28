@@ -59,11 +59,19 @@ class Router {
    * @returns {RegExp}
    */
   _patternToRegex(pattern) {
-    const escaped = pattern
-      .replace(/\*([\w]+)/g, "(.+)")   // *param 先替换（避免被转义）
-      .replace(/:([\w]+)/g, "([^/]+)")
-      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`^${escaped}$`);
+    // 先用占位符标记参数段，防止被转义
+    const placeholders = [];
+    const marked = pattern
+      .replace(/\*([\w]+)/g, (m, name) => { placeholders.push("(.+)"); return `\x00\x00${placeholders.length - 1}\x00\x00`; })
+      .replace(/:([\w]+)/g, (m, name) => { placeholders.push("([^/]+)"); return `\x00\x00${placeholders.length - 1}\x00\x00`; });
+    
+    // 转义其余特殊字符
+    const escaped = marked.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    
+    // 还原占位符为真正的正则片段
+    const restored = escaped.replace(/\x00\x00(\d+)\x00\x00/g, (m, i) => placeholders[+i]);
+    
+    return new RegExp(`^${restored}$`);
   }
 
   /**
@@ -104,8 +112,8 @@ function setupRouter() {
     store.loadProjectDocuments(path);
   });
 
-  // #doc/{path}（统一文档路由，取代 #view 和 #edit）
-  router.on("doc/:path", (params) => {
+  // #doc/*path（接受多段路径，含 /）
+  router.on("doc/*path", (params) => {
     const path = decodeURIComponent(params.path);
     store.setView("view", path);
     store.loadDocument(path);

@@ -15,7 +15,7 @@
 /* ── Reset ──────────────────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%;tab-size:4}
-body{min-height:100vh;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:#f5f5f7;background:#1c1c1e}
+body{min-height:100vh;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:#f5f5f7;background:#1c1c1e;transition:var(--transition-theme)}
 img,svg{display:block;max-width:100%}
 input,button,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:none}
@@ -28,8 +28,11 @@ table{border-collapse:collapse;border-spacing:0}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#545458;border-radius:9999px}
 
-/* ── Design Tokens (Raycast Dark) ──────────────────────────────────────── */
+/* ── Design Tokens (Dark) ──────────────────────────────────────────────── */
 :root{--bg-primary:#1c1c1e;--bg-secondary:#242426;--bg-tertiary:#2c2c2e;--surface:rgba(44,44,46,0.82);--text-primary:#f5f5f7;--text-secondary:#98989d;--text-tertiary:#636366;--text-muted:#48484a;--border-subtle:#2c2c2e;--border-default:#3a3a3c;--border-strong:#545458;--accent:#818cf8;--accent-hover:#a5b4fc;--accent-subtle:rgba(129,140,248,0.12);--accent-gradient:linear-gradient(135deg,#a5b4fc,#818cf8);--color-success:#34d399;--color-warning:#fbbf24;--color-danger:#f87171;--color-info:#60a5fa;--glass-bg:rgba(44,44,46,0.82);--glass-blur:blur(24px);--glass-border:0.5px solid #3a3a3c;--card-glass-bg:rgba(44,44,46,0.7);--card-glass-blur:blur(12px);--card-glass-border:0.5px solid rgba(255,255,255,0.04);--radius-sm:4px;--radius-md:8px;--radius-lg:10px;--radius-xl:14px;--radius-2xl:20px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:32px;--space-8:36px;--space-9:48px;--shadow-card:none;--font-sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue',sans-serif;--font-mono:'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',Consolas,monospace;--transition-theme:background-color 0.5s ease,color 0.5s ease,border-color 0.5s ease;--transition-interactive:background-color 0.15s ease,color 0.15s ease,border-color 0.15s ease,box-shadow 0.15s ease,opacity 0.15s ease;--transition-card:all 0.25s cubic-bezier(0.16,1,0.3,1)}
+
+/* ── Design Tokens (Light) ─────────────────────────────────────────────── */
+[data-theme="light"]{--bg-primary:#fafafa;--bg-secondary:#f0f0f0;--bg-tertiary:#f3f4f6;--surface:rgba(255,255,255,0.82);--text-primary:#1c1c1e;--text-secondary:#6b7280;--text-tertiary:#8e8e93;--text-muted:#aeaeb2;--border-subtle:#e5e5ea;--border-default:#d1d1d6;--border-strong:#c7c7cc;--accent:#6366f1;--accent-hover:#4f46e5;--accent-subtle:rgba(99,102,241,0.1);--accent-gradient:linear-gradient(135deg,#6366f1,#818cf8);--color-success:#10b981;--color-warning:#f59e0b;--color-danger:#ef4444;--color-info:#3b82f6;--glass-bg:rgba(255,255,255,0.78);--glass-blur:blur(24px);--glass-border:0.5px solid #d1d1d6;--card-glass-bg:#ffffff;--card-glass-blur:none;--card-glass-border:0.5px solid #d1d1d6;--shadow-card:0 1px 3px rgba(0,0,0,0.04)}
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 .app-shell{display:flex;height:100vh;overflow:hidden;background:var(--bg-primary)}
@@ -114,6 +117,15 @@ table{border-collapse:collapse;border-spacing:0}
 .mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:25}
 .mobile-overlay--open{display:block}
 
+/* ── Theme Toggle ──────────────────────────────────────────────────────── */
+.theme-toggle{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;transition:var(--transition-interactive);flex-shrink:0}
+.theme-toggle:hover{color:var(--accent);background:var(--accent-subtle)}
+.theme-toggle svg{width:16px;height:16px;transition:var(--transition-interactive)}
+[data-theme="dark"] .theme-toggle__sun{display:none}
+[data-theme="dark"] .theme-toggle__moon{display:block}
+[data-theme="light"] .theme-toggle__sun{display:block}
+[data-theme="light"] .theme-toggle__moon{display:none}
+
 /* ── Mermaid 主题覆盖 ──────────────────────────────────────────────────── */
 .mermaid .label{color:var(--text-primary)!important;font-family:var(--font-sans)!important}
 .mermaid .node rect,.mermaid .node circle,.mermaid .node polygon,.mermaid .node path{fill:var(--bg-tertiary)!important;stroke:var(--border-default)!important}
@@ -130,6 +142,60 @@ table{border-collapse:collapse;border-spacing:0}
 .mermaid .stateGroup .stateGroup .state-title{fill:var(--text-primary)!important}
 .mermaid .stateGroup .transition{stroke:var(--text-tertiary)!important}
 .mermaid .stateGroup .transition-text{fill:var(--text-secondary)!important;font-size:11px!important}
+
+/* ── Status Flow (纯 HTML 卡片) ────────────────────────────────────────── */
+.status-flow{display:flex;flex-direction:column;align-items:center;gap:var(--space-4);padding:var(--space-4) 0}
+.status-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:var(--space-3) var(--space-5);border-radius:var(--radius-lg);background:var(--card-glass-bg);backdrop-filter:var(--card-glass-blur);-webkit-backdrop-filter:var(--card-glass-blur);border:var(--card-glass-border);box-shadow:var(--shadow-card);min-width:140px;transition:var(--transition-card)}
+.status-card:hover{transform:translateY(-1px)}
+.status-card__icon{font-size:20px;line-height:1}
+.status-card__label{font-size:13px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+.status-card__desc{font-size:10px;color:var(--text-tertiary);text-align:center}
+.status-card--active .status-card__label{color:var(--color-success)}
+.status-card--completed .status-card__label{color:var(--color-info)}
+.status-card--cancelled .status-card__label{color:var(--color-warning)}
+.status-card--abandoned .status-card__label{color:var(--color-danger)}
+.status-card--archived .status-card__label{color:var(--text-secondary)}
+.status-flow__center{margin-bottom:var(--space-2)}
+.status-flow__arrows{display:flex;gap:var(--space-6);justify-content:center;width:100%;max-width:500px}
+.status-flow__arrow{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.status-flow__arrow-line{display:flex;align-items:center;gap:0;width:100%}
+.status-flow__arrow-shaft{flex:1;height:1.5px;background:var(--text-tertiary);opacity:0.5}
+.status-flow__arrow-head{font-size:14px;color:var(--text-tertiary);line-height:1;flex-shrink:0}
+.status-flow__arrow-line--wide{width:100%;max-width:400px}
+.status-flow__arrow-label{font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-weight:500}
+.status-flow__targets{display:flex;gap:var(--space-4);justify-content:center;width:100%;max-width:550px;margin-bottom:var(--space-2)}
+.status-flow__converge{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;max-width:400px;margin-bottom:var(--space-3)}
+.status-flow__archive{margin-bottom:var(--space-2)}
+.status-flow__gc{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
+.status-flow__gc-line{width:1.5px;height:20px;background:var(--text-muted);opacity:0.4}
+.status-flow__gc-text{font-size:10px;color:var(--text-muted);letter-spacing:0.3px;padding:3px 12px;border-radius:9999px;background:var(--bg-tertiary);border:0.5px solid var(--border-subtle)}
+
+/* ── System Architecture (纯 HTML 卡片) ────────────────────────────────── */
+.sys-arch{display:flex;flex-direction:column;align-items:center;gap:0;padding:var(--space-4) 0}
+.sys-arch__layer{display:flex;flex-direction:column;align-items:center;width:100%;position:relative}
+.sys-arch__card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:var(--space-3) var(--space-5);border-radius:var(--radius-lg);background:var(--card-glass-bg);backdrop-filter:var(--card-glass-blur);-webkit-backdrop-filter:var(--card-glass-blur);border:var(--card-glass-border);box-shadow:var(--shadow-card);min-width:180px;max-width:280px;transition:var(--transition-card)}
+.sys-arch__card:hover{transform:translateY(-1px)}
+.sys-arch__card-icon{font-size:22px;line-height:1}
+.sys-arch__card-title{font-size:14px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+.sys-arch__card-desc{font-size:10px;color:var(--text-tertiary);font-family:var(--font-mono);text-align:center}
+.sys-arch__card-items{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.sys-arch__tag{font-size:9px;padding:2px 8px;border-radius:9999px;background:var(--accent-subtle);color:var(--accent);font-weight:500;border:0.5px solid transparent}
+.sys-arch__arrow-down{display:flex;flex-direction:column;align-items:center;gap:2px;margin:2px 0;color:var(--text-tertiary)}
+.sys-arch__arrow-down--small{margin:0}
+.sys-arch__arrow-label{font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;margin-bottom:4px}
+.sys-arch__branches{display:flex;width:100%;max-width:500px;justify-content:space-between;align-items:center;margin:var(--space-2) 0}
+.sys-arch__branch{display:flex;align-items:center;gap:var(--space-2)}
+.sys-arch__branch--left{flex-direction:row}
+.sys-arch__branch--right{flex-direction:row-reverse}
+.sys-arch__branch-arrow{color:var(--text-tertiary);opacity:0.6;flex-shrink:0;display:flex;align-items:center}
+.sys-arch__subcard{padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);background:var(--bg-secondary);border:0.5px solid var(--border-subtle);text-align:center;min-width:100px}
+.sys-arch__subcard-title{font-size:12px;font-weight:600;color:var(--text-primary)}
+.sys-arch__subcard-desc{font-size:9px;color:var(--text-tertiary);font-family:var(--font-mono)}
+.sys-arch__kb-label{font-size:11px;font-weight:600;color:var(--text-tertiary);padding:var(--space-2) var(--space-4);border-radius:var(--radius-md);background:var(--bg-tertiary);border:0.5px dashed var(--border-default);margin:var(--space-2) 0;letter-spacing:0.3px}
+.sys-arch__card--human .sys-arch__card-title{color:var(--accent)}
+.sys-arch__card--agent .sys-arch__card-title{color:var(--color-info)}
+.sys-arch__card--mcp .sys-arch__card-title{color:var(--color-success)}
+.sys-arch__card--frontend .sys-arch__card-title{color:var(--color-warning)}
 </style>
 </head>
 <body>
@@ -184,8 +250,17 @@ table{border-collapse:collapse;border-spacing:0}
         <div class="sidebar-item" data-target="diag-2" onclick="scrollToSection('diag-2')">
           <span class="sidebar-item__name">安装初始化</span>
         </div>
-        <div class="sidebar-item" data-target="diag-3" onclick="scrollToSection('diag-3')">
-          <span class="sidebar-item__name">Agent 工作流</span>
+        <div class="sidebar-item" data-target="diag-3a" onclick="scrollToSection('diag-3a')">
+          <span class="sidebar-item__name">① 会话生命周期</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-3b" onclick="scrollToSection('diag-3b')">
+          <span class="sidebar-item__name">② 写操作自动流程</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-3c" onclick="scrollToSection('diag-3c')">
+          <span class="sidebar-item__name">③ 维护流程</span>
+        </div>
+        <div class="sidebar-item" data-target="diag-3d" onclick="scrollToSection('diag-3d')">
+          <span class="sidebar-item__name">④ 状态流转</span>
         </div>
         <div class="sidebar-item" data-target="diag-5" onclick="scrollToSection('diag-5')">
           <span class="sidebar-item__name">状态与归档</span>
@@ -207,7 +282,11 @@ table{border-collapse:collapse;border-spacing:0}
           <span class="header-logo__text">产品工作流</span>
         </div>
       </div>
-      <div class="top-header__right">
+      <div class="top-header__right" style="display:flex;align-items:center;gap:var(--space-3)">
+        <button class="theme-toggle" onclick="toggleTheme()" aria-label="切换亮暗模式" title="切换亮暗模式">
+          <svg class="theme-toggle__sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="theme-toggle__moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <div class="status-indicator">
           <span class="status-indicator__dot"></span>
           流程图概览
@@ -221,50 +300,108 @@ table{border-collapse:collapse;border-spacing:0}
       <!-- Page Title -->
       <span class="page-label">MyKnowledge</span>
       <h1 class="page-title">产品工作流</h1>
-      <p class="page-subtitle">从人类安装到 AI Agent 完成知识管理的完整工作流 · 4 个 Mermaid 流程图</p>
+      <p class="page-subtitle">从人类安装到 AI Agent 完成知识管理的完整工作流 · 交互式流程图</p>
 
       <!-- ===== Section 1: 系统全景 ===== -->
       <section id="section-1">
         <h2 class="section-title">一、系统全景</h2>
         <p class="section-desc">系统由人类用户、AI Agent Client、知识库（MCP Server + Storage + REST API）和 Web UI 四部分组成。</p>
-        <div id="diag-1" class="diagram-card" onclick="openModal('diagram-1')">
+        <div id="diag-1" class="diagram-card" style="cursor:default">
           <div class="diagram-card__header">
             <span class="diagram-card__title">系统架构图</span>
-            <span class="diagram-card__hint">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              点击放大
-            </span>
           </div>
-          <div class="diagram-card__mermaid">
-            <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
-              flowchart TB
-                subgraph Human["👤 人类用户"]
-                    A1[终端操作]
-                    A2[Web UI ⏳]
-                end
-
-                subgraph Agent["🤖 AI Agent Client (Enchante)"]
-                    B[MCP Client]
-                end
-
-                subgraph KB["📁 知识库 ~/.myknowledge/"]
-                    C[MCP Server<br/>python -m backend.cli mcp]
-                    C --- D[Storage<br/>Markdown + Git]
-                    C --- E[REST API<br/>uvicorn]
-                end
-
-                subgraph Frontend["🖥️ Web UI (开发中)"]
-                    F[Alpine.js SPA]
-                    F ---|http| E
-                end
-
-                Human -->|mcp.json 配置| B
-                B -->|stdio MCP| C
-                A1 -->|myknowledge init| KB
-                A1 -->|myknowledge serve| E
-                A2 -->|浏览器| F
-            </pre>
+          <div class="sys-arch">
+            <!-- Layer 1: Human -->
+            <div class="sys-arch__layer">
+              <div class="sys-arch__card sys-arch__card--human">
+                <div class="sys-arch__card-icon">👤</div>
+                <div class="sys-arch__card-title">人类用户</div>
+                <div class="sys-arch__card-items">
+                  <span class="sys-arch__tag">终端操作</span>
+                  <span class="sys-arch__tag">Web UI</span>
+                </div>
+              </div>
+              <div class="sys-arch__arrow-down">
+                <svg width="20" height="32" viewBox="0 0 20 32" fill="none">
+                  <line x1="10" y1="0" x2="10" y2="24" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M4 18L10 26L16 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="sys-arch__arrow-label">mcp.json 配置</span>
+              </div>
+            </div>
+            <!-- Layer 2: Agent -->
+            <div class="sys-arch__layer">
+              <div class="sys-arch__card sys-arch__card--agent">
+                <div class="sys-arch__card-icon">🤖</div>
+                <div class="sys-arch__card-title">AI Agent Client</div>
+                <div class="sys-arch__card-desc">Enchante</div>
+                <div class="sys-arch__card-items">
+                  <span class="sys-arch__tag">MCP Client</span>
+                </div>
+              </div>
+              <div class="sys-arch__arrow-down">
+                <svg width="20" height="32" viewBox="0 0 20 32" fill="none">
+                  <line x1="10" y1="0" x2="10" y2="24" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M4 18L10 26L16 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="sys-arch__arrow-label">stdio MCP</span>
+              </div>
+            </div>
+            <!-- Layer 3: MCP Server (中心) -->
+            <div class="sys-arch__layer">
+              <div class="sys-arch__card sys-arch__card--mcp">
+                <div class="sys-arch__card-icon">🔌</div>
+                <div class="sys-arch__card-title">MCP Server</div>
+                <div class="sys-arch__card-desc">python -m backend.cli mcp</div>
+              </div>
+              <!-- 从 MCP Server 分叉到左右两侧 -->
+              <div class="sys-arch__branches">
+                <div class="sys-arch__branch sys-arch__branch--left">
+                  <div class="sys-arch__branch-arrow">
+                    <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
+                      <path d="M60 12H8M8 12L16 4M8 12L16 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="sys-arch__subcard">
+                    <div class="sys-arch__subcard-title">Storage</div>
+                    <div class="sys-arch__subcard-desc">Markdown + Git</div>
+                  </div>
+                </div>
+                <div class="sys-arch__branch sys-arch__branch--right">
+                  <div class="sys-arch__branch-arrow">
+                    <svg width="60" height="24" viewBox="0 0 60 24" fill="none">
+                      <path d="M0 12H52M52 12L44 4M52 12L44 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <div class="sys-arch__subcard">
+                    <div class="sys-arch__subcard-title">REST API</div>
+                    <div class="sys-arch__subcard-desc">uvicorn</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Layer 4: KB 标签 -->
+            <div class="sys-arch__layer">
+              <div class="sys-arch__kb-label">📁 知识库 ~/.myknowledge/</div>
+            </div>
+            <!-- Layer 5: Frontend -->
+            <div class="sys-arch__layer">
+              <div class="sys-arch__arrow-down sys-arch__arrow-down--small">
+                <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
+                  <line x1="8" y1="0" x2="8" y2="16" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M3 12L8 18L13 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="sys-arch__arrow-label">HTTP</span>
+              </div>
+              <div class="sys-arch__card sys-arch__card--frontend">
+                <div class="sys-arch__card-icon">🖥️</div>
+                <div class="sys-arch__card-title">Web UI</div>
+                <div class="sys-arch__card-desc">Alpine.js SPA</div>
+                <div class="sys-arch__card-items">
+                  <span class="sys-arch__tag">开发中</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -301,13 +438,15 @@ table{border-collapse:collapse;border-spacing:0}
         </div>
       </section>
 
-      <!-- ===== Section 3: Agent Client 工作流 ===== -->
+      <!-- ===== Section 3: Agent Client 工作流（拆分为 4 小图） ===== -->
       <section id="section-3">
         <h2 class="section-title">三、Agent Client 工作流（核心）</h2>
-        <p class="section-desc">AI Agent 与知识库交互的完整流程。MCP 先获取锁才能读 diff；写完释放锁。</p>
-        <div id="diag-3" class="diagram-card" onclick="openModal('diagram-3')">
+        <p class="section-desc">AI Agent 与知识库交互的完整流程拆解为四个子图。</p>
+
+        <!-- 图 ① 会话生命周期 -->
+        <div id="diag-3a" class="diagram-card" onclick="openModal('diag-3a')">
           <div class="diagram-card__header">
-            <span class="diagram-card__title">Agent 工作流</span>
+            <span class="diagram-card__title">① 会话生命周期</span>
             <span class="diagram-card__hint">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               点击放大
@@ -315,56 +454,152 @@ table{border-collapse:collapse;border-spacing:0}
           </div>
           <div class="diagram-card__mermaid">
             <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
-              flowchart TD
-                Start(["🤖 Agent 开始会话"])
-
-                Start --> AcquireLock["🔒 maint__acquire_lock<br/>获取写锁"]
-
-                AcquireLock --> ReadKB["📖 导航阶段"]
-                ReadKB -->|nav__read_readme| ReadRoot{"阅读根 readme<br/>了解项目结构"}
-                ReadRoot -->|有项目| ListProjects["nav__list_dir projects/<br/>列出所有项目"]
-                ReadRoot -->|无项目| CreateFirst["write__create_document<br/>创建第一篇文档<br/>→ 自动创建项目"]
-                ReadRoot -->|直接读文档| ReadDoc["nav__get_document<br/>或 nav__get_document_with_refs"]
-
-                ListProjects --> ReadMoreDocs["nav__get_document<br/>阅读具体文档"]
-                CreateFirst --> ReadKB
-
-                ReadMoreDocs --> Decide{"判断下一步"}
-
-                Decide -->|"修改已有知识"| Update["✏️ write__update_document<br/>更新文档内容/summary"]
-                Decide -->|"新建知识"| Create["📄 write__create_document<br/>需指定路径和 summary"]
-                Decide -->|"改项目元信息"| ProjectMeta["📋 write__update_project_meta<br/>改 name / summary / status"]
-                Decide -->|"改名"| Rename{"改名类型"}
-                Decide -->|"读 diff"| ReadDiff["🔍 maint__read_diff<br/>读未处理的变更"]
-                Decide -->|"验证完整性"| Validate["✅ maint__validate_doc<br/>检查 frontmatter + ref"]
-                Decide -->|"重建索引"| Rebuild["🔄 maint__rebuild_index<br/>手动重建 readme + 索引"]
-                Decide -->|"分享"| Share["📦 share__publish<br/>导出分享包 .mkpkg"]
-                Decide -->|"导入"| Import["📥 share__import_share<br/>导入分享包"]
-                Decide -->|"完成工作"| Release["🔓 maint__release_lock"]
-
-                Rename -->|"项目改名"| RenameProj["write__rename_project<br/>目录 + ref 全部替换"]
-                Rename -->|"文档改名"| RenameDoc["write__rename_document<br/>文件 + ref 全部替换"]
-
-                Update --> WriteThrough["⏳ 自动流程：<br/>① write_document<br/>② gen.rebuild（更新 readme）<br/>③ gen.rebuild_project_status<br/>④ git commit<br/>⑤ broadcast（SSE 通知前端）"]
-                Create --> WriteThrough
-                ProjectMeta --> WriteThrough
-                RenameProj --> WriteThrough
-                RenameDoc --> WriteThrough
-
-                WriteThrough --> AutoArchive{"⑥ status 检查"}
-                AutoArchive -->|"非 active"| Archive["📦 shutil.move<br/>projects/X → archive/X<br/>+ rebuild + commit"]
-                AutoArchive -->|"active"| Keep[("不动")]
-                Archive --> Keep
-
-                Keep --> Decide
-
-                ReadDiff --> ProcessDiff{"有差异?"}
-                ProcessDiff -->|"有"| Decide
-                ProcessDiff -->|"无"| Decide
-
-                Release --> End(["结束会话"])
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
+              flowchart LR
+                Start(("开始")) --> Lock["🔒 acquire_lock"]
+                Lock --> Nav["📖 nav | write | read_diff"]
+                Nav --> Release["🔓 release_lock"]
+                Release --> End(("结束"))
             </pre>
+          </div>
+        </div>
+
+        <!-- 图 ② 写操作自动流程 -->
+        <div id="diag-3b" class="diagram-card" onclick="openModal('diag-3b')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">② 写操作自动流程</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
+              flowchart TB
+                Create["write__create_document"]
+                Update["write__update_document"]
+                ProjectMeta["write__update_project_meta"]
+                Rename["write__rename_document / write__rename_project"]
+
+                Create --> WriteThru["_write_through"]
+                Update --> WriteThru
+                ProjectMeta --> WriteThru
+                Rename --> WriteThru
+
+                WriteThru --> Rebuild["rebuild"]
+                WriteThru --> RebuildStatus["rebuild_project_status"]
+                WriteThru --> Git["git commit"]
+                WriteThru --> Broadcast["SSE broadcast"]
+
+                Rebuild --> ArchiveCheck{"_auto_archive"}
+                RebuildStatus --> ArchiveCheck
+                Git --> ArchiveCheck
+                Broadcast --> ArchiveCheck
+
+                ArchiveCheck -->|"status != active"| Archive["📦 shutil.move → archive/"]
+                ArchiveCheck -->|"status == active"| Done(("完成"))
+                Archive --> Done
+            </pre>
+          </div>
+        </div>
+
+        <!-- 图 ③ 维护流程 -->
+        <div id="diag-3c" class="diagram-card" onclick="openModal('diag-3c')">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">③ 维护流程</span>
+            <span class="diagram-card__hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              点击放大
+            </span>
+          </div>
+          <div class="diagram-card__mermaid">
+            <pre class="mermaid">
+              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}, 'flowchart': {'curve': 'basis'}}}%%
+              flowchart LR
+                Diff["🔍 read_diff"] --> Validate["✅ validate_doc"]
+                Validate --> Index["🔄 rebuild_index"]
+                Index --> Release["🔓 release_lock"]
+            </pre>
+          </div>
+        </div>
+
+        <!-- 图 ④ 状态流转 -->
+        <div id="diag-3d" class="diagram-card" style="cursor:default">
+          <div class="diagram-card__header">
+            <span class="diagram-card__title">④ 状态流转</span>
+          </div>
+          <div class="status-flow">
+            <!-- Active 卡片（居中突出） -->
+            <div class="status-flow__center">
+              <div class="status-card status-card--active">
+                <div class="status-card__icon">🟢</div>
+                <div class="status-card__label">active</div>
+                <div class="status-card__desc">进行中 · projects/ 目录</div>
+              </div>
+            </div>
+            <!-- 从 active 发出的三条箭头 -->
+            <div class="status-flow__arrows">
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">完成</span>
+              </div>
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">取消</span>
+              </div>
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">废弃</span>
+              </div>
+            </div>
+            <!-- 三个目标状态 -->
+            <div class="status-flow__targets">
+              <div class="status-card status-card--completed">
+                <div class="status-card__icon">✅</div>
+                <div class="status-card__label">completed</div>
+                <div class="status-card__desc">已完成</div>
+              </div>
+              <div class="status-card status-card--cancelled">
+                <div class="status-card__icon">⏹</div>
+                <div class="status-card__label">cancelled</div>
+                <div class="status-card__desc">已取消</div>
+              </div>
+              <div class="status-card status-card--abandoned">
+                <div class="status-card__icon">❌</div>
+                <div class="status-card__label">abandoned</div>
+                <div class="status-card__desc">已废弃</div>
+              </div>
+            </div>
+            <!-- 汇聚箭头 → Archived -->
+            <div class="status-flow__converge">
+              <div class="status-flow__arrow-line status-flow__arrow-line--wide">
+                <span class="status-flow__arrow-shaft"></span>
+                <span class="status-flow__arrow-head">→</span>
+              </div>
+              <span class="status-flow__arrow-label">_auto_archive</span>
+            </div>
+            <div class="status-flow__archive">
+              <div class="status-card status-card--archived">
+                <div class="status-card__icon">📦</div>
+                <div class="status-card__label">Archived</div>
+                <div class="status-card__desc">archive/ 目录</div>
+              </div>
+            </div>
+            <!-- GC 说明 -->
+            <div class="status-flow__gc">
+              <span class="status-flow__gc-line"></span>
+              <span class="status-flow__gc-text">30 天后 garbage_collect 清理</span>
+            </div>
           </div>
         </div>
       </section>
@@ -408,29 +643,81 @@ table{border-collapse:collapse;border-spacing:0}
       <section id="section-5">
         <h2 class="section-title">五、状态与归档</h2>
         <p class="section-desc">项目的状态流转与自动归档机制。非 active 状态的项目自动移入 archive/ 目录，30 天后垃圾回收。</p>
-        <div id="diag-5" class="diagram-card" onclick="openModal('diagram-5')">
+        <div id="diag-5" class="diagram-card" style="cursor:default">
           <div class="diagram-card__header">
             <span class="diagram-card__title">状态流转图</span>
-            <span class="diagram-card__hint">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              点击放大
-            </span>
           </div>
-          <div class="diagram-card__mermaid">
-            <pre class="mermaid">
-              %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2c2c2e', 'primaryTextColor': '#f5f5f7', 'primaryBorderColor': '#3a3a3c', 'lineColor': '#636366', 'secondaryColor': '#242426', 'tertiaryColor': '#1c1c1e', 'clusterBkg': '#242426', 'clusterBorder': '#3a3a3c', 'nodeBorder': '#3a3a3c', 'nodeTextColor': '#f5f5f7', 'edgeLabelBackground': '#1c1c1e', 'edgeLabelColor': '#98989d', 'edgeLabelBorder': '#2c2c2e', 'titleColor': '#f5f5f7'}}}%%
-              stateDiagram-v2
-                [*] --> active：创建项目
-                active --> completed：完成
-                active --> cancelled：取消
-                active --> abandoned：废弃
-
-                completed --> Archived：_auto_archive
-                cancelled --> Archived：_auto_archive
-                abandoned --> Archived：_auto_archive
-
-                Archived --> [*]：30天后 garbage_collect
-            </pre>
+          <div class="status-flow">
+            <!-- Active 卡片 -->
+            <div class="status-flow__center">
+              <div class="status-card status-card--active">
+                <div class="status-card__icon">🟢</div>
+                <div class="status-card__label">active</div>
+                <div class="status-card__desc">进行中 · projects/ 目录</div>
+              </div>
+            </div>
+            <!-- 箭头 -->
+            <div class="status-flow__arrows">
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">完成</span>
+              </div>
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">取消</span>
+              </div>
+              <div class="status-flow__arrow">
+                <div class="status-flow__arrow-line">
+                  <span class="status-flow__arrow-shaft"></span>
+                  <span class="status-flow__arrow-head">→</span>
+                </div>
+                <span class="status-flow__arrow-label">废弃</span>
+              </div>
+            </div>
+            <!-- 目标状态 -->
+            <div class="status-flow__targets">
+              <div class="status-card status-card--completed">
+                <div class="status-card__icon">✅</div>
+                <div class="status-card__label">completed</div>
+                <div class="status-card__desc">已完成</div>
+              </div>
+              <div class="status-card status-card--cancelled">
+                <div class="status-card__icon">⏹</div>
+                <div class="status-card__label">cancelled</div>
+                <div class="status-card__desc">已取消</div>
+              </div>
+              <div class="status-card status-card--abandoned">
+                <div class="status-card__icon">❌</div>
+                <div class="status-card__label">abandoned</div>
+                <div class="status-card__desc">已废弃</div>
+              </div>
+            </div>
+            <!-- 汇聚箭头 -->
+            <div class="status-flow__converge">
+              <div class="status-flow__arrow-line status-flow__arrow-line--wide">
+                <span class="status-flow__arrow-shaft"></span>
+                <span class="status-flow__arrow-head">→</span>
+              </div>
+              <span class="status-flow__arrow-label">_auto_archive</span>
+            </div>
+            <div class="status-flow__archive">
+              <div class="status-card status-card--archived">
+                <div class="status-card__icon">📦</div>
+                <div class="status-card__label">Archived</div>
+                <div class="status-card__desc">archive/ 目录</div>
+              </div>
+            </div>
+            <!-- GC -->
+            <div class="status-flow__gc">
+              <span class="status-flow__gc-line"></span>
+              <span class="status-flow__gc-text">30 天后 garbage_collect 清理</span>
+            </div>
           </div>
         </div>
 
@@ -520,7 +807,7 @@ table{border-collapse:collapse;border-spacing:0}
 
       <!-- Footer -->
       <div style="margin-top:var(--space-9);padding-top:var(--space-4);border-top:0.5px solid var(--border-subtle);font-size:10px;color:var(--text-muted);text-align:center">
-        MyKnowledge — 产品工作流文档 · 使用 Mermaid.js 渲染
+        MyKnowledge — 产品工作流文档 · 纯 HTML 渲染
       </div>
 
     </div><!-- /content-panel -->
@@ -569,10 +856,10 @@ mermaid.initialize({
 
 // ── Section 名称映射 ───────────────────────────────────────────────────
 const sectionTitles = {
-  'diagram-1': '一、系统全景 — 系统架构图',
   'diagram-2': '二、安装与初始化 — 安装流程图',
-  'diagram-3': '三、Agent Client 工作流（核心）',
-  'diagram-5': '五、状态与归档 — 状态流转图'
+  'diag-3a': '三、Agent — ① 会话生命周期',
+  'diag-3b': '三、Agent — ② 写操作自动流程',
+  'diag-3c': '三、Agent — ③ 维护流程'
 };
 
 // ── Modal 控制 ──────────────────────────────────────────────────────────
@@ -680,7 +967,7 @@ const sectionIds = ['section-1', 'section-2', 'section-3', 'section-4', 'section
 const diagramMap = {
   'section-1': 'diag-1',
   'section-2': 'diag-2',
-  'section-3': 'diag-3',
+  'section-3': 'diag-3a',
   'section-5': 'diag-5'
 };
 
@@ -711,6 +998,33 @@ contentPanel.addEventListener('scroll', function() {
     document.querySelectorAll(`.sidebar-item[data-target="${diagId}"]`).forEach(item => {
       item.classList.add('sidebar-item--active');
     });
+  }
+});
+
+// ── 亮暗主题切换 ────────────────────────────────────────────────────────
+function getPreferredTheme() {
+  const stored = localStorage.getItem('mk-theme');
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('mk-theme', theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// 初始化主题
+applyTheme(getPreferredTheme());
+
+// 监听系统主题变化
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
+  if (!localStorage.getItem('mk-theme')) {
+    applyTheme(e.matches ? 'light' : 'dark');
   }
 });
 </script>
