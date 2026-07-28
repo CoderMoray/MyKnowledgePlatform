@@ -239,7 +239,8 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       if (store.currentView !== "edit" || !this.editorInstance) return;
 
-      const html = this.editorInstance.getHTML();
+      // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
+      const html = this.editorInstance.view ? this.editorInstance.view.dom.innerHTML : this.editorInstance.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") {
         this.editorInstance.setEditable(false);
         store.setView("view", store.currentPath);
@@ -262,10 +263,8 @@ Alpine.data("docComponent", () => ({
         while (p.firstChild) parent.insertBefore(p.firstChild, p);
         parent.removeChild(p);
       });
-      // TipTap 表格 → Markdown 表格（turndown 不认识 <table>）
-      const wrappers = tmp.querySelectorAll(".tableWrapper");
-      console.log("[save] tableWrappers found:", wrappers.length);
-      wrappers.forEach(wrapper => {
+      // TipTap 表格 → Markdown 表格
+      tmp.querySelectorAll(".tableWrapper").forEach(wrapper => {
         const table = wrapper.querySelector("table");
         if (!table) return;
         const rows = [];
@@ -278,19 +277,36 @@ Alpine.data("docComponent", () => ({
           const cols = table.querySelector("tr").querySelectorAll("th, td").length;
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
-        const mdTable = "\n\n" + rows.join("\n") + "\n\n";
-        wrapper.replaceWith(document.createTextNode(mdTable));
+        wrapper.replaceWith(document.createTextNode("\n\n" + rows.join("\n") + "\n\n"));
+      });
+      // TipTap Link 修复：ProseMirror DOM 中 href 可能是对象，从实际的 a 标签取
+      tmp.querySelectorAll("a[href]").forEach(a => {
+        const href = a.getAttribute("href");
+        if (href && href !== "null" && !href.startsWith("ref:") && !href.startsWith("[object")) {
+          a.setAttribute("href", href);
+        }
       });
       const cleanHtml = tmp.innerHTML;
 
-      // HTML → Markdown（turndown）
-      const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-" });
+      // HTML → Markdown（turndown + 自定义规则）
+      const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced" });
+      // 删除线
+      td.addRule("strikethrough", { filter: ["s", "del", "strike"], replacement: (c) => "~~" + c + "~~" });
+      // 代码块：强制用 ``` 围栏式
+      td.addRule("fencedCode", {
+        filter: (node) => node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE",
+        replacement: (_, node) => {
+          const lang = (node.firstChild.className || "").replace("language-", "");
+          return "\n\n```" + lang + "\n" + node.firstChild.textContent + "\n```\n\n";
+        }
+      });
       let markdown = td.turndown(cleanHtml);
 
-      // turndown 编码了 ref: 中的空格，还原
+      // turndown 后处理
       markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");
-      // turndown 列表项多余空格：`-   text` → `- text`
       markdown = markdown.replace(/^(\s*[-*+])\s{2,}/gm, "$1 ");
+      markdown = markdown.replace(/^(\s*\d+\.)\s{2,}/gm, "$1 ");
+      markdown = markdown.replace(/^(> .*?)\s\s+$/gm, "$1");
 
       const title = store.document?.title || "";
       // 如果正文已包含标题 h1，不再重复

@@ -72,6 +72,7 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
 
     kb_root = storage.kb_root
 
+    acquire_lock(storage)  # ensure lock held for this write
     # ── Lock check ──────────────────────────────
     if not _lock_file(kb_root).exists():
         raise RuntimeError(
@@ -177,6 +178,7 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     except Exception:
         pass  # git 未初始化时跳过 commit
 
+    release_lock(storage)
     return f"✓ 已重命名: {new_name}"
 
 
@@ -184,6 +186,7 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
     """Rename a single document: file mv + ref replacement + rebuild."""
     import shutil, re
 
+    acquire_lock(storage)  # ensure lock held for this write
     old_path = storage.kb_root / old_rel
     if not old_path.is_file():
         raise FileNotFoundError(f"文件不存在: {old_rel}")
@@ -247,6 +250,7 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
     except Exception:
         pass
 
+    release_lock(storage)
     return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
 
 
@@ -267,6 +271,7 @@ def delete_project(storage: Storage, project_rel: str) -> str:
 
     kb_root = storage.kb_root
 
+    acquire_lock(storage)  # ensure lock held for this write
     # ── Lock check ──────────────────────────────
     if not _lock_file(kb_root).exists():
         raise RuntimeError(
@@ -351,6 +356,7 @@ def delete_project(storage: Storage, project_rel: str) -> str:
     except Exception:
         pass
 
+    release_lock(storage)
     return f"✓ 已删除项目: {project_rel}"
 
 
@@ -492,6 +498,7 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     except Exception:
         pass
 
+    release_lock(storage)
     return f"✓ 已移动: {project_rel} → {new_rel}"
 
 
@@ -896,10 +903,10 @@ def create_mcp_app(storage: Storage,
     # ══════════════════════════════════════════════════════════
 
     def _write_through(parent_rel: str, msg: str) -> None:
-        """Rebuild indices and commit. Raises if no write lock."""
+        """Rebuild indices and commit. Auto-acquires lock on entry, releases on exit."""
         if gen is None:
             return
-        # ── Lock check ──────────────────────────────
+        acquire_lock(storage)  # ensure lock held for this write
         if not _lock_file(storage.kb_root).exists():
             raise RuntimeError(
                 "错误：写锁不存在。\n\n"
@@ -920,6 +927,9 @@ def create_mcp_app(storage: Storage,
 
         from backend.events import broadcast as _evt
         _evt(storage.kb_root)
+
+        # ── Auto-release lock after every write operation ──
+        release_lock(storage)
 
     @mcp.tool()
     def write__create_document(path: str, content: str,
@@ -1066,6 +1076,17 @@ def create_mcp_app(storage: Storage,
         """
         if project_rel:
             _validate_path(project_rel, kind="dir", storage=storage)
+        acquire_lock(storage)  # ensure lock held for this write
+        if not _lock_file(storage.kb_root).exists():
+            raise RuntimeError(
+                "错误：写锁不存在。\n\n"
+                "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
+                "请按以下步骤修正：\n"
+                "  1. maint__acquire_lock\n"
+                "  2. maint__read_diff（处理待提交的变更）\n"
+                "  3. 确认变更后继续\n\n"
+                "完成这三步后再重新调用本工具。"
+            )
         readme_path = f"{project_rel}/readme.md" if project_rel else "readme.md"
         old_meta, old_body = storage.read_document(readme_path)
 
@@ -1090,6 +1111,7 @@ def create_mcp_app(storage: Storage,
             gen.rebuild_project_status()                     # type: ignore[union-attr]
             _git_commit(storage.kb_root, f"meta: {project_rel}")
 
+        release_lock(storage)
         return new_meta.get("id", "")
 
     @mcp.tool()
@@ -1512,10 +1534,12 @@ def create_mcp_app(storage: Storage,
 - **维护**：`maint__validate_doc` / `maint__rebuild_index`
 - **分享**：`share__publish` / `share__import_share`
 
+> **锁说明**：每个写工具执行完毕后**自动释放写锁**。无需手动调 `maint__release_lock`。
+> 如需单独释放锁或只读操作结束（如 `maint__read_diff` 后不想继续写），手动调 `maint__release_lock` 即可。
+
 ### 八、结束前
-完成所有工作后：
-1. `maint__release_lock`（自动更新 checkpoint）
-2. 告知用户「知识库已同步」
+1. 告知用户「知识库已同步」
+2. 如果锁仍持有（只读流程后），调 `maint__release_lock` 释放
 """
 
     return mcp
