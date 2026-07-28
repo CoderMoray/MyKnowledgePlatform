@@ -223,7 +223,6 @@ Alpine.data("docComponent", () => ({
       if (store.currentView !== "edit" || !this.editorInstance) return;
 
       const html = this.editorInstance.getHTML();
-      // 内容为空时不保存（防止覆盖已有内容）
       if (!html || html === "<p></p>" || html.trim() === "") {
         this.editorInstance.destroy();
         this.editorInstance = null;
@@ -233,19 +232,21 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
+      // HTML → Markdown（turndown）
+      const td = new TurndownService({ headingStyle: "atx" });
+      let markdown = td.turndown(html);
+
+      // 恢复 ref: 链接（turndown 会把 link 转为 [text](url)，需要把 url 中的 %20 还原）
+      markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");
+
       this.editorInstance.destroy();
       this.editorInstance = null;
       this.editorReady = false;
 
-      const tmp = document.createElement("div");
-      tmp.innerHTML = html;
-      const h1 = tmp.querySelector("h1");
-      if (h1) h1.remove();
-      const bodyHtml = tmp.innerHTML;
-
       const title = store.document?.title || "";
+      const fullMd = `# ${title}\n\n${markdown}`;
       try {
-        await store.saveDocument(store.currentPath, { content: bodyHtml, summary: store.document?.summary || "" });
+        await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
       } catch (e) {}
 
       store.setView("view", store.currentPath);
