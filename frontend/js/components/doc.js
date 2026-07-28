@@ -223,20 +223,29 @@ Alpine.data("docComponent", () => ({
       if (store.currentView !== "edit" || !this.editorInstance) return;
 
       const html = this.editorInstance.getHTML();
+      // 内容为空时不保存（防止覆盖已有内容）
+      if (!html || html === "<p></p>" || html.trim() === "") {
+        this.editorInstance.destroy();
+        this.editorInstance = null;
+        this.editorReady = false;
+        store.setView("view", store.currentPath);
+        store.loadDocument(store.currentPath);
+        return;
+      }
+
       this.editorInstance.destroy();
       this.editorInstance = null;
       this.editorReady = false;
 
-      // 去掉 title h1（已在 header 显示），只保存正文
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
       const h1 = tmp.querySelector("h1");
       if (h1) h1.remove();
       const bodyHtml = tmp.innerHTML;
 
-      const title = this.titleValue || store.document?.title || "";
+      const title = store.document?.title || "";
       try {
-        await store.saveDocument(store.currentPath, { content: `# ${title}\n\n${bodyHtml}`, summary: store.document?.summary || "" });
+        await store.saveDocument(store.currentPath, { content: bodyHtml, summary: store.document?.summary || "" });
       } catch (e) {}
 
       store.setView("view", store.currentPath);
@@ -266,10 +275,10 @@ Alpine.data("docComponent", () => ({
       this.editorInstance = new Editor({
         element: el,
         extensions,
-        content: store.htmlContent,
-        editable: false,
+        content: store.htmlContent || store.document?.content || "",
+        autofocus: "end",
         editorProps: {
-          attributes: { class: "ProseMirror ProseMirror--readonly" },
+          attributes: { class: "ProseMirror" },
         },
         onUpdate: () => { store.isDirty = true; },
       });
