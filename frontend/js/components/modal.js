@@ -83,7 +83,7 @@ Alpine.data("modalComponent", () => ({
         const parts = path.replace(/\\/g, "/").split("/");
         parts[parts.length - 1] = newName.includes(".") ? newName : newName + ".md";
         const newPath = parts.join("/");
-        window.location.hash = `view/${encodeURIComponent(newPath)}`;
+        window.location.hash = `doc/${encodeURIComponent(newPath)}`;
       } catch (err) {
         showToast(err.message || "改名失败", "error");
       }

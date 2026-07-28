@@ -56,7 +56,7 @@ Alpine.data("viewerComponent", () => ({
 
     goToRef(path) {
       this.closePopover();
-      window.location.hash = `view/${encodeURIComponent(path)}`;
+      window.location.hash = `doc/${encodeURIComponent(path)}`;
     },
 
     goToEdit() {

@@ -26,7 +26,7 @@ Alpine.data("projectComponent", () => ({
     },
 
     goToDocument(path) {
-      window.location.hash = `view/${encodeURIComponent(path)}`;
+      window.location.hash = `doc/${encodeURIComponent(path)}`;
     },
 
     goToProject(path) {

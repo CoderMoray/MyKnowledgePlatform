@@ -155,7 +155,7 @@ function openCardPanel(cardEl, path) {
       inner.querySelectorAll("[data-doc-path]").forEach(el => {
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          window.location.hash = "view/" + encodeURIComponent(el.dataset.docPath);
+          window.location.hash = "doc/" + encodeURIComponent(el.dataset.docPath);
         });
       });
       inner.querySelectorAll("[data-sub-path]").forEach(el => {
