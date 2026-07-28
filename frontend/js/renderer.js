@@ -87,6 +87,96 @@ function refSourceBreadcrumb(refPath) {
 }
 
 /**
+ * 加载项目预览数据（供卡片 x-data 独立调用，避免共享状态）
+ */
+async function loadProjectPreview(path) {
+  try {
+    const [docData, subData] = await Promise.all([
+      api.list(path + "/common-knowledge").catch(() => ({ items: [] })),
+      api.list(path + "/projects").catch(() => ({ items: [] })),
+    ]);
+    const excludeReadme = (i) => !/^readme\.md$/i.test(i.name || "");
+    return {
+      docs: (docData.items || []).filter(i => !i.is_dir && excludeReadme(i)),
+      subprojects: (subData.items || []).filter(i => i.is_dir),
+      archived: [],
+    };
+  } catch {
+    return { docs: [], subprojects: [], archived: [] };
+  }
+}
+
+/**
+ * 生成项目面板 HTML 内容
+ */
+function renderProjectPanelHTML(data) {
+  let html = "";
+  const esc = (s) => escapeHtml(s || "");
+
+  if (data.docs.length) {
+    html += '<div class="project-panel__section">知识</div>';
+    for (const d of data.docs) {
+      html += '<div class="project-panel__item" data-doc-path="' + esc(d.path) + '">'
+        + '<span class="project-panel__item-name">' + esc(fileName(d.name)) + '</span>'
+        + '<span class="project-panel__item-summary">' + esc(d.summary) + '</span>'
+        + '</div>';
+    }
+  }
+  if (data.subprojects.length) {
+    html += '<div class="project-panel__section">子项目</div>';
+    for (const s of data.subprojects) {
+      html += '<div class="project-panel__item" data-sub-path="' + esc(s.path) + '">'
+        + '<span class="project-panel__item-name">' + esc(fileName(s.name)) + '</span>'
+        + '</div>';
+    }
+  }
+  if (!html) {
+    html = '<div class="project-panel__empty">暂无内容</div>';
+  }
+  return html;
+}
+
+/**
+ * 打开卡片面板（纯 DOM 操作，不触发 Alpine 响应式）
+ */
+function openCardPanel(cardEl, path) {
+  const panel = cardEl.querySelector(".project-panel");
+  if (!panel) return;
+  const inner = panel.querySelector(".project-panel__inner");
+  panel.classList.add("project-panel--open");
+  // 懒加载
+  if (!inner.dataset.loaded) {
+    inner.innerHTML = '<div class="project-panel__empty">加载中...</div>';
+    loadProjectPreview(path).then(data => {
+      if (!panel.classList.contains("project-panel--open")) return;
+      inner.innerHTML = renderProjectPanelHTML(data);
+      inner.dataset.loaded = "1";
+      // 绑定点击事件
+      inner.querySelectorAll("[data-doc-path]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.location.hash = "view/" + encodeURIComponent(el.dataset.docPath);
+        });
+      });
+      inner.querySelectorAll("[data-sub-path]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.location.hash = "project/" + encodeURIComponent(el.dataset.subPath);
+        });
+      });
+    });
+  }
+}
+
+/**
+ * 关闭卡片面板
+ */
+function closeCardPanel(cardEl) {
+  const panel = cardEl.querySelector(".project-panel");
+  if (panel) panel.classList.remove("project-panel--open");
+}
+
+/**
  * 从 ref 对象生成来源路径字符串（用于 viewer__refs 列表）
  * @param {{ path: string }} ref
  * @returns {string}

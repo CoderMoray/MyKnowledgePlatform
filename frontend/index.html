@@ -520,8 +520,8 @@
             <template x-for="project in $store.app.dashboardProjects" :key="project.path">
               <div class="doc-card"
                    @click="goToProject(project.path)"
-                   @mouseenter="openPreview(project.path)"
-                   @mouseleave="closePreview()">
+                   @mouseenter="openCardPanel($el, project.path)"
+                   @mouseleave="closeCardPanel($el)">
                 <div class="doc-card__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
                 </div>
@@ -536,51 +536,8 @@
                   </div>
                 </div>
 
-                <div class="project-panel"
-                     :class="{ 'project-panel--open': hoverProject === project.path }">
-                  <div class="project-panel__inner">
-                  <template x-if="projectPreview.docs.length">
-                    <div>
-                      <div class="project-panel__section">知识</div>
-                      <template x-for="d in projectPreview.docs" :key="d.path">
-                        <div class="project-panel__item" @click.stop="goToDocument(d.path)">
-                          <span class="project-panel__item-name" x-text="fileName(d.name)"></span>
-                          <span class="project-panel__item-summary" x-text="d.summary || ''"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template x-if="projectPreview.subprojects.length">
-                    <div>
-                      <div class="project-panel__section">子项目</div>
-                      <template x-for="s in projectPreview.subprojects" :key="s.path">
-                        <div class="project-panel__item" @click.stop="goToProject(s.path)">
-                          <span class="project-panel__item-name" x-text="s.name"></span>
-                          <span class="project-panel__item-summary" x-text="s.summary || ''"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template x-if="projectPreview.archived.length">
-                    <div>
-                      <div class="project-panel__section">归档</div>
-                      <template x-for="a in projectPreview.archived" :key="a.path">
-                        <div class="project-panel__item" @click.stop="goToProject(a.path)">
-                          <div class="project-panel__item-row">
-                            <span class="project-panel__item-name" x-text="a.name"></span>
-                            <span class="badge"
-                                  :class="'badge--' + (a.status || 'abandoned')"
-                                  x-text="statusLabel(a.status)"></span>
-                          </div>
-                          <span class="project-panel__item-summary" x-text="a.summary || ''"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template x-if="!projectPreview.docs.length && !projectPreview.subprojects.length && !projectPreview.archived.length">
-                    <div class="project-panel__empty">暂无内容</div>
-                  </template>
-                  </div>
+                <div class="project-panel">
+                  <div class="project-panel__inner"></div>
                 </div>
               </div>
             </template>
@@ -704,8 +661,8 @@
           <div class="doc-grid" x-show="$store.app.projectSubprojects.length > 0 && !$store.app.loading">
             <template x-for="sub in $store.app.projectSubprojects" :key="sub.path">
               <div class="doc-card" @click="goToProject(sub.path)"
-                   @mouseenter="openPreview(sub.path)"
-                   @mouseleave="closePreview()">
+                   @mouseenter="openCardPanel($el, sub.path)"
+                   @mouseleave="closeCardPanel($el)">
                 <div class="doc-card__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
                 </div>
@@ -723,34 +680,8 @@
                   </div>
                 </div>
 
-                <div class="project-panel"
-                     :class="{ 'project-panel--open': hoverProject === sub.path }">
-                  <div class="project-panel__inner">
-                  <template x-if="projectPreview.docs.length">
-                    <div>
-                      <div class="project-panel__section">知识</div>
-                      <template x-for="d in projectPreview.docs" :key="d.path">
-                        <div class="project-panel__item" @click.stop="goToDocument(d.path)">
-                          <span class="project-panel__item-name" x-text="fileName(d.name)"></span>
-                          <span class="project-panel__item-summary" x-text="d.summary || ''"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template x-if="projectPreview.subprojects.length">
-                    <div>
-                      <div class="project-panel__section">子项目</div>
-                      <template x-for="s in projectPreview.subprojects" :key="s.path">
-                        <div class="project-panel__item" @click.stop="goToProject(s.path)">
-                          <span class="project-panel__item-name" x-text="fileName(s.name)"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-                  <template x-if="!projectPreview.docs.length && !projectPreview.subprojects.length && !projectPreview.archived.length">
-                    <div class="project-panel__empty">暂无内容</div>
-                  </template>
-                  </div>
+                <div class="project-panel">
+                  <div class="project-panel__inner"></div>
                 </div>
               </div>
             </template>

@@ -138,7 +138,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 18px;
-  /* 防 CLS：用 skeleton 占位而非 min-height，空则 nil */
+  align-items: start;
 }
 
 .doc-card {
