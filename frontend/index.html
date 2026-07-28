@@ -61,15 +61,7 @@
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/turndown@7.1.3/dist/turndown.js"></script>
 
-  <!-- TipTap ESM CDN -->
-  <script type="importmap">
-  {
-    "imports": {
-      "@tiptap/core": "https://esm.sh/@tiptap/core@2.1.13",
-      "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.1.13"
-    }
-  }
-  </script>
+  <!-- TipTap CDN（完整 URL 直接加载） -->
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js"></script>
@@ -811,17 +803,10 @@
                   x-text="$store.app.document?.title || fileName($store.app.currentPath)"></h1>
               <!-- 作者头像 -->
               <div class="viewer__meta viewer__meta--avatar">
-                <div class="avatar-row" x-show="authorAvatar.url || authorAvatar.initial">
-                  <img :src="authorAvatar.url"
-                       class="avatar"
-                       :alt="authorAvatar.initial"
-                       @error="onAvatarError($event)"
-                       x-show="authorAvatar.url" />
+                <div class="avatar-row" x-show="authorAvatar.initial">
                   <span class="avatar--fallback"
-                        x-show="!authorAvatar.url || true"
                         x-text="authorAvatar.initial"
-                        style="display: none;"
-                        :style="authorAvatar.url ? '' : 'display:flex'"></span>
+                        style="display:inline-flex;"></span>
                   <span class="text-sm text-muted"
                         x-text="$store.app.document?.author || extractDisplayName($store.app.documentMeta?.author || '')"></span>
                 </div>
@@ -860,14 +845,14 @@
                 关联文档（<span x-text="$store.app.refs.length"></span>）
               </h3>
               <div class="viewer__refs-list">
-                <template x-for="ref in $store.app.refs" :key="ref">
+                <template x-for="ref in $store.app.refs" :key="ref.path">
                   <span class="viewer__ref-tag"
                         @click="openRefPopover($event, ref)">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
                          stroke-width="1.5" class="icon-xs">
                       <path d="M7 4l4 4-4 4"/>
                     </svg>
-                    <span x-text="fileName(ref)"></span>
+                    <span x-text="fileName(ref.path)"></span>
                   </span>
                 </template>
               </div>
@@ -928,7 +913,7 @@
 
         <!-- ═══ Document Edit (编辑) ══════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'edit'"
-             x-data="editorComponent" x-cloak>
+             x-data="docComponent" x-cloak>
           <div class="editor-shell">
             <!-- 元信息区 -->
             <div class="editor-meta">
@@ -954,19 +939,12 @@
               </div>
 
               <!-- 作者头像行 -->
-              <div class="editor-meta__row" x-show="authorAvatar.url || authorAvatar.initial">
+              <div class="editor-meta__row" x-show="authorAvatar.initial">
                 <label class="editor-meta__label">作者</label>
                 <div class="avatar-row">
-                  <img :src="authorAvatar.url"
-                       class="avatar"
-                       :alt="authorAvatar.initial"
-                       @error="onAvatarError($event)"
-                       x-show="authorAvatar.url" />
                   <span class="avatar--fallback"
-                        x-show="!authorAvatar.url || true"
                         x-text="authorAvatar.initial"
-                        style="display: none;"
-                        :style="authorAvatar.url ? '' : 'display:flex'"></span>
+                        style="display:inline-flex;"></span>
                   <span class="text-sm text-muted"
                         x-text="$store.app.document?.author || extractDisplayName($store.app.documentMeta?.author || '')"></span>
                 </div>
@@ -1285,8 +1263,8 @@
        ════════════════════════════════════════════════════════════════════ -->
 
   <script type="module">
-    import { Editor } from '@tiptap/core';
-    import StarterKit from '@tiptap/starter-kit';
+    import { Editor } from "https://cdn.jsdelivr.net/npm/@tiptap/core@2.1.13/+esm";
+    import StarterKit from "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.1.13/+esm";
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };

@@ -169,7 +169,7 @@
 |-----------|:----:|------|
 | app.js 拆分为 components/ | ✅ 已恢复 | `js/components/` 7 文件，app.js 从 621→39 行 |
 | build.py JS 语法检查 + CDN 检查 | ✅ 已恢复 | `node --check` 所有 `<script>` + curl 检测 CDN |
-| viewer__summary 移入 header、加「摘要」标签 | ❌ 未恢复 | |
+| viewer__summary 移入 header、加「摘要」标签 | ✅ 已恢复 | |
 | ref 链接 hover 浮出卡片（向上浮现动画） | ❌ 未恢复 | |
 | 编辑态点击区域外退回只读 | ❌ 未恢复 | |
 | dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 未恢复 | |

@@ -10,9 +10,9 @@
 window._mykRefClick = function (event, refPath) {
   event.preventDefault();
 
-  const viewerEl = document.querySelector('[x-data="viewerComponent"]');
-  if (viewerEl && viewerEl.__x) {
-    const data = viewerEl.__x.$data;
+  const docEl = document.querySelector('[x-data="docComponent"]');
+  if (docEl && docEl.__x) {
+    const data = docEl.__x.$data;
     if (typeof data.openRefPopover === "function") {
       data.openRefPopover(event, refPath);
       return;
@@ -24,16 +24,11 @@ window._mykRefClick = function (event, refPath) {
     store.showPopover(event, refPath);
     loadRefPreview(refPath).then((preview) => {
       if (viewerEl && viewerEl.__x) {
-        viewerEl.__x.$data.refPreview = preview;
-        viewerEl.__x.$data.refLoading = false;
+        docEl.__x.$data.refPreview = preview;
+        docEl.__x.$data.refLoading = false;
       }
     });
   } catch {
     // Alpine 可能尚未初始化
   }
-};
-
-/** Gravatar URL 辅助 */
-window.gravatarUrl = function (email, size) {
-  return utils.gravatarUrl(email, size);
 };

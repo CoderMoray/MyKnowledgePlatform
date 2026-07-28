@@ -99,6 +99,18 @@ def main():
     check("ProseMirror 类", has(html, r'ProseMirror'), "ProseMirror 类缺失")
     check("ProseMirror--readonly", has(html, r'ProseMirror--readonly'), "只读态 ProseMirror 样式缺失")
 
+    # 模板 x-data 与 Alpine.data 注册一致性
+    xdata_refs = set(re.findall(r'x-data="(\w+Component)"', html))
+    alpine_regs = set(re.findall(r'Alpine\.data\("(\w+Component)"', html))
+    unregistered = xdata_refs - alpine_regs
+    orphaned = alpine_regs - xdata_refs
+    if unregistered:
+        for name in sorted(unregistered):
+            check(f"模板引用 {name}", False, f"模板 x-data=\"{name}\" 无对应 Alpine.data() 注册")
+    if orphaned:
+        for name in sorted(orphaned):
+            check(f"未使用的组件 {name}", False, f"Alpine.data(\"{name}\") 注册了但模板未引用")
+
     # 渲染一致性检查
     print("\n── 渲染一致性 ──")
     selectors = [

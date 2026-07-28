@@ -103,14 +103,16 @@ Alpine.data("docComponent", () => ({
       await this.waitForTipTap();
 
       const { Editor } = window.TipTapCore || {};
-      const StarterKit = window.TipTapStarterKit ? window.TipTapStarterKit.default : null;
+      const StarterKit = window.TipTapStarterKit ? window.TipTapStarterKit.StarterKit : null;
       const LinkExt = window.TipTapLink || null;
+      console.log("[doc] Editor:", !!Editor, "StarterKit:", !!StarterKit, "LinkExt:", !!LinkExt);
       if (!Editor) return;
 
       const extensions = [
         StarterKit ? StarterKit.configure() : null,
         LinkExt ? LinkExt.configure({ openOnClick: false }) : null,
       ].filter(Boolean);
+      console.log("[doc] extensions count:", extensions.length);
 
       this.editorInstance = new Editor({
         element: el,

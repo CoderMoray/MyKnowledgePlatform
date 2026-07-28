@@ -228,129 +228,16 @@ function extractDisplayName(str) {
 }
 
 /**
- * 纯 JS MD5 实现（兼容 RFC 1321）
- * 基于 Joseph Myers 的实现
- * @param {string} str
- * @returns {string} 32位十六进制 MD5 哈希
- */
-function md5(str) {
-  function r(n, c) { return (n << c) | (n >>> (32 - c)); }
-  function q(n, c) { return (n & c) | (~n & (0xffffffff ^ c)); }
-  function p(n, c) { return (n & c) | ((0xffffffff ^ n) & (0xffffffff ^ c)); }
-  function o(n, c) { return n ^ c ^ (0xffffffff ^ (n | c)); }
-  function l(n, c, t, i, e, u) {
-    return r(n + q(c, t, i) + e + u, 7) + c;
-  }
-  function k(n, c, t, i, e, u) {
-    return r(n + p(c, t, i) + e + u, 12) + c;
-  }
-  function j(n, c, t, i, e, u) {
-    return r(n + o(c, t, i) + e + u, 17) + c;
-  }
-
-  var a = [], m, g, f, d, c, b,
-      h = 0x67452301, v = 0xefcdab89,
-      w = 0x98badcfe, x = 0x10325476,
-      y = 0, z = str.length;
-
-  for (var i = 0; i < z; i += 8) {
-    a.push(
-      (str.charCodeAt(i) & 0xff) |
-      ((str.charCodeAt(i + 1) || 0) & 0xff) << 8 |
-      ((str.charCodeAt(i + 2) || 0) & 0xff) << 16 |
-      ((str.charCodeAt(i + 3) || 0) & 0xff) << 24
-    );
-  }
-
-  a[y >> 2] |= 0x80 << ((y % 4) << 3);
-  a[(((z + 8) >> 6) << 4) + 14] = z * 8;
-
-  for (var i = 0; i < a.length; i += 16) {
-    m = h; g = v; f = w; d = x;
-
-    for (var u = 0; u < 64; u++) {
-      if (u < 16) {
-        c = a[i + u];
-        b = q(g, f, d);
-      } else if (u < 32) {
-        c = a[i + ((u * 5) - 15) % 16];
-        b = p(g, f, d);
-      } else if (u < 48) {
-        c = a[i + ((u * 3) + 5) % 16];
-        b = o(g, f, d);
-      } else {
-        c = a[i + (u * 7) % 16];
-        b = (f ^ (g | ~d));
-      }
-
-      var s = [0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
-               0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-               0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
-               0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-               0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa,
-               0xd62f105d, 0x2441453,  0xd8a1e681, 0xe7d3fbc8,
-               0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed,
-               0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-               0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c,
-               0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-               0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x4881d05,
-               0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-               0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039,
-               0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-               0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
-               0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391];
-
-      var t = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
-               5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
-               4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
-               6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
-
-      c = r(c + b + s[u] + (m || 0), t[u]) + g;
-      m = d; d = f; f = g; g = c;
-    }
-
-    h += m; v += g; w += f; x += d;
-  }
-
-  function toHex(n) {
-    var s = "";
-    for (var i = 0; i < 4; i++) {
-      s += ((n >> (i * 8)) & 0xff).toString(16).padStart(2, "0");
-    }
-    return s;
-  }
-
-  return toHex(h) + toHex(v) + toHex(w) + toHex(x);
-}
-
-/**
- * 生成 Gravatar URL
- * @param {string} email - 邮箱地址
- * @param {number} size - 尺寸（默认 32）
- * @returns {string}
- */
-function gravatarUrl(email, size = 32) {
-  if (!email) return "";
-  const hash = md5(email.trim().toLowerCase());
-  return `https://www.gravatar.com/avatar/${hash}?s=${size}&d=mp`;
-}
-
-/**
- * 从 author 字符串生成头像信息
+ * 从 author 字符串生成头像信息（纯首字母，无 Gravatar）
  * @param {string} authorStr
  * @param {number} size
- * @returns {{ url: string, initial: string, email: string|null }}
+ * @returns {{ initial: string, email: string|null }}
  */
 function authorAvatar(authorStr, size = 32) {
   const email = extractEmail(authorStr);
   const displayName = extractDisplayName(authorStr);
   const initial = displayName ? displayName.charAt(0).toUpperCase() : "?";
-
-  return {
-    url: email ? gravatarUrl(email, size) : "",
-    initial,
-    email,
-  };
+  return { url: "", initial, email };
 }
 
 /* ==========================================================================
