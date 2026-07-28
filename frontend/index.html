@@ -296,7 +296,7 @@
 
           <!-- 文档页删除按钮（仅阅读态显示） -->
           <button class="btn-delete" x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
-                  @click="confirmDeleteDocument()">
+                  @click="$store.app.confirmDeleteDocument()">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 4h12"/>
               <path d="M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4"/>
