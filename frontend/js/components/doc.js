@@ -216,14 +216,14 @@ Alpine.data("docComponent", () => ({
       }
       store.setView("edit", store.currentPath);
       this.$nextTick(() => {
-        if (this.editorInstance) {
-          // 编辑器已存在，直接切换 editable
-          this.editorInstance.setEditable(true);
-          this.editorInstance.commands.focus("end");
-        } else {
-          // 首次创建编辑器
-          this.initEditor(content);
-        }
+        requestAnimationFrame(() => {
+          if (this.editorInstance) {
+            this.editorInstance.setEditable(true);
+            this.editorInstance.commands.focus("end");
+          } else {
+            this.initEditor(content);
+          }
+        });
       });
     },
 
