@@ -314,7 +314,8 @@ Alpine.data("docComponent", () => ({
             const tmp = document.createElement("div");
             tmp.innerHTML = html;
             tmp.querySelectorAll("[data-ref-path]").forEach(a => {
-              a.setAttribute("href", "ref:" + a.dataset.refPath);
+              const section = a.dataset.refSection ? "::" + a.dataset.refSection : "";
+              a.setAttribute("href", "ref:" + a.dataset.refPath + section);
             });
             editor.chain().setContent(tmp.innerHTML).run();
           }

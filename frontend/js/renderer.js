@@ -20,12 +20,14 @@ function setupMarkedRenderer() {
       const rawPath = href.slice(4);
       // 解码空格编码（避免后续 encodeURIComponent 二次编码）
       const decodedPath = rawPath.replace(/%20/g, " ");
-      // 去掉 ::section 后缀
-      const refPath = decodedPath.split("::")[0];
+      const parts = decodedPath.split("::");
+      const refPath = parts[0];
+      const refSection = parts[1] || "";
       const displayText = text || refPath;
       return `<a href="javascript:void(0)"
                  class="ref-link"
                  data-ref-path="${escapeHtml(refPath)}"
+                 data-ref-section="${escapeHtml(refSection)}"
                  title="关联文档: ${escapeHtml(refPath)}"
                  onclick="window._mykRefClick(event, '${escapeHtml(refPath)}')">${displayText}</a>`;
     }
