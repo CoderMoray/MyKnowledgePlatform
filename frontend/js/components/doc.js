@@ -14,17 +14,14 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       const path = store.currentPath;
 
-      // 非阻塞加载：store 可能已有 document（由 router 预先加载）
       if (!store.document && path) {
         store.loadDocument(path);
       }
 
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
-      this.$nextTick(() => {
-        this.initEditor();
-        this._bindViewerRefLinks(store);  // 立即绑定阅读态 ref 链接
-      });
+      // 阅读态：只绑定 ref link hover，不创建编辑器
+      this.$nextTick(() => this._bindViewerRefLinks(store));
     },
 
     /* --- 阅读态 --- */
@@ -218,8 +215,16 @@ Alpine.data("docComponent", () => ({
         content = store.htmlContent;
       }
       store.setView("edit", store.currentPath);
-      // 闭包传内容，防止 Alpine 重置 this 导致丢失
-      this.$nextTick(() => this.initEditor(content));
+      this.$nextTick(() => {
+        if (this.editorInstance) {
+          // 编辑器已存在，直接切换 editable
+          this.editorInstance.setEditable(true);
+          this.editorInstance.commands.focus("end");
+        } else {
+          // 首次创建编辑器
+          this.initEditor(content);
+        }
+      });
     },
 
     /** 点击外部 → 退出编辑并保存 */
@@ -229,11 +234,8 @@ Alpine.data("docComponent", () => ({
 
       const html = this.editorInstance.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
-        this.editorReady = false;
+        this.editorInstance.setEditable(false);
         store.setView("view", store.currentPath);
-        store.loadDocument(store.currentPath);
         return;
       }
 
@@ -262,10 +264,6 @@ Alpine.data("docComponent", () => ({
       // turndown 编码了 ref: 中的空格，还原
       markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");
 
-      this.editorInstance.destroy();
-      this.editorInstance = null;
-      this.editorReady = false;
-
       const title = store.document?.title || "";
       // 如果正文已包含标题 h1，不再重复
       const firstLine = markdown.trim().split("\n")[0];
@@ -274,6 +272,8 @@ Alpine.data("docComponent", () => ({
         await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
       } catch (e) {}
 
+      // 不销毁编辑器，只切回只读
+      this.editorInstance.setEditable(false);
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
     },
@@ -301,8 +301,9 @@ Alpine.data("docComponent", () => ({
       this.editorInstance = new Editor({
         element: el,
         extensions,
+        editable: false,
         editorProps: {
-          attributes: { class: "ProseMirror" },
+          attributes: { class: "ProseMirror ProseMirror--readonly" },
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
