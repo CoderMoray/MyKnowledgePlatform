@@ -12,6 +12,15 @@ Alpine.data("projectComponent", () => ({
       return this.projectMeta.summary || this.projectMeta.description || "";
     },
 
+    get projectAuthor() { return extractDisplayName(this.projectMeta.author || ""); },
+    get projectAuthorAvatar() { return authorAvatar(this.projectMeta.author || "", 20).initial; },
+
+    get projectMaintainer() { return extractDisplayName(this.projectMeta.maintainer || ""); },
+    get projectMaintainerAvatar() { return authorAvatar(this.projectMeta.maintainer || "", 20).initial; },
+
+    get projectCreated() { return this.projectMeta.created || ""; },
+    get projectUpdated() { return this.projectMeta.updated || ""; },
+
     /** 父级面包屑（可点击，不含系统前缀目录） */
     get parentBreadcrumbs() {
       const crumbs = Alpine.store("app").breadcrumbs || [];

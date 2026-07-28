@@ -385,9 +385,10 @@ def api_get_project_meta(project_rel: str):
             "name": meta.get("name", ""),
             "summary": meta.get("summary", ""),
             "status": meta.get("status", "active"),
-            "updated": meta.get("updated", ""),
             "author": meta.get("author", ""),
             "maintainer": meta.get("maintainer", ""),
+            "created": meta.get("created", ""),
+            "updated": meta.get("updated", ""),
         }
     except FileNotFoundError:
         raise HTTPException(404, "project not found")

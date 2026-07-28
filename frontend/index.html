@@ -573,6 +573,24 @@
 
           <h1 class="page-title" x-text="projectDisplayName"></h1>
           <p class="page-subtitle" x-text="projectDescription"></p>
+          <div class="viewer__meta" style="margin-top:6px;" x-show="projectAuthor || projectMaintainer">
+            <div class="viewer__meta-row" x-show="projectAuthor && projectMaintainer !== projectAuthor">
+              <span class="avatar--fallback avatar--fallback-sm"
+                    x-text="projectAuthorAvatar"></span>
+              <span class="viewer__meta-name"
+                    x-text="projectAuthor"></span>
+              <span class="viewer__meta-date"
+                    x-text="'创建于 ' + (projectCreated ? formatDate(projectCreated) : '—')"></span>
+            </div>
+            <div class="viewer__meta-row" x-show="projectMaintainer">
+              <span class="avatar--fallback avatar--fallback-sm"
+                    x-text="projectMaintainerAvatar"></span>
+              <span class="viewer__meta-name"
+                    x-text="projectMaintainer"></span>
+              <span class="viewer__meta-date"
+                    x-text="'更新于 ' + (projectUpdated ? formatDate(projectUpdated) : '—')"></span>
+            </div>
+          </div>
 
           <!-- ── 分区 1：知识 ── -->
           <h2 class="section-title" style="margin-top:var(--space-6);">知识</h2>
