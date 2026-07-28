@@ -5,6 +5,7 @@ Created via ``create_mcp_app(storage, gen)``; the CLI entry point passes both.
 
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Optional
 
@@ -253,6 +254,20 @@ def _parent_rel(path: str) -> str:
     return path[:idx] if idx > 0 else ""
 
 
+def _heartbeat(kb_root: Path, kind: str) -> None:
+    """Record an MCP tool invocation heartbeat.
+
+    ``kind`` is one of ``"nav"`` (read-only) or ``"write"`` (modification).
+    Written to ``.mcp-heartbeat`` — read by ``GET /api/mcp`` for live status.
+    """
+    try:
+        (kb_root / ".mcp-heartbeat").write_text(
+            f"{kind}:{int(__import__('time').time())}", encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
 def _validate_path(
     path: str,
     kind: str = "auto",
@@ -452,6 +467,24 @@ def create_mcp_app(storage: Storage,
     """
 
     mcp = FastMCP("MyKnowledge")
+
+    # ── Auto-inject heartbeat on every tool invocation ──
+    _orig_tool = mcp.tool
+
+    def _hb_tool(fn=None, **kwargs):
+        if fn is not None:
+            @functools.wraps(fn)
+            def _wrapper(*args, **fn_kwargs):
+                kind = "nav" if fn.__name__.startswith("nav__") else "write"
+                _heartbeat(storage.kb_root, kind)
+                return fn(*args, **fn_kwargs)
+            return _orig_tool(_wrapper, **kwargs)
+
+        def _deco(fn):
+            return _hb_tool(fn, **kwargs)
+        return _deco
+    mcp.tool = _hb_tool
+    # ───────────────────────────────────────────────────
 
     # ══════════════════════════════════════════════════════════
     #  Read-only tools

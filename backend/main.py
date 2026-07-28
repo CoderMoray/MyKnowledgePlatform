@@ -575,6 +575,45 @@ def api_version():
 
 
 # ══════════════════════════════════════════════════════════════
+#  MCP connection status
+# ══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/mcp")
+def api_mcp():
+    """Return MCP server connection status.
+
+    Reads ``.mcp-heartbeat`` written by every MCP tool invocation.
+    Returns one of: ``disconnected`` / ``reading`` / ``writing`` / ``connected``.
+    """
+    kb_root = resolve_root()
+    hb = kb_root / ".mcp-heartbeat"
+    lock = _lock_file(kb_root)
+
+    if not hb.exists():
+        return {"status": "disconnected", "detail": "MCP 未连接"}
+
+    try:
+        raw = hb.read_text(encoding="utf-8").strip()
+        kind, ts_str = raw.split(":", 1)
+        ts = float(ts_str)
+    except (ValueError, OSError):
+        return {"status": "disconnected", "detail": "心跳文件损坏"}
+
+    elapsed = time.time() - ts
+
+    if elapsed > 60:
+        return {"status": "disconnected", "detail": "MCP 已断开（超过 60 秒无心跳）"}
+
+    if kind == "write":
+        return {"status": "writing", "detail": "AI 正在写入知识库"}
+    if kind == "nav":
+        return {"status": "reading", "detail": "AI 正在读取知识库"}
+
+    return {"status": "connected", "detail": "AI 已连接"}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Lock status
 # ══════════════════════════════════════════════════════════════
 
