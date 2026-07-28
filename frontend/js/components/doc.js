@@ -232,11 +232,26 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // HTML → Markdown（turndown）
-      const td = new TurndownService({ headingStyle: "atx" });
-      let markdown = td.turndown(html);
+      // 预处理 TipTap HTML
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      // 恢复 ref 链接：data-ref-path → href="ref:path"
+      tmp.querySelectorAll("[data-ref-path]").forEach(a => {
+        a.setAttribute("href", "ref:" + a.dataset.refPath);
+      });
+      // 清理列表内的多余 <p>，避免 turndown 产生空行
+      tmp.querySelectorAll("li p").forEach(p => {
+        const parent = p.parentNode;
+        while (p.firstChild) parent.insertBefore(p.firstChild, p);
+        parent.removeChild(p);
+      });
+      const cleanHtml = tmp.innerHTML;
 
-      // 恢复 ref: 链接（turndown 会把 link 转为 [text](url)，需要把 url 中的 %20 还原）
+      // HTML → Markdown（turndown）
+      const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-" });
+      let markdown = td.turndown(cleanHtml);
+
+      // turndown 编码了 ref: 中的空格，还原
       markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");
 
       this.editorInstance.destroy();
