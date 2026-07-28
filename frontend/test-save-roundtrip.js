@@ -88,7 +88,7 @@ function convert(html) {
       rows.splice(1, 0, "|" + " --- |".repeat(cols));
     }
     const marker = "MYKTABLE" + idx + "MARK";
-    tableMarkers.push({ marker, md: "\n\n" + rows.join("\n") + "\n\n" });
+    tableMarkers.push({ marker, md: "\n" + rows.join("\n") + "\n" });
     wrapper.replaceWith(dom.window.document.createTextNode(marker));
   });
 
@@ -133,12 +133,23 @@ function convert(html) {
   return markdown;
 }
 
+// ========== 工具函数 ==========
+let PASS = 0, FAIL = 0;
+function runChecks(result, tests) {
+  for (const t of tests) {
+    const ok = t.check(result);
+    console.log(ok ? "✅" : "❌", t.name);
+    ok ? PASS++ : FAIL++;
+  }
+}
+
 // ========== 运行测试 ==========
 console.log("=== 编辑保存往返测试 ===\n");
-const result = convert(tipTapHTML);
 
-let pass = 0, fail = 0;
-const tests = [
+// ── 场景 1：无修改保存 ──
+console.log("场景 1：无修改直接保存");
+let result = convert(tipTapHTML);
+runChecks(result, [
   { name: "加粗", check: (r) => r.includes("**加粗**") },
   { name: "斜体", check: (r) => r.includes("_斜体_") || r.includes("*斜体*") },
   { name: "删除线", check: (r) => r.includes("~~删除线~~") },
@@ -147,21 +158,37 @@ const tests = [
   { name: "有序列表", check: (r) => r.includes("1. 有序列表项 1") && r.includes("2. 有序列表项 2") },
   { name: "引用", check: (r) => r.includes("> 这是一段引用文字") },
   { name: "代码块", check: (r) => r.includes("```") && r.includes("const x = 1;") },
-  { name: "表格列A", check: (r) => r.includes("| 列A | 列B | 列C |") },
+  { name: "表格列头", check: (r) => r.includes("| 列A | 列B | 列C |") },
   { name: "表格分隔线", check: (r) => r.includes("| --- | --- | --- |") },
   { name: "表格数据", check: (r) => r.includes("| a1 | b1 | c1 |") && r.includes("| a2 | b2 | c2 |") },
   { name: "普通链接", check: (r) => r.includes("[普通链接](https://example.com)") },
   { name: "ref 链接", check: (r) => r.includes("[技术选型](ref:common-knowledge/技术选型.md::技术栈选型)") },
-];
+]);
 
-for (const t of tests) {
-  const ok = t.check(result);
-  console.log(ok ? "✅" : "❌", t.name);
-  ok ? pass++ : fail++;
-}
+// ── 场景 2：修改后保存（添加表行、加粗、新列表项） ──
+console.log("\n场景 2：修改内容后保存");
+const editedHTML = tipTapHTML
+  .replace("</tbody></table>", '<tr><td colspan="1" rowspan="1"><p>a3</p></td><td colspan="1" rowspan="1"><p>b3</p></td><td colspan="1" rowspan="1"><p>c3</p></td></tr></tbody></table>')
+  .replace("<p><strong>加粗</strong>", "<p><strong>加粗文字修改</strong>")
+  .replace("<li><p>无序列表项 2</p></li></ul>", "<li><p>无序列表项 2</p></li><li><p>新增列表项</p></li></ul>");
+result = convert(editedHTML);
+runChecks(result, [
+  { name: "加粗修改生效", check: (r) => r.includes("**加粗文字修改**") },
+  { name: "新增列表项", check: (r) => r.includes("- 新增列表项") },
+  { name: "表格新增行", check: (r) => r.includes("| a3 | b3 | c3 |") },
+  { name: "旧表格数据保留", check: (r) => r.includes("| a1 | b1 | c1 |") },
+  { name: "斜体仍保留", check: (r) => r.includes("_斜体_") || r.includes("*斜体*") },
+  { name: "链接仍保留", check: (r) => r.includes("[普通链接](https://example.com)") },
+]);
 
-console.log(`\n${pass}/${pass + fail} 通过`);
+// ── 场景 3：空编辑保存 ──
+console.log("\n场景 3：空编辑器退出");
+const emptyHTML = "<p><br></p>";
+result = convert(emptyHTML);
+runChecks(result, [
+  { name: "空输出", check: (r) => r.trim() === "" || r.trim() === "\\" || r === "<p></p>" },
+]);
 
-if (fail > 0) {
-  console.log("\n=== 实际输出 ===\n" + result);
-}
+// ── 汇总 ──
+console.log(`\n${PASS}/${PASS + FAIL} 通过`);
+if (FAIL > 0) process.exit(1);

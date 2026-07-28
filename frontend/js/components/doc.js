@@ -247,11 +247,22 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // 修复 TipTap Link：优先用 resolved href 属性
-      this.editorInstance.view.dom.querySelectorAll("a[href]").forEach(a => {
+      // 修复 TipTap Link：从 ProseMirror 内部状态提取真实 href
+      this.editorInstance.view.dom.querySelectorAll("a").forEach(a => {
         const raw = a.getAttribute("href");
-        const href = (raw && !raw.startsWith("[object")) ? raw : (a.href || "");
-        a.setAttribute("data-myk-href", href);
+        if (!raw || raw === "null" || raw.startsWith("[object")) {
+          // DOM 已损坏，尝试从 ProseMirror state 恢复
+          const pos = this.editorInstance.view.posAtDOM(a, 0);
+          const $pos = this.editorInstance.state.doc.resolve(pos);
+          const marks = $pos.marks();
+          for (const mark of marks) {
+            if (mark.type.name === "link" && mark.attrs.href) {
+              a.setAttribute("href", String(mark.attrs.href));
+              break;
+            }
+          }
+        }
+        a.setAttribute("data-myk-href", a.getAttribute("href") || "");
       });
 
       // 预处理 TipTap HTML
@@ -286,7 +297,7 @@ Alpine.data("docComponent", () => ({
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
         const marker = "MYKTABLE" + idx + "MARK";
-        tableMarkers.push({ marker, md: "\n\n" + rows.join("\n") + "\n\n" });
+        tableMarkers.push({ marker, md: "\n" + rows.join("\n") + "\n" });
         wrapper.replaceWith(document.createTextNode(marker));
       });
       // 链接修复：Turndown 自定义规则从 data-myk-href 取值
