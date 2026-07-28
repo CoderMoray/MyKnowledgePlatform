@@ -511,6 +511,14 @@ document.addEventListener("alpine:init", () => {
       this.modalData = null;
     },
 
+    /** Headbar 删除按钮 → 打开删除确认弹窗 */
+    confirmDeleteDocument() {
+      const path = this.currentPath;
+      if (!path) return;
+      const name = (this.document && this.document.meta && this.document.meta.title) || fileName(path);
+      this.openModal("delete-doc", { path, name });
+    },
+
     /**
      * 显示 ref 浮层
      * @param {MouseEvent} event

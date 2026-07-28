@@ -520,6 +520,35 @@
   flex-shrink: 0;
 }
 
+.btn-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-subtle);
+  border: 0.5px solid var(--color-danger);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-interactive);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-delete:hover {
+  background: var(--color-danger);
+  color: #fff;
+  border-color: var(--color-danger);
+}
+
+.btn-delete svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 /* ── Breadcrumb ─────────────────────────────────────────────────────────── */
 
 .breadcrumb {

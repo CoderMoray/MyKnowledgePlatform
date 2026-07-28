@@ -424,7 +424,7 @@ table{border-collapse:collapse;border-spacing:0}
               flowchart LR
                 Start(("开始")) --> Install["安装包<br/>pip install myknowledge"]
                 Install --> Init["初始化知识库<br/>myknowledge init<br/>→ ~/.myknowledge/"]
-                Init --> Login["设置身份<br/>myknowledge login<br/><email> <昵称>"]
+                Init --> Login["设置身份<br/>myknowledge login [email] [昵称]"]
                 Login --> MCPConfig["配置 MCP<br/>在 agent client 的 mcp.json 写入"]
 
                 MCPConfig --> MCPConfigSub{两种方式}
