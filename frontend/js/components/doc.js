@@ -279,14 +279,13 @@ Alpine.data("docComponent", () => ({
           attributes: { class: "ProseMirror" },
         },
         onUpdate: () => { store.isDirty = true; },
+        onCreate: ({ editor }) => {
+          const content = store.htmlContent || (store.document && store.document.content) || "";
+          if (content) {
+            editor.commands.setContent(content);
+          }
+        },
       });
-
-      // 先创建编辑器再设内容，避免时序问题
-      const content = store.htmlContent || (store.document && store.document.content) || "";
-      if (content) {
-        this.editorInstance.commands.setContent(content);
-      }
-      this.editorInstance.commands.focus("end");
 
       store.editor = this.editorInstance;
       this.editorReady = true;
