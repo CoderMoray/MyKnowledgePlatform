@@ -237,6 +237,117 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
     return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
 
 
+def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> str:
+    """Move a project from its current parent to a different parent directory.
+
+    Similar to ``rename_project`` but the destination is a different parent
+    rather than a new name.  The project's own name is preserved.
+
+    Returns a confirmation message.  Raises ``ValueError`` if the
+    project has uncommitted changes (user must handle them first).
+    """
+    import shutil, re
+    from backend.git_manager import GitManager
+    from backend.readme_generator import ReadmeGenerator
+
+    kb_root = storage.kb_root
+    old_dir = kb_root / project_rel
+    if not old_dir.is_dir():
+        raise FileNotFoundError(f"项目不存在: {project_rel}")
+
+    project_name = project_rel.rstrip("/").split("/")[-1]
+    new_rel = f"{target_parent_rel.rstrip('/')}/{project_name}".lstrip("/")
+    new_dir = kb_root / new_rel
+    if new_dir.exists():
+        raise FileExistsError(f"目标路径已存在: {new_rel}")
+
+    # ── 1. Check for dirty files ──────────────────────────
+    gm = GitManager(kb_root)
+    dirty = gm.has_uncommitted_changes()
+    if dirty:
+        status = gm._run("status", "--porcelain", "--", str(old_dir))
+        if status:
+            dirty_files = []
+            for line in status.strip().split("\n"):
+                if line.strip():
+                    dirty_files.append(line.strip().split()[-1])
+            raise ValueError(
+                f"项目有未提交的变更，请先处理：\n"
+                + "\n".join(f"  • {f}" for f in dirty_files)
+                + "\n\n请调 maint__read_diff 处理后再重试。"
+            )
+
+    # ── 2. Move directory ────────────────────────────────
+    shutil.move(str(old_dir), str(new_dir))
+
+    committed_files = set()
+    for f in new_dir.rglob("*"):
+        if f.is_file():
+            committed_files.add(str(f))
+
+    # ── 3. Replace ref: links ────────────────────────────
+    old_prefix = f"{project_rel}/"
+    new_prefix = f"{new_rel}/"
+    ref_pattern = re.compile(r'(ref:)' + re.escape(old_prefix))
+
+    for md_file in kb_root.rglob("*.md"):
+        if ".git" in md_file.parts:
+            continue
+        text = md_file.read_text(encoding="utf-8")
+        if old_prefix in text:
+            updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+            md_file.write_text(updated, encoding="utf-8")
+            committed_files.add(str(md_file))
+
+    for refs_dir in kb_root.rglob("_refs"):
+        for md_file in refs_dir.rglob("*.md"):
+            text = md_file.read_text(encoding="utf-8")
+            if old_prefix in text:
+                updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+                md_file.write_text(updated, encoding="utf-8")
+                committed_files.add(str(md_file))
+
+    # ── 4. Update readme frontmatter path ────────────────
+    readme_path = new_dir / "readme.md"
+    if readme_path.exists():
+        meta, body = storage.read_document(f"{new_rel}/readme.md")
+        storage.write_readme(new_rel, meta, body)
+
+    # ── 5. Rebuild ───────────────────────────────────────
+    template = kb_root / "_templates" / "readme.md"
+    if template.exists():
+        gen = ReadmeGenerator(storage=storage, template_path=template)
+        # Rebuild old parent (if it had a readme)
+        old_parent = "/".join(project_rel.rstrip("/").split("/")[:-1])
+        if old_parent:
+            gen.rebuild(old_parent)
+        # Rebuild new parent
+        new_parent = "/".join(new_rel.rstrip("/").split("/")[:-1])
+        if new_parent:
+            gen.rebuild(new_parent)
+        # Rebuild the moved project itself
+        gen.rebuild(new_rel)
+        gen.rebuild("")
+        gen.rebuild_project_status()
+        for f in [kb_root / "readme.md", kb_root / "project-status.md",
+                  readme_path]:
+            if f.exists():
+                committed_files.add(str(f))
+
+    # ── 6. Git commit ────────────────────────────────────
+    try:
+        file_args = sorted(f for f in committed_files if Path(f).is_file())
+        if file_args:
+            gm._run("add", "--", *file_args)
+            gm.commit(f"move: {project_rel} → {new_rel}")
+        from backend.events import broadcast as _evt
+        _evt(storage.kb_root)
+    except Exception:
+        pass
+
+    return f"✓ 已移动: {project_rel} → {new_rel}"
+
+
 def _parent_rel(path: str) -> str:
     """Determine the project_rel that owns a given document path.
 

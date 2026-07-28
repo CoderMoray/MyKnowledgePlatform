@@ -14,13 +14,20 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       const path = store.currentPath;
 
+      // 切文档时销毁旧编辑器，防止内容串台
+      if (this.editorInstance && this._lastDocPath !== path) {
+        this.editorInstance.destroy();
+        this.editorInstance = null;
+        this.editorReady = false;
+      }
+      this._lastDocPath = path;
+
       if (!store.document && path) {
         store.loadDocument(path);
       }
 
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
-      // 阅读态：只绑定 ref link hover，不创建编辑器
       this.$nextTick(() => this._bindViewerRefLinks(store));
     },
 
