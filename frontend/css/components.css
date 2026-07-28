@@ -738,7 +738,7 @@
 .page-label {
   font-size: var(--text-2xs);
   font-weight: 600;
-  color: #a5b4fc;
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: var(--space-1);
@@ -766,24 +766,25 @@
 
 .page-label__back:hover {
   background: rgba(165, 180, 252, 0.15);
+  font-weight: 700;
 }
 
 .page-label__back:hover svg {
-  stroke: #6366f1;
+  stroke-width: 2.5;
 }
 
 .page-label a {
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, font-weight 0.15s;
   padding: 1px 4px;
   margin: 0 -4px;
   border-radius: 3px;
 }
 
 .page-label a:hover {
-  color: #6366f1;
+  font-weight: 700;
   background: rgba(165, 180, 252, 0.15);
 }
 
