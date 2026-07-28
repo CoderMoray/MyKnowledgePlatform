@@ -411,7 +411,6 @@
         <div x-show="$store.app.currentView === 'dashboard'"
              x-data="dashboardComponent" x-cloak>
 
-          <div class="page-label">知识库总览</div>
           <h1 class="page-title">仪表盘</h1>
           <p class="page-subtitle">
             <span x-text="$store.app.dashboardProjects.length">—</span> 个项目 ·
@@ -572,18 +571,6 @@
         <div x-show="$store.app.currentView === 'project'"
              x-data="projectComponent" x-cloak>
 
-          <div class="page-label">
-            <button class="page-label__back" @click="goBack" x-show="true">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="11 7 5 12 11 17"/></svg>
-            </button>
-            <template x-for="(crumb, i) in parentBreadcrumbs" :key="crumb.path">
-              <span>
-                <a href="#" @click.prevent="goToProject(crumb.path)" x-text="crumb.label"></a>
-                <span x-show="i < parentBreadcrumbs.length - 1"> / </span>
-              </span>
-            </template>
-            <span x-show="!parentBreadcrumbs.length">主要项目</span>
-          </div>
           <h1 class="page-title" x-text="projectDisplayName"></h1>
           <p class="page-subtitle" x-text="projectDescription"></p>
 

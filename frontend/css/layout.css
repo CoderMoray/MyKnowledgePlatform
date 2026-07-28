@@ -556,13 +556,13 @@
   align-items: center;
   gap: 2px;
   font-size: var(--text-sm);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   overflow: hidden;
   white-space: nowrap;
 }
 
 .breadcrumb__item {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: var(--transition-interactive);
 }
 
@@ -576,7 +576,7 @@
 }
 
 .breadcrumb__sep {
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   margin: 0 2px;
   user-select: none;
 }
