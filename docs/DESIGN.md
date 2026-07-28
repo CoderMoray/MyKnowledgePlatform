@@ -372,6 +372,10 @@ create_document / update_document（agent 调 MCP）
 
 > **没有 `write_readme` 工具。** Readme 是派生数据，AI 不应直接写入正文。
 >
+> **铁律：AI 严禁通过任何方式直接操作 KB 文件系统。** 所有对 MYKNOWLEDGE_ROOT 的文件创建/修改/删除必须通过 MCP 工具完成。如果缺少某工具，AI 应记录需求并告知用户反馈项目开发方。
+>
+> **已知缺口：** `write__move_project`（跨父级移动项目）尚未实现。当前只能用 `write__rename_project` 改名，无法将项目从一个父级移到另一个。
+>
 > **新增：** `nav__exists`（路径存在性检查）、`nav__find`（名称模糊搜索）、`nav__list_dir` 的 `recursive` 参数、`write__create_document` 的 `dry_run` 预览与 `if_exists` 策略。
 
 ### 2.5.9 会话锁定与维护流程

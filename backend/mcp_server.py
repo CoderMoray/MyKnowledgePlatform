@@ -408,7 +408,10 @@ def _raise_path_error(path: str, detail: str) -> None:
         f"路径错误：{path or '(空)'}\n\n"
         f"{detail}\n\n"
         f"──\n"
-        f"💡 如果不确定当前有哪些项目，请先调 nav__list_dir 查看。"
+        f"💡 提示：\n"
+        f"  • 如果不确定路径，调 nav__list_dir 或 nav__exists 查看\n"
+        f"  • 如果需要创建文档，调 write__create_document\n"
+        f"  • 禁止直接操作 KB 文件系统（write_to_file / mv / cp / rm）"
     )
 
 
@@ -1152,7 +1155,29 @@ def create_mcp_app(storage: Storage,
 不确定路径时，先调 `nav__list_dir(project_rel="projects")` 列出项目，
 或用 `nav__find(keyword=...)` 按名称搜索，或用 `nav__exists(path=...)` 一次性确认。
 
-### 四、新增探索工具（避免盲目逐层 list）
+### 四、铁律：禁止直接操作 KB 文件系统
+
+**严禁通过任何方式直接创建、修改、删除 MYKNOWLEDGE_ROOT 下的文件或目录。**
+包括但不限于：`write_to_file`、`execute_command`（`mv/cp/rm/touch`）、`replace_in_file`、Path 对象操作等。
+
+所有知识库操作必须按以下规则处理：
+
+| 你想做的事 | 正确做法 |
+|-----------|---------|
+| 创建/更新文档 | `write__create_document` / `write__update_document` |
+| 删除文档 | `write__delete_document` |
+| 改名项目/文档 | `write__rename_project` / `write__rename_document` |
+| 更新项目元数据 | `write__update_project_meta` |
+| 读文件 | `nav__get_document` / `nav__get_document_with_refs` |
+| 列目录 | `nav__list_dir`（支持 `recursive=True`） |
+| 搜索 | `nav__exists` / `nav__find` |
+
+**如果需要的操作不存在于任何 MCP 工具中：**
+1. 总结需求文档（包括场景描述、期望的输入和输出）
+2. 告知用户：「当前 MCP 工具不支XXXX持此操作，我已整理需求文档，请反馈给项目开发方。」
+3. **不得自行绕过 MCP 直接操作文件系统**
+
+### 五、新增探索工具（避免盲目逐层 list）
 
 | 工具 | 用途 | 示例 |
 |------|------|------|
@@ -1162,7 +1187,7 @@ def create_mcp_app(storage: Storage,
 
 > 目标：**1 次 exists/find + 1 次 create** 完成文档创建，无需逐层猜测路径。
 
-### 五、写操作与自动流程
+### 六、写操作与自动流程
 
 写完自动触发：
 1. `readme` 索引重建
@@ -1175,7 +1200,7 @@ def create_mcp_app(storage: Storage,
 - 项目目录从 `projects/` 自动移入 `archive/`
 - 无需手动操作
 
-### 六、对话中
+### 七、对话中
 
 正常交互，需要时调对应的 MCP 工具：
 - **导航**：`nav__read_readme` → `nav__list_dir` → `nav__exists` → `nav__find` → `nav__get_document_with_refs`
@@ -1184,7 +1209,7 @@ def create_mcp_app(storage: Storage,
 - **维护**：`maint__validate_doc` / `maint__rebuild_index`
 - **分享**：`share__publish` / `share__import_share`
 
-### 七、结束前
+### 八、结束前
 完成所有工作后：
 1. `maint__release_lock`（自动更新 checkpoint）
 2. 告知用户「知识库已同步」
