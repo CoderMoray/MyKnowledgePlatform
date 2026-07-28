@@ -212,11 +212,13 @@ Alpine.data("docComponent", () => ({
     async enterEdit() {
       const store = Alpine.store("app");
       if (store.isLocked) return;
-      console.log("[edit] enterEdit — htmlContent len:", (store.htmlContent || "").length, "trimmed:", !!(store.htmlContent || "").trim());
-      if (!store.htmlContent || !store.htmlContent.trim()) {
-        console.log("[edit] reloading document...");
+      let content = store.htmlContent;
+      if (!content || !content.trim()) {
         await store.loadDocument(store.currentPath);
+        content = store.htmlContent;
       }
+      // 存下来避免后期被清空
+      this._editContent = content;
       store.setView("edit", store.currentPath);
       this.$nextTick(() => this.initEditor());
     },
@@ -305,22 +307,18 @@ Alpine.data("docComponent", () => ({
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
-          let html = store.htmlContent || (store.document && store.document.content) || "";
-          console.log("[doc] onCreate — html len:", html.length, "has ref:", !!html.includes("data-ref-path"));
+          const html = this._editContent || store.htmlContent || (store.document && store.document.content) || "";
+          console.log("[doc] onCreate — html len:", html.length);
           if (html) {
             const tmp = document.createElement("div");
             tmp.innerHTML = html;
             tmp.querySelectorAll("[data-ref-path]").forEach(a => {
               a.setAttribute("href", "ref:" + a.dataset.refPath);
             });
-            html = tmp.innerHTML;
-            try {
-              editor.chain().setContent(html).run();
-              console.log("[doc] onCreate — editor text:", editor.getText().length);
-            } catch(e) {
-              console.error("[doc] onCreate setContent failed:", e);
-            }
+            editor.chain().setContent(tmp.innerHTML).run();
+            console.log("[doc] onCreate — editor text:", editor.getText().length);
           }
+          this._editContent = null;
         },
       });
 
