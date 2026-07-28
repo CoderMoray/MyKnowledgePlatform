@@ -893,26 +893,27 @@ function initMermaid() {
 function renderAllMermaidDiagrams() {
   const mermaidElements = document.querySelectorAll('.mermaid');
   if (mermaidElements.length === 0) return;
-  // 先清空所有已渲染的 SVG（保留原始 pre）
-  mermaidElements.forEach(pre => {
-    // 只清空后续渲染的 svg，保留 pre 的文本内容
-    const svg = pre.querySelector('svg');
-    if (svg) svg.remove();
+  // 使用 mermaid.render() 逐个渲染，不替换原始 pre 元素
+  mermaidElements.forEach(async (pre) => {
+    const sourceText = pre.textContent || pre.innerText;
+    if (!sourceText.trim()) return;
+    // 移除之前渲染的 svg（如果有）
+    const existingSvg = pre.querySelector('svg');
+    if (existingSvg) existingSvg.remove();
+    try {
+      const { svg } = await mermaid.render('mermaid-svg-' + Math.random().toString(36).slice(2, 9), sourceText);
+      const svgContainer = document.createElement('div');
+      svgContainer.innerHTML = svg;
+      const svgEl = svgContainer.firstElementChild;
+      if (svgEl) pre.appendChild(svgEl);
+    } catch(e) {
+      console.warn('Mermaid render error:', e);
+    }
   });
-  // 重新渲染
-  try {
-    mermaid.run({ nodes: Array.from(mermaidElements) });
-  } catch(e) {
-    console.warn('Mermaid render error:', e);
-  }
 }
 
-initMermaid();
-
-// 初始渲染所有 Mermaid 图（startOnLoad=false 时需要手动触发）
-document.addEventListener('DOMContentLoaded', function() {
-  renderAllMermaidDiagrams();
-});
+// 初始渲染由 applyTheme(getPreferredTheme()) 在底部完成
+// 这里不重复调用 initMermaid() 或 renderAllMermaidDiagrams()
 
 // ── Section 名称映射 ───────────────────────────────────────────────────
 const sectionTitles = {
@@ -949,9 +950,19 @@ function openModal(diagramId) {
   tempPre.textContent = sourceText;
   body.appendChild(tempPre);
 
-  // 重新渲染
+  // 使用 mermaid.render() 渲染
   try {
-    mermaid.run({ nodes: [tempPre] });
+    mermaid.render('mermaid-modal-' + Math.random().toString(36).slice(2, 9), sourceText).then(result => {
+      const svgContainer = document.createElement('div');
+      svgContainer.innerHTML = result.svg;
+      const svgEl = svgContainer.firstElementChild;
+      if (svgEl) {
+        body.innerHTML = '';
+        body.appendChild(svgEl);
+      }
+    }).catch(e => {
+      console.warn('Mermaid re-render error:', e);
+    });
   } catch(e) {
     console.warn('Mermaid re-render error:', e);
   }

@@ -519,10 +519,10 @@ document.addEventListener("alpine:init", () => {
       this.openModal("delete-doc", { path, name });
     },
 
-    /** Headbar 面包屑（过滤系统目录，仅显示有意义层级） */
+    /** Headbar 面包屑（复刻 page-label 逻辑） */
     get headbarBreadcrumbs() {
       const crumbs = this.breadcrumbs || [];
-      return crumbs.filter(c => c.label !== "projects");
+      return crumbs.slice(1, -1).filter(c => c.label !== "projects");
     },
 
     /** Headbar 返回上级路径 */
