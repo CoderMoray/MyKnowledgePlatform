@@ -171,6 +171,30 @@ def main():
         check(f"文本「{text}」", c > 0, f"出现 {c} 次")
 
     total = PASS + FAIL
+
+    # ── 编辑保存往返测试（Node.js 本地验证 turndown 转换） ──
+    import subprocess, shutil
+    node = shutil.which("node") or "node"
+    test_js = str(FRONTEND / "test-save-roundtrip.js")
+    if Path(test_js).exists():
+        try:
+            r = subprocess.run([node, test_js], capture_output=True, text=True, timeout=30,
+                               env={"NODE_PATH": str(Path.home() / ".workbuddy/binaries/node/workspace/node_modules")})
+            out = r.stdout.strip()
+            # 解析测试结果
+            import re as _re
+            m = _re.search(r"(\d+)/(\d+) 通过", out)
+            if m:
+                got, want = int(m.group(1)), int(m.group(2))
+                PASS += got; FAIL += (want - got)
+                print(out)
+            else:
+                FAIL += 1
+                print("  ❌ 往返测试解析失败\n" + out[:500])
+        except Exception as e:
+            FAIL += 1
+            print(f"  ❌ 往返测试执行异常: {e}")
+    total = PASS + FAIL
     print(f"\n{'='*40}")
     print(f"  通过 {PASS}/{total}  |  失败 {FAIL}")
     print(f"{'='*40}\n")
