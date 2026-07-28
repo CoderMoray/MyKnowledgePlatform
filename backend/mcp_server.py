@@ -412,6 +412,31 @@ def _raise_path_error(path: str, detail: str) -> None:
     )
 
 
+def _semantic_type(project_rel: str, name: str, is_dir: bool) -> str:
+    """Return a semantic type label for a :class:`DirEntry`.
+
+    Labels help agents understand the role of each item in the KB hierarchy:
+    ``project`` / ``subproject`` / ``document`` / ``knowledge`` / ``dir``.
+    """
+    if not is_dir:
+        if name == "readme.md":
+            return "📄 index"
+        if project_rel == "" or project_rel == "projects" or project_rel == "archive":
+            return "📄 doc"
+        return "📄 doc"
+    if project_rel in ("", "projects", "archive"):
+        return "📂 project"
+    if name == "common-knowledge":
+        return "📂 knowledge"
+    if name == "projects":
+        return "📂 subproject"
+    if name == "archive":
+        return "📂 archive"
+    if name == "_refs":
+        return "📂 refs"
+    return "📂 subproject"
+
+
 def _validate_project_rel(project_rel: str, storage: object) -> None:
     """(Legacy alias) """  # kept for backward compat — delegates to _validate_path
     try:
@@ -506,22 +531,89 @@ def create_mcp_app(storage: Storage,
         return storage.read_content(path)
 
     @mcp.tool()
-    def nav__list_dir(project_rel: str = "") -> str:
+    def nav__list_dir(project_rel: str = "",
+                     recursive: bool = False) -> str:
         """[nav] List files and directories in a knowledge base layer.
 
         Args:
             project_rel: KB-relative path, e.g. ``"projects/以旧换新"``.
+            recursive:   When ``True``, recursively list all nested items.
         Returns:
-            Formatted table (directory marker, name, last modified).
+            Formatted table (type, name, last modified, and relative path
+            when recursive is enabled).
         """
-        entries = storage.list_children(project_rel)
+        if recursive:
+            entries = storage.list_children_recursive(project_rel)
+        else:
+            entries = storage.list_children(project_rel)
         if not entries:
             return "(空目录)"
-        lines = ["类型    名称              修改日期"]
-        lines.append("─" * 50)
+        lines = ["类型             名称              修改日期"]
+        lines.append("─" * 70)
         for e in entries:
-            marker = "📁" if e.is_dir else "  "
-            lines.append(f"{marker}   {e.name:<20} {e.modified}")
+            type_label = _semantic_type(project_rel, e.name, e.is_dir)
+            indent = "  " if recursive and "/" in e.name else "  "
+            display = f"{indent}{e.name:<28} {e.modified}"
+            lines.append(f"{type_label:<8} {display}")
+        return "\n".join(lines) + "\n\n🔍 提示：不确定路径时记得调 nav__find(keyword=...) 或 nav__exists(path=...)"
+
+    @mcp.tool()
+    def nav__exists(path: str) -> str:
+        """[nav] Check whether a path exists in the knowledge base.
+
+        Accepts both file paths (``.md``) and directory paths (project, subproject).
+        Returns a clear "存在" / "不存在" answer so the agent can decide
+        whether to create or read without first guessing by ``list_dir``.
+
+        Args:
+            path: KB-relative path, e.g. ``"projects/以旧换新"``
+                  or ``"common-knowledge/术语表.md"``.
+        Returns:
+            A human-readable existence verdict including type (文件/目录).
+        """
+        target = storage.kb_root / path
+        if target.exists():
+            kind = "文件" if target.is_file() else "目录"
+            return f"✓ 存在：{path}（{kind}）"
+        # Offer helpful suggestions for non-existent paths
+        segs = path.split("/")
+        hints = []
+        if len(segs) > 1:
+            parent = "/".join(segs[:-1])
+            hints.append(f"  调 nav__list_dir(project_rel=\"{parent}\") 看看有什么")
+        if not path.startswith(("common-knowledge/", "projects/", "archive/")):
+            hints.append("  路径应以 common-knowledge/ 或 projects/ 开头")
+        hint_text = "\n" + "\n".join(hints) if hints else ""
+        return f"✗ 不存在：{path}{hint_text}"
+
+    @mcp.tool()
+    def nav__find(keyword: str, scope: str = "") -> str:
+        """[nav] Search for files and directories by name (fuzzy, case-insensitive).
+
+        Accepts a keyword and optionally a scope to limit search to a specific
+        project or directory.  Returns all matching items with their full
+        KB-relative path, type, and last-modified date.
+
+        Args:
+            keyword: Search term (case-insensitive substring match).
+            scope:   Optional KB-relative directory to restrict search to,
+                     e.g. ``"projects"`` or ``"projects/以旧换新"``.
+                     Leave empty to search the entire KB.
+        Returns:
+            Formatted table of matching items, or a "无匹配" message.
+        """
+        results = storage.find_by_name(keyword, scope)
+        if not results:
+            return f"未找到匹配「{keyword}」的项目或文档。\n\n"
+            "尝试换一个关键词，或调 nav__list_dir(project_rel=\"projects\") 浏览所有项目。"
+
+        lines = ["类型             路径                    修改日期"]
+        lines.append("─" * 80)
+        for rel_path, is_dir, modified in results:
+            kind = "📂 project" if rel_path.startswith(("projects/", "archive/")) and is_dir else \
+                   "📂 subprj" if is_dir else \
+                   "📄 doc"
+            lines.append(f"{kind:<8} {rel_path:<50} {modified}")
         return "\n".join(lines)
 
     @mcp.tool()
@@ -569,19 +661,88 @@ def create_mcp_app(storage: Storage,
     @mcp.tool()
     def write__create_document(path: str, content: str,
                         summary: str = "",
-                        doc_type: str = "knowledge") -> str:
+                        doc_type: str = "knowledge",
+                        dry_run: bool = False,
+                        if_exists: str = "overwrite") -> str:
         """[write] Create a new knowledge document in the KB.
 
         Args:
-            path:   KB-relative path, e.g. ``"common-knowledge/补贴标准.md"``
-                    or ``"projects/以旧换新/common-knowledge/流程.md"``.
-            content:  Markdown body (without frontmatter).
-            summary:  One-line description (stored in frontmatter).
-            doc_type: ``knowledge`` | ``artifact`` | ``note``.
+            path:      KB-relative path, e.g. ``"common-knowledge/补贴标准.md"``
+                       or ``"projects/以旧换新/common-knowledge/流程.md"``.
+                       **当 path 的中间目录不存在时，自动创建中间目录。**
+            content:   Markdown body (without frontmatter).
+            summary:   One-line description (stored in frontmatter).
+            doc_type:  ``knowledge`` | ``artifact`` | ``note``.
+            dry_run:   When ``True``, only preview the operation without writing.
+                       Returns the full path and what would happen.
+            if_exists: ``overwrite`` (default) — replace existing file.
+                       ``error`` — raise an error if file exists.
+                       ``skip`` — do nothing and return existing doc id.
         Returns:
-            The document id (auto-generated).
+            The document id (or preview info when dry_run=True).
         """
         _validate_path(path, kind="file")
+        full_path = storage.kb_root / path
+
+        # ── Dry-run: preview only ──────────────────────────────
+        if dry_run:
+            exists = full_path.is_file()
+            existing_meta = None
+            if exists:
+                try:
+                    existing_meta, _ = storage.read_document(path)
+                except Exception:
+                    pass
+            # Determine intermediate directories that would be created
+            parent_dir = full_path.parent
+            auto_dirs = []
+            if parent_dir != storage.kb_root:
+                parts = list(parent_dir.relative_to(storage.kb_root).parts)
+                cum = storage.kb_root
+                for p in parts:
+                    cum = cum / p
+                    if not cum.exists():
+                        auto_dirs.append(str(cum.relative_to(storage.kb_root)))
+
+            lines = [f"🔍 **Dry-run: write__create_document**"]
+            lines.append("─" * 60)
+            lines.append(f"  路径:          {path}")
+            lines.append(f"  摘要:          {summary or '(无)'}")
+            lines.append(f"  类型:          {doc_type}")
+            if auto_dirs:
+                lines.append(f"  自动创建的目录: {', '.join(auto_dirs)}")
+            if exists:
+                if if_exists == "overwrite":
+                    lines.append(f"  ⚠ 文件已存在 → 将覆盖（if_exists=overwrite）")
+                elif if_exists == "error":
+                    lines.append(f"  ⚠ 文件已存在 → 将报错（if_exists=error）")
+                else:
+                    lines.append(f"  ⚠ 文件已存在 → 将跳过（if_exists=skip）")
+            else:
+                lines.append(f"  ✅ 文件不存在 → 将创建新文档")
+            if existing_meta:
+                lines.append(f"  已有文档 id:   {existing_meta.get('id', '(未知)')}")
+                lines.append(f"  已有创建时间: {existing_meta.get('created', '(未知)')}")
+            lines.append("─" * 60)
+            lines.append("💡 确认无误后调用本工具时设置 dry_run=False 即可。")
+            return "\n".join(lines)
+
+        # ── if_exists check ────────────────────────────────────
+        if full_path.is_file():
+            if if_exists == "error":
+                raise FileExistsError(
+                    f"文件已存在：{path}\n\n"
+                    f"如需覆盖请设 if_exists=\"overwrite\"。\n"
+                    f"如需跳过请设 if_exists=\"skip\"。"
+                )
+            if if_exists == "skip":
+                try:
+                    meta, _ = storage.read_document(path)
+                    return f"⏭ 已跳过（文件已存在），现有文档 id: {meta.get('id', '(未知)')}"
+                except Exception:
+                    return f"⏭ 已跳过（文件已存在）"
+
+        # ── Write ──────────────────────────────────────────────
         meta = {"type": doc_type}
         if summary:
             meta["summary"] = summary
@@ -589,7 +750,7 @@ def create_mcp_app(storage: Storage,
         written = storage.write_document(path, meta, content)
         parent_rel = _parent_rel(path)
         _write_through(parent_rel, f"create: {path}")
-        return written["id"]
+        return f"✅ 已创建 {path} → id: {written['id']}"
 
     @mcp.tool()
     def write__update_document(path: str, content: str = "",
@@ -984,9 +1145,20 @@ def create_mcp_app(storage: Storage,
 | 归档项目 | `archive/项目名/...` | `archive/首页重构/readme.md` |
 
 禁止：`..`、绝对路径、非 `.md` 后缀、`projects`（系统目录）等。
-不确定路径时，先调 `nav__list_dir(project_rel="projects")` 列出项目。
+不确定路径时，先调 `nav__list_dir(project_rel="projects")` 列出项目，
+或用 `nav__find(keyword=...)` 按名称搜索，或用 `nav__exists(path=...)` 一次性确认。
 
-### 四、写操作与自动流程
+### 四、新增探索工具（避免盲目逐层 list）
+
+| 工具 | 用途 | 示例 |
+|------|------|------|
+| `nav__exists(path)` | 一次性确认路径是否存在 | `nav__exists("projects/以旧换新")` |
+| `nav__find(keyword, scope?)` | 按名称模糊搜索（不区分大小写） | `nav__find(keyword="补贴", scope="projects")` |
+| `nav__list_dir(recursive=True)` | 递归展开目录树，减少往返 | `nav__list_dir(project_rel="projects/以旧换新", recursive=True)` |
+
+> 目标：**1 次 exists/find + 1 次 create** 完成文档创建，无需逐层猜测路径。
+
+### 五、写操作与自动流程
 
 写完自动触发：
 1. `readme` 索引重建

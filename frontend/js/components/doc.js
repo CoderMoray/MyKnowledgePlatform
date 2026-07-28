@@ -235,11 +235,14 @@ Alpine.data("docComponent", () => ({
       // 预处理 TipTap HTML
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
+      // 去掉 ProseMirror 产生的空 h1（标题在 header 显示）
+      const h1 = tmp.querySelector("h1");
+      if (h1 && !h1.textContent.trim()) h1.remove();
       // 恢复 ref 链接：data-ref-path → href="ref:path"
       tmp.querySelectorAll("[data-ref-path]").forEach(a => {
         a.setAttribute("href", "ref:" + a.dataset.refPath);
       });
-      // 清理列表内的多余 <p>，避免 turndown 产生空行
+      // 清理列表内的多余 <p>
       tmp.querySelectorAll("li p").forEach(p => {
         const parent = p.parentNode;
         while (p.firstChild) parent.insertBefore(p.firstChild, p);
@@ -259,7 +262,9 @@ Alpine.data("docComponent", () => ({
       this.editorReady = false;
 
       const title = store.document?.title || "";
-      const fullMd = `# ${title}\n\n${markdown}`;
+      // 如果正文已包含标题 h1，不再重复
+      const firstLine = markdown.trim().split("\n")[0];
+      const fullMd = firstLine.startsWith("# ") ? markdown : `# ${title}\n\n${markdown}`;
       try {
         await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
       } catch (e) {}
@@ -296,9 +301,16 @@ Alpine.data("docComponent", () => ({
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
-          const content = store.htmlContent || (store.document && store.document.content) || "";
-          if (content) {
-            editor.chain().setContent(content).run();
+          let html = store.htmlContent || (store.document && store.document.content) || "";
+          if (html) {
+            // Pre-process: ref links → proper href so TipTap preserves them
+            const tmp = document.createElement("div");
+            tmp.innerHTML = html;
+            tmp.querySelectorAll("[data-ref-path]").forEach(a => {
+              a.setAttribute("href", "ref:" + a.dataset.refPath);
+            });
+            html = tmp.innerHTML;
+            editor.chain().setContent(html).run();
           }
         },
       });

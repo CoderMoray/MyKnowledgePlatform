@@ -163,6 +163,73 @@ class Storage:
                 result[child] = self.read_frontmatter(child)
         return result
 
+    def path_exists(self, rel_path: str) -> bool:
+        """Check whether a KB-relative path exists (file or directory)."""
+        return self._abs(rel_path).exists()
+
+    def find_by_name(self, keyword: str, scope: str = "") -> list[tuple[str, bool, str]]:
+        """Recursively search for files/directories matching *keyword* (case-insensitive).
+
+        Returns a list of ``(rel_path, is_dir, modified)`` tuples sorted by path.
+        Optionally limit search to a *scope* directory.
+        """
+        from fnmatch import fnmatch
+
+        search_root = self._abs(scope) if scope else self.kb_root
+        if not search_root.is_dir():
+            return []
+
+        results: list[tuple[str, bool, str]] = []
+        kw_lower = keyword.lower()
+
+        for child in sorted(search_root.rglob("*")):
+            # Skip hidden directories
+            if any(part.startswith(".") for part in child.relative_to(search_root).parts):
+                continue
+            # Skip __pycache__
+            if "__pycache__" in child.parts:
+                continue
+            # Name match (case-insensitive substring or simple glob)
+            name = child.name.lower()
+            if kw_lower in name or fnmatch(name, kw_lower):
+                rel = str(child.relative_to(self.kb_root))
+                mtime = child.stat().st_mtime
+                results.append((rel, child.is_dir(), date.fromtimestamp(mtime).isoformat()))
+
+        return results
+
+    def list_children_recursive(self, rel_path: str) -> list[DirEntry]:
+        """Recursive listing of a KB directory.
+
+        Same filtering rules as ``list_children()`` but recurses into subdirectories.
+        Each ``DirEntry.name`` is the *basename*, and ``DirEntry.is_dir`` is preserved.
+        The caller can reconstruct the full path by accumulating parents.
+        """
+        def _recurse(full: Path, depth: int) -> list[DirEntry]:
+            if not full.is_dir():
+                return []
+            hidden = {".git", "__pycache__", ".events", ".lock"}
+            top_level_hidden = {"_templates", "publish", "config.yaml", "agent-commit.txt"}
+
+            items: list[DirEntry] = []
+            for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
+                if child.name in hidden:
+                    continue
+                if rel_path in ("", ".") and child.name in top_level_hidden:
+                    continue
+
+                mtime = child.stat().st_mtime
+                items.append(DirEntry(
+                    name=child.name,
+                    is_dir=child.is_dir(),
+                    modified=date.fromtimestamp(mtime).isoformat(),
+                ))
+                if child.is_dir():
+                    items.extend(_recurse(child, depth + 1))
+            return items
+
+        return _recurse(self._abs(rel_path), 0)
+
     def list_children(self, rel_path: str) -> list[DirEntry]:
         """Non-recursive listing of a KB directory.
 
