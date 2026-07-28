@@ -1,6 +1,6 @@
 # MyKnowledge 前端实现状态
 
-> 最后更新：2026-07-28 19:42
+> 最后更新：2026-07-28 22:15
 > 设计决策详见：`docs/FRONTEND_INTERACTION_FEEDBACK.md`（设计原文备查，包含补充分支场景与讨论过程）
 
 ---
@@ -120,11 +120,28 @@
 ### D1. Ref 引用浮层 ✅ 已完成
 - 鼠标悬停 ref 链接 200ms → 卡片从鼠标位置向右下方弹出（scale 0→1 + 淡入 0.2s ease-out）
 - 移出卡片/链接 300ms → 向左上方缩小淡出（scale 1→0 + 淡出 0.25s ease-in）
-- 卡片内容：标题 + 作者·更新日期 + 分割线 + 前 200 字内容预览 + 总字数 + 「打开文档」链接
+- 卡片内容：标题 + 来源面包屑（可点击跳转项目） + 作者·更新日期 + 分割线 + 摘要 + 「打开文档」链接
 - 定位：链接右下方，fixed 定位防滚动脱节
 - 卡片内悬停不关闭，可点击「打开文档」跳转
 - **渲染机制**：`marked` renderer 检测 `ref:` 协议 → 生成 `<a data-ref-path="..." title="关联文档: ..." class="ref-link">` 
 - **检查保护**：`check_build.py` 验证 `data-ref-path` 存在 2+ 处，且路径不含 `::` 后缀
+
+### D2. 引用知识区块 ✅ 已完成
+- 文档底部浅灰圆角区域，标题「引用知识」
+- 飞书风格列表：文件图标 + 文档标题 + 来源路径，点击跳转文档
+- 来源路径从 refPath 自动推导（`refSourceBreadcrumb`），可点击切换项目
+- 与摘要、表格统一 12px 圆角
+
+### D3. 文档正文表格 ✅ 已完成
+- 圆角矩形 `border-radius: 12px` + `overflow: hidden`
+- `border-collapse: separate` + `border-spacing: 0` 替代 collapse
+- 表头浅灰背景（`--bg-secondary`），表体白色，细线边框
+- 四角圆角裁切干净
+
+### D4. Ref 链接空格修复 ✅ 已完成
+- 后端 refs 正则 `[^\s)]` → `[^)]` 允许空格路径
+- 前端 marked 预处理 `ref:` URL 中的空格编码
+- renderer.link 解码 `%20` 回空格，避免 `encodeURIComponent` 二次编码
 
 ### D2. 文档操作 header 按钮
 - （设计细节见 C1，已在 C1 中合并引用）
@@ -177,7 +194,7 @@
 | ref 链接 hover 浮出卡片（右下方弹出动画） | ✅ 已恢复 | 含 check_build 检查：ref 路径无 :: 后缀 |
 | 编辑态点击区域外退回只读 | ❌ 未恢复 |
 | 编辑态点击区域外退回只读 | ❌ 未恢复 | |
-| dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 未恢复 | |
+| dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 无需改动 | `projectStats` getter 逻辑合理，维持现状 |
 | utils.js 删除死代码 md5（含 gravatarUrl） | ✅ 已恢复 | authorAvatar 纯首字母，无网络请求 | |
 
 ## 🐛 已知问题

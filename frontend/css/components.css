@@ -262,11 +262,12 @@
 .project-panel--open {
   max-height: 280px;
   overflow-y: auto;
+  border-top: 0.5px solid rgba(0,0,0,0.06);
+  margin-top: 10px;
 }
 
 .project-panel__inner {
-  margin-top: 10px;
-  border-top: 0.5px solid rgba(0,0,0,0.06);
+  margin-top: 6px;
   padding: 6px 0;
 }
 

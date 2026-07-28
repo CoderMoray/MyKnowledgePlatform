@@ -33,6 +33,16 @@ Alpine.data("projectComponent", () => ({
       window.location.hash = `project/${encodeURIComponent(path)}`;
     },
 
+    /** 返回上级（一级项目 → 仪表盘，深层 → 父项目） */
+    goBack() {
+      const parent = this.parentPath;
+      if (parent) {
+        window.location.hash = "project/" + encodeURIComponent(parent);
+      } else {
+        window.location.hash = "dashboard";
+      }
+    },
+
     goToEdit(path) {
       window.location.hash = `edit/${encodeURIComponent(path)}`;
     },
