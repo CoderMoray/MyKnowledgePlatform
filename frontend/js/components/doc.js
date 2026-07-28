@@ -298,7 +298,7 @@ Alpine.data("docComponent", () => ({
         onCreate: ({ editor }) => {
           const content = store.htmlContent || (store.document && store.document.content) || "";
           if (content) {
-            editor.commands.setContent(content);
+            editor.chain().setContent(content).run();
           }
         },
       });
