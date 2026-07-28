@@ -212,12 +212,12 @@ Alpine.data("docComponent", () => ({
     async enterEdit() {
       const store = Alpine.store("app");
       if (store.isLocked) return;
-      // 内容为空时重新加载（首次进入 ESM 模块可能还没准备好）
+      console.log("[edit] enterEdit — htmlContent len:", (store.htmlContent || "").length, "trimmed:", !!(store.htmlContent || "").trim());
       if (!store.htmlContent || !store.htmlContent.trim()) {
+        console.log("[edit] reloading document...");
         await store.loadDocument(store.currentPath);
       }
       store.setView("edit", store.currentPath);
-      // TipTap DOM 渲染后才创建编辑器
       this.$nextTick(() => this.initEditor());
     },
 
