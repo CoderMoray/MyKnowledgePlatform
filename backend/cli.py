@@ -267,6 +267,206 @@ def cmd_whoami(args: argparse.Namespace) -> int:
 
 
 # ══════════════════════════════════════════════════════════════
+#  version
+# ══════════════════════════════════════════════════════════════
+
+
+def cmd_version(args: argparse.Namespace) -> int:
+    """Print version and optionally check PyPI for latest."""
+    from backend.__version__ import __version__
+    print(f"MyKnowledge v{__version__}")
+
+    if args.check:
+        _check_latest_version(__version__)
+    return 0
+
+
+def _check_latest_version(current: str) -> None:
+    """Fetch latest version from PyPI (best-effort, no crash)."""
+    import json, urllib.request, sys
+    try:
+        with urllib.request.urlopen(
+            "https://pypi.org/pypi/myknowledge/json", timeout=5
+        ) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            latest = data["info"]["version"]
+        if latest != current:
+            print(f"\n⚠ 新版本可用: v{latest}（当前: v{current}）")
+            print(f"  运行: myknowledge upgrade")
+        else:
+            print(f"✓ 已是最新版本")
+    except Exception:
+        print(f"\n? 无法检查更新（网络或 PyPI 不可达）")
+
+
+# ══════════════════════════════════════════════════════════════
+#  doctor — comprehensive health check
+# ══════════════════════════════════════════════════════════════
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Check all prerequisites and configuration."""
+    from backend.__version__ import __version__
+    import shutil, subprocess, sys
+
+    kb_root = resolve_root(args.root)
+    checks: list[tuple[str, str, bool]] = []  # (name, status, ok)
+
+    # ── 1. Python version ──────────────────────────────────
+    py_ok = sys.version_info >= (3, 10)
+    checks.append(("Python ≥ 3.10", sys.version.split()[0], py_ok))
+
+    # ── 2. Git ─────────────────────────────────────────────
+    git_path = shutil.which("git")
+    git_ok = git_path is not None
+    git_ver = ""
+    if git_ok:
+        try:
+            r = subprocess.run(["git", "--version"], capture_output=True, text=True, timeout=5)
+            git_ver = r.stdout.strip()
+        except Exception:
+            git_ver = "(未知)"
+    checks.append(("Git", git_ver or "未安装", git_ok))
+
+    # ── 3. Python deps ─────────────────────────────────────
+    deps_ok = True
+    dep_list = []
+    for mod, (pkg, _) in _REQUIRED_PACKAGES.items():
+        try:
+            __import__(mod)
+            dep_list.append(f"✓ {pkg}")
+        except ImportError:
+            dep_list.append(f"✗ {pkg}")
+            deps_ok = False
+    checks.append(("Python 依赖", ", ".join(dep_list), deps_ok))
+
+    # ── 4. Identity ────────────────────────────────────────
+    from backend.config import get_identity
+    try:
+        nick, email = get_identity()
+        identity_ok = True
+        identity_str = f"{nick} <{email}>"
+    except (FileNotFoundError, ValueError) as e:
+        identity_ok = False
+        identity_str = f"未设置 — {e}"
+    checks.append(("身份配置", identity_str, identity_ok))
+
+    # ── 5. KB directory ────────────────────────────────────
+    kb_ok = kb_root.is_dir()
+    kb_files = ""
+    if kb_ok:
+        items = [p.name for p in kb_root.iterdir() if not p.name.startswith(".")]
+        kb_files = f"{len(items)} 个条目"
+    checks.append((f"知识库目录 ({kb_root})", kb_files or "不存在", kb_ok))
+
+    # ── 6. Git repo ────────────────────────────────────────
+    git_repo_ok = False
+    git_repo_status = ""
+    if kb_ok:
+        git_dir = kb_root / ".git"
+        git_repo_ok = git_dir.is_dir()
+        git_repo_status = "已初始化" if git_repo_ok else "未初始化"
+    checks.append(("Git 仓库", git_repo_status, git_repo_ok))
+
+    # ── Report ─────────────────────────────────────────────
+    print(f"MyKnowledge v{__version__} — 健康检查报告")
+    print("=" * 60)
+    for name, status, ok in checks:
+        mark = "✓" if ok else "✗"
+        print(f"  {mark}  {name:<20} {status}")
+    print("=" * 60)
+
+    all_ok = all(ok for _, _, ok in checks)
+    if all_ok:
+        print("✅ 一切正常，可以开始使用。")
+        print("   启动 MCP:  myknowledge mcp")
+        print("   启动 Web:   myknowledge serve")
+    else:
+        print("⚠ 发现以上问题，请参考对应修复步骤。")
+        if not identity_ok:
+            print("   设置身份:  myknowledge login <email> <昵称>")
+        if not kb_ok or not git_repo_ok:
+            print("   初始化 KB: myknowledge init")
+        print("   再次检查:  myknowledge doctor")
+    return 0 if all_ok else 1
+
+
+# ══════════════════════════════════════════════════════════════
+#  upgrade
+# ══════════════════════════════════════════════════════════════
+
+
+def cmd_upgrade(args: argparse.Namespace) -> int:
+    """Upgrade MyKnowledge to the latest version."""
+    import subprocess, sys
+
+    from backend.__version__ import __version__
+    print(f"当前版本: v{__version__}")
+    print("正在检查更新...")
+
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "myknowledge"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode == 0:
+            # Re-import to get new version
+            import importlib
+            import backend.__version__ as ver_mod
+            importlib.reload(ver_mod)
+            print(f"✅ 升级完成: v{__version__} → v{ver_mod.__version__}")
+        else:
+            print(f"✗ 升级失败:\n{r.stderr.strip()}")
+            return 1
+    except subprocess.TimeoutExpired:
+        print("✗ 升级超时，请检查网络后重试")
+        return 1
+    except Exception as e:
+        print(f"✗ 升级异常: {e}")
+        return 1
+    return 0
+
+
+# ══════════════════════════════════════════════════════════════
+#  mcp-config — print MCP config JSON for AI clients
+# ══════════════════════════════════════════════════════════════
+
+
+def cmd_mcp_config(args: argparse.Namespace) -> int:
+    """Print the MCP server configuration JSON for CodeBuddy/Trae."""
+    import json, sys
+
+    config = {
+        "mcpServers": {
+            "MyKnowledge": {
+                "command": sys.executable,
+                "args": ["-m", "backend.cli", "mcp"],
+                "env": {},
+            }
+        }
+    }
+
+    print(json.dumps(config, indent=2, ensure_ascii=False))
+
+    # Check if the user installed via pip (and the `myknowledge` CLI is available)
+    import shutil
+    pkg_entry = shutil.which("myknowledge")
+    if pkg_entry and not pkg_entry.startswith(sys.prefix):
+        # User has a pip-installed entry point, use it directly
+        config["mcpServers"]["MyKnowledge"] = {
+            "command": "myknowledge",
+            "args": ["mcp"],
+        }
+        print("\n--- 简化版（如果 myknowledge 在 PATH 中）---")
+        print(json.dumps(config, indent=2, ensure_ascii=False))
+
+    print("\n💡 将以上 JSON 粘贴到你的 AI client 的 MCP 配置中：")
+    print("   CodeBuddy:  .codebuddy/mcp.json")
+    print("   Trae:       设置 → MCP 服务器 → 添加")
+    return 0
+
+
+# ══════════════════════════════════════════════════════════════
 #  publish / import_share
 # ══════════════════════════════════════════════════════════════
 
@@ -357,6 +557,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reload", action="store_true",
                    help="开发模式：代码变更自动重启")
     p.set_defaults(func=cmd_serve)
+
+    # version
+    p = sub.add_parser("version", help="显示版本信息")
+    p.add_argument("--check", action="store_true",
+                   help="检查 PyPI 最新版本")
+    p.set_defaults(func=cmd_version)
+
+    # doctor
+    p = sub.add_parser("doctor", help="全面健康检查（Python/git/deps/身份/KB）")
+    _add_common_args(p)
+    p.set_defaults(func=cmd_doctor)
+
+    # upgrade
+    p = sub.add_parser("upgrade", help="升级到最新版本（pip install --upgrade）")
+    p.set_defaults(func=cmd_upgrade)
+
+    # mcp-config
+    p = sub.add_parser("mcp-config", help="输出 MCP 配置 JSON，供 AI client 使用")
+    p.set_defaults(func=cmd_mcp_config)
 
     # rebuild — placeholder
     for name, help_text in [

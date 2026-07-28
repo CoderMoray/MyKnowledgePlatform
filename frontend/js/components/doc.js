@@ -217,10 +217,9 @@ Alpine.data("docComponent", () => ({
         await store.loadDocument(store.currentPath);
         content = store.htmlContent;
       }
-      // 存下来避免后期被清空
-      this._editContent = content;
       store.setView("edit", store.currentPath);
-      this.$nextTick(() => this.initEditor());
+      // 闭包传内容，防止 Alpine 重置 this 导致丢失
+      this.$nextTick(() => this.initEditor(content));
     },
 
     /** 点击外部 → 退出编辑并保存 */
@@ -279,7 +278,7 @@ Alpine.data("docComponent", () => ({
       store.loadDocument(store.currentPath);
     },
 
-    async initEditor() {
+    async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
       if (!el || this.editorInstance) return;
 
@@ -307,8 +306,7 @@ Alpine.data("docComponent", () => ({
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
-          const html = this._editContent || store.htmlContent || (store.document && store.document.content) || "";
-          console.log("[doc] onCreate — html len:", html.length);
+          const html = initialContent || store.htmlContent || (store.document && store.document.content) || "";
           if (html) {
             const tmp = document.createElement("div");
             tmp.innerHTML = html;
@@ -316,9 +314,7 @@ Alpine.data("docComponent", () => ({
               a.setAttribute("href", "ref:" + a.dataset.refPath);
             });
             editor.chain().setContent(tmp.innerHTML).run();
-            console.log("[doc] onCreate — editor text:", editor.getText().length);
           }
-          this._editContent = null;
         },
       });
 
