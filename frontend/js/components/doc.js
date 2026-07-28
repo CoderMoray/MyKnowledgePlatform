@@ -306,15 +306,20 @@ Alpine.data("docComponent", () => ({
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
           let html = store.htmlContent || (store.document && store.document.content) || "";
+          console.log("[doc] onCreate — html len:", html.length, "has ref:", !!html.includes("data-ref-path"));
           if (html) {
-            // Pre-process: ref links → proper href so TipTap preserves them
             const tmp = document.createElement("div");
             tmp.innerHTML = html;
             tmp.querySelectorAll("[data-ref-path]").forEach(a => {
               a.setAttribute("href", "ref:" + a.dataset.refPath);
             });
             html = tmp.innerHTML;
-            editor.chain().setContent(html).run();
+            try {
+              editor.chain().setContent(html).run();
+              console.log("[doc] onCreate — editor text:", editor.getText().length);
+            } catch(e) {
+              console.error("[doc] onCreate setContent failed:", e);
+            }
           }
         },
       });
