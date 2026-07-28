@@ -275,13 +275,18 @@ Alpine.data("docComponent", () => ({
       this.editorInstance = new Editor({
         element: el,
         extensions,
-        content: store.htmlContent || store.document?.content || "",
-        autofocus: "end",
         editorProps: {
           attributes: { class: "ProseMirror" },
         },
         onUpdate: () => { store.isDirty = true; },
       });
+
+      // 先创建编辑器再设内容，避免时序问题
+      const content = store.htmlContent || (store.document && store.document.content) || "";
+      if (content) {
+        this.editorInstance.commands.setContent(content);
+      }
+      this.editorInstance.commands.focus("end");
 
       store.editor = this.editorInstance;
       this.editorReady = true;
