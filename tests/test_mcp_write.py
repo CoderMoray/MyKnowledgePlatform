@@ -365,13 +365,25 @@ class TestRebuildIndex:
         text = _tool_text(result)
         assert "已移动" in text
 
-        # Directory moved to ParentB
-        assert (tmp_kb_root / "projects" / "ParentB" / "projects" / "Child").is_dir()
+        # Directory moved to ParentB/projects/Child
+        dest = tmp_kb_root / "projects" / "ParentB" / "projects" / "Child"
+        assert dest.is_dir(), f"{dest} does not exist"
         assert not (tmp_kb_root / "projects" / "ParentA" / "projects" / "Child").exists()
 
         # It should appear in ParentB's readme
         parent_b_readme = storage.read_content("projects/ParentB/readme.md")
         assert "Child" in parent_b_readme
+
+        # Move back to root level
+        result2 = asyncio.run(app.call_tool(
+            "write__move_project",
+            {"project_rel": "projects/ParentB/projects/Child",
+             "target_parent_rel": ""},
+        ))
+        text2 = _tool_text(result2)
+        assert "已移动" in text2
+        assert (tmp_kb_root / "projects" / "Child").is_dir()
+        assert not (tmp_kb_root / "projects" / "ParentB" / "projects" / "Child").exists()
 
 
 class TestCheckIntegrity:

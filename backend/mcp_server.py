@@ -256,7 +256,13 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
         raise FileNotFoundError(f"项目不存在: {project_rel}")
 
     project_name = project_rel.rstrip("/").split("/")[-1]
-    new_rel = f"{target_parent_rel.rstrip('/')}/{project_name}".lstrip("/")
+    # Determine target: if moving to root level (""), "projects", or "archive",
+    # place directly under that; otherwise place under the target's projects/.
+    target_stripped = target_parent_rel.rstrip("/")
+    if target_stripped in ("", "projects", "archive"):
+        new_rel = f"{target_stripped}/{project_name}".lstrip("/")
+    else:
+        new_rel = f"{target_stripped}/projects/{project_name}".lstrip("/")
     new_dir = kb_root / new_rel
     if new_dir.exists():
         raise FileExistsError(f"目标路径已存在: {new_rel}")
@@ -317,14 +323,23 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     template = kb_root / "_templates" / "readme.md"
     if template.exists():
         gen = ReadmeGenerator(storage=storage, template_path=template)
-        # Rebuild old parent (if it had a readme)
-        old_parent = "/".join(project_rel.rstrip("/").split("/")[:-1])
-        if old_parent:
-            gen.rebuild(old_parent)
-        # Rebuild new parent
-        new_parent = "/".join(new_rel.rstrip("/").split("/")[:-1])
+        # Rebuild old parent project
+        old_parts = project_rel.rstrip("/").split("/")
+        # ("projects/ParentA/projects/Child") → old_project_parent = "projects/ParentA"
+        if len(old_parts) > 2 and old_parts[-2] == "projects":
+            old_project_parent = "/".join(old_parts[:-2])
+        else:
+            old_project_parent = "/".join(old_parts[:-1])
+        if old_project_parent and old_project_parent not in ("projects", "archive", ""):
+            gen.rebuild(old_project_parent)
+        # Rebuild new parent project
+        # target_stripped = "projects/ParentB" → new_parent = "projects/ParentB"
+        # target_stripped = "" → new_parent = "" (root)
+        new_parent = target_stripped
         if new_parent:
             gen.rebuild(new_parent)
+        else:
+            gen.rebuild("")  # root
         # Rebuild the moved project itself
         gen.rebuild(new_rel)
         gen.rebuild("")

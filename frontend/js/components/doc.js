@@ -315,9 +315,8 @@ Alpine.data("docComponent", () => ({
       this.editorInstance = new Editor({
         element: el,
         extensions,
-        editable: false,
         editorProps: {
-          attributes: { class: "ProseMirror ProseMirror--readonly" },
+          attributes: { class: "ProseMirror" },
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
