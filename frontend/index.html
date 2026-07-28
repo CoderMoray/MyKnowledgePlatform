@@ -703,7 +703,9 @@
           <h2 class="section-title" style="margin-top:var(--space-6);">子项目</h2>
           <div class="doc-grid" x-show="$store.app.projectSubprojects.length > 0 && !$store.app.loading">
             <template x-for="sub in $store.app.projectSubprojects" :key="sub.path">
-              <div class="doc-card" @click="goToProject(sub.path)">
+              <div class="doc-card" @click="goToProject(sub.path)"
+                   @mouseenter="openPreview(sub.path)"
+                   @mouseleave="closePreview()">
                 <div class="doc-card__icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
                 </div>
@@ -718,6 +720,36 @@
                           :class="'badge--' + (sub.status || 'abandoned')"
                           x-show="sub.status && sub.status !== 'active'"
                           x-text="statusLabel(sub.status)"></span>
+                  </div>
+                </div>
+
+                <div class="project-panel"
+                     :class="{ 'project-panel--open': hoverProject === sub.path }">
+                  <div class="project-panel__inner">
+                  <template x-if="projectPreview.docs.length">
+                    <div>
+                      <div class="project-panel__section">知识</div>
+                      <template x-for="d in projectPreview.docs" :key="d.path">
+                        <div class="project-panel__item" @click.stop="goToDocument(d.path)">
+                          <span class="project-panel__item-name" x-text="fileName(d.name)"></span>
+                          <span class="project-panel__item-summary" x-text="d.summary || ''"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="projectPreview.subprojects.length">
+                    <div>
+                      <div class="project-panel__section">子项目</div>
+                      <template x-for="s in projectPreview.subprojects" :key="s.path">
+                        <div class="project-panel__item" @click.stop="goToProject(s.path)">
+                          <span class="project-panel__item-name" x-text="fileName(s.name)"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="!projectPreview.docs.length && !projectPreview.subprojects.length && !projectPreview.archived.length">
+                    <div class="project-panel__empty">暂无内容</div>
+                  </template>
                   </div>
                 </div>
               </div>

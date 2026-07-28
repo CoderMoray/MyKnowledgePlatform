@@ -61,5 +61,42 @@ Alpine.data("projectComponent", () => ({
         name: store.currentPath,
       });
     },
+
+    /* ---- 子项目 hover 预览 ---- */
+    hoverProject: null,
+    hoverTimer: null,
+    projectPreview: { docs: [], subprojects: [], archived: [] },
+
+    openPreview(path) {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = setTimeout(() => {
+        this.hoverProject = path;
+        this.loadProjectPreview(path);
+      }, 300);
+    },
+
+    closePreview() {
+      clearTimeout(this.hoverTimer);
+      this.hoverTimer = setTimeout(() => {
+        this.hoverProject = null;
+      }, 150);
+    },
+
+    async loadProjectPreview(path) {
+      try {
+        const [docData, subData] = await Promise.all([
+          api.list(path + "/common-knowledge").catch(() => ({ items: [] })),
+          api.list(path + "/projects").catch(() => ({ items: [] })),
+        ]);
+        const excludeReadme = (i) => !/^readme\.md$/i.test(i.name || "");
+        this.projectPreview = {
+          docs: (docData.items || []).filter(i => !i.is_dir && excludeReadme(i)),
+          subprojects: (subData.items || []).filter(i => i.is_dir),
+          archived: [],
+        };
+      } catch {
+        this.projectPreview = { docs: [], subprojects: [], archived: [] };
+      }
+    },
   }))
 });
