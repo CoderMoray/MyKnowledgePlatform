@@ -304,4 +304,14 @@ const api = {
       this._eventSource = null;
     }
   },
+
+  /** 获取 AI 连接状态 */
+  async getMcpStatus() {
+    try {
+      const data = await this._request("/api/mcp");
+      return data;
+    } catch {
+      return { status: "disconnected", detail: "" };
+    }
+  },
 };

@@ -482,6 +482,14 @@
   flex-shrink: 0;
 }
 
+.status-indicator__dot--danger {
+  background: var(--color-danger);
+}
+
+.status-indicator__dot--warning {
+  background: var(--color-warning);
+}
+
 .status-indicator__dot--warning {
   background: var(--color-warning);
 }

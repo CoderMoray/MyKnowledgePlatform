@@ -30,6 +30,9 @@ document.addEventListener("alpine:init", () => {
     /** 锁信息 */
     lockInfo: null,
 
+    /** AI MCP 连接状态: disconnected | reading | writing | connected */
+    mcpStatus: "disconnected",
+
     /** 后端是否离线 */
     backendOffline: false,
 
@@ -38,6 +41,17 @@ document.addEventListener("alpine:init", () => {
       if (this.isLocked) return { dotClass: "status-dot--danger", label: "AI 编辑中" };
       if (this.currentView === "edit") return { dotClass: "status-dot--warning", label: "用户编辑中" };
       return { dotClass: "status-dot--online", label: "用户使用中" };
+    },
+
+    /** MCP 状态对应的颜色和文字 */
+    get mcpStatusInfo() {
+      const map = {
+        disconnected: { dotClass: "status-dot--danger", label: "AI 未连接" },
+        reading:      { dotClass: "status-dot--online", label: "AI 正在读取" },
+        writing:      { dotClass: "status-dot--warning", label: "AI 正在写入" },
+        connected:    { dotClass: "status-dot--online", label: "AI 已连接" },
+      };
+      return map[this.mcpStatus] || map.disconnected;
     },
 
     /* ── 主题 ──────────────────────────────────────────────────────────── */
@@ -300,6 +314,16 @@ document.addEventListener("alpine:init", () => {
       }
     },
 
+    /** 检查 AI MCP 连接状态 */
+    async checkMcpStatus() {
+      try {
+        const data = await api.getMcpStatus();
+        this.mcpStatus = (data && data.status) || "disconnected";
+      } catch {
+        this.mcpStatus = "disconnected";
+      }
+    },
+
     /**
      * 加载仪表盘数据
      */
@@ -363,6 +387,10 @@ document.addEventListener("alpine:init", () => {
 
       // 启动锁轮询
       setInterval(() => this.checkLock(), 15000);
+
+      // 启动 AI 状态轮询
+      this.checkMcpStatus();
+      setInterval(() => this.checkMcpStatus(), 15000);
 
       // 订阅 SSE 实时更新
       api.subscribeEvents(() => {
