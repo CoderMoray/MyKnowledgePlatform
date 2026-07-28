@@ -1,6 +1,6 @@
 # MyKnowledge 前端实现状态
 
-> 最后更新：2026-07-28 22:15
+> 最后更新：2026-07-29 02:10
 > 设计决策详见：`docs/FRONTEND_INTERACTION_FEEDBACK.md`（设计原文备查，包含补充分支场景与讨论过程）
 
 ---
@@ -192,14 +192,24 @@
 | build.py JS 语法检查 + CDN 检查 | ✅ 已恢复 | `node --check` 所有 `<script>` + curl 检测 CDN |
 | viewer__summary 移入 header、加「摘要」标签 | ✅ 已恢复 | |
 | ref 链接 hover 浮出卡片（右下方弹出动画） | ✅ 已恢复 | 含 check_build 检查：ref 路径无 :: 后缀 |
-| 编辑态点击区域外退回只读 | ❌ 未恢复 |
 | 编辑态点击区域外退回只读 | ❌ 未恢复 | |
 | dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 无需改动 | `projectStats` getter 逻辑合理，维持现状 |
 | utils.js 删除死代码 md5（含 gravatarUrl） | ✅ 已恢复 | authorAvatar 纯首字母，无网络请求 | |
 
-## 🐛 已知问题
+## 🆕 新增（2026-07-29）
 
-| 问题 | 现象 | 状态 |
-|------|------|:--:|
-| 刷新闪黑 | 暗色系统+亮色主题时，刷新瞬间闪黑 | 浏览器级，前端不可控 |
-| 刷新一帧旧页面 | 刷新时旧页面内容闪现一帧 | 待研究 bfcache/pageshow |
+| 功能 | 状态 | 说明 |
+|------|:--:|------|
+| MCP 状态指示器 | ✅ | top-header 显示 AI 连接/读取/写入/未连接，15s 轮询 |
+| 项目页 author/maintainer 元信息 | ✅ | 与文档页规则一致，显示创建人和维护者 |
+| Headbar 面包屑重设计 | ✅ | 复刻 page-label 结构，带返回按钮+层级面包屑 |
+| 文档页删除按钮 | ✅ | headbar 红色按钮，替换原新建按钮位置 |
+| 移除 page-label（页面内） | ✅ | 面包屑统一在 headbar |
+| 移除 viewer 工具栏 | ✅ | 原来编辑/删除按钮移除，删除走 headbar |
+| 路由统一 | ✅ | `view/` 全部改为 `doc/`，project 去掉 projects/ 前缀 |
+| URL 清洁化 | ✅ | `hashEncode` 仅编码 `/`，中文空格保持原样 |
+| CSS Grid hover 面板修复 | ✅ | `align-items: start` 防止同行卡片拉伸 |
+| 面板内容纯 DOM 渲染 | ✅ | 面板内无 Alpine 响应式模板，避免 x-for 全量重渲染 |
+| 行内 code 样式 | ✅ | accent 紫背景+紫字 |
+| 页面 breadcrumb 颜色加深 | ✅ | text-secondary，hover bold + 背景色 |
+| 表格圆角 | ✅ | 12px border-radius + overflow:hidden |
