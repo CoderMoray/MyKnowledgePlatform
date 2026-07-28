@@ -298,12 +298,17 @@ Alpine.data("docComponent", () => ({
       const { Editor } = window.TipTapCore || {};
       const StarterKit = window.TipTapStarterKit ? window.TipTapStarterKit.StarterKit : null;
       const LinkExt = window.TipTapLink || null;
+      const TT = window.TipTapTable || {};
       console.log("[doc] Editor:", !!Editor, "StarterKit:", !!StarterKit, "LinkExt:", !!LinkExt);
       if (!Editor) return;
 
       const extensions = [
         StarterKit ? StarterKit.configure() : null,
         LinkExt ? LinkExt.configure({ openOnClick: false }) : null,
+        TT.Table ? TT.Table.configure({ resizable: true }) : null,
+        TT.TableRow || null,
+        TT.TableCell || null,
+        TT.TableHeader || null,
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
 

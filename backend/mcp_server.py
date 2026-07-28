@@ -1003,6 +1003,28 @@ def create_mcp_app(storage: Storage,
             return str(e)
 
     @mcp.tool()
+    def write__move_project(project_rel: str, target_parent_rel: str) -> str:
+        """Move a project to a different parent directory.
+
+        The project's own name is preserved; only the parent changes.
+        Ref links within the KB are automatically updated, and both the
+        source parent and target parent readmes are rebuilt.
+
+        Args:
+            project_rel:      Current KB-relative path, e.g. ``"projects/首页重构"``.
+            target_parent_rel: Destination parent, e.g. ``"projects/归档旧项目"``.
+                              Use ``""`` to move to root level.
+        Returns:
+            Confirmation or error message.
+        """
+        _validate_path(project_rel, kind="dir", storage=storage)
+        from backend.mcp_server import move_project as _move
+        try:
+            return _move(storage, project_rel, target_parent_rel)
+        except (ValueError, FileNotFoundError, FileExistsError) as e:
+            return str(e)
+
+    @mcp.tool()
     def maint__validate_doc(path: str) -> str:
         """[maint] Check a document's frontmatter integrity.
 
@@ -1277,7 +1299,9 @@ def create_mcp_app(storage: Storage,
 |-----------|---------|
 | 创建/更新文档 | `write__create_document` / `write__update_document` |
 | 删除文档 | `write__delete_document` |
-| 改名项目/文档 | `write__rename_project` / `write__rename_document` |
+| 改名项目 | `write__rename_project` |
+| 移动项目（换父级） | `write__move_project` |
+| 改名文档 | `write__rename_document` |
 | 更新项目元数据 | `write__update_project_meta` |
 | 读文件 | `nav__get_document` / `nav__get_document_with_refs` |
 | 列目录 | `nav__list_dir`（支持 `recursive=True`） |
@@ -1316,7 +1340,7 @@ def create_mcp_app(storage: Storage,
 正常交互，需要时调对应的 MCP 工具：
 - **导航**：`nav__read_readme` → `nav__list_dir` → `nav__exists` → `nav__find` → `nav__get_document_with_refs`
 - **写**：`write__create_document`(支持 `dry_run=True` 预览 + `if_exists="error|skip|overwrite"`) / `write__update_document` / `write__update_project_meta`
-- **改名**：`write__rename_project` / `write__rename_document`
+- **改名/移动**：`write__rename_project` / `write__rename_document` / `write__move_project`
 - **维护**：`maint__validate_doc` / `maint__rebuild_index`
 - **分享**：`share__publish` / `share__import_share`
 

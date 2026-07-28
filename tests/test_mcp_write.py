@@ -311,6 +311,68 @@ class TestRebuildIndex:
         status_file = storage.kb_root / "project-status.md"
         assert status_file.is_file()
 
+    def test_move_project(self, app, storage: Storage,
+                           tmp_kb_root: Path) -> None:
+        """Move a project to a different parent directory."""
+        from backend.readme_generator import ReadmeGenerator
+        tmpl = tmp_kb_root / "_templates" / "readme.md"
+        if not tmpl.exists():
+            tmpl.parent.mkdir(parents=True, exist_ok=True)
+            shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
+            tmpl.write_text(shipped.read_text())
+
+        gen = ReadmeGenerator(storage=storage, template_path=tmpl)
+        gen.rebuild("", name="MyKB", summary="test")
+
+        # Create parent A with a sub-project Child
+        (tmp_kb_root / "projects" / "ParentA" / "projects").mkdir(parents=True)
+        storage.write_readme("projects/ParentA", {}, dump_frontmatter(
+            {"id": "parent_a", "name": "ParentA", "summary": "parent a"},
+            "# ParentA",
+        ))
+        gen.rebuild("projects/ParentA")
+
+        # Create sub-project Child under ParentA
+        (tmp_kb_root / "projects" / "ParentA" / "projects" / "Child" / "common-knowledge").mkdir(parents=True)
+        storage.write_readme("projects/ParentA/projects/Child", {}, dump_frontmatter(
+            {"id": "child", "name": "Child", "summary": "child project"},
+            "# Child",
+        ))
+        gen.rebuild("projects/ParentA/projects/Child")
+
+        # Create a doc in Child with a ref
+        storage.write_document(
+            "projects/ParentA/projects/Child/common-knowledge/doc.md",
+            {"summary": "child doc"},
+            "ref to self: [doc](ref:projects/ParentA/projects/Child/common-knowledge/doc.md)",
+            auto_id=False,
+        )
+
+        # Create parent B
+        (tmp_kb_root / "projects" / "ParentB" / "projects").mkdir(parents=True)
+        storage.write_readme("projects/ParentB", {}, dump_frontmatter(
+            {"id": "parent_b", "name": "ParentB", "summary": "parent b"},
+            "# ParentB",
+        ))
+        gen.rebuild("projects/ParentB")
+
+        # Move Child from ParentA to ParentB
+        result = asyncio.run(app.call_tool(
+            "write__move_project",
+            {"project_rel": "projects/ParentA/projects/Child",
+             "target_parent_rel": "projects/ParentB"},
+        ))
+        text = _tool_text(result)
+        assert "已移动" in text
+
+        # Directory moved to ParentB
+        assert (tmp_kb_root / "projects" / "ParentB" / "projects" / "Child").is_dir()
+        assert not (tmp_kb_root / "projects" / "ParentA" / "projects" / "Child").exists()
+
+        # It should appear in ParentB's readme
+        parent_b_readme = storage.read_content("projects/ParentB/readme.md")
+        assert "Child" in parent_b_readme
+
 
 class TestCheckIntegrity:
     def test_runs_without_error(self, app) -> None:

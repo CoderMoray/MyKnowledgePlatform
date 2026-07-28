@@ -23,10 +23,10 @@
 - `mcp_server.py` — FastMCP 应用，自动 heartbeat 注入、路径校验（白名单 + 恢复指引）
 - 读 readme / 读全文 / 读全文+引用拼接 / 列目录（支持递归展开）/ 路径存在性检查 / 名称模糊搜索
 
-### Step 4 — 写入工具（write__ 共 6 个） ✅
+### Step 4 — 写入工具（write__ 共 7 个） ✅
 
 - `create_document`（支持 `dry_run` 预览 + `if_exists` 策略）/ `update_document` / `update_project_meta`
-- `delete_document` / `rename_project`（目录 mv + ref 替换 + rebuild）/ `rename_document`
+- `delete_document` / `rename_project`（目录 mv + ref 替换 + rebuild）/ `move_project`（跨父级移动）/ `rename_document`
 - 写入时自动：rebuild 父层 readme → rebuild 项目状态 → git commit
 - 写入时自动注入 `author` / `maintainer` frontmatter
 - 非 active 项目自动归档到 `archive/`
