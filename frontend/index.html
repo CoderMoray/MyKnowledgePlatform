@@ -348,18 +348,6 @@
             删除
           </button>
 
-          <!-- 新建按钮 -->
-          <button class="btn-new" x-show="$store.app.currentView !== 'view'"
-                  @click="$store.app.openModal('new-doc', { parentPath: $store.app.currentPath || '' })"
-                  :disabled="$store.app.isLocked">
-            <svg class="btn-new__icon" viewBox="0 0 16 16" fill="none"
-                 stroke="currentColor" stroke-width="1.5">
-              <line x1="8" y1="2" x2="8" y2="14"/>
-              <line x1="2" y1="8" x2="14" y2="8"/>
-            </svg>
-            新建
-          </button>
-
           <!-- 主题切换（仅 Raycast 显示） -->
           <div class="theme-switcher" x-show="$store.app.showColorMode">
             <button class="theme-switcher__btn"
