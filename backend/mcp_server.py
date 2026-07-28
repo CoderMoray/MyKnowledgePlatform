@@ -259,10 +259,12 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     # Determine target: if moving to root level (""), "projects", or "archive",
     # place directly under that; otherwise place under the target's projects/.
     target_stripped = target_parent_rel.rstrip("/")
-    if target_stripped in ("", "projects", "archive"):
-        new_rel = f"{target_stripped}/{project_name}".lstrip("/")
+    if target_stripped == "":
+        new_rel = f"projects/{project_name}"  # root level
+    elif target_stripped in ("projects", "archive"):
+        new_rel = f"{target_stripped}/{project_name}"
     else:
-        new_rel = f"{target_stripped}/projects/{project_name}".lstrip("/")
+        new_rel = f"{target_stripped}/projects/{project_name}"
     new_dir = kb_root / new_rel
     if new_dir.exists():
         raise FileExistsError(f"目标路径已存在: {new_rel}")
