@@ -263,6 +263,8 @@ Alpine.data("docComponent", () => ({
 
       // turndown 编码了 ref: 中的空格，还原
       markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");
+      // turndown 列表项多余空格：`-   text` → `- text`
+      markdown = markdown.replace(/^(\s*[-*+])\s{2,}/gm, "$1 ");
 
       const title = store.document?.title || "";
       // 如果正文已包含标题 h1，不再重复
