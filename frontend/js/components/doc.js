@@ -213,39 +213,30 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       if (store.isLocked) return;
       store.setView("edit", store.currentPath);
-      store.loadDocument(store.currentPath);
     },
 
     /** 点击外部 → 退出编辑并保存 */
     async exitEdit() {
       const store = Alpine.store("app");
-      if (store.currentView !== "edit") return;
+      if (store.currentView !== "edit" || !this.editorInstance) return;
 
-      // 从 TipTap 提取内容并保存
-      if (this.editorInstance && this.editorInstance.isEditable) {
-        const html = this.editorInstance.getHTML();
-        const tmp = document.createElement("div");
-        tmp.innerHTML = html;
-        const h1 = tmp.querySelector("h1");
-        const title = h1 ? h1.textContent.trim() : (this.titleValue || "");
-        if (h1) h1.remove();
-        const bodyHtml = tmp.innerHTML;
-
-        // 构造保存 payload
-        const payload = { content: `# ${title}\n\n${bodyHtml}`, summary: this.summaryValue || "" };
-        try {
-          await store.saveDocument(store.currentPath, payload);
-        } catch (e) {
-          // 保存失败不阻塞切换
-        }
-      }
-
-      // 销毁编辑器
-      if (this.editorInstance) {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
-      }
+      const html = this.editorInstance.getHTML();
+      this.editorInstance.destroy();
+      this.editorInstance = null;
       this.editorReady = false;
+
+      // 去掉 title h1（已在 header 显示），只保存正文
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      const h1 = tmp.querySelector("h1");
+      if (h1) h1.remove();
+      const bodyHtml = tmp.innerHTML;
+
+      const title = this.titleValue || store.document?.title || "";
+      try {
+        await store.saveDocument(store.currentPath, { content: `# ${title}\n\n${bodyHtml}`, summary: store.document?.summary || "" });
+      } catch (e) {}
+
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
     },

@@ -738,32 +738,21 @@
             </div>
             </div>
 
-            <!-- 正文: 编辑态 -->
+            <!-- 正文: 阅读态（点击可编辑） -->
+            <div x-show="$store.app.currentView === 'view'">
+            <div @click="enterEdit()" class="viewer__body-wrapper" style="cursor:text">
+            <div class="viewer__body markdown-body"
+                 id="viewer-content"
+                 x-html="$store.app.htmlContent">
+            </div>
+            </div>
+            </div>
+
+            <!-- 正文: 编辑态（TipTap 就地编辑） -->
             <div x-show="$store.app.currentView === 'edit'">
               <div class="editor-shell" @click.outside="exitEdit()">
-                <div class="editor-meta">
-                  <div class="editor-meta__row">
-                    <label class="editor-meta__label">标题</label>
-                    <div class="editor-meta__value">
-                      <input class="editor-meta__input" type="text"
-                             x-model="titleValue"
-                             placeholder="输入文档标题..."
-                             :disabled="$store.app.isLocked" />
-                    </div>
-                  </div>
-                  <div class="editor-meta__row">
-                    <label class="editor-meta__label">摘要</label>
-                    <div class="editor-meta__value">
-                      <input class="editor-meta__input" type="text"
-                             x-model="summaryValue"
-                             placeholder="简短描述..."
-                             :disabled="$store.app.isLocked" />
-                    </div>
-                  </div>
-                </div>
-
                 <!-- TipTap 工具栏 -->
-                <div class="editor-toolbar" x-show="editorReady" id="tiptap-toolbar">
+                <div class="editor-toolbar" id="tiptap-toolbar">
                   <button class="editor-toolbar__btn" title="标题1" data-action="toggleHeading" data-level="1">H1</button>
                   <button class="editor-toolbar__btn" title="标题2" data-action="toggleHeading" data-level="2">H2</button>
                   <button class="editor-toolbar__btn" title="标题3" data-action="toggleHeading" data-level="3">H3</button>
