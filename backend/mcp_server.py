@@ -71,6 +71,19 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     from backend.git_manager import GitManager
 
     kb_root = storage.kb_root
+
+    # ── Lock check ──────────────────────────────
+    if not _lock_file(kb_root).exists():
+        raise RuntimeError(
+            "错误：写锁不存在。\n\n"
+            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
+            "请按以下步骤修正：\n"
+            "  1. maint__acquire_lock\n"
+            "  2. maint__read_diff（处理待提交的变更）\n"
+            "  3. 确认变更后继续\n\n"
+            "完成这三步后再重新调用本工具。"
+        )
+
     old_dir = kb_root / old_rel
     if not old_dir.is_dir():
         raise FileNotFoundError(f"项目不存在: {old_rel}")
@@ -251,6 +264,19 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     from backend.readme_generator import ReadmeGenerator
 
     kb_root = storage.kb_root
+
+    # ── Lock check ──────────────────────────────
+    if not _lock_file(kb_root).exists():
+        raise RuntimeError(
+            "错误：写锁不存在。\n\n"
+            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
+            "请按以下步骤修正：\n"
+            "  1. maint__acquire_lock\n"
+            "  2. maint__read_diff（处理待提交的变更）\n"
+            "  3. 确认变更后继续\n\n"
+            "完成这三步后再重新调用本工具。"
+        )
+
     old_dir = kb_root / project_rel
     if not old_dir.is_dir():
         raise FileNotFoundError(f"项目不存在: {project_rel}")
