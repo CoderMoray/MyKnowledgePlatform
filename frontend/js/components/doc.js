@@ -262,6 +262,22 @@ Alpine.data("docComponent", () => ({
         while (p.firstChild) parent.insertBefore(p.firstChild, p);
         parent.removeChild(p);
       });
+      // TipTap 表格 → Markdown 表格（turndown 不认识 <table>）
+      tmp.querySelectorAll(".tableWrapper").forEach(wrapper => {
+        const table = wrapper.querySelector("table");
+        if (!table) return;
+        const rows = [];
+        table.querySelectorAll("tr").forEach(tr => {
+          const cells = [];
+          tr.querySelectorAll("th, td").forEach(c => cells.push(c.textContent.trim()));
+          rows.push("| " + cells.join(" | ") + " |");
+        });
+        if (rows.length > 0) {
+          const cols = table.querySelector("tr").querySelectorAll("th, td").length;
+          rows.splice(1, 0, "|" + " --- |".repeat(cols));
+        }
+        wrapper.outerHTML = "\n\n" + rows.join("\n") + "\n\n";
+      });
       const cleanHtml = tmp.innerHTML;
 
       // HTML → Markdown（turndown）

@@ -15,7 +15,7 @@ flowchart TB
         A2[Web UI ⏳]
     end
 
-    subgraph Agent["🤖 AI Agent Client (Enchante)"]
+    subgraph Agent["🤖 AI Agent Client<br/>(CodeBuddy / Trae / WorkBuddy 等)"]
         B[MCP Client]
     end
 
@@ -104,19 +104,21 @@ flowchart TD
 
     AcquireLock --> ReadKB["📖 导航阶段"]
     ReadKB -->|nav__read_readme| ReadRoot{"阅读根 readme<br/>了解项目结构"}
-    ReadRoot -->|有项目| ListProjects["nav__list_dir projects/<br/>列出所有项目"]
+    ReadRoot -->|有项目| ListProjects["nav__list_dir projects/ 列出项目<br/>或 nav__find 搜索 / nav__exists 确认"]
     ReadRoot -->|无项目| CreateFirst["write__create_document<br/>创建第一篇文档<br/>→ 自动创建项目"]
     ReadRoot -->|直接读文档| ReadDoc["nav__get_document<br/>或 nav__get_document_with_refs"]
 
-    ListProjects --> ReadMoreDocs["nav__get_document<br/>阅读具体文档"]
+    ListProjects --> Explore["nav__list_dir(recursive=True)<br/>递归展开目录树"]
+    Explore --> ReadMoreDocs["nav__get_document<br/>阅读具体文档"]
     CreateFirst --> ReadKB
 
     ReadMoreDocs --> Decide{"判断下一步"}
 
     Decide -->|"修改已有知识"| Update["✏️ write__update_document<br/>更新文档内容/summary"]
-    Decide -->|"新建知识"| Create["📄 write__create_document<br/>需指定路径和 summary"]
+    Decide -->|"新建知识"| Create["📄 write__create_document<br/>支持 dry_run 预览<br/>if_exists 控制覆盖行为"]
+    Decide -->|"删除文档"| Delete["🗑️ write__delete_document<br/>删除后 git 可恢复"]
     Decide -->|"改项目元信息"| ProjectMeta["📋 write__update_project_meta<br/>改 name / summary / status"]
-    Decide -->|"改名"| Rename{"改名类型"}
+    Decide -->|"改名/移动"| Rename{"改名还是移动？"}
     Decide -->|"读 diff"| ReadDiff["🔍 maint__read_diff<br/>读未处理的变更"]
     Decide -->|"验证完整性"| Validate["✅ maint__validate_doc<br/>检查 frontmatter + ref"]
     Decide -->|"重建索引"| Rebuild["🔄 maint__rebuild_index<br/>手动重建 readme + 索引"]
@@ -124,10 +126,13 @@ flowchart TD
     Decide -->|"导入"| Import["📥 share__import_share<br/>导入分享包"]
     Decide -->|"完成工作"| Release["🔓 maint__release_lock"]
 
-    Rename -->|"项目改名"| RenameProj["write__rename_project<br/>目录 + ref 全部替换"]
+    Rename -->|"项目改名（同级）"| RenameProj["write__rename_project<br/>目录 + ref 全部替换"]
+    Rename -->|"项目移动（换父级）"| MoveProj["write__move_project<br/>跨父级移动 + rebuild"]
     Rename -->|"文档改名"| RenameDoc["write__rename_document<br/>文件 + ref 全部替换"]
 
     Update --> WriteThrough["⏳ 自动流程：<br/>① write_document<br/>② gen.rebuild（更新 readme）<br/>③ gen.rebuild_project_status<br/>④ git commit<br/>⑤ broadcast（SSE 通知前端）"]
+    Create --> WriteThrough
+    Delete --> WriteThrough
     Create --> WriteThrough
     ProjectMeta --> WriteThrough
     RenameProj --> WriteThrough
@@ -152,11 +157,12 @@ flowchart TD
 | 步骤 | 工具 | 说明 |
 |------|------|------|
 | **🔒 加锁** | `maint__acquire_lock` | 必须先加锁才能写。无锁时写操作报错，引导 AI 执行维护流程 |
-| **📖 导航** | `nav__read_readme` / `nav__list_dir` | 了解知识库结构后再决定操作 |
-| **✏️ 写操作** | `write__create_document` / `write__update_document` / `write__update_project_meta` | 路径必须符合白名单（`common-knowledge/` / `projects/` / `archive/`） |
+| **📖 导航** | `nav__read_readme` / `nav__list_dir`（支持 `recursive`）/ `nav__exists` / `nav__find` | 先确认路径再操作，避免盲目翻目录 |
+| **✏️ 写操作** | `write__create_document`（`dry_run` 预览 / `if_exists` 策略）/ `write__update_document` / `write__update_project_meta` / `write__delete_document` | 路径必须符合白名单（`common-knowledge/` / `projects/` / `archive/`） |
+| **✏️ 改名/移动** | `write__rename_project` / `write__move_project` / `write__rename_document` | 改名同级，移动换父级，自动替换 ref |
 | **🔁 自动流程** | _write_through | 写完自动触发 rebuild + git commit + SSE broadcast |
 | **📦 归档** | 自动 | status 为非 active 时自动移入 archive/ |
-| **🔍 维护** | `maint__read_diff` / `maint__validate_doc` / `maint__rebuild_index` | 检查变更和完整性 |
+| **🔍 维护** | `maint__read_diff` / `maint__validate_doc` / `maint__rebuild_index` / `maint__check_integrity` | 检查变更、完整性和 GC 清理 |
 | **🔓 解锁** | `maint__release_lock` | AI 完成工作后释放锁 |
 
 ---
