@@ -1022,14 +1022,28 @@
        TipTap Init Script
        ════════════════════════════════════════════════════════════════════ -->
 
+  <script type="importmap">
+  {
+    "imports": {
+      "@tiptap/core": "https://cdn.jsdelivr.net/npm/@tiptap/core@2.1.13/+esm",
+      "@tiptap/starter-kit": "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.1.13/+esm",
+      "@tiptap/extension-link": "https://cdn.jsdelivr.net/npm/@tiptap/extension-link@2.1.13/+esm",
+      "@tiptap/extension-table": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table@2.1.13/+esm",
+      "@tiptap/extension-table-row": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-row@2.1.13/+esm",
+      "@tiptap/extension-table-cell": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-cell@2.1.13/+esm",
+      "@tiptap/extension-table-header": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-header@2.1.13/+esm"
+    }
+  }
+  </script>
+
   <script type="module">
-    import { Editor } from "https://esm.sh/@tiptap/core@2.1.13?pin=v135";
-    import StarterKit from "https://esm.sh/@tiptap/starter-kit@2.1.13?pin=v135";
-    import LinkExt from "https://esm.sh/@tiptap/extension-link@2.1.13?pin=v135";
-    import Table from "https://esm.sh/@tiptap/extension-table@2.1.13?pin=v135";
-    import TableRow from "https://esm.sh/@tiptap/extension-table-row@2.1.13?pin=v135";
-    import TableCell from "https://esm.sh/@tiptap/extension-table-cell@2.1.13?pin=v135";
-    import TableHeader from "https://esm.sh/@tiptap/extension-table-header@2.1.13?pin=v135";
+    import { Editor } from "@tiptap/core";
+    import StarterKit from "@tiptap/starter-kit";
+    import LinkExt from "@tiptap/extension-link";
+    import Table from "@tiptap/extension-table";
+    import TableRow from "@tiptap/extension-table-row";
+    import TableCell from "@tiptap/extension-table-cell";
+    import TableHeader from "@tiptap/extension-table-header";
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };
