@@ -58,9 +58,17 @@ class TestValidateDoc:
 
     def test_nonexistent(self, app_with_git) -> None:
         result = asyncio.run(app_with_git.call_tool(
-            "maint__validate_doc", {"path": "nope.md"}))
+            "maint__validate_doc", {"path": "common-knowledge/nope.md"}))
         text = _tool_text(result)
         assert "✗" in text
+
+    def test_invalid_format(self, app_with_git) -> None:
+        """Path without valid prefix should also return a controlled error."""
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__validate_doc", {"path": "nope.md"}))
+        text = _tool_text(result)
+        # The error message contains recovery instructions
+        assert "common-knowledge" in text or "projects" in text
 
 
 class TestReadDiff:

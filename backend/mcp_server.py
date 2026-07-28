@@ -895,7 +895,10 @@ def create_mcp_app(storage: Storage,
         Returns:
             Validation report (issues listed, or "✓ 格式正常").
         """
-        _validate_path(path, kind="file", storage=storage)
+        try:
+            _validate_path(path, kind="file", storage=storage)
+        except ValueError as e:
+            return f"✗ {e}"
         try:
             meta, body = storage.read_document(path)
         except FileNotFoundError:
@@ -1171,16 +1174,16 @@ def create_mcp_app(storage: Storage,
 - 项目目录从 `projects/` 自动移入 `archive/`
 - 无需手动操作
 
-### 五、对话中
+### 六、对话中
 
 正常交互，需要时调对应的 MCP 工具：
-- **导航**：`nav__read_readme` → `nav__list_dir` → `nav__get_document_with_refs`
-- **写**：`write__create_document` / `write__update_document` / `write__update_project_meta`
+- **导航**：`nav__read_readme` → `nav__list_dir` → `nav__exists` → `nav__find` → `nav__get_document_with_refs`
+- **写**：`write__create_document`(支持 `dry_run=True` 预览 + `if_exists="error|skip|overwrite"`) / `write__update_document` / `write__update_project_meta`
 - **改名**：`write__rename_project` / `write__rename_document`
 - **维护**：`maint__validate_doc` / `maint__rebuild_index`
 - **分享**：`share__publish` / `share__import_share`
 
-### 六、结束前
+### 七、结束前
 完成所有工作后：
 1. `maint__release_lock`（自动更新 checkpoint）
 2. 告知用户「知识库已同步」

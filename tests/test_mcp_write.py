@@ -48,8 +48,59 @@ class TestCreateDocument:
             "path": "common-knowledge/d.md",
             "content": "body",
         }))
-        doc_id = _tool_text(result)
-        assert doc_id.startswith("doc_")
+        text = _tool_text(result)
+        # New format: "✅ 已创建 ... → id: doc_20260729_xxxx"
+        assert "id: doc_" in text
+
+    def test_dry_run(self, app, storage: Storage) -> None:
+        """dry_run=True should not create the file."""
+        result = asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/dry-run-test.md",
+            "content": "# Dry Run",
+            "summary": "should not appear",
+            "dry_run": True,
+        }))
+        text = _tool_text(result)
+        assert "Dry-run" in text
+        # File should NOT have been written
+        assert not (storage.kb_root / "common-knowledge" / "dry-run-test.md").exists()
+
+    def test_if_exists_error(self, app, storage: Storage) -> None:
+        """if_exists='error' should raise when file exists."""
+        path = "common-knowledge/exists-error.md"
+        # First create
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": path,
+            "content": "# First",
+        }))
+        # Second attempt with if_exists='error'
+        import pytest as _pt
+        with _pt.raises(Exception):
+            asyncio.run(app.call_tool("write__create_document", {
+                "path": path,
+                "content": "# Second",
+                "if_exists": "error",
+            }))
+
+    def test_if_exists_skip(self, app, storage: Storage) -> None:
+        """if_exists='skip' should not overwrite when file exists."""
+        path = "common-knowledge/exists-skip.md"
+        # First create
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": path,
+            "content": "# Original content",
+        }))
+        # Second attempt with if_exists='skip'
+        result = asyncio.run(app.call_tool("write__create_document", {
+            "path": path,
+            "content": "# New content that should not appear",
+            "if_exists": "skip",
+        }))
+        text = _tool_text(result)
+        assert "跳过" in text
+        # Verify file content was NOT overwritten
+        meta, body = storage.read_document(path)
+        assert "# Original content" in body
 
     def test_triggers_rebuild(self, app, storage: Storage) -> None:
         asyncio.run(app.call_tool("write__create_document", {
