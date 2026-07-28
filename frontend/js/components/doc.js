@@ -247,9 +247,11 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // 修复 TipTap Link：direct DOM 取 href（getHTML 会序列化失败）
-      this.editorInstance.view.dom.querySelectorAll("a[href]").forEach((a, i) => {
-        a.setAttribute("data-myk-href", a.getAttribute("href") || a.href || "");
+      // 修复 TipTap Link：优先用 resolved href 属性
+      this.editorInstance.view.dom.querySelectorAll("a[href]").forEach(a => {
+        const raw = a.getAttribute("href");
+        const href = (raw && !raw.startsWith("[object")) ? raw : (a.href || "");
+        a.setAttribute("data-myk-href", href);
       });
 
       // 预处理 TipTap HTML
@@ -283,9 +285,9 @@ Alpine.data("docComponent", () => ({
           const cols = table.querySelector("tr").querySelectorAll("th, td").length;
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
-        const marker = "<!--MYTABLE_" + idx + "-->";
-        tableMarkers.push("\n\n" + rows.join("\n") + "\n\n");
-        wrapper.replaceWith(document.createTextNode(marker));
+        const marker = document.createComment("MYTABLE_" + idx);
+        tableMarkers.push({ idx, md: "\n\n" + rows.join("\n") + "\n\n" });
+        wrapper.replaceWith(marker);
       });
       // 修复链接 href
       tmp.querySelectorAll("a").forEach(a => {
@@ -309,7 +311,7 @@ Alpine.data("docComponent", () => ({
       let markdown = td.turndown(cleanHtml);
 
       // 还原表格标记 → 实际 Markdown 表格
-      tableMarkers.forEach((md, idx) => {
+      tableMarkers.forEach(({ idx, md }) => {
         markdown = markdown.replace("<!--MYTABLE_" + idx + "-->", md);
       });
 
