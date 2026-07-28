@@ -1,6 +1,6 @@
 # MyKnowledge 前端实现状态
 
-> 最后更新：2026-07-27 14:22
+> 最后更新：2026-07-28 16:52
 > 设计决策详见：`docs/FRONTEND_INTERACTION_FEEDBACK.md`（设计原文备查，包含补充分支场景与讨论过程）
 
 ---
@@ -104,13 +104,14 @@
 
 ## ⏸️ 未开始
 
-### C1. 合并 #view + #edit → #doc/{path}
-- 锁定时只读 marked 渲染，未锁时 TipTap 可编辑
-- **设计约定**（D2）：header 右侧布局，编辑/删除/只读/编辑中四种状态按钮切换
-  - 编辑按钮：透明蓝字 → hover 蓝底蓝字
-  - 删除按钮：浅橙框字 → hover 红底白字（醒目警示）
-  - 锁定态：按钮隐藏，红色「只读」标签
-  - 编辑中：绿色「编辑中」标签，编辑按钮切换为「保存」，删除按钮隐藏
+### C1. 合并 #view + #edit → #doc/{path} ✅ 已完成
+- 路由 `#view/{path}` 和 `#edit/{path}` 已删除，仅保留 `#doc/{path}`
+- `editorComponent` + `viewerComponent` → 统一 `docComponent`
+- `editingMode` store 状态控制：false→marked 只读 / true→TipTap 编辑
+- 编辑切换不再通过路由跳转，改为 `editingMode = true`（点击正文触发）
+- 工具栏：只读态显示 [编辑] [删除]，编辑态显示 [放弃] [保存]
+- Sidebar `systemStatus` 改用 `editingMode` 判断 🟡 用户编辑中
+- 后续增强（拖拽、斜杠命令）留待 Step 2
 
 ### C2. 文档卡片 hover 浮出操作按钮
 - hover 时右上角浮出「重命名」+「✕ 删除」（0.18s 淡入+上移），删除需二次确认弹窗
@@ -161,3 +162,19 @@
 |------|------|:--:|
 | 刷新闪黑 | 暗色系统+亮色主题时，刷新瞬间闪黑 | 浏览器级，前端不可控 |
 | 刷新一帧旧页面 | 刷新时旧页面内容闪现一帧 | 待研究 bfcache/pageshow |
+
+## ⚠️ 回退记录（2026-07-28 16:48）
+
+因 `git checkout HEAD -- frontend/` 误操作，以下今日完成的修改全部丢失：
+
+| 丢掉的改进 | 状态 |
+|-----------|:----:|
+| viewer__summary 移入 header、加「摘要」标签 | ❌ 需重做 |
+| ref 链接 hover 浮出卡片（向上浮现动画） | ❌ 需重做 |
+| 编辑态点击区域外退回只读 | ❌ 需重做 |
+| dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 需重做 |
+| app.js 拆分为 components/ | ❌ 需重做 |
+| build.py 增加 JS 语法检查 + CDN 可达性检查 | ❌ 需重做 |
+| utils.js 删除死代码 md5（已恢复） | ❌ 需重做 |
+
+已确认 HEAD 代码可以正常运行，页面可进入。

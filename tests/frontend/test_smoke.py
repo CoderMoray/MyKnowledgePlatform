@@ -307,7 +307,66 @@ class TestBuild:
         assert result.returncode == 0, f"Build failed:\n{result.stderr}"
         output = build_dir / "index.standalone.html"
         assert output.exists()
-        # 验证关键内容存在
         content = output.read_text()
-        assert "alpinejs" in content
-        assert "x-cloak" in content
+
+        # ── CDN 依赖 ──
+        checks = {
+            "Alpine.js": "alpinejs@3",
+            "marked": "marked@11",
+            "highlight.js": "highlight.js@11",
+            "Turndown": "turndown@7",
+            "TipTap": "@tiptap/core",
+            "TipTap StarterKit": "@tiptap/starter-kit",
+        }
+        for label, pattern in checks.items():
+            assert pattern in content, f"Missing CDN: {label}"
+
+        # ── 全局函数 ──
+        funcs = [
+            "marked.parse", "class Router", "Alpine.store",
+            "loadDocument", "formatDate", "extractDisplayName",
+            "statusLabel", "fileName", "escapeHtml",
+            "_mykRefClick", "_mykSplash",
+        ]
+        for fn in funcs:
+            assert fn in content, f"Missing function: {fn}"
+
+        # ── 路由 ──
+        routes = ["dashboard", "project", "doc", "status"]
+        for r in routes:
+            assert f'router.on("{r}' in content or f"router.on('{r}" in content, \
+                f"Missing route: #{r}"
+
+        # ── 组件 ──
+        components = [
+            "dashboardComponent", "projectComponent",
+            "viewerComponent", "editorComponent", "sidebarComponent",
+        ]
+        for c in components:
+            assert c in content, f"Missing component: {c}"
+
+        # ── UI 元素 ──
+        elements = [
+            "class=\"splash\"", "id=\"splashBar\"",
+            "class=\"page-splash", "id=\"pageSplashBar\"",
+            "class=\"sidebar\"", "class=\"content-panel\"",
+            "class=\"page-label\"", "class=\"project-panel\"",
+        ]
+        for el in elements:
+            assert el in content, f"Missing element: {el}"
+
+        # ── 关键文本 ──
+        texts = [
+            "知识库版本", "知识", "子项目", "归档",
+            "用户使用中", "用户编辑中", "AI 编辑中",
+            "已完成", "已取消", "已废弃",
+        ]
+        for t in texts:
+            assert t in content, f"Missing text: {t}"
+
+        # ── x-cloak ──
+        assert "[x-cloak]{display:none!important}" in content.replace(" ", ""), \
+            "Missing x-cloak inline CSS"
+
+        # ── 路由跳转目标 ──
+        assert 'hash = `doc/' in content, "goToDocument not pointing to #doc/"
