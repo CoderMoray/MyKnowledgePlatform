@@ -6,6 +6,9 @@
 """
 
 import re
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 FRONTEND = Path(__file__).parent
@@ -55,17 +58,17 @@ def build() -> None:
             print(f"  SKIP  css/{css_file} (not referenced in index.html)")
 
     # ── 内联 JS ──
-    js_files = sorted(JS_DIR.glob("*.js"))
+    js_files = sorted(JS_DIR.glob("*.js")) + sorted((JS_DIR / "components").glob("*.js"))
     for js_path in js_files:
         content = read_file(js_path)
+        rel_path = str(js_path.relative_to(FRONTEND))
         pattern = re.compile(
-            rf'<script\s+[^>]*src=["\']js/{re.escape(js_path.name)}["\'][^>]*>\s*</script>',
+            rf'<script\s+[^>]*src=["\']{re.escape(rel_path)}["\'][^>]*>\s*</script>',
             re.IGNORECASE,
         )
         if pattern.search(html):
-            # Use lambda to avoid regex interpreting \s etc. in replacement
-            html = pattern.sub(lambda m: f"<script>\n/* {js_path.name} */\n{content}\n</script>", html, count=1)
-            print(f"  OK    js/{js_path.name}")
+            html = pattern.sub(lambda m: f"<script>\n/* {rel_path} */\n{content}\n</script>", html, count=1)
+            print(f"  OK    {rel_path}")
         else:
             print(f"  SKIP  js/{js_path.name} (not referenced in index.html)")
 
@@ -80,3 +83,53 @@ def build() -> None:
 if __name__ == "__main__":
     print("MyKnowledge frontend build\n")
     build()
+
+    # ── JS 语法检查 ──
+    import tempfile
+
+    with open(OUTPUT, "r", encoding="utf-8") as f:
+        html = f.read()
+    codes = []
+    for m in re.finditer(r"<script>([\s\S]*?)</script>", html):
+        code = m.group(1).strip()
+        if len(code) > 100:
+            codes.append(code)
+    with tempfile.NamedTemporaryFile(suffix=".js", mode="w", delete=False) as f:
+        f.write("\n".join(codes))
+        tmp = f.name
+    ret = subprocess.run(["node", "--check", tmp], capture_output=True, text=True)
+    Path(tmp).unlink()
+    if ret.returncode != 0:
+        print(f"\n  ✗  JS 语法错误:\n{ret.stderr}")
+        sys.exit(1)
+    else:
+        print(f"\n  ✓  JS 语法正确 ({len(codes)} 个脚本块)")
+
+    # ── CDN 可达性检查 ──
+    print("\n── CDN 检查 ──")
+    cdn_urls = set()
+    for m in re.finditer(r'"(https?://(?:cdn\.jsdelivr\.net|esm\.sh)/[^"]+)"', html):
+        cdn_urls.add(m.group(1))
+    checked = 0
+    failed = 0
+    for url in sorted(cdn_urls):
+        if "alpinejs" in url:
+            continue
+        try:
+            r = subprocess.run(
+                ["curl", "-sI", "--connect-timeout", "3", url],
+                capture_output=True, text=True, timeout=5
+            )
+            status = r.stdout.split()[1] if r.stdout else "000"
+            if status in ("200", "301", "302", "304"):
+                checked += 1
+            else:
+                print(f"  ✗  {url} → {status}")
+                failed += 1
+        except Exception as e:
+            print(f"  ?  {url} → {e}")
+            failed += 1
+    if failed:
+        print(f"  ⚠  {failed}/{checked + failed} 个 CDN 不可达")
+    else:
+        print(f"  ✓  {checked} 个 CDN 全部可达")

@@ -80,6 +80,11 @@
   <script src="js/store.js"></script>
   <script src="js/router.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/components/doc.js"></script>
+  <script src="js/components/sidebar.js"></script>
+  <script src="js/components/modal.js"></script>
+  <script src="js/components/dashboard.js"></script>
+  <script src="js/components/project.js"></script>
 </head>
 
 <body
@@ -775,7 +780,7 @@
 
         <!-- ═══ Document View (阅读) ══════════════════════════════════════ -->
         <div x-show="$store.app.currentView === 'view'"
-             x-data="viewerComponent" x-cloak>
+             x-data="docComponent" x-cloak>
 
           <!-- 工具栏 -->
           <div class="viewer__toolbar">
@@ -835,11 +840,12 @@
                   <span x-text="formatDateFull($store.app.document?.updated_at)"></span>
                 </div>
               </div>
-            </div>
 
-            <!-- 摘要 -->
-            <div class="viewer__summary" x-show="$store.app.document?.summary">
-              <span x-text="$store.app.document?.summary"></span>
+              <!-- 摘要（带标签） -->
+              <div class="viewer__summary" x-show="$store.app.document?.summary">
+                <span class="viewer__summary-label">摘要</span>
+                <span x-text="$store.app.document?.summary"></span>
+              </div>
             </div>
 
             <!-- 正文 -->
