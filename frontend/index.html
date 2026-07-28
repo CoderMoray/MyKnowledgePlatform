@@ -738,16 +738,6 @@
             </div>
             </div>
 
-            <!-- 正文: 阅读态（点击可编辑） -->
-            <div x-show="$store.app.currentView === 'view'">
-            <div @click="enterEdit()" class="viewer__body-wrapper" style="cursor:text">
-            <div class="viewer__body markdown-body"
-                 id="viewer-content"
-                 x-html="$store.app.htmlContent">
-            </div>
-            </div>
-            </div>
-
             <!-- 正文: 编辑态（TipTap 就地编辑） -->
             <div x-show="$store.app.currentView === 'edit'">
               <div class="editor-shell" @click.outside="exitEdit()">
