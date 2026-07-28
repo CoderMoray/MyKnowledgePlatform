@@ -1023,11 +1023,13 @@
        ════════════════════════════════════════════════════════════════════ -->
 
   <script type="module">
-    import { Editor } from "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.1.13/+esm";
-    import StarterKit from "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.1.13/+esm";
+    import { Editor } from "https://esm.sh/@tiptap/core@2.1.13";
+    import StarterKit from "https://esm.sh/@tiptap/starter-kit@2.1.13";
+    import LinkExt from "https://esm.sh/@tiptap/extension-link@2.1.13";
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };
+    window.TipTapLink = LinkExt;
 
     window._mykBindToolbar = function (editor) {
       if (!editor) return;
