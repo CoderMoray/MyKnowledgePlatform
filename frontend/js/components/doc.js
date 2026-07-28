@@ -263,7 +263,9 @@ Alpine.data("docComponent", () => ({
         parent.removeChild(p);
       });
       // TipTap 表格 → Markdown 表格（turndown 不认识 <table>）
-      tmp.querySelectorAll(".tableWrapper").forEach(wrapper => {
+      const wrappers = tmp.querySelectorAll(".tableWrapper");
+      console.log("[save] tableWrappers found:", wrappers.length);
+      wrappers.forEach(wrapper => {
         const table = wrapper.querySelector("table");
         if (!table) return;
         const rows = [];
@@ -276,7 +278,8 @@ Alpine.data("docComponent", () => ({
           const cols = table.querySelector("tr").querySelectorAll("th, td").length;
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
-        wrapper.outerHTML = "\n\n" + rows.join("\n") + "\n\n";
+        const mdTable = "\n\n" + rows.join("\n") + "\n\n";
+        wrapper.replaceWith(document.createTextNode(mdTable));
       });
       const cleanHtml = tmp.innerHTML;
 
