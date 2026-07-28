@@ -209,9 +209,13 @@ Alpine.data("docComponent", () => ({
     /* --- 编辑态 --- */
 
     /** 点击正文 → 进入编辑 */
-    enterEdit() {
+    async enterEdit() {
       const store = Alpine.store("app");
       if (store.isLocked) return;
+      // 内容为空时重新加载（首次进入 ESM 模块可能还没准备好）
+      if (!store.htmlContent || !store.htmlContent.trim()) {
+        await store.loadDocument(store.currentPath);
+      }
       store.setView("edit", store.currentPath);
       // TipTap DOM 渲染后才创建编辑器
       this.$nextTick(() => this.initEditor());

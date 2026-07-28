@@ -604,8 +604,10 @@ def create_mcp_app(storage: Storage,
         """
         results = storage.find_by_name(keyword, scope)
         if not results:
-            return f"未找到匹配「{keyword}」的项目或文档。\n\n"
-            "尝试换一个关键词，或调 nav__list_dir(project_rel=\"projects\") 浏览所有项目。"
+            return (
+                f"未找到匹配「{keyword}」的项目或文档。\n\n"
+                "尝试换一个关键词，或调 nav__list_dir(project_rel=\"projects\") 浏览所有项目。"
+            )
 
         lines = ["类型             路径                    修改日期"]
         lines.append("─" * 80)
@@ -1024,7 +1026,6 @@ def create_mcp_app(storage: Storage,
             return f"✓ 已重建: {project_rel or 'root'}"
         return "生成器未就绪"
 
-    @mcp.tool()
     @mcp.tool()
     def nav__get_document_with_refs(path: str) -> str:
         """[nav] Read a document and append referenced content.

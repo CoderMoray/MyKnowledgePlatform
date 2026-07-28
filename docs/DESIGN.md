@@ -1,8 +1,8 @@
 # MyKnowledge v2 详细设计文档（Design Spec）
 
 > 状态：v0.5 定稿
-> 日期：2026-07-24
-> 对应实现：backend/ 15 个 MCP 工具 + CLI + 118 项测试
+> 日期：2026-07-29
+> 对应实现：backend/ 20 个 MCP 工具 + CLI + 150 项测试
 
 ---
 
@@ -47,7 +47,7 @@
 
 - 纯 Markdown（人类可读、可手改、可带走）
 - Git 原生版本化与可审计
-- 原生 MCP、agent-first（15 个工具，write-through + 锁/checkpoint 维护机制）
+- 原生 MCP、agent-first（20 个工具，write-through + 锁/checkpoint 维护机制）
 - 企业合规（不内置 LLM，数据不出域，接入可审计）
 - OSS 自账号云同步 + 加密分享包（归属仍在企业自己账号）
 
@@ -368,9 +368,11 @@ create_document / update_document（agent 调 MCP）
 - `archive/` 不再只是"导航加速"，而是**非活跃项目的物理归宿**。
 - 每个归档项目在 `archive/` 下保持其完整结构（`readme.md` + `common-knowledge/`）。
 
-**MCP 工具清单（完整见 5 节末，共 15 个）**：
+**MCP 工具清单（完整见 5 节末，共 20 个）**：
 
 > **没有 `write_readme` 工具。** Readme 是派生数据，AI 不应直接写入正文。
+>
+> **新增：** `nav__exists`（路径存在性检查）、`nav__find`（名称模糊搜索）、`nav__list_dir` 的 `recursive` 参数、`write__create_document` 的 `dry_run` 预览与 `if_exists` 策略。
 
 ### 2.5.9 会话锁定与维护流程
 
@@ -556,9 +558,9 @@ Agent 语义层（读取报告后，用户交互）：
 
 | 阶段 | MyKnowledge 实现 |
 |------|------------------|
-| 取 | MCP `list_dir` / `read_readme` / `get_document`；agent 从根 readme 起语义递归下钻 |
+| 取 | MCP `nav__list_dir`（支持 `recursive`）/ `nav__read_readme` / `nav__get_document` / `nav__exists` / `nav__find`；agent 从根 readme 起语义递归下钻 |
 | 用 | **由 agent client 完成** |
-| 存 | MCP `create_document` / `update_document` / `update_project_meta`，自动 write-through + git commit |
+| 存 | MCP `write__create_document`（支持 `dry_run` + `if_exists`）/ `write__update_document` / `write__update_project_meta`，自动 write-through + git commit |
 | 云 | 可选：OSS 定时同步 / 更新即上传 |
 
 ---
@@ -597,7 +599,7 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 └──────────────────┬─────────────────────┘
                    │ MCP 协议 (stdio)
 ┌──────────────────▼─────────────────────┐
-│              mcp_server.py              │ ← 15 个 MCP 工具
+│              mcp_server.py              │ ← 20 个 MCP 工具
 │   storage.py  ·  readme_generator.py   │
 │   config.py   ·  git_manager.py        │
 │   share.py    ·  cli.py                │
@@ -624,17 +626,19 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 
 > **不引入**：任何 LLM/推理框架、向量数据库。
 
-### MCP 工具清单（共 18 个）
+### MCP 工具清单（共 20 个）
 
 按前缀分组。建议 agent client 显式配置只暴露需要的分组，减少工具干扰。
 
 | 分组 | 工具 | 说明 |
 |------|------|------|
-| `nav:` (4) | `nav__read_readme` | 读路由索引 |
-| | `nav__list_dir` | 列目录 |
+| `nav:` (6) | `nav__read_readme` | 读路由索引 |
+| | `nav__list_dir` | 列目录（支持 `recursive=True` 递归展开） |
+| | `nav__exists` | 一次性确认路径是否存在 |
+| | `nav__find` | 按名称模糊搜索（不区分大小写，支持 scope） |
 | | `nav__get_document` | 读全文 |
 | | `nav__get_document_with_refs` | 读全文 + 拼接引用 |
-| `write:` (6) | `write__create_document` | 新建知识 |
+| `write:` (6) | `write__create_document` | 新建知识（支持 `dry_run` 预览 + `if_exists` 策略） |
 | | `write__update_document` | 更新知识 |
 | | `write__update_project_meta` | 改项目 frontmatter |
 | | `write__delete_document` | 删除文档 |
@@ -673,7 +677,7 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 
 `ReadmeGenerator.rebuild()` 首次为项目建立 readme 时，自动创建 `common-knowledge/`、`projects/`、`archive/` 子目录。无需手动初始化。
 
-> **待办**：MCP 协议目前无原生工具分组功能。如后续协议支持，将按组分别暴露。
+> **当前**：MCP 协议无原生工具分组，当前用前缀命名（`nav__` / `write__` / `maint__` / `share__`）模拟分组。如后续协议支持分组暴露，可按组分别注册。
 
 ---
 
@@ -767,7 +771,7 @@ SSE /api/events                ← 纯 HTTP
 
 - **Phase 0（已完成）**：PRD + 设计文档
 - **Phase 1（已完成）**：`storage.py`, `git_manager.py`, `readme_generator.py`, `_templates/`
-- **Phase 2（已完成）**：15 个 MCP 工具 + `cli.py`（init/mcp/check/login/whoami）
+- **Phase 2（已完成）**：20 个 MCP 工具 + `cli.py`（init/mcp/check/login/whoami）
 - **Phase 4（已完成）**：`share.py`（publish / import_share / 加密 / 合并 / --with-context）
 - **Phase 7（已完成）**：按 `maintainer` + 字节对比的文件级合并
 - **Phase 3** — Web UI 最小闭环（`main.py` FastAPI）
