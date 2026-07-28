@@ -213,6 +213,8 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       if (store.isLocked) return;
       store.setView("edit", store.currentPath);
+      // TipTap DOM 渲染后才创建编辑器
+      this.$nextTick(() => this.initEditor());
     },
 
     /** 点击外部 → 退出编辑并保存 */
