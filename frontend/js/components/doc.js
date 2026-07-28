@@ -247,6 +247,11 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
+      // 修复 TipTap Link：direct DOM 取 href（getHTML 会序列化失败）
+      this.editorInstance.view.dom.querySelectorAll("a[href]").forEach((a, i) => {
+        a.setAttribute("data-myk-href", a.getAttribute("href") || a.href || "");
+      });
+
       // 预处理 TipTap HTML
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
@@ -263,8 +268,9 @@ Alpine.data("docComponent", () => ({
         while (p.firstChild) parent.insertBefore(p.firstChild, p);
         parent.removeChild(p);
       });
-      // TipTap 表格 → Markdown 表格
-      tmp.querySelectorAll(".tableWrapper").forEach(wrapper => {
+      // TipTap 表格 → 标记占位（turndown 会吃掉 \n）
+      const tableMarkers = [];
+      tmp.querySelectorAll(".tableWrapper").forEach((wrapper, idx) => {
         const table = wrapper.querySelector("table");
         if (!table) return;
         const rows = [];
@@ -277,14 +283,14 @@ Alpine.data("docComponent", () => ({
           const cols = table.querySelector("tr").querySelectorAll("th, td").length;
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
-        wrapper.replaceWith(document.createTextNode("\n\n" + rows.join("\n") + "\n\n"));
+        const marker = "<!--MYTABLE_" + idx + "-->";
+        tableMarkers.push("\n\n" + rows.join("\n") + "\n\n");
+        wrapper.replaceWith(document.createTextNode(marker));
       });
-      // TipTap Link 修复：ProseMirror DOM 中 href 可能是对象，从实际的 a 标签取
-      tmp.querySelectorAll("a[href]").forEach(a => {
-        const href = a.getAttribute("href");
-        if (href && href !== "null" && !href.startsWith("ref:") && !href.startsWith("[object")) {
-          a.setAttribute("href", href);
-        }
+      // 修复链接 href
+      tmp.querySelectorAll("a").forEach(a => {
+        const real = a.getAttribute("data-myk-href");
+        if (real && !real.startsWith("ref:")) a.setAttribute("href", real);
       });
       const cleanHtml = tmp.innerHTML;
 
@@ -301,6 +307,11 @@ Alpine.data("docComponent", () => ({
         }
       });
       let markdown = td.turndown(cleanHtml);
+
+      // 还原表格标记 → 实际 Markdown 表格
+      tableMarkers.forEach((md, idx) => {
+        markdown = markdown.replace("<!--MYTABLE_" + idx + "-->", md);
+      });
 
       // turndown 后处理
       markdown = markdown.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/%20/g, " ") + ")");

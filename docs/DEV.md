@@ -36,7 +36,10 @@
 - `validate_doc` / `read_diff` / `check_integrity`
 - `rebuild_index` — 手动重建 readme
 - `nav__maintenance_procedure` prompt — 会话开始时的自动维护流程
-- `.lock` 机制 — AI 写锁（5 分钟超时，Web UI 检查 423 Locked）
+- `.lock` 机制 — 写锁（5 分钟超时，Web UI 检查 423 Locked）
+  - v0.5 改进：**写操作自动加解锁**，每个 `write__*` 工具执行前后自动 acquire/release
+  - 不再需要手动调 `maint__acquire_lock` / `maint__release_lock` 包裹写操作
+  - 只读流程结束后仍可手动调 `release_lock` 更新 checkpoint
 
 ### Step 6 — CLI 入口 ✅
 

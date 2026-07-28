@@ -383,26 +383,28 @@ create_document / update_document（agent 调 MCP）
 #### 锁定机制
 
 ```
-~/.myknowledge/.lock    ← 存在表示 AI 正在操作
+~/.myknowledge/.lock    ← 存在表示 AI（或 Web UI）正在操作
 格式：<PID>:<timestamp>  （进程ID:写入时间）
 ```
 
-- AI 启动工作时创建 `.lock`
-- 完成工作后删除 `.lock`
+- **写操作自动加解锁**（v0.5 改进）：每个 MCP 写工具（`write__*`）在执行开始时自动调 `acquire_lock()`，执行结束后自动调 `release_lock()`。三步在一个工具调用内完成：
+  ```
+  acquire_lock → 执行写入 → rebuild → commit → broadcast → release_lock
+  ```
+- `acquire_lock()` 仅在 `.lock` 不存在时创建文件（已持有锁时静默跳过）
+- `release_lock()` 总是删除 `.lock` 文件，并在 `agent-commit.txt` 中记录当前 HEAD 作为 checkpoint
+- `maint__acquire_lock` / `maint__release_lock` 仍可用于只读流程（如 Review diff 后不想继续写时手动释放）
 - Web UI 写接口检查 `.lock`：
-  - 存在（5分钟内）→ 只读模式，提示「AI 正在操作」
+  - 存在（5分钟内）→ 只读模式，返回 423 Locked
   - 存在（超过5分钟）→ 视为死锁，清除后继续
   - 不存在 → 正常写入
 - 锁不阻止读取，只阻止写入
-- **所有 MCP 写工具（`write__*`）在执行前硬检查 `.lock` 是否存在**
-  → 不存在则报错，强制 AI 先走 `acquire_lock` → `read_diff` 流程
-- **Web UI 写接口**读取 `.lock`，存在且未过期 → 返回 423 Locked
 
 #### commit 策略
 
 | 场景 | 谁写文件 | 谁 commit | commit 时机 |
 |------|---------|-----------|------------|
-| AI 经 MCP 修改 | AI | AI | 每次修改后立即 commit |
+| AI 经 MCP 修改 | AI | AI | 每次修改后立即 commit（write-through） |
 | Web UI 人修改 | 人 | **不做** | 留 dirty 等 AI 处理 |
 | 人直接改文件 | 人 | 人（可选） | checkpoint 记录 AI 最后处理点 |
 
@@ -410,19 +412,20 @@ create_document / update_document（agent 调 MCP）
 
 每次对话开始时，AI 按 `nav__maintenance_procedure` prompt 执行：
 
-1. **检查 `.lock`**（超时死锁则清除）
-2. **调 `maint__read_diff`** 对比 `checkpoint..HEAD`
-3. 无差异 → 正常开始
-4. 有差异 → 读 diff → 校验 frontmatter → 修复 → 重建索引 → 更新 checkpoint
-5. 结束对话前 commit 并更新 checkpoint
+1. **调 `maint__read_diff`** 对比 `checkpoint..HEAD`
+2. 无差异 → 正常开始
+3. 有差异 → 读 diff → 校验 frontmatter → 修复 → 重建索引 → 更新 checkpoint
+
+> **注意**：v0.5 起不再需要手动调 `maint__acquire_lock` / `maint__release_lock` 包裹写操作。写工具自动处理加解锁。
+> 只读流程（`maint__read_diff` → review → 确认无写需要）结束时可手动调 `release_lock` 更新 checkpoint。
 
 #### 人工编辑文件后的检修机制（旧版场景保留）
 
 **场景 1 — Agent 经 MCP 写入**（正常路径）
-- 同上 2.5.8，write-through 保证索引新鲜。
+- 同 2.5.8 write-through，自动加解锁 + 索引刷新。
 
 **场景 2 — 用户经 Web UI 编辑**（受控路径）
-- 走同一 FastAPI 后端 → 同 write-through 流程。
+- 走同一 FastAPI 后端 → 同 write-through 流程，但 Web UI 写操作不自动加解锁（由 AI 的 .lock 保护）。
 - Web UI 只提供「保存」，不暴露「commit」功能，从 UI 层消除绕过 write-through 的可能。
 
 **场景 3 — 用户直接改 .md 文件**（非受控路径）

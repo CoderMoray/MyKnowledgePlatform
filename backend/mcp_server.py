@@ -375,6 +375,7 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
 
     kb_root = storage.kb_root
 
+    acquire_lock(storage)  # ensure lock held for this write
     # ── Lock check ──────────────────────────────
     if not _lock_file(kb_root).exists():
         raise RuntimeError(
