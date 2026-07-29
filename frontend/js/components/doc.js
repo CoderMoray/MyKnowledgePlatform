@@ -475,10 +475,11 @@ Alpine.data("docComponent", () => ({
       store.editor = this.editorInstance;
       this.editorReady = true;
 
-      // CMD+S / Ctrl+S 保存
-      el.addEventListener("keydown", (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+      // CMD+S / Ctrl+S 保存（全局监听，只在编辑态生效）
+      document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "s" && store.currentView === "edit") {
           e.preventDefault();
+          e.stopPropagation();
           this.exitEdit();
         }
       });
