@@ -1027,24 +1027,24 @@
 .btn-share {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 5px 12px;
-  border: 0.5px solid var(--color-border-secondary);
-  border-radius: 8px;
-  background: transparent;
-  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  background: var(--button-new-bg);
+  border: var(--button-new-border);
+  color: var(--button-new-text);
+  font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: var(--transition-interactive);
 }
 .btn-share:hover:not(:disabled) {
-  background: var(--color-background-secondary);
-  color: var(--color-text-primary);
+  background: var(--accent-subtle);
 }
 .btn-share:disabled {
-  opacity: 0.4;
-  cursor: default;
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 /* ── 分享弹窗 ──────────────────────────────────────────────────────────── */
