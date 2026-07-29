@@ -143,8 +143,35 @@ python3 build.py    # 重新内联生成 standalone
 | marked | jsdelivr | MD→HTML |
 | highlight.js | cdnjs | 代码高亮 |
 | turndown | jsdelivr | HTML→MD |
-| @tiptap/core | esm.sh | 编辑器内核 |
-| @tiptap/starter-kit | esm.sh | 编辑器扩展 |
+| @tiptap/core@2.1.13 | jsdelivr | 编辑器内核 |
+| @tiptap/starter-kit@2.1.13 | jsdelivr | 编辑器扩展 |
+| @tiptap/extension-link@2.1.13 | jsdelivr | 链接编辑 |
+| @tiptap/extension-table*@2.1.13 | jsdelivr | 表格编辑 |
+| Gravatar | — | 作者头像 |
+
+CDN import map 定义在 `index.html` 的 `<script type="importmap">` 块中。
+
+### 已知 Patch：Link 扩展 href 序列化
+
+**问题**：TipTap 2.1.13 的 Link 扩展 `parseHTML` 不强制 `href` 为字符串，ProseMirror 属性解析器会把某些 URL 转成 `[object Object]`，导致编辑保存后链接丢失。此 bug 在 2.6.0 官方修复（issue #4929）。
+
+**Workaround**（`js/components/doc.js` → `PatchedLink`）：
+
+```js
+addAttributes() {
+    return {
+        ...this.parent?.(),
+        href: {
+            default: null,
+            parseHTML(element) {
+                return element.getAttribute('href'); // 强制字符串，绕过类型推断
+            },
+        },
+    };
+}
+```
+
+**移除条件**：升级 @tiptap 全家桶到 ≥ 2.6.0 后，直接删掉 `PatchedLink`，改回 `LinkExt.configure()`。
 
 ## 注意事项
 

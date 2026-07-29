@@ -196,6 +196,13 @@
 | dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 无需改动 | `projectStats` getter 逻辑合理，维持现状 |
 | utils.js 删除死代码 md5（含 gravatarUrl） | ✅ 已恢复 | authorAvatar 纯首字母，无网络请求 | |
 
+## 🆕 新增（2026-07-29 后端提供，前端可接入）
+
+| 功能 | 状态 | 说明 |
+|------|:--:|------|
+| 后端完成外链解析 | ✅ 后端就绪 | `/api/document/{path}/refs` 返回 `type: "ref"|"external"`，前端可删除 `store.js` 中的自行解析逻辑 |
+| 外链规则 | ✅ 后端就绪 | 代码块/行内代码/图片链接自动跳过，括号 URL 完整捕获 |
+
 ## 🆕 新增（2026-07-29）
 
 | 功能 | 状态 | 说明 |
