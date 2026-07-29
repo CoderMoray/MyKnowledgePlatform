@@ -230,7 +230,7 @@ Alpine.data("docComponent", () => ({
         requestAnimationFrame(() => el.classList.add("editor-lock--active"));
       } else if (state === "unlocked" && el) {
         el.classList.add("editor-lock--unlocked");
-        el.querySelector(".editor-lock-text").textContent = "已解锁";
+        el.querySelector(".editor-lock-text").textContent = "AI 编辑结束，已解锁";
       }
     },
 
