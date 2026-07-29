@@ -394,7 +394,7 @@
 .content-panel--locked {
   position: relative;
 }
-.content-panel--locked > * {
+.content-panel--locked > :not(#editor-lock-overlay) {
   filter: blur(3px);
   pointer-events: none;
 }
