@@ -1365,7 +1365,6 @@ def create_mcp_app(storage: Storage,
         for each, and appends a references section at the end.  One level
         deep only (no recursive follow-through).
         """
-        import re
 
         try:
             meta, body = storage.read_document(path)

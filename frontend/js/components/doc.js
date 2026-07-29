@@ -397,6 +397,8 @@ Alpine.data("docComponent", () => ({
       markdown = markdown.replace(/^(> .*?)\s\s+$/gm, "$1");
 
       const title = store.document?.title || "";
+      console.log("[save] title:", title, "markdown length:", markdown.length);
+      console.log("[save] first 300 chars:", markdown.substring(0, 300));
       // 如果正文已包含标题 h1，不再重复
       const firstLine = markdown.trim().split("\n")[0];
       const fullMd = firstLine.startsWith("# ") ? markdown : `# ${title}\n\n${markdown}`;

@@ -51,6 +51,31 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 `{path}` 为 KB 相对路径，如 `common-knowledge/补贴标准.md`、`projects/以旧换新`。
 
+**`/api/document/{path}/refs` 响应格式：**
+```json
+{
+  "content": "---\n...frontmatter...\n---\n\nbody",
+  "refs": [
+    {
+      "path": "common-knowledge/other.md",
+      "title": "链接文本",
+      "type": "ref",
+      "content": "引用文档全文",
+      "resolved": true
+    },
+    {
+      "path": "https://example.com",
+      "title": "外部链接",
+      "type": "external",
+      "resolved": true
+    }
+  ]
+}
+```
+
+**`refs[i].type`**：`"ref"`（内部 KB 引用）或 `"external"`（http/https 外链）。外部链接无 `content` 字段。
+**代码块/行内代码/图片链接**中的链接不会被解析。
+
 ### 写入
 
 | 方法 | 路径 | Body | 说明 |

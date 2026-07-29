@@ -294,7 +294,6 @@ def api_get_document_with_refs(path: str):
     """
     storage, _ = get_storage()
     from backend.mcp_server import _resolve_ref, _yaml_dump, _extract_section
-    import re
 
     try:
         meta, body = storage.read_document(path)
