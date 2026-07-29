@@ -197,11 +197,7 @@
   color: var(--color-danger);
 }
 
-.viewer__ref-item--external {
-  opacity: 0.7;
-}
 .viewer__ref-item--external:hover {
-  opacity: 1;
   background: var(--accent-subtle);
 }
 .viewer__ref-icon--external {
