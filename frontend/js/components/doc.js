@@ -247,28 +247,11 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
+      // TipTap Link：损坏的 href 在 turndown 规则里降级为纯文字
       this.editorInstance.view.dom.querySelectorAll("a").forEach((a) => {
         const raw = decodeURIComponent(a.getAttribute("href") || "");
-        if (!raw || raw === "null" || raw.startsWith("[object")) {
-          try {
-            const textNode = a.firstChild;
-            const pos = this.editorInstance.view.posAtDOM(textNode || a, textNode ? 1 : 0);
-            const $pos = this.editorInstance.state.doc.resolve(pos);
-            for (const mark of $pos.marks()) {
-              if (mark.type.name === "link" && mark.attrs.href) {
-                a.setAttribute("href", String(mark.attrs.href));
-                break;
-              }
-            }
-          } catch (e) {
-            a.removeAttribute("href");
-          }
-        }
-        const fixed = a.getAttribute("href");
-        if (fixed && fixed !== "null") {
-          let ok = true;
-          try { ok = !decodeURIComponent(fixed).startsWith("[object"); } catch {}
-          if (ok) a.setAttribute("data-myk-href", fixed);
+        if (raw && raw !== "null" && !raw.startsWith("[object")) {
+          a.setAttribute("data-myk-href", a.getAttribute("href"));
         }
       });
 
@@ -311,9 +294,10 @@ Alpine.data("docComponent", () => ({
       const linkRule = {
         filter: (node) => node.nodeName === "A",
         replacement: (content, node) => {
+          const text = node.textContent || content;
           let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
           try { href = decodeURIComponent(href); } catch {}
-          if (!href || href === "null" || href.startsWith("[object")) return content;
+          if (!href || href === "null" || href.startsWith("[object")) return text;
           if (href.startsWith("ref:")) {
             const ref = href.slice(4).replace(/%20/g, " ");
             return "[" + content + "](ref:" + ref + ")";

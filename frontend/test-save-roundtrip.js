@@ -99,7 +99,10 @@ function convert(html) {
   const linkRule = {
     filter: (node) => node.nodeName === "A",
     replacement: (content, node) => {
-      let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
+      const text = node.textContent || content;
+          let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
+          try { href = decodeURIComponent(href); } catch {}
+          if (!href || href === "null" || href.startsWith("[object")) return text;
       if (!href || href === "null" || href.startsWith("[object") || href.startsWith("%5B")) return content;
       if (href.startsWith("ref:")) {
         const ref = href.slice(4).replace(/%20/g, " ");
