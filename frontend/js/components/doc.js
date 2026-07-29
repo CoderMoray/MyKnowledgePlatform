@@ -252,17 +252,24 @@ Alpine.data("docComponent", () => ({
         const raw = a.getAttribute("href");
         if (!raw || raw === "null" || raw.startsWith("[object")) {
           // DOM 已损坏，尝试从 ProseMirror state 恢复
-          const pos = this.editorInstance.view.posAtDOM(a, 0);
-          const $pos = this.editorInstance.state.doc.resolve(pos);
-          const marks = $pos.marks();
-          for (const mark of marks) {
-            if (mark.type.name === "link" && mark.attrs.href) {
-              a.setAttribute("href", String(mark.attrs.href));
-              break;
+          try {
+            const pos = this.editorInstance.view.posAtDOM(a, 0);
+            const $pos = this.editorInstance.state.doc.resolve(pos);
+            for (const mark of $pos.marks()) {
+              if (mark.type.name === "link" && mark.attrs.href) {
+                a.setAttribute("href", String(mark.attrs.href));
+                break;
+              }
             }
+          } catch (e) {
+            // posAtDOM 失败则放弃修复，至少保留文字
+            a.removeAttribute("href");
           }
         }
-        a.setAttribute("data-myk-href", a.getAttribute("href") || "");
+        const fixed = a.getAttribute("href");
+        if (fixed && fixed !== "null" && !fixed.startsWith("[object")) {
+          a.setAttribute("data-myk-href", fixed);
+        }
       });
 
       // 预处理 TipTap HTML
@@ -297,7 +304,7 @@ Alpine.data("docComponent", () => ({
           rows.splice(1, 0, "|" + " --- |".repeat(cols));
         }
         const marker = "MYKTABLE" + idx + "MARK";
-        tableMarkers.push({ marker, md: "\n" + rows.join("\n") + "\n" });
+        tableMarkers.push({ marker, md: rows.join("\n") });
         wrapper.replaceWith(document.createTextNode(marker));
       });
       // 链接修复：Turndown 自定义规则从 data-myk-href 取值

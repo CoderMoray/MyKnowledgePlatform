@@ -88,7 +88,7 @@ function convert(html) {
       rows.splice(1, 0, "|" + " --- |".repeat(cols));
     }
     const marker = "MYKTABLE" + idx + "MARK";
-    tableMarkers.push({ marker, md: "\n" + rows.join("\n") + "\n" });
+    tableMarkers.push({ marker, md: rows.join("\n") });
     wrapper.replaceWith(dom.window.document.createTextNode(marker));
   });
 
