@@ -218,6 +218,22 @@ Alpine.data("docComponent", () => ({
     },
 
     /** 阅读态 ref 链接事件委托（viewer__body 容器） */
+    /** 编辑态 AI 锁遮罩：locked = 红框模糊，unlocked = 绿框淡出 */
+    _showLockOverlay(state) {
+      let el = document.getElementById("editor-lock-overlay");
+      if (state === "locked") {
+        if (el) return; // 已显示
+        el = document.createElement("div");
+        el.id = "editor-lock-overlay";
+        el.innerHTML = '<div class="editor-lock-text">AI 编辑中，用户编辑功能暂时锁定。</div>';
+        document.getElementById("content-panel").appendChild(el);
+        requestAnimationFrame(() => el.classList.add("editor-lock--active"));
+      } else if (state === "unlocked" && el) {
+        el.classList.add("editor-lock--unlocked");
+        el.querySelector(".editor-lock-text").textContent = "已解锁";
+      }
+    },
+
     _bindViewerRefLinks(store) {
       const viewer = document.getElementById("viewer-content");
       if (!viewer || this._viewerBound) return;
@@ -485,6 +501,25 @@ Alpine.data("docComponent", () => ({
       if (typeof window._mykBindToolbar === "function") {
         window._mykBindToolbar(this.editorInstance);
       }
+
+      // AI 锁态监听：编辑中被锁 → 只读 + 红框遮罩，解锁 → 绿过渡淡出
+      Alpine.effect(() => {
+        if (!this.editorInstance) return;
+        const panel = document.getElementById("content-panel");
+        if (store.isLocked && store.currentView === "edit") {
+          this.editorInstance.setEditable(false);
+          if (panel) panel.classList.add("content-panel--locked");
+          this._showLockOverlay("locked");
+        } else if (!store.isLocked && document.getElementById("editor-lock-overlay")) {
+          this._showLockOverlay("unlocked");
+          if (panel) panel.classList.remove("content-panel--locked");
+          setTimeout(() => {
+            this.editorInstance && this.editorInstance.setEditable(true);
+            const el = document.getElementById("editor-lock-overlay");
+            if (el) el.remove();
+          }, 1200);
+        }
+      });
 
       // ref 链接 hover
       this._hoverTimer = null;

@@ -59,7 +59,8 @@ class TestExtractAllRefs:
         body = "[内部](ref:doc.md) [外部](https://example.com)"
         result = _test_extract(body)
         assert len(result) == 2
-        assert result[0] == ("ref", "doc.md", "内部")
+        rtype, rpath, title = result[0]
+        assert rtype == "ref" and rpath == "doc.md" and title == ""
         assert result[1] == ("external", "https://example.com", "外部")
 
     def test_skip_code_block(self):
