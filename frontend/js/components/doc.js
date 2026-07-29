@@ -324,7 +324,7 @@ Alpine.data("docComponent", () => ({
       const cleanHtml = tmp.innerHTML;
 
       // HTML → Markdown（turndown + 自定义规则）
-      const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced" });
+      const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced", emDelimiter: "*" });
       // 删除线
       td.addRule("strikethrough", { filter: ["s", "del", "strike"], replacement: (c) => "~~" + c + "~~" });
       // 代码块：强制用 ``` 围栏式

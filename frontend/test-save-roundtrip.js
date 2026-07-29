@@ -111,7 +111,7 @@ function convert(html) {
 
   const cleanHtml = tmp.innerHTML;
 
-  const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced" });
+  const td = new TurndownService({ headingStyle: "atx", bulletListMarker: "-", codeBlockStyle: "fenced", emDelimiter: "*" });
   td.addRule("strikethrough", { filter: ["s", "del", "strike"], replacement: (c) => "~~" + c + "~~" });
   td.addRule("fencedCode", {
     filter: (node) => node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE",
@@ -155,7 +155,7 @@ console.log("场景 1：无修改直接保存");
 let result = convert(tipTapHTML);
 runChecks(result, [
   { name: "加粗", check: (r) => r.includes("**加粗**") },
-  { name: "斜体", check: (r) => r.includes("_斜体_") || r.includes("*斜体*") },
+  { name: "斜体", check: (r) => r.includes("*斜体*") },
   { name: "删除线", check: (r) => r.includes("~~删除线~~") },
   { name: "行内代码", check: (r) => r.includes("`行内代码`") },
   { name: "无序列表", check: (r) => r.includes("- 无序列表项 1") && r.includes("- 无序列表项 2") },
@@ -189,7 +189,7 @@ runChecks(result, [
   { name: "新增列表项", check: (r) => r.includes("- 新增列表项") },
   { name: "表格新增行", check: (r) => r.includes("| a3 | b3 | c3 |") },
   { name: "旧表格数据保留", check: (r) => r.includes("| a1 | b1 | c1 |") },
-  { name: "斜体仍保留", check: (r) => r.includes("_斜体_") || r.includes("*斜体*") },
+  { name: "斜体仍保留", check: (r) => r.includes("*斜体*") },
   { name: "链接仍保留", check: (r) => r.includes("[普通链接](https://example.com)") },
 ]);
 
