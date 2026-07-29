@@ -1,6 +1,6 @@
 # MyKnowledge 开发管理
 
-> 对应 [DESIGN.md](DESIGN.md) v0.5。Phase 1-2 核心存储层 + MCP 已完成。
+> 对应 [DESIGN.md](DESIGN.md) v0.6。Phase 1-2 核心存储层 + MCP 已完成。
 > 按 Step 推进，每一步完成后更新状态。
 
 ---
