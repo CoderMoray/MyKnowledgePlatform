@@ -1015,9 +1015,21 @@
     <!-- 分享导出 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'share-export'"
+         x-transition:enter="modal-enter"
+         x-transition:enter-start="modal-enter-start"
+         x-transition:enter-end="modal-enter-end"
+         x-transition:leave="modal-leave"
+         x-transition:leave-start="modal-leave-start"
+         x-transition:leave-end="modal-leave-end"
          x-cloak
          @click.self="$store.app.closeModal()">
-      <div class="modal" style="max-width:480px">
+      <div class="modal" style="max-width:480px"
+           x-transition:enter="modal-card-enter"
+           x-transition:enter-start="modal-card-enter-start"
+           x-transition:enter-end="modal-card-enter-end"
+           x-transition:leave="modal-card-leave"
+           x-transition:leave-start="modal-card-leave-start"
+           x-transition:leave-end="modal-card-leave-end">
         <h2 class="modal__title">导出知识包</h2>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <p class="modal__description" style="margin:0;line-height:1.5">选择要分享的项目，导出后可发送给其他人，通过与 AI 对话来导入</p>

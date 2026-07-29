@@ -1105,3 +1105,18 @@
   margin-top: 1px;
   color: var(--color-text-tertiary);
 }
+
+/* ── 弹窗动画 ──────────────────────────────────────────────────────────── */
+.modal-enter { transition: opacity 0.24s ease; }
+.modal-enter-start { opacity: 0; }
+.modal-enter-end { opacity: 1; }
+.modal-leave { transition: opacity 0.18s ease; }
+.modal-leave-start { opacity: 1; }
+.modal-leave-end { opacity: 0; }
+
+.modal-card-enter { transition: opacity 0.3s ease, transform 0.3s ease; }
+.modal-card-enter-start { opacity: 0; transform: translateY(12px) scale(0.97); }
+.modal-card-enter-end { opacity: 1; transform: translateY(0) scale(1); }
+.modal-card-leave { transition: opacity 0.18s ease, transform 0.18s ease; }
+.modal-card-leave-start { opacity: 1; transform: translateY(0) scale(1); }
+.modal-card-leave-end { opacity: 0; transform: translateY(6px) scale(0.98); }
