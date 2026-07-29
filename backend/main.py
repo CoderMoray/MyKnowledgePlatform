@@ -25,6 +25,61 @@ from backend.mcp_server import _lock_file, _LOCK_TIMEOUT
 from backend.readme_generator import ReadmeGenerator
 from backend.storage import Storage
 
+
+def _extract_all_refs(body: str) -> list[tuple[str, str, str]]:
+    """Extract all reference links from markdown body.
+
+    Returns a list of ``(type, path, title)`` tuples where *type* is
+    ``ref`` (internal KB ref) or ``external`` (http(s) URL).
+    Code blocks and inline code are stripped before scanning.
+
+    Handles edge cases:
+    - URLs/paths inside ``` fenced code blocks — skipped
+    - URLs/paths inside `` `inline code` `` — skipped
+    - Matches only ``[text](url)`` and ``[text](ref:path)`` syntax
+    - ``[text](<bare>@<bare>)`` (email-like) — excluded
+    - ``[text](http(s)://...)`` — type: ``external``
+    - ``[text](ref:...)`` — type: ``ref``
+    - Parentheses in URLs are handled with balanced bracket matching
+    """
+    import re
+
+    # Step 1: strip fenced code blocks (``` ... ```)
+    body = re.sub(r'```.*?```', '', body, flags=re.DOTALL)
+    # Step 2: strip inline code (`...`)
+    body = re.sub(r'`[^`]+`', '', body)
+
+    results: list[tuple[str, str, str]] = []
+
+    # Step 3: extract markdown links [text](url), skip image links ![text](url)
+    for m in re.finditer(r'(?<!!)\[([^\]]*)\]\(', body):
+        start = m.end()  # position after '('
+        link_text = m.group(1).strip()
+        if not link_text:
+            continue
+
+        # Balanced parentheses matching for the URL/path
+        depth = 1
+        i = start
+        while i < len(body) and depth > 0:
+            if body[i] == '(':
+                depth += 1
+            elif body[i] == ')':
+                depth -= 1
+            i += 1
+        raw_path = body[start:i - 1].strip()
+
+        if raw_path.startswith(('http://', 'https://')):
+            results.append(('external', raw_path, link_text))
+        elif raw_path.startswith('ref:'):
+            ref_path = raw_path[4:]
+            section = ''
+            if '::' in ref_path:
+                ref_path, section = ref_path.split('::', 1)
+            results.append(('ref', ref_path, section or link_text))
+
+    return results
+
 # ── App creation ───────────────────────────────────────────
 
 app = FastAPI(title="MyKnowledge", version="0.5.0")
@@ -76,7 +131,6 @@ def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
 
     Returns a list of issues (empty = valid).  Raise 400 if non-empty.
     """
-    import re
     issues: list[dict] = []
 
     if not payload.summary.strip():
@@ -88,8 +142,10 @@ def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
 
     from backend.mcp_server import _resolve_ref, _extract_section
 
-    refs = re.findall(r'\]\(ref:([^)]+?)(?:::([^)]*))?\)', payload.content)
-    for ref_path, section in refs:
+    all_refs = _extract_all_refs(payload.content)
+    for ref_type, ref_path, section in all_refs:
+        if ref_type == "external":
+            continue  # external URLs can't be validated
         try:
             if section:
                 meta, ref_body = _resolve_ref("", ref_path, storage)
@@ -246,13 +302,21 @@ def api_get_document_with_refs(path: str):
         raise HTTPException(404, "document not found")
 
     content = f"---\n{_yaml_dump(meta)}---\n\n{body}"
-    refs = re.findall(r'\]\(ref:([^)]+?)(?:::([^)]*))?\)', body)
+    all_refs = _extract_all_refs(body)
     seen = {path}
-    ref_list = [(r, s) for r, s in refs if r not in seen and not seen.add(r)]
-
     resolved_refs: list[dict] = []
-    for ref_path, section in ref_list:
-        entry: dict = {"path": ref_path, "title": section or ""}
+    for ref_type, ref_path, title in all_refs:
+        dedup_key = ref_type + ":" + ref_path
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
+        entry: dict = {"path": ref_path, "title": title, "type": ref_type}
+        if ref_type == "external":
+            entry["resolved"] = True
+            resolved_refs.append(entry)
+            continue
+
         try:
             ref_meta, ref_body = _resolve_ref(path, ref_path, storage)
             entry["content"] = ref_body

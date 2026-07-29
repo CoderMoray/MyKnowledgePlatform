@@ -321,14 +321,6 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // TipTap Link：损坏的 href 在 turndown 规则里降级为纯文字
-      this.editorInstance.view.dom.querySelectorAll("a").forEach((a) => {
-        const raw = decodeURIComponent(a.getAttribute("href") || "");
-        if (raw && raw !== "null" && !raw.startsWith("[object")) {
-          a.setAttribute("data-myk-href", a.getAttribute("href"));
-        }
-      });
-
       // 预处理 TipTap HTML
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
@@ -368,15 +360,12 @@ Alpine.data("docComponent", () => ({
       const linkRule = {
         filter: (node) => node.nodeName === "A",
         replacement: (content, node) => {
-          const text = node.textContent || content;
-          let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
-          try { href = decodeURIComponent(href); } catch {}
-          if (!href || href === "null" || href.startsWith("[object")) return text;
+          let href = node.getAttribute("href") || "";
           if (href.startsWith("ref:")) {
             const ref = href.slice(4).replace(/%20/g, " ");
-            return "[" + content + "](ref:" + ref + ")";
+            return "[" + (node.textContent || content) + "](ref:" + ref + ")";
           }
-          return "[" + content + "](" + href + ")";
+          return "[" + (node.textContent || content) + "](" + href + ")";
         }
       };
       const cleanHtml = tmp.innerHTML;
@@ -436,15 +425,30 @@ Alpine.data("docComponent", () => ({
       console.log("[doc] Editor:", !!Editor, "StarterKit:", !!StarterKit, "LinkExt:", !!LinkExt);
       if (!Editor) return;
 
+      // 自定义 Link 扩展：修复 2.1.13 的 href 序列化 bug
+      // ref: https://github.com/ueberdosis/tiptap/issues/4929
+      const PatchedLink = LinkExt ? LinkExt.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            href: {
+              default: null,
+              parseHTML(element) {
+                return element.getAttribute('href');
+              },
+            }
+          };
+        },
+      }).configure({ openOnClick: false }) : null;
+
       const extensions = [
         StarterKit ? StarterKit.configure() : null,
+        PatchedLink,
         TT.Table ? TT.Table.configure({ resizable: true }) : null,
         TT.TableRow || null,
         TT.TableCell || null,
         TT.TableHeader || null,
       ].filter(Boolean);
-      // 注：不含 Link 扩展，避免 TipTap 2.1.13 的 href 序列化 bug
-      // 普通链接在编辑器里按纯文本显示，但保存时不丢内容
       console.log("[doc] extensions count:", extensions.length);
 
       this.editorInstance = new Editor({

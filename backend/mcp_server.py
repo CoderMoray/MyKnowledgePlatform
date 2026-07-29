@@ -1372,46 +1372,50 @@ def create_mcp_app(storage: Storage,
         except FileNotFoundError:
             return f"⚠ 文件不存在: {path}"
 
-        # ── Scan for inline refs ────────────────────────────
-        ref_pattern = re.compile(r'\]\(ref:([^\s)]+?)(?:::([^)]*))?\)')
-        raw_refs = ref_pattern.findall(body)
+        # ── Scan for refs + external links (http/https) ────
+        from backend.main import _extract_all_refs
+        all_refs = _extract_all_refs(body)
         seen: set[str] = {path}
-        ref_list: list[tuple[str, str]] = []  # (ref_path, section_title)
-        for ref_path, section in raw_refs:
-            if ref_path not in seen:
-                seen.add(ref_path)
-                ref_list.append((ref_path, section))
+        ref_list: list[tuple[str, str, str]] = []  # (type, path, title)
+        for rtype, rpath, title in all_refs:
+            dedup_key = rtype + ":" + rpath
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                ref_list.append((rtype, rpath, title))
 
         # ── Build main content ──────────────────────────────
         parts = [f"---\n{_yaml_dump(meta)}---\n\n{body}"]
 
-        # ── Resolve references (refs/ first, then original) ─
+        # ── Resolve references + external links ────────────
         if ref_list:
             parts.append("\n\n--- 参考文献 ---\n")
-            for i, (ref_path, section) in enumerate(ref_list, 1):
+            for i, (rtype, ref_path, title) in enumerate(ref_list, 1):
+                if rtype == "external":
+                    parts.append(f"[{i}] 🌐 {title}\n    {ref_path}\n")
+                    continue
                 try:
                     ref_meta, ref_body = _resolve_ref(path, ref_path, storage)
                 except FileNotFoundError:
                     parts.append(f"[{i}] {ref_path} (⚠ 不存在)\n")
                     continue
 
-                if section:
-                    excerpt = _extract_section(ref_body, section)
+                if title:
+                    excerpt = _extract_section(ref_body, title)
                     if excerpt is not None:
-                        content = f"---\n{_yaml_dump(ref_meta)}---\n\n{excerpt}"
+                        sub = f"---\n{_yaml_dump(ref_meta)}---\n\n{excerpt}"
                     else:
-                        content = (
-                            f"⚠ 未找到段落「{section}」"
+                        sub = (
+                            f"⚠ 未找到段落「{title}」"
                             f"— 返回全文\n"
                             f"---\n{_yaml_dump(ref_meta)}---\n\n{ref_body}"
                         )
                 else:
-                    content = f"---\n{_yaml_dump(ref_meta)}---\n\n{ref_body}"
+                    sub = f"---\n{_yaml_dump(ref_meta)}---\n\n{ref_body}"
 
                 parts.append(
                     f"[{i}] {ref_path}"
-                    + (f" :: {section}" if section else "")
-                    + f"\n{content}\n"
+                    + (f" :: {title}" if title else "")
+                    + f"\n{sub}\n"
                 )
 
         return "".join(parts)

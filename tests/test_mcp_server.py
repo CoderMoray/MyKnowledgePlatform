@@ -195,3 +195,24 @@ class TestGetDocumentWithRefs:
             {"path": "projects/TestRefs/common-knowledge/main.md"}))
         text = _tool_text(result)
         assert "External content" in text
+
+    def test_includes_external_links(self, app, storage: Storage) -> None:
+        storage.write_document(
+            "main.md",
+            {"summary": "main", "type": "knowledge"},
+            "内链[文档](ref:ref.md) 外链[Google](https://google.com)",
+            auto_id=False,
+        )
+        storage.write_document(
+            "ref.md",
+            {"summary": "ref", "type": "knowledge"},
+            "# Ref doc", auto_id=False,
+        )
+        result = asyncio.run(app.call_tool(
+            "nav__get_document_with_refs", {"path": "main.md"}))
+        text = _tool_text(result)
+        assert "内链" in text
+        assert "Google" in text
+        assert "https://google.com" in text
+        assert "Ref doc" in text  # ref resolved
+        assert "参考文献" in text
