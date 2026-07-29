@@ -31,6 +31,13 @@ function setupMarkedRenderer() {
                  title="关联文档: ${escapeHtml(refPath)}"
                  onclick="window._mykRefClick(event, '${escapeHtml(refPath)}')">${displayText}</a>`;
     }
+    // http/https 外部链接 — 添加标记用于 hover 卡片识别
+    if (href && (href.startsWith("http://") || href.startsWith("https://"))) {
+      return `<a href="${escapeHtml(href)}"
+                 class="ext-link"
+                 data-ext-link="${escapeHtml(href)}"
+                 target="_blank" rel="noopener">${text || href}</a>`;
+    }
     return origLink({ href, title, text });
   };
 

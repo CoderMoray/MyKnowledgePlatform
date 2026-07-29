@@ -7,17 +7,19 @@
 
 Local-first 知识管理平台。以 Markdown 为真相源、Git 为版本底座、MCP 为 AI 接口标准。
 
-任意 MCP 兼容的 AI agent 客户端（CodeBuddy、WorkBuddy 等）可直接存取你的知识库——越用越厚，数据始终归你。
+任意 MCP 兼容的 AI agent 客户端（CodeBuddy、Trae、WorkBuddy 等）可直接存取你的知识库——越用越厚，数据始终归你。
 
 ---
 
 ## 特性
 
 - **纯文本存储** — Markdown + YAML frontmatter，无锁定
-- **Git 版本控制** — 每次 AI 写入自动 commit，全程可追溯
-- **MCP 原生支持** — 18 个工具：导航、读写、改名、归档、分享
+- **Git 版本控制** — 每次写入自动 commit，全程可追溯
+- **MCP 原生支持** — 22 个工具：导航、读写、改名、移动、删除、归档、分享
+- **CLI 自助管理** — `doctor`（健康检查）、`version --check`（PyPI 版本检查）、`upgrade`（一键升级）、`mcp-config`（输出配置 JSON）
 - **本地优先** — 数据全在你的机器上，可选 OSS 云同步
 - **自动归档** — 已完成/取消/废弃的项目自动移入 `archive/`
+- **自动加锁** — 每次写操作自动获取和释放写锁
 - **Web UI** — Alpine.js SPA + TipTap 编辑器（开发中）
 - **加密分享** — `.mkpkg` 格式，字段级加密
 
@@ -29,10 +31,19 @@ pip install myknowledge
 
 # 初始化
 myknowledge init                      # 创建 ~/.myknowledge/
+myknowledge doctor                     # 验证一切就绪
 myknowledge login your@email.com 昵称  # 写操作必需
 
-# 启动 Web UI
+# 启动 MCP 服务（供 AI agent 连接）
+myknowledge mcp
+
+# 或启动 Web UI
 myknowledge serve                     # → http://127.0.0.1:8080
+
+# 随时自查和升级
+myknowledge doctor
+myknowledge version --check
+myknowledge upgrade
 ```
 
 ## 使用方式
@@ -44,8 +55,7 @@ myknowledge serve                     # → http://127.0.0.1:8080
 ```json
 {
   "mcpServers": {
-    "myknowledge": {
-      "type": "stdio",
+    "MyKnowledge": {
       "command": "myknowledge",
       "args": ["mcp"]
     }
@@ -53,7 +63,9 @@ myknowledge serve                     # → http://127.0.0.1:8080
 }
 ```
 
-Agent 自动完成：获取锁 → 读取知识库 → 写入变更 → 释放锁。系统自动重建索引、提交 git、通过 SSE 推送更新。
+> **自动加锁**：每次写操作自动获取和释放写锁。系统自动重建索引、提交 git、通过 SSE 推送更新。
+
+获取你的精确配置：`myknowledge mcp-config`
 
 ### Web UI
 
@@ -67,8 +79,8 @@ myknowledge serve --port 8080
 ```
 myknowledge/
 ├── backend/
-│   ├── cli.py               # CLI 入口
-│   ├── mcp_server.py        # 18 个 MCP 工具
+│   ├── cli.py               # CLI：init / mcp / serve / login / doctor / upgrade / version / mcp-config
+│   ├── mcp_server.py        # 22 个 MCP 工具
 │   ├── main.py              # FastAPI REST API
 │   ├── storage.py           # Markdown 读写
 │   ├── readme_generator.py  # Readme 索引生成
@@ -98,11 +110,22 @@ myknowledge/
 └── _templates/              # Readme 模板
 ```
 
+## 自助安装
+
+MyKnowledge 附带一份完整的 **AI 安装指南**（`docs/AI-SETUP.md`）。将内容复制给任意 MCP 兼容的 AI agent，它就会自动为你完成：
+
+1. 检查环境依赖（Python / Git / pip）
+2. 通过 `pip install myknowledge` 安装
+3. 运行健康检查并初始化知识库
+4. 引导你设置身份
+5. 配置 MCP 接入你的 AI client
+6. 设置定时任务：版本检查和知识库变更摘要
+
 ## 开发
 
 ```bash
-git clone https://github.com/CoderMoray/MyKnowledgePlatform
-cd MyKnowledgePlatform
+git clone https://github.com/CoderMoray/MyKnowledge_PlatForm
+cd MyKnowledge_PlatForm
 pip install -e .
 ```
 

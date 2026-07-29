@@ -37,7 +37,10 @@ Alpine.data("docComponent", () => ({
       this.refLoading = true;
       this.refPreview = await loadRefPreview(refPath);
       this.refLoading = false;
-      if (!this.refPreview) return;
+      if (!this.refPreview) {
+        this._showDeadRefCard(el, refPath);
+        return;
+      }
       this._showRefCard(el, this.refPreview, refPath);
     },
 
@@ -147,6 +150,74 @@ Alpine.data("docComponent", () => ({
       card.addEventListener("transitionend", () => card.remove(), { once: true });
     },
 
+    /** 外部链接卡片 — 纯文本，不调 API */
+    _showExtCard(linkEl, url) {
+      const existing = document.getElementById("ref-card");
+      if (existing) existing.remove();
+
+      const card = document.createElement("div");
+      card.id = "ref-card";
+      card.className = "ref-card";
+
+      card.innerHTML = `
+        <div class="ref-card__title">${escapeHtml(linkEl.textContent.trim())}</div>
+        <div class="ref-card__source" style="word-break:break-all;font-size:11px;color:var(--text-tertiary)">${escapeHtml(url)}</div>
+        <div class="ref-card__divider"></div>
+        <div class="ref-card__summary" style="color:var(--text-tertiary)">外部链接，不在知识库内</div>
+        <div class="ref-card__footer" style="justify-content:flex-end">
+          <span class="ref-card__open">打开链接 ↗</span>
+        </div>
+      `;
+
+      card.querySelector(".ref-card__open").addEventListener("click", () => {
+        window.open(url, "_blank", "noopener");
+        this._hideRefCard(true);
+      });
+
+      this._attachCardEvents(card, linkEl);
+    },
+
+    /** 死链卡片 — ref 文档不存在 */
+    _showDeadRefCard(linkEl, refPath) {
+      const existing = document.getElementById("ref-card");
+      if (existing) existing.remove();
+
+      const card = document.createElement("div");
+      card.id = "ref-card";
+      card.className = "ref-card";
+
+      card.innerHTML = `
+        <div class="ref-card__title">${escapeHtml(linkEl.textContent.trim())}</div>
+        <div class="ref-card__source" style="word-break:break-all;font-size:11px;color:var(--text-tertiary)">${escapeHtml(refPath)}</div>
+        <div class="ref-card__divider"></div>
+        <div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在或已被删除</div>
+        <div class="ref-card__footer" style="justify-content:flex-end;font-size:11px;color:var(--text-tertiary)">ref 链接指向的文档路径无效</div>
+      `;
+
+      this._attachCardEvents(card, linkEl);
+    },
+
+    /** 卡片共通定位和事件 */
+    _attachCardEvents(card, linkEl) {
+      card.addEventListener("mouseenter", () => clearTimeout(this._hoverTimer));
+      card.addEventListener("mouseleave", () => {
+        this._hoverTimer = setTimeout(() => this.closePopover(), 300);
+      });
+      document.body.appendChild(card);
+
+      const linkRect = linkEl.getBoundingClientRect();
+      const cardWidth = 300;
+      let left = linkRect.right + 8;
+      let top = linkRect.top - 4;
+      if (left + cardWidth > window.innerWidth - 16) left = window.innerWidth - cardWidth - 16;
+      if (top < 8) top = linkRect.bottom + 4;
+      card.style.left = left + "px";
+      card.style.top = top + "px";
+      card.style.position = "fixed";
+
+      requestAnimationFrame(() => card.classList.add("ref-card--enter"));
+    },
+
     /** 阅读态 ref 链接事件委托（viewer__body 容器） */
     _bindViewerRefLinks(store) {
       const viewer = document.getElementById("viewer-content");
@@ -155,26 +226,30 @@ Alpine.data("docComponent", () => ({
       this._hoverTimer = null;
       const self = this;
 
-      const findRefLink = (target) => {
+      const findLink = (target) => {
         let el = target;
         while (el && el !== viewer) {
-          if (el.tagName === "A" && el.title.startsWith("关联文档:")) return el;
+          if (el.tagName === "A") {
+            if (el.classList.contains("ref-link")) return { el, type: "ref", path: el.dataset.refPath };
+            if (el.classList.contains("ext-link")) return { el, type: "ext", url: el.dataset.extLink };
+          }
           el = el.parentElement;
         }
         return null;
       };
 
       viewer.addEventListener("mouseover", (e) => {
-        const link = findRefLink(e.target);
+        const link = findLink(e.target);
         if (!link) return;
         if (store.editingMode || store.isLocked) return;
         clearTimeout(self._hoverTimer);
-        const refPath = link.title.replace(/^关联文档:\s*/, "").trim();
-        if (refPath) {
-          self._hoverTimer = setTimeout(() => {
-            self.openRefPopover(link, refPath);
-          }, 200);
-        }
+        self._hoverTimer = setTimeout(() => {
+          if (link.type === "ext") {
+            self._showExtCard(link.el, link.url);
+          } else if (link.type === "ref") {
+            self.openRefPopover(link.el, link.path);
+          }
+        }, 200);
       });
 
       viewer.addEventListener("mouseout", (e) => {
