@@ -571,18 +571,18 @@ document.addEventListener("alpine:init", () => {
       const selected = this.shareProjects.filter(p => p.checked);
       if (!selected.length) return;
       try {
-        const blob = await api.exportProjects(selected.map(p => p.path));
+        const { blob, filename } = await api.exportProjects(selected.map(p => p.path));
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "myknowledge-share.pkg";
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
         this.closeModal();
         showToast("已导出 " + selected.length + " 个项目", "success");
       } catch (e) {
-        showToast("导出失败: " + (e.message || "未知错误"), "error");
+        showToast("导出失败：" + (e.message || "未知错误"), "error");
       }
     },
 

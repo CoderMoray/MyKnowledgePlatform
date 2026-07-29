@@ -320,14 +320,21 @@ const api = {
     return apiRequest("/api/list/projects");
   },
 
-  /** 导出项目为 pkg */
+  /** 导出项目为加密知识包 */
   async exportProjects(projectPaths) {
     const res = await fetch(`${API_BASE}/api/export`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projects: projectPaths }),
     });
-    if (!res.ok) throw new Error(`导出失败 (${res.status})`);
-    return res.blob();
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `导出失败 (${res.status})`);
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : (projectPaths.length === 1 ? "MyKnowledge.mkpkg" : "myknowledge-export.zip");
+    return { blob, filename };
   },
 };
