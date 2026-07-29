@@ -405,7 +405,7 @@
   z-index: 49;
   border-radius: inherit;
   background: rgba(239, 68, 68, 0.06);
-  animation: lock-flash 2s ease-in-out infinite;
+  animation: lock-flash 2.04s ease-in-out infinite;
   pointer-events: none;
 }
 @keyframes lock-flash {
