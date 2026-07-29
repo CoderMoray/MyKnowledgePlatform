@@ -249,6 +249,21 @@ document.addEventListener("alpine:init", () => {
         ) : "");
         this.refs = refsData.refs || [];
 
+        // 从 markdown 内容中额外提取外链（http/https），附到 refs 末尾
+        if (data.content) {
+          const extLinks = [];
+          const re = /\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+          let m;
+          while ((m = re.exec(data.content)) !== null) {
+            const text = m[1];
+            const url = m[2];
+            if (text && url) {
+              extLinks.push({ path: url, title: text, content: url, resolved: false, type: "external" });
+            }
+          }
+          this.refs = this.refs.concat(extLinks);
+        }
+
         // 并行加载元信息（不阻塞主内容渲染）
         this.loadDocumentMeta(path).catch(() => {});
       } catch (err) {
