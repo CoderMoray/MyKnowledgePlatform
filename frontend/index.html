@@ -1021,7 +1021,7 @@
         <h2 class="modal__title">导出知识包</h2>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <p class="modal__description" style="margin:0;line-height:1.5">选择要分享的项目，导出后可发送给其他人，通过与 AI 对话来导入</p>
-          <button class="btn-share-select-all" @click="shareToggleAll()">全选</button>
+          <button class="btn-share-select-all" @click="$store.app.shareToggleAll()">全选</button>
         </div>
         <div class="share-project-list">
           <template x-for="project in $store.app.shareProjects" :key="project.path">
