@@ -239,20 +239,16 @@
     <div class="main-area">
 
       <!-- Lock Banner -->
-      <div class="lock-banner"
-           x-show="$store.app.isLocked"
-           x-transition:enter="lock-banner-enter"
-           x-transition:enter-start="lock-banner-enter-start"
-           x-transition:enter-end="lock-banner-enter-end"
-           x-transition:leave="lock-banner-leave"
-           x-transition:leave-start="lock-banner-leave-start"
-           x-transition:leave-end="lock-banner-leave-end"
-           x-cloak>
-        <svg class="lock-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3.5" y="7" width="9" height="7" rx="1"/>
-          <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
-        </svg>
-        AI 正在整理知识库，为了防止冲突，用户暂时仅可阅读，无法编辑。
+      <div x-effect="$el.style.maxHeight = $store.app.isLocked ? $el.scrollHeight + 'px' : '0'"
+           style="max-height:0;overflow:hidden;transition:max-height 0.3s ease">
+        <div class="lock-banner" style="opacity:0;transition:opacity 0.3s ease"
+             :style="{ opacity: $store.app.isLocked ? 1 : 0 }">
+          <svg class="lock-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3.5" y="7" width="9" height="7" rx="1"/>
+            <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
+          </svg>
+          AI 正在整理知识库，为了防止冲突，用户暂时仅可阅读，无法编辑。
+        </div>
       </div>
 
       <!-- 后端离线提示 -->
