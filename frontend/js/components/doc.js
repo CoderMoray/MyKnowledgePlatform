@@ -410,7 +410,7 @@ Alpine.data("docComponent", () => ({
 
     async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
-      if (!el) return;
+      if (!el || this.editorInstance) return;
 
       const store = Alpine.store("app");
 
