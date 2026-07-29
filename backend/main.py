@@ -757,6 +757,72 @@ def api_set_identity(payload: IdentityPayload):
 #  Static frontend (mount after all API routes)
 # ══════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════
+#  Export
+# ══════════════════════════════════════════════════════════════
+
+
+class ExportPayload(BaseModel):
+    projects: list[str]
+
+
+@app.post("/api/export")
+def api_export(payload: ExportPayload):
+    """Export one or more projects as encrypted .mkpkg file(s).
+
+    Single project → returns a ``.mkpkg`` binary blob.
+    Multiple projects → returns a ``.zip`` containing each .mkpkg.
+    """
+    import io, json, struct, tarfile, tempfile, zipfile
+    from backend.share import publish as share_publish, _build_manifest, _derive_key, _encrypt
+
+    storage, _ = get_storage()
+    kb_root = storage.kb_root
+    pkg_data: list[tuple[str, bytes]] = []  # (name, raw_bytes)
+
+    for proj_rel in payload.projects:
+        proj_path = kb_root / proj_rel
+        if not proj_path.is_dir():
+            raise HTTPException(400, f"project not found: {proj_rel}")
+
+        manifest = _build_manifest(storage, proj_rel)
+        key = _derive_key(manifest)
+
+        buf = tempfile.TemporaryFile()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            tar.add(str(proj_path), arcname=manifest["name"])
+        buf.seek(0)
+        raw_data = buf.read()
+        buf.close()
+
+        encrypted = _encrypt(raw_data, key)
+        manifest_bytes = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+        header = struct.pack(">I", len(manifest_bytes))
+        pkg_data.append((f"MyKnowledge-{manifest['name']}.mkpkg", header + manifest_bytes + encrypted))
+
+    if len(pkg_data) == 1:
+        name, data = pkg_data[0]
+        from starlette.responses import Response
+        return Response(
+            content=data,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        )
+
+    # Multiple projects → zip
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in pkg_data:
+            zf.writestr(name, data)
+    zip_buf.seek(0)
+    from starlette.responses import Response
+    return Response(
+        content=zip_buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="myknowledge-export.zip"'},
+    )
+
+
 _FRONTEND_DIR = (Path.cwd() / "frontend").resolve()
 if _FRONTEND_DIR.is_dir():
     @app.get("/")

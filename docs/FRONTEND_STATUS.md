@@ -210,6 +210,7 @@
 | Toast 居中 | ✅ 已完成 | 从右下角移到屏幕正中，0.9s 消失 |
 | 编辑器退出销毁重建 | ✅ 已完成 | exitEdit destroy() 避免 ProseMirror 状态错乱 |
 | AI 锁态保护 | ✅ 已完成 | exitEdit + CMD+S 双重拦截，已编辑不可保存退出 |
+| Export API /api/export | ✅ 后端就绪 | POST `{projects:[...]}` → .mkpkg / .zip 下载，端到端加密 |
 
 ## 🆕 新增（2026-07-29）
 

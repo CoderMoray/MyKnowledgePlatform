@@ -216,3 +216,41 @@ class TestApiDocumentRefs:
     def test_404(self, client):
         resp = client.get("/api/document/nope.md/refs")
         assert resp.status_code == 404
+
+
+class TestApiExport:
+    """Test the /api/export endpoint."""
+
+    def test_export_single_project(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        (tmp_kb_root / "projects" / "TestProj" / "common-knowledge").mkdir(parents=True)
+        from backend.storage import dump_frontmatter
+        storage.write_readme("projects/TestProj", {}, dump_frontmatter(
+            {"id": "tp", "name": "TestProj", "summary": "test"},
+            "# Test Project",
+        ))
+
+        resp = client.post("/api/export", json={"projects": ["projects/TestProj"]})
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/octet-stream"
+        assert "filename=" in resp.headers.get("content-disposition", "")
+        assert len(resp.content) > 0  # has data
+
+    def test_export_multiple_projects(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        from backend.storage import dump_frontmatter
+        for name in ["ProjA", "ProjB"]:
+            (tmp_kb_root / "projects" / name / "common-knowledge").mkdir(parents=True)
+            storage.write_readme(f"projects/{name}", {}, dump_frontmatter(
+                {"id": name, "name": name, "summary": "t"},
+                f"# {name}",
+            ))
+
+        resp = client.post("/api/export", json={"projects": ["projects/ProjA", "projects/ProjB"]})
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/zip"
+        assert len(resp.content) > 0
+
+    def test_export_nonexistent_project(self, client):
+        resp = client.post("/api/export", json={"projects": ["projects/Nope"]})
+        assert resp.status_code == 400

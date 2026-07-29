@@ -1069,7 +1069,7 @@
 .share-project-list {
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--color-background-secondary);
+  background: rgba(0,0,0,0.04);
 }
 .share-project-item {
   display: flex;

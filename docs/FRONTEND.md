@@ -48,6 +48,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | GET | `/api/document/{path}` | 读文档全文 | Markdown 全文 |
 | GET | `/api/document/{path}/meta` | 读文档 frontmatter JSON | `{id, type, summary, author, maintainer, created, updated}` |
 | GET | `/api/document/{path}/refs` | 读文档 + 引用拼接 | Markdown 全文 |
+| POST | `/api/export` | 导出项目为加密 .mkpkg／.zip | binary blob |
 
 `{path}` 为 KB 相对路径，如 `common-knowledge/补贴标准.md`、`projects/以旧换新`。
 
