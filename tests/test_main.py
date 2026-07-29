@@ -29,7 +29,11 @@ class TestExtractAllRefs:
         body = "[doc](ref:common-knowledge/doc.md)"
         result = _test_extract(body)
         assert len(result) == 1
-        assert result[0] == ("ref", "common-knowledge/doc.md", "doc")
+        rtype, rpath, title = result[0]
+        assert rtype == "ref"
+        assert rpath == "common-knowledge/doc.md"
+        # Without ::section, third element is empty string
+        assert title == ""
 
     def test_ref_with_section(self):
         body = "[标题](ref:doc.md::介绍)"

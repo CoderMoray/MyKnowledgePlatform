@@ -76,7 +76,7 @@ def _extract_all_refs(body: str) -> list[tuple[str, str, str]]:
             section = ''
             if '::' in ref_path:
                 ref_path, section = ref_path.split('::', 1)
-            results.append(('ref', ref_path, section or link_text))
+            results.append(('ref', ref_path, section))
 
     return results
 
