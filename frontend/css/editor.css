@@ -390,23 +390,38 @@
   0% { opacity: 1; background: rgba(34,197,94,0.08); }
   100% { opacity: 0; background: rgba(34,197,94,0.12); }
 }
-/* 呼吸红边框通过 content-panel 父级实现 */
-.content-panel--locked {
-  animation: lock-pulse 2s ease-in-out infinite;
-  position: relative;
+/* 跑马灯红边框（Apple Intelligence 风格） */
+@property --lock-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
-.content-panel--locked::after {
+.content-panel--locked {
+  position: relative;
+  overflow: hidden;
+}
+.content-panel--locked::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border: 2px solid var(--color-danger);
+  inset: -2px;
+  z-index: 49;
   border-radius: inherit;
-  animation: lock-pulse 2s ease-in-out infinite;
+  background: conic-gradient(
+    from var(--lock-angle),
+    transparent 0deg,
+    transparent 300deg,
+    var(--color-danger) 340deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  padding: 2px;
   pointer-events: none;
+  animation: lock-chase 3s linear infinite;
 }
-@keyframes lock-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.8; }
+@keyframes lock-chase {
+  to { --lock-angle: 360deg; }
 }
 .content-panel--locked .ProseMirror {
   filter: blur(2px);
