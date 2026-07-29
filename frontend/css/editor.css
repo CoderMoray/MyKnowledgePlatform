@@ -362,7 +362,7 @@
 #editor-lock-overlay {
   position: absolute;
   inset: 0;
-  z-index: 50;
+  z-index: 51;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -371,9 +371,6 @@
 }
 #editor-lock-overlay.editor-lock--active {
   animation: editor-lock-in 0.4s ease forwards;
-}
-#editor-lock-overlay.editor-lock--unlocked {
-  animation: editor-lock-out 0.6s ease forwards;
 }
 .editor-lock-text {
   font-size: 15px;
