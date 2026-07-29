@@ -247,12 +247,8 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // 链接修复：从 DOM 检查并记录
-      const linkCount = this.editorInstance.view.dom.querySelectorAll("a").length;
-      console.log("[save] links in editor:", linkCount);
-      this.editorInstance.view.dom.querySelectorAll("a").forEach((a, i) => {
+      this.editorInstance.view.dom.querySelectorAll("a").forEach((a) => {
         const raw = decodeURIComponent(a.getAttribute("href") || "");
-        console.log("[save] link", i, "decoded href:", raw);
         if (!raw || raw === "null" || raw.startsWith("[object")) {
           try {
             const textNode = a.firstChild;
@@ -260,19 +256,19 @@ Alpine.data("docComponent", () => ({
             const $pos = this.editorInstance.state.doc.resolve(pos);
             for (const mark of $pos.marks()) {
               if (mark.type.name === "link" && mark.attrs.href) {
-                console.log("[save] link", i, "recovered from ProseMirror:", mark.attrs.href);
                 a.setAttribute("href", String(mark.attrs.href));
                 break;
               }
             }
           } catch (e) {
-            console.warn("[save] link", i, "posAtDOM failed:", e.message);
             a.removeAttribute("href");
           }
         }
         const fixed = a.getAttribute("href");
-        if (fixed && fixed !== "null" && !fixed.startsWith("[object")) {
-          a.setAttribute("data-myk-href", fixed);
+        if (fixed && fixed !== "null") {
+          let ok = true;
+          try { ok = !decodeURIComponent(fixed).startsWith("[object"); } catch {}
+          if (ok) a.setAttribute("data-myk-href", fixed);
         }
       });
 
@@ -316,6 +312,7 @@ Alpine.data("docComponent", () => ({
         filter: (node) => node.nodeName === "A",
         replacement: (content, node) => {
           let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
+          try { href = decodeURIComponent(href); } catch {}
           if (!href || href === "null" || href.startsWith("[object")) return content;
           if (href.startsWith("ref:")) {
             const ref = href.slice(4).replace(/%20/g, " ");
