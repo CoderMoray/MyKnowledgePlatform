@@ -391,11 +391,6 @@
   100% { opacity: 0; background: rgba(34,197,94,0.12); }
 }
 /* 跑马灯红边框（Apple Intelligence 风格） */
-@property --lock-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
 .content-panel--locked {
   position: relative;
   overflow: hidden;
@@ -403,25 +398,24 @@
 .content-panel--locked::before {
   content: "";
   position: absolute;
-  inset: -2px;
+  inset: -4px;
   z-index: 49;
   border-radius: inherit;
-  background: conic-gradient(
-    from var(--lock-angle),
-    transparent 0deg,
-    transparent 300deg,
-    var(--color-danger) 340deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  padding: 2px;
+  background: conic-gradient(from 0deg, #ef4444, #fca5a5, #ef4444, transparent 40%, transparent 60%, #ef4444, #fca5a5, #ef4444);
+  animation: lock-spin 3s linear infinite;
   pointer-events: none;
-  animation: lock-chase 3s linear infinite;
 }
-@keyframes lock-chase {
-  to { --lock-angle: 360deg; }
+.content-panel--locked::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 49;
+  border-radius: inherit;
+  background: var(--bg-primary, #fff);
+  pointer-events: none;
+}
+@keyframes lock-spin {
+  to { transform: rotate(360deg); }
 }
 .content-panel--locked .ProseMirror {
   filter: blur(2px);
