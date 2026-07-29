@@ -229,7 +229,11 @@ Alpine.data("docComponent", () => ({
         document.getElementById("content-panel").appendChild(el);
         requestAnimationFrame(() => el.classList.add("editor-lock--active"));
       } else if (state === "unlocked" && el) {
-        el.querySelector(".editor-lock-text").textContent = "AI 编辑结束，已解锁";
+        el.classList.add("editor-lock--switch");
+        setTimeout(() => {
+          el.querySelector(".editor-lock-text").textContent = "AI 编辑结束，已解锁";
+          el.classList.remove("editor-lock--switch");
+        }, 120);
       }
     },
 
@@ -517,9 +521,12 @@ Alpine.data("docComponent", () => ({
             panel.classList.add("content-panel--unlocking");
           }
           setTimeout(() => {
-            this.editorInstance && this.editorInstance.setEditable(true);
             const el = document.getElementById("editor-lock-overlay");
-            if (el) el.remove();
+            if (el) {
+              el.classList.add("editor-lock--exit");
+              setTimeout(() => el.remove(), 480);
+            }
+            this.editorInstance && this.editorInstance.setEditable(true);
             if (panel) panel.classList.remove("content-panel--unlocking");
           }, 2400);
         }
