@@ -205,6 +205,8 @@ Alpine.data("docComponent", () => ({
       });
       document.body.appendChild(card);
       const linkRect = linkEl.getBoundingClientRect();
+      const cardWidth = 300;
+      let left = linkRect.right + 8;
       let top = linkRect.top - 4;
       if (left + cardWidth > window.innerWidth - 16) left = window.innerWidth - cardWidth - 16;
       if (top < 8) top = linkRect.bottom + 4;
