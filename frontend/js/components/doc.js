@@ -524,10 +524,15 @@ Alpine.data("docComponent", () => ({
             const el = document.getElementById("editor-lock-overlay");
             if (el) {
               el.classList.add("editor-lock--exit");
-              setTimeout(() => el.remove(), 480);
+              setTimeout(() => {
+                el.remove();
+                this.editorInstance && this.editorInstance.setEditable(true);
+                if (panel) panel.classList.remove("content-panel--unlocking");
+              }, 480);
+            } else {
+              this.editorInstance && this.editorInstance.setEditable(true);
+              if (panel) panel.classList.remove("content-panel--unlocking");
             }
-            this.editorInstance && this.editorInstance.setEditable(true);
-            if (panel) panel.classList.remove("content-panel--unlocking");
           }, 2400);
         }
       });
