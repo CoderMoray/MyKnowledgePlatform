@@ -411,7 +411,10 @@
 }
 
 /* 解锁绿过渡 */
-.content-panel--unlocking > * {
+.content-panel--unlocking {
+  position: relative;
+}
+.content-panel--unlocking > :not(#editor-lock-overlay) {
   filter: blur(3px);
   pointer-events: none;
 }
