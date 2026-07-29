@@ -333,8 +333,10 @@ const api = {
     }
     const blob = await res.blob();
     const disposition = res.headers.get("Content-Disposition") || "";
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : (projectPaths.length === 1 ? "MyKnowledge.mkpkg" : "myknowledge-export.zip");
+    // 优先解析 RFC 5987 编码文件名
+    const rfcMatch = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    const standardMatch = !rfcMatch && disposition.match(/filename="?([^";]+)"?/);
+    const filename = rfcMatch ? decodeURIComponent(rfcMatch[1]) : (standardMatch ? standardMatch[1] : (projectPaths.length === 1 ? "MyKnowledge.mkpkg" : "myknowledge-export.zip"));
     return { blob, filename };
   },
 };

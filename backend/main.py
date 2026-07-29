@@ -800,13 +800,21 @@ def api_export(payload: ExportPayload):
         header = struct.pack(">I", len(manifest_bytes))
         pkg_data.append((f"MyKnowledge-{manifest['name']}.mkpkg", header + manifest_bytes + encrypted))
 
+    from urllib.parse import quote as _url_quote
+
     if len(pkg_data) == 1:
         name, data = pkg_data[0]
         from starlette.responses import Response
+        ascii_name = name.encode("ascii", errors="replace").decode("ascii")
         return Response(
             content=data,
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename=\"{ascii_name}\"; "
+                    f"filename*=UTF-8''{_url_quote(name)}"
+                ),
+            },
         )
 
     # Multiple projects → zip
@@ -819,7 +827,7 @@ def api_export(payload: ExportPayload):
     return Response(
         content=zip_buf.getvalue(),
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="myknowledge-export.zip"'},
+        headers={"Content-Disposition": "attachment; filename=\"myknowledge-export.zip\""},
     )
 
 
