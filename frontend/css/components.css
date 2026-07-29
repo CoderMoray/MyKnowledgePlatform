@@ -1067,9 +1067,9 @@
   background: var(--accent-subtle);
 }
 .share-project-list {
-  padding: 8px 0;
-  border-top: 0.5px solid var(--color-border-tertiary);
-  border-bottom: 0.5px solid var(--color-border-tertiary);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-background-secondary);
 }
 .share-project-item {
   display: flex;
@@ -1094,11 +1094,14 @@
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  padding: 10px;
+  padding: 10px 0;
   margin-top: 10px;
-  border-radius: 8px;
-  background: var(--color-background-secondary);
   font-size: 11px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
   line-height: 1.5;
+}
+.share-encrypt-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-text-tertiary);
 }
