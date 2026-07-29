@@ -247,22 +247,26 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // 修复 TipTap Link：从 ProseMirror 内部状态提取真实 href
-      this.editorInstance.view.dom.querySelectorAll("a").forEach(a => {
+      // 链接修复：从 DOM 检查并记录
+      const linkCount = this.editorInstance.view.dom.querySelectorAll("a").length;
+      console.log("[save] links in editor:", linkCount);
+      this.editorInstance.view.dom.querySelectorAll("a").forEach((a, i) => {
         const raw = a.getAttribute("href");
+        console.log("[save] link", i, "raw href:", raw, "a.href:", a.href);
         if (!raw || raw === "null" || raw.startsWith("[object")) {
-          // DOM 已损坏，尝试从 ProseMirror state 恢复
           try {
-            const pos = this.editorInstance.view.posAtDOM(a, 0);
+            const textNode = a.firstChild;
+            const pos = this.editorInstance.view.posAtDOM(textNode || a, textNode ? 1 : 0);
             const $pos = this.editorInstance.state.doc.resolve(pos);
             for (const mark of $pos.marks()) {
               if (mark.type.name === "link" && mark.attrs.href) {
+                console.log("[save] link", i, "recovered from ProseMirror:", mark.attrs.href);
                 a.setAttribute("href", String(mark.attrs.href));
                 break;
               }
             }
           } catch (e) {
-            // posAtDOM 失败则放弃修复，至少保留文字
+            console.warn("[save] link", i, "posAtDOM failed:", e.message);
             a.removeAttribute("href");
           }
         }
@@ -309,14 +313,15 @@ Alpine.data("docComponent", () => ({
       });
       // 链接修复：Turndown 自定义规则从 data-myk-href 取值
       const linkRule = {
-        filter: (node, options) => node.nodeName === "A" && node.getAttribute("data-myk-href"),
+        filter: (node) => node.nodeName === "A",
         replacement: (content, node) => {
-          const href = node.getAttribute("data-myk-href");
-          if (href && href.startsWith("ref:")) {
+          let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
+          if (!href || href === "null" || href.startsWith("[object")) return content;
+          if (href.startsWith("ref:")) {
             const ref = href.slice(4).replace(/%20/g, " ");
             return "[" + content + "](ref:" + ref + ")";
           }
-          return "[" + content + "](" + (href || "") + ")";
+          return "[" + content + "](" + href + ")";
         }
       };
       const cleanHtml = tmp.innerHTML;
