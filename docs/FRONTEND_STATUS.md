@@ -119,18 +119,17 @@
 
 ### D1. Ref 引用浮层 ✅ 已完成
 - 鼠标悬停 ref 链接 200ms → 卡片从鼠标位置向右下方弹出（scale 0→1 + 淡入 0.2s ease-out）
-- 移出卡片/链接 300ms → 向左上方缩小淡出（scale 1→0 + 淡出 0.25s ease-in）
-- 卡片内容：标题 + 来源面包屑（可点击跳转项目） + 作者·更新日期 + 分割线 + 摘要 + 「打开文档」链接
+- 移出卡片/链接 200ms → 向左上方缩小淡出（scale 1→0 + 淡出 0.25s ease-in）
+- **三种链接**：知识引用（`ref:` 文档摘要卡片）、外部链接（http/https URL 卡片）、死链（ref 文件不存在红色提示）
+- 卡片内容：标题 + 来源面包屑/URL + 作者·日期 + 分割线 + 摘要/提示语 + 操作按钮
 - 定位：链接右下方，fixed 定位防滚动脱节
-- 卡片内悬停不关闭，可点击「打开文档」跳转
-- **渲染机制**：`marked` renderer 检测 `ref:` 协议 → 生成 `<a data-ref-path="..." title="关联文档: ..." class="ref-link">` 
-- **检查保护**：`check_build.py` 验证 `data-ref-path` 存在 2+ 处，且路径不含 `::` 后缀
+- 卡片内悬停不关闭，可点击「打开文档」/「打开链接↗」
+- **渲染机制**：`marked` renderer 检测 `ref:` 协议 → 生成 `<a class="ref-link" data-ref-path="...">`；检测 `http(s)://` → 生成 `<a class="ext-link" data-ext-link="...">`
 
 ### D2. 引用知识区块 ✅ 已完成
 - 文档底部浅灰圆角区域，标题「引用知识」
-- 飞书风格列表：文件图标 + 文档标题 + 来源路径，点击跳转文档
+- 三种类型：有效引用（可点击跳转）、死链（灰化 + 「已失效」红标）、外链（↗ 图标 + 「外部」灰标 + 新标签页打开）
 - 来源路径从 refPath 自动推导（`refSourceBreadcrumb`），可点击切换项目
-- 与摘要、表格统一 12px 圆角
 
 ### D3. 文档正文表格 ✅ 已完成
 - 圆角矩形 `border-radius: 12px` + `overflow: hidden`
@@ -191,18 +190,20 @@
 | app.js 拆分为 components/ | ✅ 已恢复 | `js/components/` 7 文件，app.js 从 621→39 行 |
 | build.py JS 语法检查 + CDN 检查 | ✅ 已恢复 | `node --check` 所有 `<script>` + curl 检测 CDN |
 | viewer__summary 移入 header、加「摘要」标签 | ✅ 已恢复 | |
-| ref 链接 hover 浮出卡片（右下方弹出动画） | ✅ 已恢复 | 含 check_build 检查：ref 路径无 :: 后缀 |
+| ref 链接 hover 浮出卡片（三种链接类型） | ✅ 已完成 | ref / 外链 / 死链 三态卡片 + 引用列表三态标记 |
 | 编辑态点击区域外退回只读 | ❌ 未恢复 | |
 | dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 无需改动 | `projectStats` getter 逻辑合理，维持现状 |
 | utils.js 删除死代码 md5（含 gravatarUrl） | ✅ 已恢复 | authorAvatar 纯首字母，无网络请求 | |
 
-## 🆕 新增（2026-07-29 后端提供，前端可接入）
+## 🆕 新增（2026-07-29 已完成）
 
 | 功能 | 状态 | 说明 |
 |------|:--:|------|
-| 后端完成外链解析 | ✅ 后端就绪 | `/api/document/{path}/refs` 返回 `type: "ref"|"external"`，前端可删除 `store.js` 中的自行解析逻辑 |
-| 外链规则 | ✅ 后端就绪 | 代码块/行内代码/图片链接自动跳过，括号 URL 完整捕获 |
-| 死链改为软警告 | ✅ 已实施 | 保存文档时死链不再返回 400，`/refs` 的 `resolved: false` 标记不变 |
+| 后端完成外链解析 | ✅ 已接入 | 前端删除 `store.js` 正则解析，改用后端 `type: "ref"|"external"` |
+| 外链规则 | ✅ 已接入 | 代码块/行内代码/图片链接自动跳过 |
+| 死链改为软警告 | ✅ 已对接 | 保存文档时死链不再返回 400，前端展示不变 |
+| 编辑保存链接零差异 | ✅ 已完成 | Link 扩展 `parseHTML` 强制字符串，backport TipTap 2.6.0 fix |
+| 编辑保存往返测试 | ✅ 已完成 | Node.js 22 用例，`check_build.py` 自动运行 |
 
 ## 🆕 新增（2026-07-29）
 

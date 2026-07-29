@@ -8,7 +8,7 @@
 
 ## 0. 一句话定位
 
-**MyKnowledge 是一个 local-first、开源、数据归你所有的 AI 知识 + 项目管理平台：以 Markdown 为真相源、Git 为版本与协作底座、MCP 为 AI 接入标准，让任意 AI agent 客户端（CodeBuddy / WorkBuddy / Trae 等）「取·存」你的知识并让它越用越厚；可选通过阿里云 OSS 做云同步与分享增强，且云存储仍在你自己的账号下。**
+**MyKnowledge 是一个 local-first、免费、数据归你所有的 AI 知识 + 项目管理平台：以 Markdown 为真相源、版本与协作底座、MCP 为 AI 接入标准，让任意 AI agent 客户端（CodeBuddy / WorkBuddy / Trae 等）「取·存」你的知识并让它越用越厚；可选通过阿里云 OSS 做云同步与分享增强，且云存储仍在你自己的账号下。**
 
 **关键边界：MyKnowledge 自身不内置任何 LLM。** 所有的「智能/推理」都发生在用户的 agent client 侧，MyKnowledge 只负责提供 MCP 工具 + 本地存储 + 可选云同步。
 
@@ -29,11 +29,11 @@
 | AI 接入 | 原生 CLI | 第三方 MCP/插件 | 第三方 MCP/插件 | 第三方 MCP+内置AI | 锁定 WorkBuddy | 内置 AI问答/Aily | 内置 Notion AI + REST API/集成 | **原生 MCP(22工具)** |
 | 内置 LLM | 否 | 否(插件) | 否(插件) | 是(Roam AI) | 是(腾讯) | 是(飞书) | 是(Notion AI，可接第三方) | **否(外部 client)** |
 | 协作 | 无(Git) | 弱 | 弱(无原生实时) | 有(团队图) | 弱 | **强(实时团队)** | **强(实时+评论+权限+发布)** | 弱(Git/分享包) |
-| 格式开放/开源 | 开源 | 开源 | 格式开放/App闭源 | 闭源/专有 | 闭源/锁定 | 闭源/锁定 | 闭源/专有(可导出 md/html/csv) | **开源+纯文本** |
+| 格式开放/开源 | 开源 | 开源 | 格式开放/App闭源 | 闭源/专有 | 闭源/锁定 | 闭源/锁定 | 闭源/专有(可导出 md/html/csv) | **免费+纯文本** |
 | 云同步/分享 | 无 | 官方sync(付费) | Sync/Publish(付费) | 云端自带 | 云自带 | 云自带 | 云自带+分享页/发布 | **OSS自账号+加密.mkpkg** |
 | 数据归属/合规 | 你持有 | 你持有 | 你持有 | 厂商云 | 腾讯云 | 飞书云 | Notion 云(企业版有 SOC2/合规) | **你持有+可审计** |
 | 用户门槛 | 技术友好 | 技术友好 | 技术友好 | 技术友好 | 零门槛 | 企业开通 | 中低门槛(块编辑易，库/关系需学) | **双入口：技术向 MCP/CLI；业务人员 Web UI(低门槛)** |
-| 定价 | 开源免费 | 开源免费 | 个人免费/商业付费 | $15/月 | 免费/订阅 | 企业订阅 | 免费版+Plus $10+Business $18+Enterprise | 开源免费 |
+| 定价 | 开源免费 | 开源免费 | 个人免费/商业付费 | $15/月 | 免费/订阅 | 企业订阅 | 免费版+Plus $10+Business $18+Enterprise | 免费 |
 | 离线/无网可用 | 是(本地) | 是(本地) | 是(本地) | 否(云端) | 否(云端) | 否(云端) | 否(云端，弱离线) | **是(本地 md+Git)** |
 | 结构化数据（数据库/关系） | 否(纯文件) | 弱(属性/查询) | 弱(Dataview 插件) | 弱(块查询) | 弱 | 多维表格(Base) | **强(数据库/关系/多视图)** | 否(文档/文件夹，有意不做库) |
 | 内容块粒度 | 文档级 | 块级 `((块))` | 块引用(插件) | 块级 `((块))` | 文档级 | 块级(文档) | 块级(任意嵌套) | 文档级(有意不做块级，Git diff 更干净) |
@@ -49,7 +49,7 @@
 横扫七个对手（IWE / Logseq / Obsidian / Roam / ima / 飞书 / Notion），**同时具备以下 5 条的只有 MyKnowledge**：
 
 - 纯 Markdown（人类可读、可手改、可带走）
-- Git 原生版本化与可审计
+- 自动版本记录与可审计
 - 原生 MCP、agent-first（22 个工具，write-through + 锁/checkpoint 维护机制）
 - 企业合规（不内置 LLM，数据不出域，接入可审计）
 - OSS 自账号云同步 + 加密分享包（归属仍在企业自己账号）
@@ -63,7 +63,7 @@
 本项目有前端 Web UI，其存在意义正是让**非技术的业务人员**也能低门槛地录入/查阅知识——否则做前端交互毫无必要。因此目标客群三类并存：
 
 - **业务人员**：经 Web UI 使用，低门槛，是「知识真正被沉淀」的广泛来源，也是企业落地时的主体使用者。
-- **技术团队 / 技术向个人**：经 MCP/CLI 使用，最先感知「Git 版本化 + agent 共享同一份知识 + 数据归自己」的价值，是开源传播与冷启动楔子。
+- **技术团队 / 技术向个人**：经 MCP/CLI 使用，最先感知「版本记录 + agent 共享同一份知识 + 数据归自己」的价值，是口碑传播与冷启动楔子。
 - **企业客户（更核心）**：合规与采购的落点，飞书/ima 的替代项。
 
 **漏斗关系**：技术向个人（口碑/Star）→ 技术团队（落地验证）→ 企业（合规+采购放大）；业务人员贯穿始终，是企业场景下的主要使用者。
@@ -74,7 +74,7 @@
 
 企业部署 AI 通常有两种路径，这直接决定了 MyKnowledge 的边界：
 
-1. **企业自带模型（自托管）**：能做到这一点的公司技术实力都很强，其技术决策者本身就有能力自研类似 MyKnowledge 的底座。这类客户不是我们的主要目标——他们要么自己造，要么直接 fork 我们的开源代码。因此我们不需要、也不应该把「内置模型」作为卖点去服务他们。
+1. **企业自带模型（自托管）**：能做到这一点的公司技术实力都很强，其技术决策者本身就有能力自研类似 MyKnowledge 的底座。这类客户不是我们的主要目标——他们要么自己造，要么直接基于现有实现扩展。因此我们不需要、也不应该把「内置模型」作为卖点去服务他们。
 2. **外部采购企业级 agent client（如 CodeBuddy / WorkBuddy / Trae）**：这是我们的**主要目标客群**，且天然契合合规要求——MCP 对 client 是标准、可控、可审计的接入方式，叠加本地部署，数据不出域。
 
 由此得出边界原则：
@@ -97,7 +97,7 @@
 | AI / LLM | 内置腾讯大模型 | **不含 LLM**；智能来自外部 agent client（经 MCP） |
 | AI 客户端 | 锁定 WorkBuddy | 任意支持 MCP 的客户端（CodeBuddy/WorkBuddy/Trae/自研…） |
 | 可移植性 | 锁定生态，导出受限 | 纯文本 Markdown，随时带走，无厂商锁定 |
-| 扩展性 | 封闭 | 开源，连接器以 MCP / 插件扩展 |
+| 扩展性 | 封闭 | 免费，连接器以 MCP / 插件扩展 |
 | 移动/小程序 | 有 | 暂无（路线图外，可后续加 PWA） |
 | 用户门槛 | 零门槛 | 双入口：技术向 MCP/CLI，业务人员 Web UI（低门槛） |
 
@@ -123,7 +123,7 @@
 | 内容块粒度 | 块级任意嵌套 | 文档级（所有权清晰、Git diff 干净） |
 | 离线可用 | 否（云端，弱离线） | 是（本地 md + Git） |
 | 可移植性 | 闭源专有，导出受限 | 纯文本 Markdown，随时带走，无厂商锁定 |
-| 扩展性 | 封闭 API / 集成 | 开源，连接器以 MCP / 插件扩展 |
+| 扩展性 | 封闭 API / 集成 | 免费，连接器以 MCP / 插件扩展 |
 
 > **结论**：Notion 赢在「人侧全能 + 结构化」，MyKnowledge 赢在「agent 原生 + 本地优先 + 数据归你 + 合规可审计」。两者客群都覆盖业务人员/企业，但 MyKnowledge 把 AI 推理留给外部 client、把数据留在用户域——这是 Notion 的结构性不可能三角（云端 + 内置 AI + 数据归属三者不可兼得）。
 
@@ -135,7 +135,7 @@
 知识库                          ← 物理上即一个 .myknowledge/ 目录
  ├─ type: personal | shared | subscribed
  ├─ root: .myknowledge/
- ├─ git:  local repo（shared 有 remote；subscribed 为只读 clone/submodule）
+ ├─ version: 本地版本库（每次写入自动记录版本，提供可审计的版本历史）
  ├─ oss:  可选，绑定 OSS bucket/前缀（用于云同步与分享）
  ├─ config: .myknowledge/config.yaml（OSS 绑定、加密密钥引用）
  └─ tree:
@@ -589,7 +589,7 @@ Agent 语义层（读取报告后，用户交互）：
 |------|------------------|
 | 取 | MCP `nav__list_dir`（支持 `recursive`）/ `nav__read_readme` / `nav__get_document` / `nav__exists` / `nav__find`；agent 从根 readme 起语义递归下钻 |
 | 用 | **由 agent client 完成** |
-| 存 | MCP `write__create_document`（支持 `dry_run` + `if_exists`）/ `write__update_document` / `write__update_project_meta`，自动 write-through + git commit |
+| 存 | MCP `write__create_document`（支持 `dry_run` + `if_exists`）/ `write__update_document` / `write__update_project_meta`，自动 write-through + 记录版本 |
 | 云 | 可选：OSS 定时同步 / 更新即上传 |
 
 ---
@@ -597,13 +597,13 @@ Agent 语义层（读取报告后，用户交互）：
 ## 4. 功能模块
 
 ### 4.1 知识库管理
-创建/删除/列出知识库；type（个人/共享/订阅）；共享库绑定 git remote 或 OSS；订阅库只读 clone。
+创建/删除/列出知识库；type（个人/共享/订阅）；共享库可绑定 OSS 同步；订阅库为只读副本。
 
 ### 4.2 检索
 FS + readme 递归为主，可选 FTS5 L0 加速。
 
 ### 4.3 写入
-`create_document` / `update_document` / `update_project_meta`。自动 write-through 重建 readme + git commit。
+`create_document` / `update_document` / `update_project_meta`。自动 write-through 重建 readme + 记录版本。
 
 ### 4.4 云同步
 OSS 定时同步 / 更新即上传（文件监听或 git hook）。

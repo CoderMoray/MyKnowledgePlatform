@@ -37,10 +37,16 @@
 
 三者是**独立互补的库**，不是 marked 的子包。marked 负责正文渲染，highlight.js 负责代码着色，js-yaml 负责元数据解析。均从 CDN 加载，零依赖。
 
-**`ref:` 链接处理方案（阅读态 + 编辑态通用）：**
-marked 的 `renderer.link` 判断 `href` 前缀，对 `ref:` 协议渲染为可交互的内联标签 `<span class="ref-link" data-ref-path="...">📄 文档标题</span>`：
-- **阅读态**：点击弹出浮层，异步加载 `/api/document/{path}/refs` 显示引用内容
-- **编辑态**：TipTap 通过自定义 Node 渲染为内联引用标记，用户可点击查看引用源，但编辑的是当前文档本身
+**链接处理方案（三种类型）：**
+`marked` 的 `renderer.link` 判断 `href` 前缀，生成不同的 HTML：
+
+| 前缀 | 渲染 | 行为 |
+|------|------|------|
+| `ref:` | `<a class="ref-link" data-ref-path="...">` | hover 文档摘要卡片，点击跳转文档 |
+| `http(s)://` | `<a class="ext-link" data-ext-link="...">` | hover 显示 URL，点击新标签页打开 |
+| `ref:` 不存在 | 同上 | hover 红色「文件不存在」提示 |
+
+hover 延迟 200ms 弹出，移出 200ms 关闭。`fixed` 定位在链接右下方。
 
 ### 1.3 编辑器方案：TipTap 2.x（WYSIWYG 所见即所得）
 
