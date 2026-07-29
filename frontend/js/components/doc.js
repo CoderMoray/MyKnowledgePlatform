@@ -110,7 +110,7 @@ Alpine.data("docComponent", () => ({
         clearTimeout(this._hoverTimer);
       });
       card.addEventListener("mouseleave", () => {
-        this._hoverTimer = setTimeout(() => this.closePopover(), 300);
+        this._hoverTimer = setTimeout(() => this.closePopover(), 200);
       });
 
       document.body.appendChild(card);
@@ -201,12 +201,7 @@ Alpine.data("docComponent", () => ({
     _attachCardEvents(card, linkEl) {
       card.addEventListener("mouseenter", () => clearTimeout(this._hoverTimer));
       card.addEventListener("mouseleave", () => {
-        this._hoverTimer = setTimeout(() => this.closePopover(), 300);
-      });
-      document.body.appendChild(card);
-
-      const linkRect = linkEl.getBoundingClientRect();
-      const cardWidth = 300;
+        this._hoverTimer = setTimeout(() => this.closePopover(), 200);", line 204, and replace all remaining hover-close 300ms with 200ms. Let me use replace_all.<｜end▁of▁thinking｜>所有 300ms → 200ms：
       let left = linkRect.right + 8;
       let top = linkRect.top - 4;
       if (left + cardWidth > window.innerWidth - 16) left = window.innerWidth - cardWidth - 16;
@@ -256,7 +251,7 @@ Alpine.data("docComponent", () => ({
         const link = findLink(e.relatedTarget);
         if (link) return;
         clearTimeout(self._hoverTimer);
-        self._hoverTimer = setTimeout(() => self.closePopover(), 300);
+        self._hoverTimer = setTimeout(() => self.closePopover(), 200);
       });
     },
 
