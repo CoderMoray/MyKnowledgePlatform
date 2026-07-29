@@ -2,7 +2,7 @@
 title: 移除前端外链解析逻辑，改用后端数据
 area: frontend
 depends_on: docs/tasks/backend-external-links.md
-status: todo
+status: done
 ---
 
 ## 背景

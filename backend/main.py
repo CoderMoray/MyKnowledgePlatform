@@ -129,8 +129,13 @@ def _check_write_allowed():
 def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
     """Validate document content before saving.
 
-    Returns a list of issues (empty = valid).  Raise 400 if non-empty.
+    Returns a list of issues (empty = valid). Dead refs (``ref_not_found``)
+    are logged as warnings but do NOT block saving — the frontend already
+    displays them as ``resolved: false`` in the refs list.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     issues: list[dict] = []
 
     if not payload.summary.strip():
@@ -143,6 +148,7 @@ def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
     from backend.mcp_server import _resolve_ref, _extract_section
 
     all_refs = _extract_all_refs(payload.content)
+    dead_refs = 0
     for ref_type, ref_path, section in all_refs:
         if ref_type == "external":
             continue  # external URLs can't be validated
@@ -156,10 +162,10 @@ def _validate_doc(payload: DocumentPayload, storage: Storage) -> list[dict]:
                         "message": f"引用段落不存在: {ref_path} 中的「{section}」",
                     })
         except FileNotFoundError:
-            issues.append({
-                "type": "ref_not_found",
-                "message": f"引用路径不存在: {ref_path}",
-            })
+            dead_refs += 1  # log but don't block
+
+    if dead_refs:
+        logger.info("document saved with %d unresolved ref(s)", dead_refs)
 
     return issues
 

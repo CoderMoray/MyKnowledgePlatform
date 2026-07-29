@@ -130,6 +130,20 @@ python3 build.py    # 重新内联生成 standalone
 后续可选主题（设计令牌架构已预留）：
 - Intercom — 柔和蓝 B2B 温度感
 - Warm Editorial — 暖白纸张书卷感
+
+## 链接类型
+
+阅读态支持三种链接，hover 弹出差异化卡片：
+
+| 链接 | 正则 | 卡片内容 | 引用列表 |
+|------|------|---------|---------|
+| 知识引用 `[text](ref:path::section)` | `ref:` | 文档摘要 + 打开文档 | 可点击跳转 |
+| 外部链接 `[text](https://...)` | `http(s)://` | URL + 打开链接↗ | 「外部」灰标 + 新标签页 |
+| 死链 `ref:` 指向不存在文件 | 同知识引用 | 「文件不存在」红色提示 | 「已失效」红标 |
+
+后端 `/api/document/{path}/refs` 返回 `type: "ref"|"external"` + `resolved: true|false`。
+
+编辑器保存链接经过 `PatchedLink` 自定义扩展强制 `parseHTML` 为字符串，确保 href 不被 TipTap 2.1.13 损坏（官方 2.6.0+ 修复）。
 - Mistral AI — 象牙白法式优雅
 - Resend — 建筑感瑞士极简
 
