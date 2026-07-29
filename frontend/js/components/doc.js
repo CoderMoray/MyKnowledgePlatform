@@ -512,12 +512,16 @@ Alpine.data("docComponent", () => ({
           this._showLockOverlay("locked");
         } else if (!store.isLocked && document.getElementById("editor-lock-overlay")) {
           this._showLockOverlay("unlocked");
-          if (panel) panel.classList.remove("content-panel--locked");
+          if (panel) {
+            panel.classList.remove("content-panel--locked");
+            panel.classList.add("content-panel--unlocking");
+          }
           setTimeout(() => {
             this.editorInstance && this.editorInstance.setEditable(true);
             const el = document.getElementById("editor-lock-overlay");
             if (el) el.remove();
-          }, 1200);
+            if (panel) panel.classList.remove("content-panel--unlocking");
+          }, 2400);
         }
       });
 

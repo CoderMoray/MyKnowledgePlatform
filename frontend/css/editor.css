@@ -394,7 +394,7 @@
 .content-panel--locked {
   position: relative;
 }
-.content-panel--locked .ProseMirror {
+.content-panel--locked > * {
   filter: blur(3px);
   pointer-events: none;
 }
@@ -411,6 +411,27 @@
 @keyframes lock-flash {
   0%, 100% { background: rgba(239, 68, 68, 0.03); }
   50% { background: rgba(239, 68, 68, 0.08); }
+}
+
+/* 解锁绿过渡 */
+.content-panel--unlocking > * {
+  filter: blur(3px);
+  pointer-events: none;
+}
+.content-panel--unlocking::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 49;
+  border-radius: inherit;
+  animation: unlock-green 2.4s ease forwards;
+  pointer-events: none;
+}
+@keyframes unlock-green {
+  0% { background: rgba(34, 197, 94, 0.01); }
+  30% { background: rgba(34, 197, 94, 0.08); }
+  70% { background: rgba(34, 197, 94, 0.08); }
+  100% { background: rgba(34, 197, 94, 0); }
 }
 .content-panel--locked .ProseMirror {
   filter: blur(2px);
