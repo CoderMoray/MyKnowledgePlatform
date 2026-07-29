@@ -317,7 +317,7 @@ const api = {
 
   /** 获取项目列表（用于分享导出） */
   async listProjects() {
-    return this._request("/api/list/projects");
+    return apiRequest("/api/list/projects");
   },
 
   /** 导出项目为 pkg */
