@@ -322,6 +322,7 @@ Alpine.data("docComponent", () => ({
     async exitEdit() {
       const store = Alpine.store("app");
       if (store.currentView !== "edit" || !this.editorInstance) return;
+      if (store.isLocked) return; // AI 锁定时禁止退出编辑
 
       // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
       const html = this.editorInstance.view ? this.editorInstance.view.dom.innerHTML : this.editorInstance.getHTML();
@@ -490,7 +491,7 @@ Alpine.data("docComponent", () => ({
 
       // CMD+S / Ctrl+S 保存（全局监听，只在编辑态生效）
       document.addEventListener("keydown", (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === "s" && store.currentView === "edit") {
+        if ((e.metaKey || e.ctrlKey) && e.key === "s" && store.currentView === "edit" && !store.isLocked) {
           e.preventDefault();
           e.stopPropagation();
           this.exitEdit();
