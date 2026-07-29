@@ -298,12 +298,7 @@ Alpine.data("docComponent", () => ({
       store.setView("edit", store.currentPath);
       this.$nextTick(() => {
         requestAnimationFrame(() => {
-          if (this.editorInstance) {
-            this.editorInstance.setEditable(true);
-            this.editorInstance.commands.focus("end");
-          } else {
-            this.initEditor(content);
-          }
+          this.initEditor(content);
         });
       });
     },
@@ -404,15 +399,18 @@ Alpine.data("docComponent", () => ({
         await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
       } catch (e) {}
 
-      // 不销毁编辑器，只切回只读
-      this.editorInstance.setEditable(false);
+      // 销毁编辑器，下次进入重新创建（避免 ProseMirror 状态错乱）
+      if (this.editorInstance) {
+        this.editorInstance.destroy();
+        this.editorInstance = null;
+      }
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
     },
 
     async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
-      if (!el || this.editorInstance) return;
+      if (!el) return;
 
       const store = Alpine.store("app");
 

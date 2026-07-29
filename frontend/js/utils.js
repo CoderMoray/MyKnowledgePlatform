@@ -177,7 +177,7 @@ function uid() {
  * @param {'success'|'error'|'warning'|'info'} type
  * @param {number} duration - 自动消失时间(ms)
  */
-function showToast(message, type = "info", duration = 3000) {
+function showToast(message, type = "info", duration = 1500) {
   const container =
     document.querySelector(".toast-container") || createToastContainer();
   const toast = document.createElement("div");
