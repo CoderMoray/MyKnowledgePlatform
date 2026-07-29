@@ -314,4 +314,20 @@ const api = {
       return { status: "disconnected", detail: "" };
     }
   },
+
+  /** 获取项目列表（用于分享导出） */
+  async listProjects() {
+    return this._request("/api/list");
+  },
+
+  /** 导出项目为 pkg */
+  async exportProjects(projectPaths) {
+    const res = await fetch(`${API_BASE}/api/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projects: projectPaths }),
+    });
+    if (!res.ok) throw new Error(`导出失败 (${res.status})`);
+    return res.blob();
+  },
 };

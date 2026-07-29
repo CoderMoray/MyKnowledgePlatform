@@ -305,6 +305,17 @@
             删除
           </button>
 
+          <!-- 分享按钮（文档/项目页显示，AI 锁定时禁用） -->
+          <button class="btn-share" @click="$store.app.openShareModal()"
+                  :disabled="$store.app.isLocked"
+                  :style="$store.app.isLocked ? 'opacity:0.4;cursor:default' : ''"
+                  x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            </svg>
+            分享
+          </button>
+
           <!-- 主题切换（仅 Raycast 显示） -->
           <div class="theme-switcher" x-show="$store.app.showColorMode">
             <button class="theme-switcher__btn"
@@ -997,6 +1008,41 @@
                   @click="saveIdentity()"
                   :disabled="!identityNickname.trim() || !identityEmail.trim() || (identityEmail && !isValidEmail(identityEmail))">
             保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 分享导出 -->
+    <div class="modal-overlay"
+         x-show="$store.app.modal === 'share-export'"
+         x-cloak
+         @click.self="$store.app.closeModal()">
+      <div class="modal" style="max-width:480px">
+        <h2 class="modal__title">导出知识包</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <p class="modal__description" style="margin:0;line-height:1.5">选择要分享的项目，导出后可发送给其他人，通过与 AI 对话来导入</p>
+          <button class="btn-share-select-all" @click="shareToggleAll()">全选</button>
+        </div>
+        <div class="share-project-list">
+          <template x-for="project in $store.app.shareProjects" :key="project.path">
+            <label class="share-project-item">
+              <input type="checkbox" x-model="project.checked">
+              <span class="share-project-name" x-text="project.name"></span>
+              <span class="share-project-count" x-text="project.docCount + ' 文档'"></span>
+            </label>
+          </template>
+        </div>
+        <div class="share-encrypt-notice">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--color-text-success);flex-shrink:0;margin-top:1px"><rect x="3.5" y="5.5" width="9" height="7" rx="1"/><path d="M5.5 5.5v-1a2.5 2.5 0 015 0v1"/></svg>
+          <span>知识包采用端到端加密，文件内容无法被中间人截获或破解。</span>
+        </div>
+        <div class="modal__actions">
+          <button class="btn" @click="$store.app.closeModal()">取消</button>
+          <button class="btn btn--primary"
+                  @click="$store.app.exportShare()"
+                  :disabled="!$store.app.shareProjects.some(p => p.checked)">
+            导出
           </button>
         </div>
       </div>

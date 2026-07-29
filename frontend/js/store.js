@@ -143,8 +143,11 @@ document.addEventListener("alpine:init", () => {
 
     /* ── 弹窗状态 ──────────────────────────────────────────────────────── */
 
-    /** 弹窗类型: null | 'delete-doc' | 'rename-doc' | 'new-doc' | 'rename-project' */
+    /** 弹窗类型: null | 'delete-doc' | 'rename-doc' | 'new-doc' | 'rename-project' | 'share-export' */
     modal: null,
+
+    /** 分享导出：项目列表 */
+    shareProjects: [],
 
     /** 弹窗携带的数据 */
     modalData: null,
@@ -537,6 +540,50 @@ document.addEventListener("alpine:init", () => {
     closeModal() {
       this.modal = null;
       this.modalData = null;
+    },
+
+    /** 打开分享导出弹窗，加载项目列表 */
+    async openShareModal() {
+      this.shareProjects = [];
+      try {
+        const data = await api.listProjects();
+        const projects = data.items || data || [];
+        this.shareProjects = projects.map(p => ({
+          path: p.path || p.name,
+          name: p.name || fileName(p.path || ""),
+          docCount: p.doc_count || p.docCount || "-",
+          checked: false,
+        }));
+      } catch (e) {
+        this.shareProjects = [];
+      }
+      this.modal = "share-export";
+    },
+
+    /** 全选/取消全选 */
+    shareToggleAll() {
+      const allChecked = this.shareProjects.every(p => p.checked);
+      this.shareProjects.forEach(p => { p.checked = !allChecked; });
+    },
+
+    /** 执行导出 */
+    async exportShare() {
+      const selected = this.shareProjects.filter(p => p.checked);
+      if (!selected.length) return;
+      try {
+        const blob = await api.exportProjects(selected.map(p => p.path));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "myknowledge-share.pkg";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+        this.closeModal();
+        showToast("已导出 " + selected.length + " 个项目", "success");
+      } catch (e) {
+        showToast("导出失败: " + (e.message || "未知错误"), "error");
+      }
     },
 
     /** Headbar 删除按钮 → 打开删除确认弹窗 */

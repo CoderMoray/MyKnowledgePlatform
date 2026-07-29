@@ -1022,3 +1022,78 @@
 
 [x-cloak] { display: none !important; }
 .modal-overlay[x-cloak] { display: none !important; }
+
+/* ── 分享按钮 ──────────────────────────────────────────────────────────── */
+.btn-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn-share:hover:not(:disabled) {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+.btn-share:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── 分享弹窗 ──────────────────────────────────────────────────────────── */
+.btn-share-select-all {
+  padding: 3px 10px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.btn-share-select-all:hover {
+  background: var(--color-background-secondary);
+}
+.share-project-list {
+  padding: 8px 0;
+  border-top: 0.5px solid var(--color-border-tertiary);
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.share-project-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.share-project-item input[type="checkbox"] {
+  accent-color: var(--accent, #534AB7);
+}
+.share-project-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+.share-project-count {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}
+.share-encrypt-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 8px;
+  background: var(--color-background-secondary);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
