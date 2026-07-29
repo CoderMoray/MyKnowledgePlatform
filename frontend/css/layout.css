@@ -618,6 +618,13 @@
   height: 16px;
   flex-shrink: 0;
 }
+/* 横幅滑入/滑出 */
+.lock-banner-enter { transition: transform 0.24s ease, opacity 0.24s ease; }
+.lock-banner-enter-start { opacity: 0; transform: translateY(-100%); }
+.lock-banner-enter-end { opacity: 1; transform: translateY(0); }
+.lock-banner-leave { transition: transform 0.18s ease, opacity 0.18s ease; }
+.lock-banner-leave-start { opacity: 1; transform: translateY(0); }
+.lock-banner-leave-end { opacity: 0; transform: translateY(-100%); }
 
 /* ── Offline Banner ─────────────────────────────────────────────────────── */
 
