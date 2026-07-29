@@ -73,7 +73,7 @@
   width: 0%;
   border-radius: 2px;
   background: var(--accent-gradient);
-  transition: width 0.24s ease, height 0.6s ease, border-radius 0.6s ease, background 0.6s ease;
+  transition: width 0.3s ease, height 0.6s ease, border-radius 0.6s ease, background 0.6s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,7 +167,7 @@
   width: var(--sidebar-hover-width, 168px) !important;
   overflow: visible;
   border-right: var(--glass-border);
-  animation: sidebar-slide-in 0.24s cubic-bezier(0.16,1,0.3,1) both;
+  animation: sidebar-slide-in 0.3s cubic-bezier(0.16,1,0.3,1) both;
 }
 
 @keyframes sidebar-slide-in {
@@ -619,10 +619,10 @@
   flex-shrink: 0;
 }
 /* 横幅滑入/滑出 */
-.lock-banner-enter { transition: transform 0.24s ease, opacity 0.24s ease; }
+.lock-banner-enter { transition: transform 0.3s ease, opacity 0.3s ease; }
 .lock-banner-enter-start { opacity: 0; transform: translateY(-100%); }
 .lock-banner-enter-end { opacity: 1; transform: translateY(0); }
-.lock-banner-leave { transition: transform 0.18s ease, opacity 0.18s ease; }
+.lock-banner-leave { transition: transform 0.3s ease, opacity 0.3s ease; }
 .lock-banner-leave-start { opacity: 1; transform: translateY(0); }
 .lock-banner-leave-end { opacity: 0; transform: translateY(-100%); }
 
@@ -695,7 +695,7 @@
     position: fixed;
     left: calc(-1 * var(--sidebar-width));
     width: var(--sidebar-width) !important;
-    transition: left 0.24s ease;
+    transition: left 0.3s ease;
     max-width: var(--sidebar-width);
   }
 
