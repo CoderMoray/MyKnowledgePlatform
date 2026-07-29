@@ -222,14 +222,13 @@ Alpine.data("docComponent", () => ({
     _showLockOverlay(state) {
       let el = document.getElementById("editor-lock-overlay");
       if (state === "locked") {
-        if (el) return; // 已显示
+        if (el) return;
         el = document.createElement("div");
         el.id = "editor-lock-overlay";
         el.innerHTML = '<div class="editor-lock-text">AI 编辑中，用户编辑功能暂时锁定。</div>';
         document.getElementById("content-panel").appendChild(el);
         requestAnimationFrame(() => el.classList.add("editor-lock--active"));
       } else if (state === "unlocked" && el) {
-        el.classList.add("editor-lock--unlocked");
         el.querySelector(".editor-lock-text").textContent = "AI 编辑结束，已解锁";
       }
     },
