@@ -775,10 +775,18 @@
               </div>
               <div class="viewer__refs-list">
                 <template x-for="ref in $store.app.refs" :key="ref.path">
-                  <!-- 死链 -->
-                  <div class="viewer__ref-item viewer__ref-item--dead" x-show="!ref.resolved && ref.type !== 'external'">
-                    <div class="viewer__ref-icon viewer__ref-icon--dead">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  <div class="viewer__ref-item"
+                       :class="{
+                         'viewer__ref-item--dead': !ref.resolved && ref.type !== 'external',
+                         'viewer__ref-item--external': ref.type === 'external'
+                       }"
+                       @click="ref.type === 'external' ? window.open(ref.path, '_blank', 'noopener') : (ref.resolved && goToRef(ref.path))">
+                    <div class="viewer__ref-icon"
+                         :class="{
+                           'viewer__ref-icon--dead': !ref.resolved && ref.type !== 'external',
+                           'viewer__ref-icon--external': ref.type === 'external'
+                         }">
+                      <svg x-show="ref.type !== 'external'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
@@ -786,20 +794,7 @@
                         <line x1="16" y1="17" x2="8" y2="17"/>
                         <polyline points="10 9 9 9 8 9"/>
                       </svg>
-                    </div>
-                    <div class="viewer__ref-info">
-                      <div style="display:flex;align-items:center;gap:6px">
-                        <span class="viewer__ref-name" x-text="fileName(ref.path)"></span>
-                        <span class="viewer__ref-badge viewer__ref-badge--dead">已失效</span>
-                      </div>
-                      <span class="viewer__ref-source viewer__ref-source--dead">引用的知识不存在</span>
-                    </div>
-                  </div>
-                  <!-- 外链 -->
-                  <div class="viewer__ref-item viewer__ref-item--external" x-show="ref.type === 'external'"
-                       @click="window.open(ref.path, '_blank', 'noopener')">
-                    <div class="viewer__ref-icon viewer__ref-icon--external">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      <svg x-show="ref.type === 'external'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                         <polyline points="15 3 21 3 21 9"/>
@@ -809,26 +804,12 @@
                     <div class="viewer__ref-info">
                       <div style="display:flex;align-items:center;gap:6px">
                         <span class="viewer__ref-name" x-text="ref.title || fileName(ref.path)"></span>
-                        <span class="viewer__ref-badge viewer__ref-badge--external">外部</span>
+                        <span class="viewer__ref-badge viewer__ref-badge--dead" x-show="!ref.resolved && ref.type !== 'external'">已失效</span>
+                        <span class="viewer__ref-badge viewer__ref-badge--external" x-show="ref.type === 'external'">外部</span>
                       </div>
-                      <span class="viewer__ref-source" x-text="ref.path"></span>
-                    </div>
-                  </div>
-                  <!-- 有效引用 -->
-                  <div class="viewer__ref-item" x-show="ref.resolved" @click="goToRef(ref.path)">
-                    <div class="viewer__ref-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                        <polyline points="10 9 9 9 8 9"/>
-                      </svg>
-                    </div>
-                    <div class="viewer__ref-info">
-                      <span class="viewer__ref-name" x-text="fileName(ref.path)"></span>
-                      <span class="viewer__ref-source" x-text="refSourcePath(ref) || ''"></span>
+                      <span class="viewer__ref-source"
+                            :class="{ 'viewer__ref-source--dead': !ref.resolved && ref.type !== 'external' }"
+                            x-text="ref.type === 'external' ? ref.path : (!ref.resolved ? '引用的知识不存在' : (refSourcePath(ref) || ''))"></span>
                     </div>
                   </div>
                 </template>
