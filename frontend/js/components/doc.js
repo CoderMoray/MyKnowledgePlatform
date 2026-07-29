@@ -332,7 +332,7 @@ Alpine.data("docComponent", () => ({
         filter: (node) => node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE",
         replacement: (_, node) => {
           const lang = (node.firstChild.className || "").replace("language-", "");
-          return "\n\n```" + lang + "\n" + node.firstChild.textContent + "\n```\n\n";
+          return "\n\n```" + lang + "\n" + node.firstChild.textContent.trimEnd() + "\n```\n\n";
         }
       });
       td.addRule("mykLink", linkRule);
