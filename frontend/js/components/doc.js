@@ -251,8 +251,8 @@ Alpine.data("docComponent", () => ({
       const linkCount = this.editorInstance.view.dom.querySelectorAll("a").length;
       console.log("[save] links in editor:", linkCount);
       this.editorInstance.view.dom.querySelectorAll("a").forEach((a, i) => {
-        const raw = a.getAttribute("href");
-        console.log("[save] link", i, "raw href:", raw, "a.href:", a.href);
+        const raw = decodeURIComponent(a.getAttribute("href") || "");
+        console.log("[save] link", i, "decoded href:", raw);
         if (!raw || raw === "null" || raw.startsWith("[object")) {
           try {
             const textNode = a.firstChild;

@@ -10,6 +10,9 @@ const { JSDOM } = require("jsdom");
 const tipTapHTML = `<h1>编辑保存测试</h1><h2>内联格式</h2><p><strong>加粗</strong> <em>斜体</em> <s>删除线</s> <code>行内代码</code></p><h2>列表</h2><ul><li><p>无序列表项 1</p></li><li><p>无序列表项 2</p></li></ul><ol><li><p>有序列表项 1</p></li><li><p>有序列表项 2</p></li></ol><h2>引用</h2><blockquote><p>这是一段引用文字<br>引用第二行</p></blockquote><h2>代码块</h2><pre><code>const x = 1;
 console.log(x);</code></pre><h2>表格</h2><div class="tableWrapper"><table style="min-width: 300px;"><colgroup><col><col><col></colgroup><tbody><tr><th colspan="1" rowspan="1"><p>列A</p></th><th colspan="1" rowspan="1"><p>列B</p></th><th colspan="1" rowspan="1"><p>列C</p></th></tr><tr><td colspan="1" rowspan="1"><p>a1</p></td><td colspan="1" rowspan="1"><p>b1</p></td><td colspan="1" rowspan="1"><p>c1</p></td></tr><tr><td colspan="1" rowspan="1"><p>a2</p></td><td colspan="1" rowspan="1"><p>b2</p></td><td colspan="1" rowspan="1"><p>c2</p></td></tr></tbody></table></div><h2>链接</h2><p><a target="_blank" rel="noopener noreferrer nofollow" href="https://example.com" data-myk-href="https://example.com">普通链接</a></p><p>参考<a target="_blank" rel="noopener noreferrer nofollow" class="ref-link" href="ref:common-knowledge/技术选型.md::技术栈选型" data-myk-href="ref:common-knowledge/技术选型.md::技术栈选型">技术选型</a></p>`;
 
+// 场景 1b：损坏的链接（无 data-myk-href，模拟真实 bug）
+const corruptedHTML = tipTapHTML.replace('data-myk-href="https://example.com"', 'href="%5Bobject%20Object%5D"');
+
 // ========== 期望的 Markdown 输出 ==========
 const expected = `# 编辑保存测试
 
@@ -94,14 +97,15 @@ function convert(html) {
 
   // 链接规则
   const linkRule = {
-    filter: (node) => node.nodeName === "A" && node.getAttribute("data-myk-href"),
+    filter: (node) => node.nodeName === "A",
     replacement: (content, node) => {
-      const href = node.getAttribute("data-myk-href");
-      if (href && href.startsWith("ref:")) {
+      let href = node.getAttribute("data-myk-href") || node.getAttribute("href") || "";
+      if (!href || href === "null" || href.startsWith("[object") || href.startsWith("%5B")) return content;
+      if (href.startsWith("ref:")) {
         const ref = href.slice(4).replace(/%20/g, " ");
         return "[" + content + "](ref:" + ref + ")";
       }
-      return "[" + content + "](" + (href || "") + ")";
+      return "[" + content + "](" + href + ")";
     }
   };
 
@@ -163,6 +167,14 @@ runChecks(result, [
   { name: "表格数据", check: (r) => r.includes("| a1 | b1 | c1 |") && r.includes("| a2 | b2 | c2 |") },
   { name: "普通链接", check: (r) => r.includes("[普通链接](https://example.com)") },
   { name: "ref 链接", check: (r) => r.includes("[技术选型](ref:common-knowledge/技术选型.md::技术栈选型)") },
+]);
+
+// ── 场景 1b：损坏链接兜底（无 ProseMirror 恢复时） ──
+console.log("\n场景 1b：损坏链接回退为纯文本");
+result = convert(corruptedHTML);
+runChecks(result, [
+  { name: "损坏链接降级为文字", check: (r) => !r.includes("[object") && r.includes("普通链接") },
+  { name: "ref 链接仍正常", check: (r) => r.includes("ref:common-knowledge/技术选型.md::技术栈选型") },
 ]);
 
 // ── 场景 2：修改后保存（添加表行、加粗、新列表项） ──
