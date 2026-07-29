@@ -551,7 +551,7 @@ document.addEventListener("alpine:init", () => {
         this.shareProjects = projects.map(p => ({
           path: p.path || p.name,
           name: p.name || fileName(p.path || ""),
-          docCount: p.doc_count || p.docCount || "-",
+          docCount: p.doc_count || p.docCount || "",
           checked: false,
         }));
       } catch (e) {

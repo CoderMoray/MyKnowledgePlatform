@@ -1028,7 +1028,7 @@
             <label class="share-project-item">
               <input type="checkbox" x-model="project.checked">
               <span class="share-project-name" x-text="project.name"></span>
-              <span class="share-project-count" x-text="project.docCount + ' 文档'"></span>
+              <span class="share-project-count" x-show="project.docCount" x-text="project.docCount + ' 文档'"></span>
             </label>
           </template>
         </div>

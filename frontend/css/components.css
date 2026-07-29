@@ -1049,17 +1049,22 @@
 
 /* ── 分享弹窗 ──────────────────────────────────────────────────────────── */
 .btn-share-select-all {
-  padding: 3px 10px;
-  border: 0.5px solid var(--color-border-secondary);
-  border-radius: 6px;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 12px;
+  border: var(--button-new-border);
+  border-radius: var(--radius-md);
+  background: var(--button-new-bg);
+  color: var(--button-new-text);
   font-size: 12px;
-  color: var(--color-text-secondary);
+  font-weight: 500;
   cursor: pointer;
   flex-shrink: 0;
+  transition: var(--transition-interactive);
 }
 .btn-share-select-all:hover {
-  background: var(--color-background-secondary);
+  background: var(--accent-subtle);
 }
 .share-project-list {
   padding: 8px 0;
