@@ -1,27 +1,29 @@
-# Web framework
-fastapi>=0.100.0,<0.111.0
-uvicorn[standard]>=0.23.0
+# ── Runtime dependencies (same as pyproject.toml) ──────────
 
-# MCP
+# MCP protocol
 mcp>=1.0.0
 
-# Database (SQLite is built-in; FTS5 is part of stdlib sqlite3)
-# No extra DB dependency required
-
-# Markdown processing
+# YAML frontmatter
 pyyaml>=6.0
-python-markdown>=3.4
 
 # Git operations
-gitpython>=3.1.0
+gitpython>=3.1
 
-# Cloud sync (optional, enabled via config)
+# REST API
+fastapi>=0.100.0,<0.111.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+
+# Pydantic models
+pydantic>=2.0
+
+# SSE event versioning
+aiosqlite>=0.19
+
+# ── Development extras ─────────────────────────────────────
+
+# OSS cloud sync (optional, enabled via config)
 oss2>=2.18.0
 
 # Automation scheduler (optional SyncJob)
 apscheduler>=3.10.0
-
-# Utilities
-python-multipart>=0.0.6
-python-dateutil>=2.8.0
-pydantic>=2.0.0

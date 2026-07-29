@@ -475,6 +475,14 @@ Alpine.data("docComponent", () => ({
       store.editor = this.editorInstance;
       this.editorReady = true;
 
+      // CMD+S / Ctrl+S 保存
+      el.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+          e.preventDefault();
+          this.exitEdit();
+        }
+      });
+
       if (typeof window._mykBindToolbar === "function") {
         window._mykBindToolbar(this.editorInstance);
       }
