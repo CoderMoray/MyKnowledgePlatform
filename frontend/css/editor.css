@@ -390,32 +390,27 @@
   0% { opacity: 1; background: rgba(34,197,94,0.08); }
   100% { opacity: 0; background: rgba(34,197,94,0.12); }
 }
-/* 跑马灯红边框（Apple Intelligence 风格） */
+/* AI 编辑锁遮罩 */
 .content-panel--locked {
   position: relative;
-  overflow: hidden;
+}
+.content-panel--locked .ProseMirror {
+  filter: blur(3px);
+  pointer-events: none;
 }
 .content-panel--locked::before {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: 0;
   z-index: 49;
   border-radius: inherit;
-  background: conic-gradient(from 0deg, #ef4444, #fca5a5, #ef4444, transparent 40%, transparent 60%, #ef4444, #fca5a5, #ef4444);
-  animation: lock-spin 3s linear infinite;
+  background: rgba(239, 68, 68, 0.06);
+  animation: lock-flash 2s ease-in-out infinite;
   pointer-events: none;
 }
-.content-panel--locked::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  z-index: 49;
-  border-radius: inherit;
-  background: var(--bg-primary, #fff);
-  pointer-events: none;
-}
-@keyframes lock-spin {
-  to { transform: rotate(360deg); }
+@keyframes lock-flash {
+  0%, 100% { background: rgba(239, 68, 68, 0.03); }
+  50% { background: rgba(239, 68, 68, 0.08); }
 }
 .content-panel--locked .ProseMirror {
   filter: blur(2px);
