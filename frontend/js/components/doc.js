@@ -253,7 +253,7 @@ Alpine.data("docComponent", () => ({
       });
 
       viewer.addEventListener("mouseout", (e) => {
-        const link = findRefLink(e.relatedTarget);
+        const link = findLink(e.relatedTarget);
         if (link) return;
         clearTimeout(self._hoverTimer);
         self._hoverTimer = setTimeout(() => self.closePopover(), 300);
