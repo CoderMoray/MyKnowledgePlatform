@@ -775,8 +775,10 @@
               </div>
               <div class="viewer__refs-list">
                 <template x-for="ref in $store.app.refs" :key="ref.path">
-                  <div class="viewer__ref-item" @click="goToRef(ref.path)">
-                    <div class="viewer__ref-icon">
+                  <!-- 死链：不可点击，灰化 -->
+                  <div class="viewer__ref-item" :class="{ 'viewer__ref-item--dead': !ref.resolved }"
+                       @click="ref.resolved && goToRef(ref.path)">
+                    <div class="viewer__ref-icon" :class="{ 'viewer__ref-icon--dead': !ref.resolved }">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -787,8 +789,13 @@
                       </svg>
                     </div>
                     <div class="viewer__ref-info">
-                      <span class="viewer__ref-name" x-text="fileName(ref.path)"></span>
-                      <span class="viewer__ref-source" x-text="refSourcePath(ref) || ''"></span>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="viewer__ref-name" x-text="fileName(ref.path)"></span>
+                        <span class="viewer__ref-badge viewer__ref-badge--dead" x-show="!ref.resolved">已失效</span>
+                      </div>
+                      <span class="viewer__ref-source"
+                            x-text="ref.resolved ? (refSourcePath(ref) || '') : '引用的知识不存在'"
+                            :class="{ 'viewer__ref-source--dead': !ref.resolved }"></span>
                     </div>
                   </div>
                 </template>

@@ -171,6 +171,32 @@
   text-overflow: ellipsis;
 }
 
+/* 死链引用 */
+.viewer__ref-item--dead {
+  opacity: 0.55;
+  cursor: default;
+}
+.viewer__ref-item--dead:hover {
+  background: transparent;
+}
+.viewer__ref-icon--dead {
+  color: var(--color-danger);
+}
+.viewer__ref-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.viewer__ref-badge--dead {
+  color: var(--color-danger);
+  background: var(--color-danger-subtle);
+}
+.viewer__ref-source--dead {
+  color: var(--color-danger);
+}
+
 /* ── Ref 浮层 ───────────────────────────────────────────────────────────── */
 
 .ref-popover {
