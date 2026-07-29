@@ -191,7 +191,7 @@
 | build.py JS 语法检查 + CDN 检查 | ✅ 已恢复 | `node --check` 所有 `<script>` + curl 检测 CDN |
 | viewer__summary 移入 header、加「摘要」标签 | ✅ 已恢复 | |
 | ref 链接 hover 浮出卡片（三种链接类型） | ✅ 已完成 | ref / 外链 / 死链 三态卡片 + 引用列表三态标记 |
-| 编辑态点击区域外退回只读 | ❌ 未恢复 | |
+| 编辑态点击区域外退回只读 | ✅ 已完成 | `@click.outside="exitEdit()"` on editor-shell，一直存在 |
 | dashboard metric-card 改用 `$store.app.*` 直算 | ❌ 无需改动 | `projectStats` getter 逻辑合理，维持现状 |
 | utils.js 删除死代码 md5（含 gravatarUrl） | ✅ 已恢复 | authorAvatar 纯首字母，无网络请求 | |
 
@@ -204,6 +204,12 @@
 | 死链改为软警告 | ✅ 已对接 | 保存文档时死链不再返回 400，前端展示不变 |
 | 编辑保存链接零差异 | ✅ 已完成 | Link 扩展 `parseHTML` 强制字符串，backport TipTap 2.6.0 fix |
 | 编辑保存往返测试 | ✅ 已完成 | Node.js 22 用例，`check_build.py` 自动运行 |
+| CMD+S / Ctrl+S 保存 | ✅ 已完成 | document 全局监听，锁定时禁用 |
+| AI 锁态编辑区遮罩 | ✅ 已完成 | 红色呼吸闪烁 + 内容模糊 + 居中提示，解锁绿过渡 2.4s 下落淡出 |
+| AI 锁横幅滑入/滑出 | ✅ 已完成 | max-height 0.3s 动画 + opacity 淡入，main-area 同步移动 |
+| Toast 居中 | ✅ 已完成 | 从右下角移到屏幕正中，0.9s 消失 |
+| 编辑器退出销毁重建 | ✅ 已完成 | exitEdit destroy() 避免 ProseMirror 状态错乱 |
+| AI 锁态保护 | ✅ 已完成 | exitEdit + CMD+S 双重拦截，已编辑不可保存退出 |
 
 ## 🆕 新增（2026-07-29）
 
