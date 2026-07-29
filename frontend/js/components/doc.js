@@ -364,12 +364,13 @@ Alpine.data("docComponent", () => ({
 
       const extensions = [
         StarterKit ? StarterKit.configure() : null,
-        LinkExt ? LinkExt.configure({ openOnClick: false }) : null,
         TT.Table ? TT.Table.configure({ resizable: true }) : null,
         TT.TableRow || null,
         TT.TableCell || null,
         TT.TableHeader || null,
       ].filter(Boolean);
+      // 注：不含 Link 扩展，避免 TipTap 2.1.13 的 href 序列化 bug
+      // 普通链接在编辑器里按纯文本显示，但保存时不丢内容
       console.log("[doc] extensions count:", extensions.length);
 
       this.editorInstance = new Editor({
