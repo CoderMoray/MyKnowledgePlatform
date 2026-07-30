@@ -1131,19 +1131,18 @@
               if (!activeEditor) return;
               const action = btn.dataset.action;
               const level = parseInt(btn.dataset.level) || 1;
-              const chain = activeEditor.chain();
 
               switch (action) {
-                case 'toggleBold': chain.toggleBold().run(); break;
-                case 'toggleItalic': chain.toggleItalic().run(); break;
-                case 'toggleStrike': chain.toggleStrike().run(); break;
-                case 'toggleCode': chain.toggleCode().run(); break;
-                case 'toggleHeading': chain.toggleHeading({ level }).run(); break;
-                case 'toggleBulletList': chain.toggleBulletList().run(); break;
-                case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
-                case 'toggleBlockquote': chain.toggleBlockquote().run(); break;
-                case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
-                case 'setHorizontalRule': chain.setHorizontalRule().run(); break;
+                case 'toggleBold': activeEditor.commands.toggleBold(); break;
+                case 'toggleItalic': activeEditor.commands.toggleItalic(); break;
+                case 'toggleStrike': activeEditor.commands.toggleStrike(); break;
+                case 'toggleCode': activeEditor.commands.toggleCode(); break;
+                case 'toggleHeading': activeEditor.commands.toggleHeading({ level }); break;
+                case 'toggleBulletList': activeEditor.commands.toggleBulletList(); break;
+                case 'toggleOrderedList': activeEditor.commands.toggleOrderedList(); break;
+                case 'toggleBlockquote': activeEditor.commands.toggleBlockquote(); break;
+                case 'toggleCodeBlock': activeEditor.commands.toggleCodeBlock(); break;
+                case 'setHorizontalRule': activeEditor.commands.setHorizontalRule(); break;
               }
             });
             btn._mykToolbarBound = true;
