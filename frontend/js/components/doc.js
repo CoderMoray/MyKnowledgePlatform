@@ -315,6 +315,8 @@ Alpine.data("docComponent", () => ({
         content = store.htmlContent;
       }
       store.setView("edit", store.currentPath);
+      if (this._editing) return;
+      this._editing = true;
       this.$nextTick(() => {
         requestAnimationFrame(() => {
           this.initEditor(content);
@@ -434,6 +436,7 @@ Alpine.data("docComponent", () => ({
       }
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
+      this._editing = false;
     },
 
     async initEditor(initialContent) {
