@@ -1128,58 +1128,65 @@
     window.TipTapLink = LinkExt;
     window.TipTapTable = { Table, TableRow, TableCell, TableHeader };
 
-    window._mykBindToolbar = function (editor) {
-      if (!editor) return;
+    window._mykBindToolbar = (function () {
+      let activeEditor = null;
+      let updateHandler = null;
 
-      document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
-        const bound = btn._mykToolbarBound;
-        const handler = () => {
-          const action = btn.dataset.action;
-          const level = parseInt(btn.dataset.level) || 1;
-          const chain = editor.chain().focus();
+      return function (editor) {
+        if (!editor) return;
+        activeEditor = editor;
 
-          switch (action) {
-            case 'toggleBold': chain.toggleBold().run(); break;
-            case 'toggleItalic': chain.toggleItalic().run(); break;
-            case 'toggleStrike': chain.toggleStrike().run(); break;
-            case 'toggleCode': chain.toggleCode().run(); break;
-            case 'toggleHeading': chain.toggleHeading({ level }).run(); break;
-            case 'toggleBulletList': chain.toggleBulletList().run(); break;
-            case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
-            case 'toggleBlockquote': chain.toggleBlockquote().run(); break;
-            case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
-            case 'setHorizontalRule': chain.setHorizontalRule().run(); break;
+        document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
+          const bound = btn._mykToolbarBound;
+          if (!bound) {
+            btn.addEventListener('click', () => {
+              if (!activeEditor) return;
+              const action = btn.dataset.action;
+              const level = parseInt(btn.dataset.level) || 1;
+              const chain = activeEditor.chain().focus();
+
+              switch (action) {
+                case 'toggleBold': chain.toggleBold().run(); break;
+                case 'toggleItalic': chain.toggleItalic().run(); break;
+                case 'toggleStrike': chain.toggleStrike().run(); break;
+                case 'toggleCode': chain.toggleCode().run(); break;
+                case 'toggleHeading': chain.toggleHeading({ level }).run(); break;
+                case 'toggleBulletList': chain.toggleBulletList().run(); break;
+                case 'toggleOrderedList': chain.toggleOrderedList().run(); break;
+                case 'toggleBlockquote': chain.toggleBlockquote().run(); break;
+                case 'toggleCodeBlock': chain.toggleCodeBlock().run(); break;
+                case 'setHorizontalRule': chain.setHorizontalRule().run(); break;
+              }
+            });
+            btn._mykToolbarBound = true;
           }
-        };
+        });
 
-        if (!bound) {
-          btn.addEventListener('click', handler);
-          btn._mykToolbarBound = true;
-        }
-      });
-
-      editor.on('selectionUpdate', () => {
+      if (updateHandler) editor.off('selectionUpdate', updateHandler);
+      updateHandler = () => {
         document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
           const action = btn.dataset.action;
           const level = parseInt(btn.dataset.level) || 1;
           let active = false;
 
           switch (action) {
-            case 'toggleBold': active = editor.isActive('bold'); break;
-            case 'toggleItalic': active = editor.isActive('italic'); break;
-            case 'toggleStrike': active = editor.isActive('strike'); break;
-            case 'toggleCode': active = editor.isActive('code'); break;
-            case 'toggleHeading': active = editor.isActive('heading', { level }); break;
-            case 'toggleBulletList': active = editor.isActive('bulletList'); break;
-            case 'toggleOrderedList': active = editor.isActive('orderedList'); break;
-            case 'toggleBlockquote': active = editor.isActive('blockquote'); break;
-            case 'toggleCodeBlock': active = editor.isActive('codeBlock'); break;
+            case 'toggleBold': active = activeEditor.isActive('bold'); break;
+            case 'toggleItalic': active = activeEditor.isActive('italic'); break;
+            case 'toggleStrike': active = activeEditor.isActive('strike'); break;
+            case 'toggleCode': active = activeEditor.isActive('code'); break;
+            case 'toggleHeading': active = activeEditor.isActive('heading', { level }); break;
+            case 'toggleBulletList': active = activeEditor.isActive('bulletList'); break;
+            case 'toggleOrderedList': active = activeEditor.isActive('orderedList'); break;
+            case 'toggleBlockquote': active = activeEditor.isActive('blockquote'); break;
+            case 'toggleCodeBlock': active = activeEditor.isActive('codeBlock'); break;
           }
 
           btn.classList.toggle('editor-toolbar__btn--active', active);
         });
-      });
+      };
+      editor.on('selectionUpdate', updateHandler);
     };
+  })();
   </script>
 
   <!-- ════════════════════════════════════════════════════════════════════
