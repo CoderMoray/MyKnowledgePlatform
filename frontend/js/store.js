@@ -292,7 +292,7 @@ document.addEventListener("alpine:init", () => {
         const data = await api.updateDocument(path, body);
         this.document = { ...this.document, ...data };
         this.isDirty = false;
-        showToast("文档已保存", "success");
+        if (!data.unchanged) showToast("文档已保存", "success");
         return data;
       } catch (err) {
         if (err.isLocked) {

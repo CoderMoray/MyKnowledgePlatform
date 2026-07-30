@@ -386,32 +386,44 @@ def api_create_document(path: str, payload: DocumentPayload):
 
 @app.put("/api/document/{path:path}")
 def api_update_document(path: str, payload: DocumentPayload):
-    """Update an existing knowledge document."""
+    """Update an existing knowledge document.
+
+    If content and summary are both unchanged, the write is skipped —
+    ``maintainer`` and ``updated`` are not touched.
+    """
     _check_write_allowed()
     storage, gen = get_storage()
-    _check_doc(payload, storage)
     try:
-        old_meta, _ = storage.read_document(path)
+        old_meta, old_body = storage.read_document(path)
     except FileNotFoundError:
         raise HTTPException(404, "document not found")
 
+    # If content/summary are empty they mean "keep existing", so fill before validate
+    if not payload.content:
+        payload.content = old_body
+    if not payload.summary:
+        payload.summary = old_meta.get("summary", "")
+    _check_doc(payload, storage)
+
+    new_content = payload.content
+    new_summary = payload.summary
+
+    # ── No-op: skip write if nothing changed ──────────────
+    if new_content == old_body and new_summary == old_meta.get("summary", ""):
+        return {"status": "ok", "id": old_meta.get("id", ""), "unchanged": True}
+
     new_meta = dict(old_meta)
-    if payload.summary:
-        new_meta["summary"] = payload.summary
-    if payload.content:
-        body = payload.content
-    else:
-        _, body = storage.read_document(path)
+    new_meta["summary"] = payload.summary
 
     from backend.mcp_server import _attach_identity
     _attach_identity(new_meta, False)
-    storage.write_document(path, new_meta, body, auto_id=False)
+    storage.write_document(path, new_meta, new_content, auto_id=False)
     from backend.mcp_server import _parent_rel
     gen.rebuild(_parent_rel(path))
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "ok", "id": new_meta.get("id", "")}
+    return {"status": "ok", "id": new_meta.get("id", ""), "unchanged": False}
 
 
 @app.delete("/api/document/{path:path}")
