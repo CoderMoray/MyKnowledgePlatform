@@ -439,6 +439,8 @@ Alpine.data("docComponent", () => ({
     async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
       if (!el || this.editorInstance) return;
+      // 防止 Alpine $nextTick 触发多次 initEditor
+      this.editorInstance = "pending";
 
       const store = Alpine.store("app");
 
