@@ -1100,28 +1100,16 @@
        TipTap Init Script
        ════════════════════════════════════════════════════════════════════ -->
 
-    <script type="importmap">
+      <script type="importmap">
     {
       "imports": {
-        "@tiptap/core": "https://cdn.jsdelivr.net/npm/@tiptap/core@2.1.13/+esm",
-        "@tiptap/starter-kit": "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.1.13/+esm",
-        "@tiptap/extension-link": "https://cdn.jsdelivr.net/npm/@tiptap/extension-link@2.1.13/+esm",
-        "@tiptap/extension-table": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table@2.1.13/+esm",
-        "@tiptap/extension-table-row": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-row@2.1.13/+esm",
-        "@tiptap/extension-table-cell": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-cell@2.1.13/+esm",
-        "@tiptap/extension-table-header": "https://cdn.jsdelivr.net/npm/@tiptap/extension-table-header@2.1.13/+esm"
+        "myk-tiptap": "./tiptap-bundle.mjs"
       }
     }
   </script>
 
   <script type="module">
-    import { Editor } from "@tiptap/core";
-    import StarterKit from "@tiptap/starter-kit";
-    import LinkExt from "@tiptap/extension-link";
-    import Table from "@tiptap/extension-table";
-    import TableRow from "@tiptap/extension-table-row";
-    import TableCell from "@tiptap/extension-table-cell";
-    import TableHeader from "@tiptap/extension-table-header";
+    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader } from "myk-tiptap";
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };
