@@ -1136,7 +1136,7 @@
         if (!editor) return;
         activeEditor = editor;
 
-        document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
+        document.querySelectorAll('#tiptap-toolbar [data-action]').forEach((btn) => {
           const bound = btn._mykToolbarBound;
           if (!bound) {
             btn.addEventListener('click', () => {
@@ -1164,7 +1164,7 @@
 
       if (updateHandler) editor.off('selectionUpdate', updateHandler);
       updateHandler = () => {
-        document.querySelectorAll('#editor-toolbar [data-action]').forEach((btn) => {
+        document.querySelectorAll('#tiptap-toolbar [data-action]').forEach((btn) => {
           const action = btn.dataset.action;
           const level = parseInt(btn.dataset.level) || 1;
           let active = false;
