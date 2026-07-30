@@ -1131,7 +1131,7 @@
               if (!activeEditor) return;
               const action = btn.dataset.action;
               const level = parseInt(btn.dataset.level) || 1;
-              const chain = activeEditor.chain().focus();
+              const chain = activeEditor.chain();
 
               switch (action) {
                 case 'toggleBold': chain.toggleBold().run(); break;
