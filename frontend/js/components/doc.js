@@ -1,4 +1,5 @@
 document.addEventListener("alpine:init", () => {
+let _editorLock = false;
 Alpine.data("docComponent", () => ({
     editorInstance: null,
     editorReady: false,
@@ -308,8 +309,7 @@ Alpine.data("docComponent", () => ({
     /** 点击正文 → 进入编辑 */
     async enterEdit() {
       const store = Alpine.store("app");
-      if (store.isLocked || this._editing) return;
-      this._editing = true;
+      if (store.isLocked) return;
       let content = store.htmlContent;
       if (!content || !content.trim()) {
         await store.loadDocument(store.currentPath);
@@ -435,12 +435,14 @@ Alpine.data("docComponent", () => ({
       }
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
-      this._editing = false;
+      _editorLock = false;
     },
 
     async initEditor(initialContent) {
+      if (_editorLock) return;
+      _editorLock = true;
       const el = document.getElementById("tiptap-editor");
-      if (!el || this.editorInstance) return;
+      if (!el || this.editorInstance) { _editorLock = false; return; }
       // 防止 Alpine $nextTick 触发多次 initEditor
       this.editorInstance = "pending";
 
