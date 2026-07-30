@@ -490,10 +490,7 @@ Alpine.data("docComponent", () => ({
               const section = a.dataset.refSection ? "::" + a.dataset.refSection : "";
               a.setAttribute("href", "ref:" + a.dataset.refPath + section);
             });
-            // 延迟设置内容，避免 onCreate 内的事务冲突
-            requestAnimationFrame(() => {
-              editor.commands.setContent(tmp.innerHTML);
-            });
+            editor.commands.setContent(tmp.innerHTML);
           }
         },
       });
