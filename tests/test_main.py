@@ -218,6 +218,77 @@ class TestApiDocumentRefs:
         assert resp.status_code == 404
 
 
+class TestApiUpdateDocument:
+    """Test PUT /api/document/{path} — update and no-op behavior."""
+
+    def test_noop_save_does_not_change_maintainer(self, client, tmp_kb_root: Path):
+        """Saving unchanged content should not update maintainer or updated."""
+        from backend.storage import dump_frontmatter
+        storage = Storage(kb_root=tmp_kb_root)
+
+        doc_path = "common-knowledge/noop.md"
+        body = "# original content\n\nno changes"
+        meta = {"id": "noop", "summary": "original summary",
+                "maintainer": "Original Author", "created": "2026-01-01",
+                "updated": "2026-01-01"}
+        storage.write_document(doc_path, meta, body, auto_id=False)
+
+        # Read back, send PUT with exactly the same content
+        resp = client.put(f"/api/document/{doc_path}", json={
+            "content": body,
+            "summary": "original summary",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("unchanged") is True, "should detect no-op"
+
+        # Verify frontmatter was NOT modified
+        new_meta, new_body = storage.read_document(doc_path)
+        assert new_meta.get("maintainer") == "Original Author"
+        assert new_meta.get("updated") == "2026-01-01"
+
+    def test_update_changes_maintainer(self, client, tmp_kb_root: Path):
+        """Actually changing content should update maintainer and updated."""
+        storage = Storage(kb_root=tmp_kb_root)
+        doc_path = "common-knowledge/change.md"
+        body = "# old"
+        from backend.mcp_server import _yaml_dump
+        storage.write_document(doc_path, {"id": "chg", "summary": "old",
+                                          "maintainer": "Old", "created": "2026-01-01",
+                                          "updated": "2026-01-01"}, body, auto_id=False)
+
+        resp = client.put(f"/api/document/{doc_path}", json={
+            "content": "# new content",
+            "summary": "new summary",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("unchanged") is False
+
+        new_meta, new_body = storage.read_document(doc_path)
+        assert "new content" in new_body
+        assert new_meta.get("summary") == "new summary"
+        assert new_meta.get("maintainer") != "Old"  # got updated
+
+    def test_update_keep_old_body_when_empty(self, client, tmp_kb_root: Path):
+        """Sending empty content should keep the existing body."""
+        storage = Storage(kb_root=tmp_kb_root)
+        doc_path = "common-knowledge/keep-body.md"
+        body = "# existing body text"
+        storage.write_document(doc_path, {"id": "kb", "summary": "s",
+                                          "maintainer": "Me", "created": "2026-01-01",
+                                          "updated": "2026-01-01"}, body, auto_id=False)
+
+        resp = client.put(f"/api/document/{doc_path}", json={
+            "content": "",
+            "summary": "",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        # content was "" so it kept old body, and summary also unchanged → no-op
+        assert data.get("unchanged") is True
+
+
 class TestApiExport:
     """Test the /api/export endpoint."""
 

@@ -364,11 +364,16 @@ Alpine.data("docComponent", () => ({
           rows.push("| " + cells.join(" | ") + " |");
         });
         if (rows.length > 0) {
-          // 匹配原始 md 分隔符（如 |---| 或 |------|）
+          // 保留原始 md 分隔符格式
           const mdContent = store.document?.content || "";
-          const sepMatch = mdContent.match(/^\|(\s*[-:]+\s*\|)+\s*$/m);
-          const sepCell = sepMatch ? sepMatch[0].replace(/^\|/, "").replace(/\|$/, "").trim() : "---";
-          rows.splice(1, 0, "| " + sepCell + " |");
+          const sepMatch = mdContent.match(/^\|[ -:|]+\|/m);
+          const sep = sepMatch ? sepMatch[0] : "";
+          const cols = table.querySelector("tr").querySelectorAll("th, td").length;
+          if (sep && sep.split("|").length - 2 === cols) {
+            rows.splice(1, 0, sep);
+          } else {
+            rows.splice(1, 0, "| " + "--- | ".repeat(cols).trimEnd());
+          }
         }
         const marker = "MYKTABLE" + idx + "MARK";
         tableMarkers.push({ marker, md: rows.join("\n") });
