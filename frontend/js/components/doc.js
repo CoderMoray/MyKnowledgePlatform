@@ -308,15 +308,14 @@ Alpine.data("docComponent", () => ({
     /** 点击正文 → 进入编辑 */
     async enterEdit() {
       const store = Alpine.store("app");
-      if (store.isLocked) return;
+      if (store.isLocked || this._editing) return;
+      this._editing = true;
       let content = store.htmlContent;
       if (!content || !content.trim()) {
         await store.loadDocument(store.currentPath);
         content = store.htmlContent;
       }
       store.setView("edit", store.currentPath);
-      if (this._editing) return;
-      this._editing = true;
       this.$nextTick(() => {
         requestAnimationFrame(() => {
           this.initEditor(content);
