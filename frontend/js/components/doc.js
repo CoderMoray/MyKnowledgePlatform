@@ -1,5 +1,4 @@
 document.addEventListener("alpine:init", () => {
-let _editorLock = false;
 Alpine.data("docComponent", () => ({
     editorInstance: null,
     editorReady: false,
@@ -316,11 +315,8 @@ Alpine.data("docComponent", () => ({
         content = store.htmlContent;
       }
       store.setView("edit", store.currentPath);
-      this.$nextTick(() => {
-        requestAnimationFrame(() => {
-          this.initEditor(content);
-        });
-      });
+      await new Promise(r => this.$nextTick(r));
+      this.initEditor(content);
     },
 
     /** 点击外部 → 退出编辑并保存 */
@@ -435,16 +431,11 @@ Alpine.data("docComponent", () => ({
       }
       store.setView("view", store.currentPath);
       store.loadDocument(store.currentPath);
-      _editorLock = false;
     },
 
     async initEditor(initialContent) {
-      if (_editorLock) return;
-      _editorLock = true;
       const el = document.getElementById("tiptap-editor");
-      if (!el || this.editorInstance) { _editorLock = false; return; }
-      // 防止 Alpine $nextTick 触发多次 initEditor
-      this.editorInstance = "pending";
+      if (!el || this.editorInstance) return;
 
       const store = Alpine.store("app");
 
