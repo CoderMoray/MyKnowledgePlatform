@@ -798,7 +798,7 @@ def api_export(payload: ExportPayload):
         encrypted = _encrypt(raw_data, key)
         manifest_bytes = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
         header = struct.pack(">I", len(manifest_bytes))
-        pkg_data.append((f"MyKnowledge-{manifest['name']}.mkpkg", header + manifest_bytes + encrypted))
+        pkg_data.append((f"{manifest['name']}.mkpkg", header + manifest_bytes + encrypted))
 
     from urllib.parse import quote as _url_quote
 

@@ -364,8 +364,11 @@ Alpine.data("docComponent", () => ({
           rows.push("| " + cells.join(" | ") + " |");
         });
         if (rows.length > 0) {
-          const cols = table.querySelector("tr").querySelectorAll("th, td").length;
-          rows.splice(1, 0, "|" + " --- |".repeat(cols));
+          // 匹配原始 md 分隔符（如 |---| 或 |------|）
+          const mdContent = store.document?.content || "";
+          const sepMatch = mdContent.match(/^\|(\s*[-:]+\s*\|)+\s*$/m);
+          const sepCell = sepMatch ? sepMatch[0].replace(/^\|/, "").replace(/\|$/, "").trim() : "---";
+          rows.splice(1, 0, "| " + sepCell + " |");
         }
         const marker = "MYKTABLE" + idx + "MARK";
         tableMarkers.push({ marker, md: rows.join("\n") });

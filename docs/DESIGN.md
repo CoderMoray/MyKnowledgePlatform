@@ -1,8 +1,8 @@
 # MyKnowledge v2 详细设计文档（Design Spec）
 
-> 状态：v0.6 定稿
+> 状态：v0.5 定稿
 > 日期：2026-07-29
-> 对应实现：backend/ 22 个 MCP 工具 + CLI + 156 项测试
+> 对应实现：backend/ 22 个 MCP 工具 + CLI + 150 项测试
 
 ---
 
