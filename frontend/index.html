@@ -1100,40 +1100,16 @@
        TipTap Init Script
        ════════════════════════════════════════════════════════════════════ -->
 
-  <script type="importmap">
+    <script type="importmap">
     {
       "imports": {
-        "prosemirror-model": "https://esm.sh/prosemirror-model@1.21.0",
-        "prosemirror-state": "https://esm.sh/prosemirror-state@1.4.3",
-        "prosemirror-view": "https://esm.sh/prosemirror-view@1.33.0",
-        "prosemirror-transform": "https://esm.sh/prosemirror-transform@1.9.0",
-        "prosemirror-keymap": "https://esm.sh/prosemirror-keymap@1.2.2",
-        "prosemirror-commands": "https://esm.sh/prosemirror-commands@1.6.0",
-        "prosemirror-schema-list": "https://esm.sh/prosemirror-schema-list@1.3.0",
-        "prosemirror-history": "https://esm.sh/prosemirror-history@1.3.2",
-        "prosemirror-inputrules": "https://esm.sh/prosemirror-inputrules@1.4.0",
-        "prosemirror-dropcursor": "https://esm.sh/prosemirror-dropcursor@1.8.1",
-        "prosemirror-gapcursor": "https://esm.sh/prosemirror-gapcursor@1.3.2",
-        "prosemirror-tables": "https://esm.sh/prosemirror-tables@1.3.7",
-        "@tiptap/core": "https://esm.sh/@tiptap/core@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform,prosemirror-keymap,prosemirror-commands,prosemirror-inputrules,prosemirror-history,prosemirror-dropcursor,prosemirror-gapcursor,prosemirror-schema-list",
-        "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform,prosemirror-keymap,prosemirror-commands,prosemirror-inputrules,prosemirror-history,prosemirror-dropcursor,prosemirror-gapcursor,prosemirror-schema-list",
-        "@tiptap/extension-link": "https://esm.sh/@tiptap/extension-link@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform",
-        "@tiptap/extension-table": "https://esm.sh/@tiptap/extension-table@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform",
-        "@tiptap/extension-table-row": "https://esm.sh/@tiptap/extension-table-row@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform",
-        "@tiptap/extension-table-cell": "https://esm.sh/@tiptap/extension-table-cell@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform",
-        "@tiptap/extension-table-header": "https://esm.sh/@tiptap/extension-table-header@2.1.13?external=prosemirror-model,prosemirror-state,prosemirror-view,prosemirror-transform"
+        "myk-tiptap": "./tiptap-bundle.mjs"
       }
     }
   </script>
 
   <script type="module">
-    import { Editor } from "@tiptap/core";
-    import StarterKit from "@tiptap/starter-kit";
-    import LinkExt from "@tiptap/extension-link";
-    import Table from "@tiptap/extension-table";
-    import TableRow from "@tiptap/extension-table-row";
-    import TableCell from "@tiptap/extension-table-cell";
-    import TableHeader from "@tiptap/extension-table-header";
+    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader } from "myk-tiptap";
 
     window.TipTapCore = { Editor };
     window.TipTapStarterKit = { StarterKit };
