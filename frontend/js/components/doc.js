@@ -579,8 +579,25 @@ Alpine.data("docComponent", () => ({
 
       // 自定义 Link 扩展：修复 2.1.13 的 href 序列化 bug
       // ref: https://github.com/ueberdosis/tiptap/issues/4929
-      // validate 接受 ref: 协议 → 关联文档链接在编辑态也显示为链接样式（与阅读态一致）
+      // 覆写 parseHTML/renderHTML：TipTap Link 的 isAllowedUri 只放行 http/https/mailto/tel，
+      // 会拒绝 ref: 协议（parse 时 mark 不应用 → 编辑态成纯文本 → 保存时链接语法丢失）。
       const PatchedLink = LinkExt ? LinkExt.extend({
+        parseHTML() {
+          return [
+            {
+              tag: 'a[href]:not([href *= "javascript:" i])',
+              getAttrs: (dom) => {
+                const href = dom.getAttribute("href");
+                if (!href) return false;
+                return { href };
+              },
+            },
+          ];
+        },
+        renderHTML({ HTMLAttributes }) {
+          // 不做 isAllowedUri 过滤，ref: 协议原样渲染
+          return ["a", { ...HTMLAttributes }, 0];
+        },
         addAttributes() {
           return {
             ...this.parent?.(),
