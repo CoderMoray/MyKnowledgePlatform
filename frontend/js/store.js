@@ -232,6 +232,7 @@ document.addEventListener("alpine:init", () => {
      * @param {string} path
      */
     async loadDocument(path) {
+      if (!path) return; // 路径为空（如导航中）直接跳过，避免 500
       this.error = null;
       try {
         // 双 API：getDocument 取纯净内容+meta，getDocumentWithRefs 只取 refs

@@ -354,6 +354,7 @@ Alpine.data("docComponent", () => ({
     async enterEdit() {
       const store = Alpine.store("app");
       if (store.isLocked) return;
+      this._editingPath = store.currentPath; // 记录编辑的文档，返回/导航后仍能正确保存
       let content = store.htmlContent;
       if (!content || !content.trim()) {
         await store.loadDocument(store.currentPath);
@@ -370,18 +371,22 @@ Alpine.data("docComponent", () => ({
       if (store.currentView !== "edit" || !this.editorInstance) return;
       if (store.isLocked) return; // AI 锁定时禁止退出编辑
 
+      // 保存用进入编辑时记录的路径；导航已离开本文档时不重载、不切 view
+      const path = this._editingPath || store.currentPath;
+      const stillOnDoc = store.currentPath === path;
+
       // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
       const html = this.editorInstance.view ? this.editorInstance.view.dom.innerHTML : this.editorInstance.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") {
         this.editorInstance.setEditable(false);
-        store.setView("view", store.currentPath);
+        if (stillOnDoc) store.setView("view", path);
         return;
       }
 
       const fullMd = this._editorToMarkdown();
       if (fullMd) {
         try {
-          await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
+          await store.saveDocument(path, { content: fullMd, summary: store.document?.summary || "" });
         } catch (e) {}
       }
 
@@ -390,8 +395,12 @@ Alpine.data("docComponent", () => ({
         this.editorInstance.destroy();
         this.editorInstance = null;
       }
-      store.setView("view", store.currentPath);
-      store.loadDocument(store.currentPath);
+      this._editingPath = null;
+      // 仅当用户仍停留在本文档时才切回阅读态并重载
+      if (stillOnDoc) {
+        store.setView("view", path);
+        store.loadDocument(path);
+      }
     },
 
     /** 编辑器 DOM → Markdown（exitEdit 与自动保存共用） */
