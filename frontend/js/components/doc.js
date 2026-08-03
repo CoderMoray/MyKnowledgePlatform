@@ -571,6 +571,9 @@ Alpine.data("docComponent", () => ({
       const LinkExt = window.TipTapLink || null;
       const TT = window.TipTapTable || {};
       const TM = window.TipTapMenu || {};
+      const TC = window.TipTapCode || {};
+      // lowlight 实例：注册常用语言（js/ts/python/bash/json/markdown/yaml/xml/css 等）
+      const _lowlight = TC.createLowlight ? TC.createLowlight(TC.MyLowlightCommon) : null;
       console.log("[doc] Editor:", !!Editor, "StarterKit:", !!StarterKit, "LinkExt:", !!LinkExt);
       if (!Editor) return;
 
@@ -591,7 +594,9 @@ Alpine.data("docComponent", () => ({
       }).configure({ openOnClick: false }) : null;
 
       const extensions = [
-        StarterKit ? StarterKit.configure() : null,
+        // StarterKit 排除自带 codeBlock，改用 CodeBlockLowlight（Decoration 渲染，编辑态实时高亮）
+        StarterKit ? StarterKit.configure({ codeBlock: false }) : null,
+        _lowlight && TC.CodeBlockLowlight ? TC.CodeBlockLowlight.configure({ lowlight: _lowlight }) : null,
         PatchedLink,
         TT.Table ? TT.Table.configure({ resizable: true }) : null,
         TT.TableRow || null,

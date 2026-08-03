@@ -72,7 +72,7 @@
   <script src="js/store.js?v=f93f03a293"></script>
   <script src="js/router.js?v=53fe46cc15"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=c3fe1bdd8e"></script>
+  <script src="js/components/doc.js?v=82c14c1bed"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=3854c04775"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -1108,19 +1108,20 @@
       <script type="importmap">
     {
       "imports": {
-        "myk-tiptap": "./tiptap-bundle.mjs?v=46b16b21c0"
+        "myk-tiptap": "./tiptap-bundle.mjs?v=07b1e6e6a8"
       }
     }
   </script>
 
   <script type="module">
-    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, BubbleMenu, Extension, SlashCommand } from "myk-tiptap";
+    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, BubbleMenu, Extension, SlashCommand, CodeBlockLowlight, createLowlight, MyLowlightCommon } from "myk-tiptap";
 
     window.TipTapCore = { Editor, Extension };
     window.TipTapStarterKit = { StarterKit };
     window.TipTapLink = LinkExt;
     window.TipTapTable = { Table, TableRow, TableCell, TableHeader };
     window.TipTapMenu = { BubbleMenu, SlashCommand };
+    window.TipTapCode = { CodeBlockLowlight, createLowlight, MyLowlightCommon };
 
   </script>
 
