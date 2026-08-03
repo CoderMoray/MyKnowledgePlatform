@@ -51,8 +51,8 @@ function editorHtmlToMarkdown(html, originalMd = "") {
   ORIGINAL_MD = originalMd;
   const tmp = document.createElement("div");
   tmp.innerHTML = html;
-  const h1 = tmp.querySelector("h1");
-  if (h1 && !h1.textContent.trim()) h1.remove();
+  const firstChild = tmp.firstElementChild;
+  if (firstChild && firstChild.tagName === "H1" && !firstChild.textContent.trim()) firstChild.remove();
   tmp.querySelectorAll("li p").forEach((p) => {
     const parent = p.parentNode;
     while (p.firstChild) parent.insertBefore(p.firstChild, p);
@@ -198,6 +198,22 @@ const CASES = [
   { name: "混合全量", md: "# 编辑保存测试\n\n## 内联格式\n\n**加粗** *斜体* ~~删除线~~ `行内代码`\n\n## 列表\n\n- 无序项1\n- 无序项2\n\n1. 有序项1\n2. 有序项2\n\n## 引用\n\n> 引用文字\n\n## 代码块\n\n```javascript\nconst x = 1;\n```\n\n## 表格\n\n| 列A | 列B |\n|------|------|\n| a1 | b1 |\n\n## 链接\n\n[百度](https://www.baidu.com)\n\n参考[技术选型](ref:common-knowledge/技术选型.md::技术栈选型)\n\n参考[不存在的文档](ref:common-knowledge/不存在.md::不存在)" },
 ];
 
+// ── 斜杠插入测试：模拟斜杠菜单在空行执行命令 → 保存 → 断言产生的 markdown ──
+// run 收到编辑器，在光标位置执行命令（等价于斜杠菜单选中后）。
+const SLASH_CASES = [
+  { name: "斜杠:H1", md: "上方内容", run: (ed) => ed.commands.toggleHeading({ level: 1 }), expect: "上方内容\n\n# " },
+  { name: "斜杠:H2", md: "上方内容", run: (ed) => ed.commands.toggleHeading({ level: 2 }), expect: "上方内容\n\n## " },
+  { name: "斜杠:H3", md: "上方内容", run: (ed) => ed.commands.toggleHeading({ level: 3 }), expect: "上方内容\n\n### " },
+  { name: "斜杠:H4", md: "上方内容", run: (ed) => ed.commands.toggleHeading({ level: 4 }), expect: "上方内容\n\n#### " },
+  { name: "斜杠:无序列表", md: "上方内容", run: (ed) => ed.commands.toggleBulletList(), expect: "上方内容\n\n- " },
+  { name: "斜杠:有序列表", md: "上方内容", run: (ed) => ed.commands.toggleOrderedList(), expect: "上方内容\n\n1. " },
+  { name: "斜杠:引用", md: "上方内容", run: (ed) => ed.commands.toggleBlockquote(), expect: "上方内容\n\n> " },
+  { name: "斜杠:代码块", md: "上方内容", run: (ed) => ed.commands.toggleCodeBlock({ language: "javascript" }), expect: "上方内容\n\n```javascript\n\n```" },
+  { name: "斜杠:分割线", md: "上方内容", run: (ed) => ed.commands.setHorizontalRule(), expect: "上方内容\n\n---" },
+  { name: "斜杠:表格", md: "上方内容", run: (ed) => ed.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true }), expect: "上方内容\n\n|  |  |  |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |" },
+  // 组合场景（插入块 + 上下内容）由 CASES 覆盖：标题+表格+引用 / 代码块紧邻表格 / ref链接段落中+外链+列表
+];
+
 const extensions = [
   StarterKit.configure({ codeBlock: false }),
   PatchedLink,
@@ -237,5 +253,38 @@ for (const c of CASES) {
   }
   ed.destroy();
 }
-console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${CASES.length}`);
+// ── 斜杠插入测试执行 ──
+for (const c of SLASH_CASES) {
+  const html = renderMarkdown(c.md);
+  const prepped = preprocessForEditor(html);
+  const ed = new Editor({ element: document.createElement("div"), extensions });
+  try {
+    // 追加尾部空段落（模拟"按 Enter 后进入空行"），再执行命令（模拟斜杠在空行选中）
+    ed.commands.setContent(prepped + "<p></p>");
+    const doc = ed.state.doc;
+    const Sel = ed.state.selection.constructor;
+    const pos = Math.max(0, doc.content.size - 1);
+    ed.view.dispatch(ed.state.tr.setSelection(Sel.create(doc, pos, pos)));
+    c.run(ed);
+    const outMd = editorHtmlToMarkdown(ed.view.dom.innerHTML, c.md);
+    const expected = c.expect;
+    if (norm(outMd) === norm(expected)) {
+      pass++;
+      console.log(`  PASS  ${c.name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL  ${c.name}`);
+      console.log("   ── 期望 ──");
+      console.log("   " + norm(expected).split("\n").join("\n   "));
+      console.log("   ── 实际 ──");
+      console.log("   " + norm(outMd).split("\n").join("\n   "));
+    }
+  } catch (e) {
+    fail++;
+    console.log(`  ERROR ${c.name}: ${e.message}`);
+  }
+  ed.destroy();
+}
+const TOTAL = CASES.length + SLASH_CASES.length;
+console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${TOTAL}`);
 process.exit(fail ? 1 : 0);

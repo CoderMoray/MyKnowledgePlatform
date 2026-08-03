@@ -464,9 +464,9 @@ Alpine.data("docComponent", () => ({
 
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
-      // 去掉 ProseMirror 产生的空 h1（标题在 header 显示）
-      const h1 = tmp.querySelector("h1");
-      if (h1 && !h1.textContent.trim()) h1.remove();
+      // 仅去掉"文档开头"的空 h1（标题占位，header 已显示）；斜杠插入的空 H1 保留
+      const firstChild = tmp.firstElementChild;
+      if (firstChild && firstChild.tagName === "H1" && !firstChild.textContent.trim()) firstChild.remove();
       // 恢复 ref 链接：data-ref-path → href="ref:path"
       tmp.querySelectorAll("[data-ref-path]").forEach(a => {
         a.setAttribute("href", "ref:" + a.dataset.refPath);
