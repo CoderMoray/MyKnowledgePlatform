@@ -116,6 +116,12 @@ document.addEventListener("alpine:init", () => {
     /** 编辑器是否已修改 */
     isDirty: false,
 
+    /** 离线草稿横幅是否显示 */
+    draftBanner: false,
+
+    /** 离线草稿信息 { path, savedAt } */
+    draftInfo: null,
+
     /** 编辑器自动保存计时器 */
     autoSaveTimer: null,
 
@@ -254,6 +260,8 @@ document.addEventListener("alpine:init", () => {
 
         // 并行加载元信息（不阻塞主内容渲染）
         this.loadDocumentMeta(path).catch(() => {});
+        // 检查是否有未同步的离线草稿（不阻塞加载）
+        this.checkDraftBanner().catch(() => {});
       } catch (err) {
         this.error = err.message || "加载文档失败";
         this.document = null;
@@ -302,6 +310,56 @@ document.addEventListener("alpine:init", () => {
         }
         throw err;
       }
+    },
+
+    /**
+     * 静默保存（自动保存用）：不弹 toast，失败直接抛给调用方处理
+     * @param {string} path
+     * @param {object} body
+     */
+    async saveDocumentSilent(path, body) {
+      const data = await api.updateDocument(path, body);
+      this.document = { ...this.document, ...data };
+      this.isDirty = false;
+      return data;
+    },
+
+    /** 打开文档后检查：是否有未同步的离线草稿（fire-and-forget） */
+    async checkDraftBanner() {
+      const path = this.currentPath;
+      if (!path) return;
+      try {
+        const draft = await _draftGet(path);
+        if (draft) {
+          this.draftInfo = { path, savedAt: draft.savedAt || "" };
+          this.draftBanner = true;
+        }
+      } catch (e) { /* IndexedDB 不可用则忽略 */ }
+    },
+
+    /** 横幅「立即同步」→ 草稿写回后端，成功删除 */
+    async syncDraft() {
+      const path = this.currentPath;
+      try {
+        const draft = await _draftGet(path);
+        if (!draft) { this.draftBanner = false; return; }
+        await this.saveDocumentSilent(path, {
+          content: draft.content,
+          summary: draft.summary || this.document?.summary || "",
+        });
+        await _draftDelete(path);
+        this.draftBanner = false;
+        this.draftInfo = null;
+        showToast("离线草稿已同步", "success");
+      } catch (e) {
+        showToast("同步失败，请稍后重试", "error");
+      }
+    },
+
+    /** 横幅「忽略」→ 仅隐藏，不删草稿 */
+    dismissDraft() {
+      this.draftBanner = false;
+      this.draftInfo = null;
     },
 
     /**

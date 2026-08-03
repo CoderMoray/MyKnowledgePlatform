@@ -1,3 +1,48 @@
+/* ==========================================================================
+   IndexedDB 离线草稿（DB MyKnowledgeDrafts / store drafts / key=文档 path）
+   ========================================================================== */
+const DRAFT_DB = "MyKnowledgeDrafts";
+const DRAFT_STORE = "drafts";
+
+function _openDraftDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DRAFT_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(DRAFT_STORE)) {
+        req.result.createObjectStore(DRAFT_STORE, { keyPath: "path" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function _draftSave(path, value) {
+  return _openDraftDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(DRAFT_STORE, "readwrite");
+    tx.objectStore(DRAFT_STORE).put({ path, ...value });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function _draftGet(path) {
+  return _openDraftDB().then((db) => new Promise((resolve, reject) => {
+    const req = db.transaction(DRAFT_STORE).objectStore(DRAFT_STORE).get(path);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  }));
+}
+
+function _draftDelete(path) {
+  return _openDraftDB().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(DRAFT_STORE, "readwrite");
+    tx.objectStore(DRAFT_STORE).delete(path);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
 document.addEventListener("alpine:init", () => {
 Alpine.data("docComponent", () => ({
     editorInstance: null,
@@ -333,7 +378,30 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
-      // 预处理 TipTap HTML
+      const fullMd = this._editorToMarkdown();
+      if (fullMd) {
+        try {
+          await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
+        } catch (e) {}
+      }
+
+      // 销毁编辑器，下次进入重新创建（避免 ProseMirror 状态错乱）
+      if (this.editorInstance) {
+        this.editorInstance.destroy();
+        this.editorInstance = null;
+      }
+      store.setView("view", store.currentPath);
+      store.loadDocument(store.currentPath);
+    },
+
+    /** 编辑器 DOM → Markdown（exitEdit 与自动保存共用） */
+    _editorToMarkdown() {
+      const store = Alpine.store("app");
+      const ed = this.editorInstance;
+      if (!ed) return "";
+      const html = ed.view ? ed.view.dom.innerHTML : ed.getHTML();
+      if (!html || html === "<p></p>" || html.trim() === "") return "";
+
       const tmp = document.createElement("div");
       tmp.innerHTML = html;
       // 去掉 ProseMirror 产生的空 h1（标题在 header 显示）
@@ -419,18 +487,7 @@ Alpine.data("docComponent", () => ({
       const title = store.document?.title || "";
       // 如果正文已包含标题 h1，不再重复
       const firstLine = markdown.trim().split("\n")[0];
-      const fullMd = firstLine.startsWith("# ") ? markdown : `# ${title}\n\n${markdown}`;
-      try {
-        await store.saveDocument(store.currentPath, { content: fullMd, summary: store.document?.summary || "" });
-      } catch (e) {}
-
-      // 销毁编辑器，下次进入重新创建（避免 ProseMirror 状态错乱）
-      if (this.editorInstance) {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
-      }
-      store.setView("view", store.currentPath);
-      store.loadDocument(store.currentPath);
+      return firstLine.startsWith("# ") ? markdown : `# ${title}\n\n${markdown}`;
     },
 
     async initEditor(initialContent) {
@@ -441,10 +498,11 @@ Alpine.data("docComponent", () => ({
 
       await this.waitForTipTap();
 
-      const { Editor } = window.TipTapCore || {};
+      const { Editor, Extension } = window.TipTapCore || {};
       const StarterKit = window.TipTapStarterKit ? window.TipTapStarterKit.StarterKit : null;
       const LinkExt = window.TipTapLink || null;
       const TT = window.TipTapTable || {};
+      const TM = window.TipTapMenu || {};
       console.log("[doc] Editor:", !!Editor, "StarterKit:", !!StarterKit, "LinkExt:", !!LinkExt);
       if (!Editor) return;
 
@@ -471,6 +529,8 @@ Alpine.data("docComponent", () => ({
         TT.TableRow || null,
         TT.TableCell || null,
         TT.TableHeader || null,
+        TM.BubbleMenu ? this._buildBubbleMenuExtension(TM.BubbleMenu) : null,
+        TM.SlashCommand ? TM.SlashCommand.configure(this._buildSlashOptions(TM.SlashCommand)) : null,
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
 
@@ -498,6 +558,11 @@ Alpine.data("docComponent", () => ({
       store.editor = this.editorInstance;
       this.editorReady = true;
 
+      // 自动保存：update 事件 → debounce（任务 14 实现）
+      this._setupAutosave();
+      // 关页面前强制写草稿
+      this._bindBeforeUnloadDraft();
+
       // CMD+S / Ctrl+S 保存（全局监听，只在编辑态生效）
       document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === "s" && store.currentView === "edit" && !store.isLocked) {
@@ -506,10 +571,6 @@ Alpine.data("docComponent", () => ({
           this.exitEdit();
         }
       });
-
-      if (typeof window._mykBindToolbar === "function") {
-        window._mykBindToolbar(this.editorInstance);
-      }
 
       // AI 锁态监听：编辑中被锁 → 只读 + 红框遮罩，解锁 → 绿过渡淡出
       Alpine.effect(() => {
@@ -598,6 +659,272 @@ Alpine.data("docComponent", () => ({
         if (window.TipTapCore && window.TipTapStarterKit) return;
         await new Promise((r) => setTimeout(r, 100));
       }
+    },
+
+    /* --- BubbleMenu / SlashCommand --- */
+
+    /** 构建 BubbleMenu 扩展（选中文字浮出格式条，飞书浮动工具栏同款） */
+    _buildBubbleMenuExtension(BubbleMenuCls) {
+      const el = document.getElementById("bubble-menu");
+      if (!el) return null;
+      // 一次性构建按钮 DOM（纯 JS，避免 Alpine 与 TipTap DOM 冲突）
+      if (!el.children.length) {
+        const defs = [
+          { action: "bold", title: "加粗", label: "<b>B</b>" },
+          { action: "italic", title: "斜体", label: "<i>I</i>" },
+          { action: "strike", title: "删除线", label: "<s>S</s>" },
+          { action: "code", title: "行内代码", label: "&lt;/&gt;" },
+          { sep: true },
+          { action: "link", title: "添加链接", label: "&#128279;" },
+        ];
+        defs.forEach(d => {
+          if (d.sep) {
+            const s = document.createElement("span");
+            s.className = "bubble-menu__sep";
+            el.appendChild(s);
+            return;
+          }
+          const btn = document.createElement("button");
+          btn.className = "bubble-menu__btn";
+          btn.title = d.title;
+          btn.dataset.bubbleAction = d.action;
+          btn.innerHTML = d.label;
+          btn.addEventListener("click", () => this._bubbleAction(d.action));
+          el.appendChild(btn);
+        });
+      }
+
+      return BubbleMenuCls.configure({
+        element: el,
+        update: ({ editor }) => {
+          const sel = editor.state.selection;
+          const hasSel = !sel.empty;
+          const isLink = editor.isActive("link");
+          el.classList.toggle("is-active", hasSel || isLink);
+          if (!hasSel && !isLink) return;
+          el.querySelectorAll("[data-bubble-action]").forEach(b => {
+            const act = b.dataset.bubbleAction;
+            let active = false;
+            if (act === "bold") active = editor.isActive("bold");
+            else if (act === "italic") active = editor.isActive("italic");
+            else if (act === "strike") active = editor.isActive("strike");
+            else if (act === "code") active = editor.isActive("code");
+            else if (act === "link") active = isLink;
+            b.classList.toggle("is-active", active);
+          });
+        },
+      });
+    },
+
+    /** BubbleMenu 按钮点击分发 */
+    _bubbleAction(action) {
+      const ed = this.editorInstance;
+      if (!ed) return;
+      if (action === "bold") ed.commands.toggleBold();
+      else if (action === "italic") ed.commands.toggleItalic();
+      else if (action === "strike") ed.commands.toggleStrike();
+      else if (action === "code") ed.commands.toggleCode();
+      else if (action === "link") this._bubbleLink();
+    },
+
+    /** 链接：无链接 → 提示输入；已有链接 → 取消 */
+    _bubbleLink() {
+      const ed = this.editorInstance;
+      if (!ed) return;
+      if (ed.isActive("link")) {
+        ed.commands.unsetLink();
+        return;
+      }
+      const url = window.prompt("输入链接地址（外部 URL 或 ref:知识路径）", "");
+      if (!url || !url.trim()) return;
+      const href = url.trim().replace(/ /g, "%20");
+      ed.chain().focus().setLink({ href }).run();
+    },
+
+    /** 构建 SlashCommand 选项（/ 唤出插入菜单，飞书斜杠菜单同款） */
+    _buildSlashOptions(SlashCommandCls) {
+      this._slashItems = [
+        { type: "h1", name: "标题 1", desc: "一级大标题", icon: "H1", run: (ed) => ed.commands.toggleHeading({ level: 1 }) },
+        { type: "h2", name: "标题 2", desc: "二级标题", icon: "H2", run: (ed) => ed.commands.toggleHeading({ level: 2 }) },
+        { type: "h3", name: "标题 3", desc: "三级标题", icon: "H3", run: (ed) => ed.commands.toggleHeading({ level: 3 }) },
+        { type: "bullet", name: "无序列表", desc: "项目符号列表", icon: "&bull;", run: (ed) => ed.commands.toggleBulletList() },
+        { type: "ordered", name: "有序列表", desc: "编号列表", icon: "1.", run: (ed) => ed.commands.toggleOrderedList() },
+        { type: "quote", name: "引用", desc: "引用一段文字", icon: "&ldquo;", run: (ed) => ed.commands.toggleBlockquote() },
+        { type: "code", name: "代码块", desc: "插入代码块", icon: "{ }", run: (ed) => ed.commands.toggleCodeBlock() },
+        { type: "hr", name: "分割线", desc: "插入水平分割线", icon: "&mdash;", run: (ed) => ed.commands.setHorizontalRule() },
+        { type: "table", name: "表格", desc: "插入 3x3 表格", icon: "&#9646;", run: (ed) => ed.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
+      ];
+      this._slashIndex = 0;
+      const menu = document.getElementById("slash-menu");
+      const list = menu ? menu.querySelector(".slash-menu__list") : null;
+
+      const render = () => {
+        if (!list) return;
+        list.innerHTML = "";
+        this._slashItems.forEach((item, i) => {
+          const div = document.createElement("div");
+          div.className = "slash-menu__item" + (i === this._slashIndex ? " slash-menu__item--active" : "");
+          div.innerHTML =
+            '<span class="slash-menu__icon">' + item.icon + '</span>' +
+            '<div class="slash-menu__text">' +
+            '<div class="slash-menu__name">' + item.name + '</div>' +
+            '<div class="slash-menu__desc">' + item.desc + '</div>' +
+            '</div>';
+          div.addEventListener("mousedown", (e) => { e.preventDefault(); this._slashSelect(i); });
+          div.addEventListener("mouseenter", () => { this._slashIndex = i; this._slashHighlight(list); });
+          list.appendChild(div);
+        });
+      };
+      const position = (pos) => {
+        if (!menu) return;
+        const coords = this.editorInstance.view.coordsAtPos(pos);
+        menu.style.left = Math.min(coords.left, window.innerWidth - 260) + "px";
+        menu.style.top = (coords.bottom + 4) + "px";
+      };
+
+      return {
+        onOpen: (pos) => {
+          this._slashIndex = 0;
+          render();
+          position(pos);
+          menu && menu.classList.add("is-active");
+        },
+        onClose: () => {
+          menu && menu.classList.remove("is-active");
+        },
+        onKeydown: (event) => {
+          const total = this._slashItems.length;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            this._slashIndex = (this._slashIndex + 1) % total;
+            this._slashHighlight(list);
+            return true;
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            this._slashIndex = (this._slashIndex - 1 + total) % total;
+            this._slashHighlight(list);
+            return true;
+          }
+          if (event.key === "Enter") {
+            event.preventDefault();
+            this._slashSelect(this._slashIndex);
+            return true;
+          }
+          return false; // Escape 交给扩展处理
+        },
+      };
+    },
+
+    _slashHighlight(list) {
+      if (!list) return;
+      Array.from(list.children).forEach((child, i) => {
+        child.classList.toggle("slash-menu__item--active", i === this._slashIndex);
+      });
+    },
+
+    /** 选中斜杠菜单项：删 "/" 后执行命令 */
+    _slashSelect(idx) {
+      const item = this._slashItems[idx];
+      const ed = this.editorInstance;
+      if (!item || !ed) return;
+      const ext = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
+      if (ext && typeof ext.select === "function") {
+        ext.select(() => item.run(ed));
+      } else {
+        item.run(ed);
+      }
+    },
+
+    /* --- 自动保存（debounce + 队列串行） --- */
+
+    _setupAutosave() {
+      const ed = this.editorInstance;
+      if (!ed || this._autosaveBound) return;
+      this._autosaveBound = true;
+      this._autosaveTimer = null;
+      this._saveQueue = Promise.resolve();
+      ed.on("update", () => {
+        if (this._autosaveTimer) clearTimeout(this._autosaveTimer);
+        this._autosaveTimer = setTimeout(() => this._autosave(), 1000);
+      });
+    },
+
+    /** debounce 到期 → 入队保存 */
+    async _autosave() {
+      const store = Alpine.store("app");
+      if (store.isLocked || store.currentView !== "edit" || !this.editorInstance) return;
+      this._saveQueue = this._saveQueue.then(() => this._performSave());
+    },
+
+    /** 执行一次保存：内容未变跳过；失败 → IndexedDB 草稿兜底 + 横幅 */
+    async _performSave() {
+      const store = Alpine.store("app");
+      if (store.isLocked || store.currentView !== "edit" || !this.editorInstance) return;
+      const md = this._editorToMarkdown();
+      if (!md) return;
+      // 内容未变 → 不重复调 API（后端 unchanged 是兜底，前端先自己比对）
+      const current = store.document?.content || "";
+      if (md === current) return;
+      try {
+        await store.saveDocumentSilent(store.currentPath, { content: md, summary: store.document?.summary || "" });
+        // 保存成功且之前有离线草稿 → 清理
+        await this._draftClear(store.currentPath);
+        if (store.draftBanner) store.draftBanner = false;
+      } catch (e) {
+        // 后端离线/失败 → 写本地草稿，不打断输入
+        await this._draftToIndexedDB(md);
+      }
+    },
+
+    /* --- IndexedDB 离线草稿 --- */
+
+    /** 保存失败 → 写入本地草稿 + 顶部横幅 */
+    async _draftToIndexedDB(md) {
+      const store = Alpine.store("app");
+      const path = store.currentPath;
+      if (!path || !md) return;
+      try {
+        await _draftSave(path, {
+          content: md,
+          title: store.document?.title || "",
+          summary: store.document?.summary || "",
+          savedAt: new Date().toISOString(),
+        });
+        store.draftBanner = true;
+      } catch (e) {
+        // IndexedDB 不可用（无痕模式等）→ 静默丢弃，至少内存里还有
+      }
+    },
+
+    /** 打开文档时检查：有没有未同步的离线草稿 */
+    async _checkDraft() {
+      const store = Alpine.store("app");
+      const path = store.currentPath;
+      if (!path) return;
+      try {
+        const draft = await _draftGet(path);
+        if (draft) {
+          store.draftInfo = { path, savedAt: draft.savedAt || "" };
+          store.draftBanner = true;
+        }
+      } catch (e) {
+        // 忽略
+      }
+    },
+
+    /** 关闭页面前：编辑中有未保存内容 → 强制写草稿 */
+    _bindBeforeUnloadDraft() {
+      if (this._beforeUnloadBound) return;
+      this._beforeUnloadBound = true;
+      window.addEventListener("beforeunload", () => {
+        const store = Alpine.store("app");
+        if (store.currentView !== "edit" || !this.editorInstance) return;
+        const md = this._editorToMarkdown();
+        if (md && md !== (store.document?.content || "")) {
+          this._draftToIndexedDB(md);
+        }
+      });
     },
 
     destroyEditor() {

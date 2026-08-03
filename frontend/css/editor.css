@@ -82,64 +82,6 @@
   color: var(--text-muted);
 }
 
-/* ── 工具栏 ─────────────────────────────────────────────────────────────── */
-
-.editor-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  margin-bottom: var(--space-3);
-  background: var(--bg-secondary);
-  border: 0.5px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-
-.editor-toolbar__group {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-}
-
-.editor-toolbar__divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border-default);
-  margin: 0 3px;
-}
-
-.editor-toolbar__btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--text-base);
-  cursor: pointer;
-  transition: var(--transition-interactive);
-}
-
-.editor-toolbar__btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.editor-toolbar__btn--active {
-  background: var(--accent-subtle);
-  color: var(--accent);
-}
-
-.editor-toolbar__btn[disabled] {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
 /* ── TipTap 编辑区 ──────────────────────────────────────────────────────── */
 
 .editor-content {
@@ -447,4 +389,117 @@
 .content-panel--locked .ProseMirror {
   filter: blur(2px);
   pointer-events: none;
+}
+
+/* ── BubbleMenu 浮动格式条（飞书浮动工具栏同款） ─────────────────────── */
+.bubble-menu {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 4px;
+  background: var(--bg-primary, #ffffff);
+  border: 0.5px solid var(--border-default, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  z-index: 30;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+.bubble-menu.is-active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.bubble-menu__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  color: var(--text-secondary, #555);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.bubble-menu__btn:hover {
+  background: var(--bg-tertiary, #f0f0f0);
+  color: var(--text-primary, #1a1a1a);
+}
+.bubble-menu__btn.is-active {
+  background: var(--accent-subtle, #eeedfe);
+  color: var(--accent, #534ab7);
+}
+.bubble-menu__sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-default, rgba(0,0,0,0.12));
+  margin: 0 3px;
+}
+
+/* ── SlashCommand 斜杠菜单（飞书斜杠菜单同款） ──────────────────────── */
+.slash-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-primary, #ffffff);
+  border: 0.5px solid var(--border-default, rgba(0,0,0,0.12));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 5px;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+.slash-menu.is-active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.slash-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.slash-menu__item:hover,
+.slash-menu__item--active {
+  background: var(--bg-tertiary, #f2f2f2);
+}
+.slash-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--accent-subtle, #eeedfe);
+  color: var(--accent, #534ab7);
+  font-size: 13px;
+}
+.slash-menu__text {
+  min-width: 0;
+}
+.slash-menu__name {
+  font-size: 13px;
+  color: var(--text-primary, #1a1a1a);
+  line-height: 1.4;
+}
+.slash-menu__desc {
+  font-size: 11px;
+  color: var(--text-tertiary, #888);
+  line-height: 1.4;
 }

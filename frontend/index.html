@@ -251,6 +251,21 @@
         </div>
       </div>
 
+      <!-- 离线草稿横幅 -->
+      <div x-effect="$el.style.maxHeight = $store.app.draftBanner ? $el.scrollHeight + 'px' : '0'"
+           style="max-height:0;overflow:hidden;transition:max-height 0.3s ease">
+        <div class="draft-banner" style="opacity:0;transition:opacity 0.3s ease"
+             :style="{ opacity: $store.app.draftBanner ? 1 : 0 }">
+          <svg class="lock-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="8" cy="8" r="6.5"/>
+            <path d="M8 4v4l2.5 2"/>
+          </svg>
+          <span>服务已断开，编辑已保存至本地草稿</span>
+          <button class="draft-banner__btn" @click="Alpine.store('app').syncDraft()">立即同步</button>
+          <button class="draft-banner__btn" @click="Alpine.store('app').dismissDraft()">忽略</button>
+        </div>
+      </div>
+
       <!-- 后端离线提示 -->
       <div class="offline-banner"
            x-show="$store.app.backendOffline"
@@ -751,28 +766,17 @@
             <!-- 正文: 编辑态（TipTap 就地编辑） -->
             <div x-show="$store.app.currentView === 'edit'">
               <div class="editor-shell" @click.outside="exitEdit()">
-                <!-- TipTap 工具栏 -->
-                <div class="editor-toolbar" id="tiptap-toolbar">
-                  <button class="editor-toolbar__btn" title="标题1" data-action="toggleHeading" data-level="1">H1</button>
-                  <button class="editor-toolbar__btn" title="标题2" data-action="toggleHeading" data-level="2">H2</button>
-                  <button class="editor-toolbar__btn" title="标题3" data-action="toggleHeading" data-level="3">H3</button>
-                  <span class="editor-toolbar__sep"></span>
-                  <button class="editor-toolbar__btn" title="加粗" data-action="toggleBold"><b>B</b></button>
-                  <button class="editor-toolbar__btn" title="斜体" data-action="toggleItalic"><i>I</i></button>
-                  <button class="editor-toolbar__btn" title="删除线" data-action="toggleStrike"><s>S</s></button>
-                  <button class="editor-toolbar__btn" title="行内代码" data-action="toggleCode">&lt;/&gt;</button>
-                  <span class="editor-toolbar__sep"></span>
-                  <button class="editor-toolbar__btn" title="无序列表" data-action="toggleBulletList">&bull;</button>
-                  <button class="editor-toolbar__btn" title="有序列表" data-action="toggleOrderedList">1.</button>
-                  <button class="editor-toolbar__btn" title="引用" data-action="toggleBlockquote">&ldquo;</button>
-                  <button class="editor-toolbar__btn" title="分割线" data-action="setHorizontalRule">&mdash;</button>
-                  <button class="editor-toolbar__btn" title="代码块" data-action="toggleCodeBlock">{ }</button>
-                  <button class="editor-toolbar__btn" title="链接" data-action="toggleLink">&#x1f517;</button>
-                </div>
-
                 <!-- TipTap 编辑器 -->
                 <div class="editor-content">
                   <div id="tiptap-editor"></div>
+                </div>
+
+                <!-- BubbleMenu：选中文字浮出格式条（内容由 JS 构建，避免与 TipTap DOM 冲突） -->
+                <div id="bubble-menu" class="bubble-menu" x-cloak></div>
+
+                <!-- SlashCommand：/ 唤出的插入菜单（内容由 JS 构建） -->
+                <div id="slash-menu" class="slash-menu" x-cloak>
+                  <div class="slash-menu__list"></div>
                 </div>
               </div>
             </div>
@@ -1109,71 +1113,14 @@
   </script>
 
   <script type="module">
-    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader } from "myk-tiptap";
+    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, BubbleMenu, Extension, SlashCommand } from "myk-tiptap";
 
-    window.TipTapCore = { Editor };
+    window.TipTapCore = { Editor, Extension };
     window.TipTapStarterKit = { StarterKit };
     window.TipTapLink = LinkExt;
     window.TipTapTable = { Table, TableRow, TableCell, TableHeader };
+    window.TipTapMenu = { BubbleMenu, SlashCommand };
 
-    window._mykBindToolbar = (function () {
-      let activeEditor = null;
-      let updateHandler = null;
-
-      return function (editor) {
-        if (!editor) return;
-        activeEditor = editor;
-
-        document.querySelectorAll('#tiptap-toolbar [data-action]').forEach((btn) => {
-          const bound = btn._mykToolbarBound;
-          if (!bound) {
-            btn.addEventListener('click', () => {
-              if (!activeEditor) return;
-              const action = btn.dataset.action;
-              const level = parseInt(btn.dataset.level) || 1;
-
-              switch (action) {
-                case 'toggleBold': activeEditor.commands.toggleBold(); break;
-                case 'toggleItalic': activeEditor.commands.toggleItalic(); break;
-                case 'toggleStrike': activeEditor.commands.toggleStrike(); break;
-                case 'toggleCode': activeEditor.commands.toggleCode(); break;
-                case 'toggleHeading': activeEditor.commands.toggleHeading({ level }); break;
-                case 'toggleBulletList': activeEditor.commands.toggleBulletList(); break;
-                case 'toggleOrderedList': activeEditor.commands.toggleOrderedList(); break;
-                case 'toggleBlockquote': activeEditor.commands.toggleBlockquote(); break;
-                case 'toggleCodeBlock': activeEditor.commands.toggleCodeBlock(); break;
-                case 'setHorizontalRule': activeEditor.commands.setHorizontalRule(); break;
-              }
-            });
-            btn._mykToolbarBound = true;
-          }
-        });
-
-      if (updateHandler) editor.off('selectionUpdate', updateHandler);
-      updateHandler = () => {
-        document.querySelectorAll('#tiptap-toolbar [data-action]').forEach((btn) => {
-          const action = btn.dataset.action;
-          const level = parseInt(btn.dataset.level) || 1;
-          let active = false;
-
-          switch (action) {
-            case 'toggleBold': active = activeEditor.isActive('bold'); break;
-            case 'toggleItalic': active = activeEditor.isActive('italic'); break;
-            case 'toggleStrike': active = activeEditor.isActive('strike'); break;
-            case 'toggleCode': active = activeEditor.isActive('code'); break;
-            case 'toggleHeading': active = activeEditor.isActive('heading', { level }); break;
-            case 'toggleBulletList': active = activeEditor.isActive('bulletList'); break;
-            case 'toggleOrderedList': active = activeEditor.isActive('orderedList'); break;
-            case 'toggleBlockquote': active = activeEditor.isActive('blockquote'); break;
-            case 'toggleCodeBlock': active = activeEditor.isActive('codeBlock'); break;
-          }
-
-          btn.classList.toggle('editor-toolbar__btn--active', active);
-        });
-      };
-      editor.on('selectionUpdate', updateHandler);
-    };
-  })();
   </script>
 
   <!-- ════════════════════════════════════════════════════════════════════

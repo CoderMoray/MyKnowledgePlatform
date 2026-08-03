@@ -730,3 +730,31 @@
 [x-cloak] {
   display: none !important;
 }
+
+/* ── 离线草稿横幅 ───────────────────────────────────────────────────────── */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--bg-warning, #fdf6ec);
+  border-bottom: 0.5px solid var(--border-subtle, rgba(0,0,0,0.08));
+}
+.draft-banner .lock-banner__icon {
+  color: var(--text-warning, #b8860b);
+}
+.draft-banner__btn {
+  padding: 2px 10px;
+  border: 0.5px solid var(--border-default, rgba(0,0,0,0.2));
+  border-radius: 6px;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  margin-left: auto;
+}
+.draft-banner__btn:hover {
+  background: var(--bg-tertiary, #f0f0f0);
+}
