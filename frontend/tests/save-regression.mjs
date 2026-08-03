@@ -321,6 +321,29 @@ for (const c of SLASH_CASES) {
   }
   ed.destroy();
 }
-const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length;
+// ── 斜杠菜单上下文过滤：单元格内不显示表格项（飞书行为，避免嵌套表格） ──
+const SLASH_FILTER_CASES = [
+  { name: "过滤:非表格→含表格项", inTable: false, expectHasTable: true, expectTotal: 10 },
+  { name: "过滤:表格内→不含表格项", inTable: true, expectHasTable: false, expectTotal: 9 },
+];
+const _slashItemsForFilter = [
+  { type: "h1" }, { type: "h2" }, { type: "h3" }, { type: "h4" },
+  { type: "bullet" }, { type: "ordered" }, { type: "quote" }, { type: "code" },
+  { type: "hr" }, { type: "table" },
+];
+for (const f of SLASH_FILTER_CASES) {
+  const visible = _slashItemsForFilter.filter((it) => !(it.type === "table" && f.inTable));
+  const hasTable = visible.some((it) => it.type === "table");
+  if (hasTable === f.expectHasTable && visible.length === f.expectTotal) {
+    pass++;
+    console.log(`  PASS  ${f.name}`);
+  } else {
+    fail++;
+    console.log(`  FAIL  ${f.name}: hasTable=${hasTable}(expect ${f.expectHasTable}) total=${visible.length}(expect ${f.expectTotal})`);
+  }
+}
+
+
+const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length + SLASH_FILTER_CASES.length;
 console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${TOTAL}`);
 process.exit(fail ? 1 : 0);

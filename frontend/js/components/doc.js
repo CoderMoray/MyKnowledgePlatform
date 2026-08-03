@@ -916,7 +916,11 @@ Alpine.data("docComponent", () => ({
       const render = () => {
         if (!list) return;
         list.innerHTML = "";
-        this._slashItems.forEach((item, i) => {
+        // 上下文过滤：单元格内不显示"表格"项（飞书行为：避免嵌套表格）
+        const inTable = _editorInstance ? _editorInstance.isActive("table") : false;
+        this._slashVisible = this._slashItems.filter((item) => !(item.type === "table" && inTable));
+        if (this._slashIndex >= this._slashVisible.length) this._slashIndex = Math.max(0, this._slashVisible.length - 1);
+        this._slashVisible.forEach((item, i) => {
           const div = document.createElement("div");
           div.className = "slash-menu__item" + (i === this._slashIndex ? " slash-menu__item--active" : "");
           div.innerHTML =
@@ -948,7 +952,9 @@ Alpine.data("docComponent", () => ({
           menu && menu.classList.remove("is-active");
         },
         onKeydown: (event) => {
-          const total = this._slashItems.length;
+          // 总数取上下文过滤后的可见项（单元格内隐藏表格项）
+          const inTableK = _editorInstance ? _editorInstance.isActive("table") : false;
+          const total = this._slashItems.filter((it) => !(it.type === "table" && inTableK)).length;
           if (event.key === "ArrowDown") {
             event.preventDefault();
             this._slashIndex = (this._slashIndex + 1) % total;
@@ -982,7 +988,7 @@ Alpine.data("docComponent", () => ({
 
     /** 选中斜杠菜单项：先删 "/" 恢复干净段落，再执行命令（避免命令把 "/" 变内容后删除范围错乱/误伤后续块） */
     _slashSelect(idx) {
-      const item = this._slashItems[idx];
+      const item = this._slashVisible ? this._slashVisible[idx] : this._slashItems[idx];
       const ed = _editorInstance;
       if (!item || !ed) return;
       // 1. 先删除 "/" 及后续 query，恢复空段落
