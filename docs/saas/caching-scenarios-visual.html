@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单用户 · 请求体(T0–T3)随多轮对话的缓存变化</title>
+<style>
+  :root{
+    --t0:#2563eb; --t1:#16a34a; --t2:#d97706; --t3:#7c3aed;
+    --write:#2563eb; --hit:#16a34a; --miss:#dc2626; --na:#94a3b8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:#f8fafc;color:#1e293b;line-height:1.5;padding:24px;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .sub{color:#64748b;font-size:13px;margin-bottom:18px;}
+  /* legend */
+  .legend{border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:12px 14px;margin-bottom:18px;}
+  .legend-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .legend-row + .legend-row{margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0;}
+  .legend-title{font-size:12px;font-weight:700;color:#475569;margin-right:4px;}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 9px;border-radius:999px;color:#fff;font-weight:600;}
+  .t0c{background:var(--t0);} .t1c{background:var(--t1);} .t2c{background:var(--t2);} .t3c{background:var(--t3);}
+  .wrc{background:var(--write);} .hitc{background:var(--hit);} .missc{background:var(--miss);} .nac{background:var(--na);}
+  .legend-note{font-size:11px;color:#94a3b8;margin-top:8px;}
+  /* anatomy */
+  .anatomy{border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:14px;margin-bottom:20px;}
+  .anatomy h3{margin:0 0 10px;font-size:14px;}
+  .req-box{display:flex;flex-direction:column;gap:6px;}
+  .layer{display:flex;align-items:stretch;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;}
+  .layer .lh{width:118px;flex:none;display:flex;flex-direction:column;justify-content:center;padding:8px 10px;color:#fff;font-size:12px;font-weight:700;}
+  .layer .lb{flex:1;padding:8px 12px;font-size:12.5px;background:#f8fafc;}
+  .lh.t0{background:var(--t0);} .lh.t1{background:var(--t1);} .lh.t2{background:var(--t2);} .lh.t3{background:var(--t3);}
+  .bp{font-size:11px;color:#dc2626;font-weight:700;margin-left:6px;}
+  /* scenario */
+  .scn{border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:14px 16px;margin-bottom:16px;}
+  .scn h2{font-size:15px;margin:0 0 2px;display:flex;align-items:center;gap:8px;}
+  .scn .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#4338ca;}
+  .scn .desc{font-size:12.5px;color:#64748b;margin:0 0 12px;}
+  .turn{margin-bottom:12px;}
+  .turn-label{font-size:12px;font-weight:700;color:#334155;margin-bottom:5px;}
+  .turn-note{font-size:11.5px;color:#0f766e;background:#ecfdf5;border-radius:6px;padding:4px 8px;margin-top:6px;}
+  .tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .tier{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;}
+  .tier .th{padding:5px 8px;color:#fff;font-size:11.5px;font-weight:700;}
+  .tier .tb{padding:7px 9px;font-size:12px;background:#fff;flex:1;min-height:42px;}
+  .tier .ts{padding:4px 8px;font-size:11px;font-weight:700;text-align:center;color:#fff;}
+  .th.t0{background:var(--t0);} .th.t1{background:var(--t1);} .th.t2{background:var(--t2);} .th.t3{background:var(--t3);}
+  .ts.write{background:var(--write);} .ts.hit{background:var(--hit);} .ts.miss{background:var(--miss);} .ts.na{background:var(--na);}
+  .branch{font-size:11.5px;color:#64748b;background:#f1f5f9;border-radius:6px;padding:5px 9px;margin-top:6px;}
+  .key{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:12.5px;color:#92400e;}
+  .key b{color:#b45309;}
+  footer{font-size:11.5px;color:#94a3b8;margin-top:8px;}
+</style>
+</head>
+<body>
+
+<h1>单用户 · 请求体(T0–T3)随多轮对话的缓存变化</h1>
+<div class="sub">每一轮：harness 重新拼接 T0–T3 → 经 LiteLLM 转发厂商。色块下方标注该层的缓存命中状态。仅单用户视角。</div>
+
+<!-- 图例：两行 -->
+<div class="legend">
+  <div class="legend-row">
+    <span class="legend-title">层级颜色</span>
+    <span class="chip t0c">T0 系统提示</span>
+    <span class="chip t1c">T1 KB 前缀(pin)</span>
+    <span class="chip t2c">T2 对话历史</span>
+    <span class="chip t3c">T3 当前消息</span>
+  </div>
+  <div class="legend-row">
+    <span class="legend-title">动作图例</span>
+    <span class="chip wrc">WRITE 新写缓存</span>
+    <span class="chip hitc">HIT 命中缓存</span>
+    <span class="chip missc">MISS→WRITE 过期重付</span>
+    <span class="chip nac">— 不缓存(每轮重发)</span>
+  </div>
+  <div class="legend-note">断点位置：断点①在 T0 后，断点②在 T1 后。缓存只认"断点之前"的内容 → T0、T1 可命中；T2、T3 在断点②之后，永不缓存。</div>
+</div>
+
+<!-- 关键认知 -->
+<div class="key">
+  <b>三个铁律：</b>① <b>T0 段在 TTL 内几乎永远 HIT</b>——它是全局固定系统提示，断点①前缀逐字节相同；仅首次是纯 WRITE，D/E 因 TTL 过期才 MISS→WRITE（T0 极小、成本可忽略）。
+  ② <b>T1 段命中与否取决于 T1 内容是否变化且未过 TTL</b>——切换/晋升/压缩 T1 即触发 WRITE。
+  ③ <b>T2/T3 永远"不缓存"</b>——它们在断点②之后，每轮重发但不入缓存，其变化不触发任何重记。
+</div>
+
+<!-- 解剖 -->
+<div class="anatomy">
+  <h3>请求体解剖（一次调用的 messages 结构）</h3>
+  <div class="req-box">
+    <div class="layer"><div class="lh t0">T0 系统提示<span class="bp">⛓断点①</span></div><div class="lb">角色 system：固定指令、工具使用规范、全局项目索引</div></div>
+    <div class="layer"><div class="lh t1">T1 KB 前缀<span class="bp">⛓断点②</span></div><div class="lb">角色 system：当前 pin 的子项目知识库全文（recency_index 决定）</div></div>
+    <div class="layer"><div class="lh t2">T2 对话历史</div><div class="lb">角色 user/assistant/tool：逐轮累积的历史 + 工具返回结果（断点②之后）</div></div>
+    <div class="layer"><div class="lh t3">T3 当前消息</div><div class="lb">角色 user：本轮用户新问题（断点②之后）</div></div>
+  </div>
+  <div class="legend-note">另有独立顶层字段：<code>tools</code>（grep/read 等工具定义）、<code>cache_control</code>（加在 T0、T1 末尾的断点标记）。</div>
+</div>
+
+<!-- A 冷启动 -->
+<div class="scn">
+  <h2><span class="tag">A</span> 冷启动首轮 → 建立前缀</h2>
+  <p class="desc">新会话，recency_index 空。首轮写默认前缀；因 T1 宽裕，X 被直接晋升进 T1，产生第二次写入。</p>
+
+  <div class="turn">
+    <div class="turn-label">轮次 1（用户首问「项目 X 的架构？」）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容</div><div class="ts write">WRITE</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">∅ 默认索引</div><div class="ts write">WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">∅</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">「项目X架构？」</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">纯 WRITE：T0+T1 前缀首次出现，厂商建立第 1 条缓存。harness 随后因「T1 宽裕」将 X 晋升进 T1。</div>
+  </div>
+
+  <div class="turn">
+    <div class="turn-label">轮次 2（追问「它的鉴权怎么做的？」）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容（不变）</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X 知识库全文]（新）</div><div class="ts write">WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">轮次1 的 user+assistant</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">「鉴权怎么做？」</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">T0 段命中（固定不变）；T1 段变了（∅→[X]）→ 新写 X 前缀（第 2 条缓存）。这正是你说的「T0 持续 HIT、T1 重写」。</div>
+  </div>
+</div>
+
+<!-- B 同项目多轮 -->
+<div class="scn">
+  <h2><span class="tag">B</span> 同项目多轮 → 连续 HIT</h2>
+  <p class="desc">轮次 3–5 继续追问项目 X。T0/T1 不变 → 每段都 HIT；T2/T3 每轮变但永不缓存。</p>
+
+  <div class="turn">
+    <div class="turn-label">轮次 3 / 4 / 5（持续追问 X）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X 知识库全文]（不变）</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">逐轮增长（轮次1-2-3…）</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">每轮新问题</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">省钱的本体：T0+T1 连续命中，只付极小的命中价；T2/T3 全量重发但不计费缓存（按 input token 计，本就如此）。</div>
+  </div>
+</div>
+
+<!-- C 项目跳跃 -->
+<div class="scn">
+  <h2><span class="tag">C</span> 项目跳跃（轮次 6 跳到 Y）</h2>
+  <p class="desc">规则①：T1 宽裕→直接提（WRITE）；T1 满→放 T2（HIT，不重写）；连续 2 次提及→强制提。</p>
+
+  <div class="turn">
+    <div class="turn-label">轮次 6（「项目 Y 的部署脚本呢？」｜T1 宽裕主路径）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X+Y 知识库]（变）</div><div class="ts write">WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">含轮次1-5</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">「Y部署脚本？」</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">T1 变（[X]→[X+Y]）→ 断点②前缀变了 → 新写。T0 仍 HIT。</div>
+  </div>
+  <div class="branch">分支 C1：若 T1 已满（pin 上限 M 用尽）且非「连续 2 次提及」→ Y 只放 T2（每轮 grep），T1 保持 [X] 不变 → T1 段 = <b>HIT</b>，不触发 WRITE。这正是「宽裕才提、满了放 T2」的节流效果。</div>
+</div>
+
+<!-- D 长期回归 -->
+<div class="scn">
+  <h2><span class="tag">D</span> 长期离开后回归（同会话）</h2>
+  <p class="desc">离开 &gt; TTL（~5–10min），provider 已驱逐缓存。同会话故 T2 历史还在，但缓存全冷。</p>
+
+  <div class="turn">
+    <div class="turn-label">轮次 N（隔 15min 后：「刚才那个鉴权再细说」）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容（同前）</div><div class="ts miss">MISS→WRITE</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X+Y 知识库]（同前）</div><div class="ts miss">MISS→WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">轮次1-N 旧历史（仍在）</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">新问题</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">结构与前相同，但缓存已驱逐 → T0/T1 都 MISS→WRITE（重付写入费）。T0 虽极小可忽略，T1 若大则这一轮偏贵。低频用例吃不到红利的根因。</div>
+  </div>
+</div>
+
+<!-- E 新会话 -->
+<div class="scn">
+  <h2><span class="tag">E</span> 切换新会话（同用户）</h2>
+  <p class="desc">规则②：recency_index 跨会话持久化 → 新会话保留旧 T1 pin；T2 清空；provider 缓存已冷。</p>
+
+  <div class="turn">
+    <div class="turn-label">新会话 轮次 1（原会话后开新 chat）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容（全局重注入）</div><div class="ts miss">MISS→WRITE</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X+Y 知识库]（<b>保留旧 pin</b>）</div><div class="ts miss">MISS→WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">∅（新会话清空）</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">新问题</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">T1 内容来自原会话（保留），但厂商缓存已冷 → 仍是 MISS→WRITE。留下的是 harness 的 recency_index，不是厂商缓存。T2 清空是会话边界的必然。</div>
+  </div>
+</div>
+
+<!-- F 压缩 -->
+<div class="scn">
+  <h2><span class="tag">F</span> 压缩触发（上下文超限）</h2>
+  <p class="desc">T1+T2 超预算（如 120K）→ harness 压缩 T1 为摘要。T1 内容变了 → 重写。</p>
+
+  <div class="turn">
+    <div class="turn-label">轮次 K（压缩触发，TTL 内）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X+Y 摘要版]（重写）</div><div class="ts write">WRITE</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">压缩后的历史</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">新问题</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">T1 重写 → WRITE（一次）。净收益正：上下文变小，后续每轮更便宜，且可重新 pin 成缓存块。</div>
+  </div>
+</div>
+
+<!-- H agent-loop -->
+<div class="scn">
+  <h2><span class="tag">H</span> 单轮内 Agent-loop（工具调用）</h2>
+  <p class="desc">用户一条消息，模型内部调 grep/read 3 次 = 3 次独立模型请求。每次 T0+T1 相同 → 全 HIT。</p>
+
+  <div class="turn">
+    <div class="turn-label">请求 1 / 2 / 3（同一用户消息触发的内部循环）</div>
+    <div class="tiers">
+      <div class="tier"><div class="th t0">T0 系统提示</div><div class="tb">固定内容</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t1">T1 KB 前缀</div><div class="tb">[X+Y 知识库]</div><div class="ts hit">HIT</div></div>
+      <div class="tier"><div class="th t2">T2 历史</div><div class="tb">逐次追加工具结果</div><div class="ts na">— 不缓存</div></div>
+      <div class="tier"><div class="th t3">T3 当前</div><div class="tb">工具调用 / 中间指令</div><div class="ts na">— 不缓存</div></div>
+    </div>
+    <div class="turn-note">3 次请求 T0+T1 全命中 → 比「一次超长请求」更省。每次模型调用都是独立请求，共享稳定前缀即共享缓存。</div>
+  </div>
+</div>
+
+<footer>规则应用：① 项目跳跃晋升 = T1 宽裕直接提 / 满则放 T2 / 连续 2 次提及强制提；② recency_index 跨会话持久化（同用户）。缓存为内容寻址 + TTL 短期，单用户视角。</footer>
+
+</body>
+</html>
