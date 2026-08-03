@@ -5,6 +5,7 @@
 仅内联本地文件（css/*.css, js/*.js），保留 CDN 引用。
 """
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -38,51 +39,62 @@ def read_file(path: Path) -> str:
 
 # ── 资源版本化（cache busting）─────────────────────────────────────────────
 # 后端静态服务只返回 ETag（无 Cache-Control），浏览器启发式缓存会导致
-# 普通刷新拿到旧资源。这里给所有本地资源引用加 ?v=<build 时间戳>，
-# 每次 build 版本变化 → 资源 URL 变化 → 浏览器强制重新下载。
+# 普通刷新拿到旧资源。这里给所有本地资源引用加 ?v=<文件内容哈希>：
+#   - 内容没变 → hash 不变 → URL 不变 → 浏览器复用缓存（不产生新缓存条目）
+#   - 内容变了 → 只有该文件的 hash 变 → 仅该文件重新下载
 # 配合后端 HTML no-cache，普通刷新即拿到最新版本，无需手动强刷。
+# 浏览器缓存本身有容量上限（LRU 自动淘汰最旧条目），配合 contenthash
+# 不会无限增长。
 def _strip_versions(html: str) -> str:
     """去掉已有 ?v= 参数，避免重复 build 累积"""
-    return re.sub(r"(\?v=)\d+", "", html)
+    return re.sub(r"\?v=[0-9a-f]+", "", html)
 
 
-def _versionize(html: str, version: str) -> str:
-    def addv(url: str) -> str:
-        return url + ("&" if "?" in url else "?") + "v=" + version
+def _file_hash(rel_path: str) -> str:
+    """文件内容 md5 前 10 位；文件不存在返回 0（引用原样保留）"""
+    try:
+        content = (FRONTEND / rel_path.lstrip("./")).read_bytes()
+        return hashlib.md5(content).hexdigest()[:10]
+    except Exception:
+        return "0"
+
+
+def _versionize(html: str) -> str:
+    def replace_asset(m: "re.Match") -> str:
+        prefix, path, suffix = m.group(1), m.group(2), m.group(3)
+        clean = path.split("?")[0]  # 去掉可能残留的旧参数
+        return prefix + clean + "?v=" + _file_hash(clean) + suffix
 
     # 本地 JS（js/、vendor/）
     html = re.sub(
         r'(<script[^>]*\ssrc=["\'])((?:js/|vendor/)[^"\']+)(["\'])',
-        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        replace_asset,
         html,
     )
     # 本地 CSS（css/、vendor/ 的 .css）
     html = re.sub(
         r'(<link[^>]*\shref=["\'])((?:css/|vendor/)[^"\']+\.css)(["\'])',
-        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        replace_asset,
         html,
     )
     # importmap 里的 tiptap bundle
     html = re.sub(
         r'("myk-tiptap":\s*")(\./tiptap-bundle\.mjs)(")',
-        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        replace_asset,
         html,
     )
     return html
 
 
 def build() -> None:
-    import time
-
-    version = str(int(time.time()))
-    # 读取原始 index.html，去除旧版本参数，再打上新版本号
+    # 读取原始 index.html，去除旧版本参数，再按内容哈希打上新版本号
     original = _strip_versions(read_file(INDEX))
-    html = _versionize(original, version)
+    html = _versionize(original)
 
     # 写回 index.html（开发版资源带版本号 → 普通刷新即最新）
     with open(INDEX, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"  OK    index.html versioned (?v={version})")
+    print("  OK    index.html versioned (content-hash)")
 
     # ── 内联 CSS ──
     for css_file in CSS_ORDER:
@@ -92,7 +104,7 @@ def build() -> None:
             continue
         content = read_file(css_path)
         pattern = re.compile(
-            rf'<link\s+[^>]*href=["\']css/{re.escape(css_file)}(?:\?v=\d+)?["\'][^>]*/?>',
+            rf'<link\s+[^>]*href=["\']css/{re.escape(css_file)}(?:\?v=[0-9a-f]+)?["\'][^>]*/?>',
             re.IGNORECASE,
         )
         if pattern.search(html):
@@ -108,7 +120,7 @@ def build() -> None:
         content = read_file(js_path)
         rel_path = str(js_path.relative_to(FRONTEND))
         pattern = re.compile(
-            rf'<script\s+[^>]*src=["\']{re.escape(rel_path)}(?:\?v=\d+)?["\'][^>]*>\s*</script>',
+            rf'<script\s+[^>]*src=["\']{re.escape(rel_path)}(?:\?v=[0-9a-f]+)?["\'][^>]*>\s*</script>',
             re.IGNORECASE,
         )
         if pattern.search(html):
