@@ -44,8 +44,11 @@ function _draftDelete(path) {
 }
 
 document.addEventListener("alpine:init", () => {
+// Editor 实例存模块级变量（非 Alpine 响应式数据）：
+// Alpine 的 reactive Proxy 会深度包装对象，破坏 ProseMirror 内部引用一致性
+// （tr.before !== state、instanceof 失效），导致 mismatched transaction 等诡异问题。
+let _editorInstance = null;
 Alpine.data("docComponent", () => ({
-    editorInstance: null,
     editorReady: false,
     titleValue: "",
     summaryValue: "",
@@ -60,9 +63,9 @@ Alpine.data("docComponent", () => ({
       const path = store.currentPath;
 
       // 切文档时销毁旧编辑器，防止内容串台
-      if (this.editorInstance && this._lastDocPath !== path) {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
+      if (_editorInstance && this._lastDocPath !== path) {
+        _editorInstance.destroy();
+        _editorInstance = null;
         this.editorReady = false;
       }
       this._lastDocPath = path;
@@ -387,7 +390,7 @@ Alpine.data("docComponent", () => ({
     /** 点击外部 → 退出编辑并保存 */
     async exitEdit() {
       const store = Alpine.store("app");
-      if (store.currentView !== "edit" || !this.editorInstance) return;
+      if (store.currentView !== "edit" || !_editorInstance) return;
       if (store.isLocked) return; // AI 锁定时禁止退出编辑
 
       // 保存用进入编辑时记录的路径；导航已离开本文档时不重载、不切 view
@@ -395,9 +398,9 @@ Alpine.data("docComponent", () => ({
       const stillOnDoc = store.currentPath === path;
 
       // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
-      const html = this.editorInstance.view ? this.editorInstance.view.dom.innerHTML : this.editorInstance.getHTML();
+      const html = _editorInstance.view ? _editorInstance.view.dom.innerHTML : _editorInstance.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") {
-        this.editorInstance.setEditable(false);
+        _editorInstance.setEditable(false);
         if (stillOnDoc) store.setView("view", path);
         return;
       }
@@ -410,9 +413,9 @@ Alpine.data("docComponent", () => ({
       }
 
       // 销毁编辑器，下次进入重新创建（避免 ProseMirror 状态错乱）
-      if (this.editorInstance) {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
+      if (_editorInstance) {
+        _editorInstance.destroy();
+        _editorInstance = null;
       }
       this._editingPath = null;
       // 仅当用户仍停留在本文档时才切回阅读态并重载
@@ -425,7 +428,7 @@ Alpine.data("docComponent", () => ({
     /** 编辑器 DOM → Markdown（exitEdit 与自动保存共用） */
     _editorToMarkdown() {
       const store = Alpine.store("app");
-      const ed = this.editorInstance;
+      const ed = _editorInstance;
       if (!ed) return "";
       const html = ed.view ? ed.view.dom.innerHTML : ed.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") return "";
@@ -520,7 +523,7 @@ Alpine.data("docComponent", () => ({
 
     async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
-      if (!el || this.editorInstance) return;
+      if (!el || _editorInstance) return;
 
       const store = Alpine.store("app");
 
@@ -562,7 +565,7 @@ Alpine.data("docComponent", () => ({
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
 
-      this.editorInstance = new Editor({
+      _editorInstance = new Editor({
         element: el,
         extensions,
         editorProps: {
@@ -584,7 +587,6 @@ Alpine.data("docComponent", () => ({
         },
       });
 
-      store.editor = this.editorInstance;
       this.editorReady = true;
 
       // 自动保存：update 事件 → debounce（任务 14 实现）
@@ -603,10 +605,10 @@ Alpine.data("docComponent", () => ({
 
       // AI 锁态监听：编辑中被锁 → 只读 + 红框遮罩，解锁 → 绿过渡淡出
       Alpine.effect(() => {
-        if (!this.editorInstance) return;
+        if (!_editorInstance) return;
         const panel = document.getElementById("content-panel");
         if (store.isLocked && store.currentView === "edit") {
-          this.editorInstance.setEditable(false);
+          _editorInstance.setEditable(false);
           if (panel) panel.classList.add("content-panel--locked");
           this._showLockOverlay("locked");
         } else if (!store.isLocked && document.getElementById("editor-lock-overlay")) {
@@ -621,11 +623,11 @@ Alpine.data("docComponent", () => ({
               el.classList.add("editor-lock--exit");
               setTimeout(() => {
                 el.remove();
-                this.editorInstance && this.editorInstance.setEditable(true);
+                _editorInstance && _editorInstance.setEditable(true);
                 if (panel) panel.classList.remove("content-panel--unlocking");
               }, 480);
             } else {
-              this.editorInstance && this.editorInstance.setEditable(true);
+              _editorInstance && _editorInstance.setEditable(true);
               if (panel) panel.classList.remove("content-panel--unlocking");
             }
           }, 2400);
@@ -751,7 +753,7 @@ Alpine.data("docComponent", () => ({
 
     /** BubbleMenu 按钮点击分发 */
     _bubbleAction(action) {
-      const ed = this.editorInstance;
+      const ed = _editorInstance;
       if (!ed) return;
       if (action === "bold") ed.commands.toggleBold();
       else if (action === "italic") ed.commands.toggleItalic();
@@ -762,7 +764,7 @@ Alpine.data("docComponent", () => ({
 
     /** 链接：无链接 → 提示输入；已有链接 → 取消 */
     _bubbleLink() {
-      const ed = this.editorInstance;
+      const ed = _editorInstance;
       if (!ed) return;
       if (ed.isActive("link")) {
         ed.commands.unsetLink();
@@ -810,7 +812,7 @@ Alpine.data("docComponent", () => ({
       };
       const position = (pos) => {
         if (!menu) return;
-        const coords = this.editorInstance.view.coordsAtPos(pos);
+        const coords = _editorInstance.view.coordsAtPos(pos);
         menu.style.left = Math.min(coords.left, window.innerWidth - 260) + "px";
         menu.style.top = (coords.bottom + 4) + "px";
       };
@@ -859,7 +861,7 @@ Alpine.data("docComponent", () => ({
     /** 选中斜杠菜单项：执行命令（"/" 由关闭菜单时的 deleteRange 清理） */
     _slashSelect(idx) {
       const item = this._slashItems[idx];
-      const ed = this.editorInstance;
+      const ed = _editorInstance;
       if (!item || !ed) return;
       item.run(ed);
       const ext = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
@@ -872,7 +874,7 @@ Alpine.data("docComponent", () => ({
     /* --- 自动保存（debounce + 队列串行） --- */
 
     _setupAutosave() {
-      const ed = this.editorInstance;
+      const ed = _editorInstance;
       if (!ed || this._autosaveBound) return;
       this._autosaveBound = true;
       this._autosaveTimer = null;
@@ -886,14 +888,14 @@ Alpine.data("docComponent", () => ({
     /** debounce 到期 → 入队保存 */
     async _autosave() {
       const store = Alpine.store("app");
-      if (store.isLocked || store.currentView !== "edit" || !this.editorInstance) return;
+      if (store.isLocked || store.currentView !== "edit" || !_editorInstance) return;
       this._saveQueue = this._saveQueue.then(() => this._performSave());
     },
 
     /** 执行一次保存：内容未变跳过；失败 → IndexedDB 草稿兜底 + 横幅 */
     async _performSave() {
       const store = Alpine.store("app");
-      if (store.isLocked || store.currentView !== "edit" || !this.editorInstance) return;
+      if (store.isLocked || store.currentView !== "edit" || !_editorInstance) return;
       const md = this._editorToMarkdown();
       if (!md) return;
       // 内容未变 → 不重复调 API（后端 unchanged 是兜底，前端先自己比对）
@@ -952,7 +954,7 @@ Alpine.data("docComponent", () => ({
       this._beforeUnloadBound = true;
       window.addEventListener("beforeunload", () => {
         const store = Alpine.store("app");
-        if (store.currentView !== "edit" || !this.editorInstance) return;
+        if (store.currentView !== "edit" || !_editorInstance) return;
         const md = this._editorToMarkdown();
         if (md && md !== (store.document?.content || "")) {
           this._draftToIndexedDB(md);
@@ -961,12 +963,11 @@ Alpine.data("docComponent", () => ({
     },
 
     destroyEditor() {
-      if (this.editorInstance) {
-        this.editorInstance.destroy();
-        this.editorInstance = null;
+      if (_editorInstance) {
+        _editorInstance.destroy();
+        _editorInstance = null;
       }
       const store = Alpine.store("app");
-      store.editor = null;
       store.isDirty = false;
     },
 
@@ -976,8 +977,8 @@ Alpine.data("docComponent", () => ({
 
       this.saving = true;
       try {
-        const html = this.editorInstance
-          ? this.editorInstance.getHTML()
+        const html = _editorInstance
+          ? _editorInstance.getHTML()
           : store.htmlContent;
         const markdown = tiptapToMarkdown(html);
 

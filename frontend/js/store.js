@@ -110,9 +110,6 @@ document.addEventListener("alpine:init", () => {
 
     /* ── 编辑器状态 ────────────────────────────────────────────────────── */
 
-    /** TipTap 编辑器实例 */
-    editor: null,
-
     /** 编辑器是否已修改 */
     isDirty: false,
 
