@@ -579,6 +579,7 @@ Alpine.data("docComponent", () => ({
 
       // 自定义 Link 扩展：修复 2.1.13 的 href 序列化 bug
       // ref: https://github.com/ueberdosis/tiptap/issues/4929
+      // validate 接受 ref: 协议 → 关联文档链接在编辑态也显示为链接样式（与阅读态一致）
       const PatchedLink = LinkExt ? LinkExt.extend({
         addAttributes() {
           return {
@@ -591,7 +592,7 @@ Alpine.data("docComponent", () => ({
             }
           };
         },
-      }).configure({ openOnClick: false }) : null;
+      }).configure({ openOnClick: false, validate: () => true }) : null;
 
       const extensions = [
         // StarterKit 排除自带 codeBlock，改用 CodeBlockLowlight（Decoration 渲染，编辑态实时高亮）
@@ -840,10 +841,12 @@ Alpine.data("docComponent", () => ({
         { type: "h1", name: "标题 1", desc: "一级大标题", icon: "H1", run: (ed) => ed.commands.toggleHeading({ level: 1 }) },
         { type: "h2", name: "标题 2", desc: "二级标题", icon: "H2", run: (ed) => ed.commands.toggleHeading({ level: 2 }) },
         { type: "h3", name: "标题 3", desc: "三级标题", icon: "H3", run: (ed) => ed.commands.toggleHeading({ level: 3 }) },
+        { type: "h4", name: "标题 4", desc: "四级标题", icon: "H4", run: (ed) => ed.commands.toggleHeading({ level: 4 }) },
         { type: "bullet", name: "无序列表", desc: "项目符号列表", icon: "&bull;", run: (ed) => ed.commands.toggleBulletList() },
         { type: "ordered", name: "有序列表", desc: "编号列表", icon: "1.", run: (ed) => ed.commands.toggleOrderedList() },
         { type: "quote", name: "引用", desc: "引用一段文字", icon: "&ldquo;", run: (ed) => ed.commands.toggleBlockquote() },
-        { type: "code", name: "代码块", desc: "插入代码块", icon: "{ }", run: (ed) => ed.commands.toggleCodeBlock() },
+        // 默认 javascript 语言 → lowlight 编辑态实时高亮（无语言会按纯文本不高亮）
+        { type: "code", name: "代码块", desc: "插入代码块（JavaScript）", icon: "{ }", run: (ed) => ed.commands.toggleCodeBlock({ language: "javascript" }) },
         { type: "hr", name: "分割线", desc: "插入水平分割线", icon: "&mdash;", run: (ed) => ed.commands.setHorizontalRule() },
         { type: "table", name: "表格", desc: "插入 3x3 表格", icon: "&#9646;", run: (ed) => ed.commands.insertTable({ rows: 3, cols: 3, withHeaderRow: true }) },
       ];
@@ -913,6 +916,8 @@ Alpine.data("docComponent", () => ({
       if (!list) return;
       Array.from(list.children).forEach((child, i) => {
         child.classList.toggle("slash-menu__item--active", i === this._slashIndex);
+        // 方向键切换时滚动到可见区（菜单可滚动）
+        if (i === this._slashIndex) child.scrollIntoView({ block: "nearest" });
       });
     },
 
