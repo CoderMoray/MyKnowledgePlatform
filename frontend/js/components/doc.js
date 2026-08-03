@@ -872,13 +872,12 @@ Alpine.data("docComponent", () => ({
       });
     },
 
-    /** 选中斜杠菜单项：执行命令 + 删除 "/" + 关闭菜单（扩展实例无自定义方法，逻辑内联） */
+    /** 选中斜杠菜单项：先删 "/" 恢复干净段落，再执行命令（避免命令把 "/" 变内容后删除范围错乱/误伤后续块） */
     _slashSelect(idx) {
       const item = this._slashItems[idx];
       const ed = _editorInstance;
       if (!item || !ed) return;
-      item.run(ed);
-      // 删除 "/" 及后续 query
+      // 1. 先删除 "/" 及后续 query，恢复空段落
       const sc = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
       if (sc && sc.storage && sc.storage.open) {
         const pos = sc.storage.pos;
@@ -889,6 +888,8 @@ Alpine.data("docComponent", () => ({
         sc.storage.pos = null;
         sc.storage.query = "";
       }
+      // 2. 再执行命令（作用于干净的空段落）
+      item.run(ed);
       const menu = document.getElementById("slash-menu");
       if (menu) menu.classList.remove("is-active");
       ed.commands.focus();
@@ -930,7 +931,9 @@ Alpine.data("docComponent", () => ({
         await this._draftClear(store.currentPath);
         if (store.draftBanner) store.draftBanner = false;
       } catch (e) {
-        // 后端离线/失败 → 写本地草稿，不打断输入
+        // 锁冲突/路径错误不是离线：不写草稿（静默，等锁释放或用户操作）
+        if (e && (e.isLocked || e.isNotFound || e.isBadRequest)) return;
+        // 后端离线/网络失败 → 写本地草稿，不打断输入
         await this._draftToIndexedDB(md);
       }
     },

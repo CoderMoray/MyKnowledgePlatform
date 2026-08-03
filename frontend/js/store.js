@@ -328,10 +328,14 @@ document.addEventListener("alpine:init", () => {
       if (!path) return;
       try {
         const draft = await _draftGet(path);
-        if (draft) {
-          this.draftInfo = { path, savedAt: draft.savedAt || "" };
-          this.draftBanner = true;
+        if (!draft) return;
+        // 草稿内容与后端已同步（内容一致）→ 自动清理，不打扰
+        if (draft.content && this.document && draft.content === this.document.content) {
+          await _draftDelete(path);
+          return;
         }
+        this.draftInfo = { path, savedAt: draft.savedAt || "" };
+        this.draftBanner = true;
       } catch (e) { /* IndexedDB 不可用则忽略 */ }
     },
 
