@@ -849,7 +849,12 @@ if _FRONTEND_DIR.is_dir():
     def _serve_index():
         idx = _FRONTEND_DIR / "index.standalone.html"
         if idx.exists():
-            return PlainTextResponse(idx.read_text(encoding="utf-8"), media_type="text/html")
+            # no-cache：保证每次刷新拿到最新构建产物（子资源已带 ?v= 版本号，URL 变化即破缓存）
+            return PlainTextResponse(
+                idx.read_text(encoding="utf-8"),
+                media_type="text/html",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
         return PlainTextResponse("Frontend not built - run python3 frontend/build.py", status_code=500)
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
 

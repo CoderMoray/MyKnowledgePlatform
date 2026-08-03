@@ -36,8 +36,53 @@ def read_file(path: Path) -> str:
         return f.read()
 
 
+# ── 资源版本化（cache busting）─────────────────────────────────────────────
+# 后端静态服务只返回 ETag（无 Cache-Control），浏览器启发式缓存会导致
+# 普通刷新拿到旧资源。这里给所有本地资源引用加 ?v=<build 时间戳>，
+# 每次 build 版本变化 → 资源 URL 变化 → 浏览器强制重新下载。
+# 配合后端 HTML no-cache，普通刷新即拿到最新版本，无需手动强刷。
+def _strip_versions(html: str) -> str:
+    """去掉已有 ?v= 参数，避免重复 build 累积"""
+    return re.sub(r"(\?v=)\d+", "", html)
+
+
+def _versionize(html: str, version: str) -> str:
+    def addv(url: str) -> str:
+        return url + ("&" if "?" in url else "?") + "v=" + version
+
+    # 本地 JS（js/、vendor/）
+    html = re.sub(
+        r'(<script[^>]*\ssrc=["\'])((?:js/|vendor/)[^"\']+)(["\'])',
+        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        html,
+    )
+    # 本地 CSS（css/、vendor/ 的 .css）
+    html = re.sub(
+        r'(<link[^>]*\shref=["\'])((?:css/|vendor/)[^"\']+\.css)(["\'])',
+        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        html,
+    )
+    # importmap 里的 tiptap bundle
+    html = re.sub(
+        r'("myk-tiptap":\s*")(\./tiptap-bundle\.mjs)(")',
+        lambda m: m.group(1) + addv(m.group(2)) + m.group(3),
+        html,
+    )
+    return html
+
+
 def build() -> None:
-    html = read_file(INDEX)
+    import time
+
+    version = str(int(time.time()))
+    # 读取原始 index.html，去除旧版本参数，再打上新版本号
+    original = _strip_versions(read_file(INDEX))
+    html = _versionize(original, version)
+
+    # 写回 index.html（开发版资源带版本号 → 普通刷新即最新）
+    with open(INDEX, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"  OK    index.html versioned (?v={version})")
 
     # ── 内联 CSS ──
     for css_file in CSS_ORDER:
@@ -47,7 +92,7 @@ def build() -> None:
             continue
         content = read_file(css_path)
         pattern = re.compile(
-            rf'<link\s+[^>]*href=["\']css/{re.escape(css_file)}["\'][^>]*/?>',
+            rf'<link\s+[^>]*href=["\']css/{re.escape(css_file)}(?:\?v=\d+)?["\'][^>]*/?>',
             re.IGNORECASE,
         )
         if pattern.search(html):
@@ -63,7 +108,7 @@ def build() -> None:
         content = read_file(js_path)
         rel_path = str(js_path.relative_to(FRONTEND))
         pattern = re.compile(
-            rf'<script\s+[^>]*src=["\']{re.escape(rel_path)}["\'][^>]*>\s*</script>',
+            rf'<script\s+[^>]*src=["\']{re.escape(rel_path)}(?:\?v=\d+)?["\'][^>]*>\s*</script>',
             re.IGNORECASE,
         )
         if pattern.search(html):
