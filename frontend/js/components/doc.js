@@ -533,6 +533,23 @@ Alpine.data("docComponent", () => ({
       td.addRule("mykLink", linkRule);
       // 分割线统一输出 ---（turndown 默认 * * *，会造成保存时的噪声 diff）
       td.addRule("mykHr", { filter: "hr", replacement: () => "\n\n---\n\n" });
+      // <br> → 软换行（无行尾空格）：与预处理 \n→<br> 对应，round-trip 零 diff
+      td.addRule("br", { filter: "br", replacement: () => "\n" });
+      // 嵌套列表缩进用 2 空格（替换 turndown 默认 4 空格，匹配常见手写格式，零 diff）
+      td.addRule("listItem", {
+        filter: "li",
+        replacement: (content, node, options) => {
+          content = content.replace(/^\n+/, "").replace(/\n+$/, "\n").replace(/\n/gm, "\n  ");
+          let prefix = "- ";
+          const parent = node.parentNode;
+          if (parent && parent.nodeName === "OL") {
+            const start = parent.getAttribute("start");
+            const index = Array.prototype.indexOf.call(parent.children, node);
+            prefix = (start ? Number(start) + index : index + 1) + ". ";
+          }
+          return prefix + content + (node.nextSibling && !/\n$/.test(content) ? "\n" : "");
+        },
+      });
       let markdown = td.turndown(cleanHtml);
 
       // 还原表格标记
@@ -653,6 +670,29 @@ Alpine.data("docComponent", () => ({
               const text = code.textContent; // 提取纯文本（去掉 hljs span）
               code.textContent = text;       // 重新赋值：浏览器自动转义 < > &，防裸标签
             });
+            // 块内软换行（\n）→ <br>：ProseMirror 段落内不保留裸 \n（会变空格），
+            // 转 <br> 后编辑态显示换行、保存时 turndown 还原为软换行（round-trip 零 diff）。
+            // 只处理文本节点，跳过代码块。
+            {
+              const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT);
+              const softBreaks = [];
+              let tn;
+              while ((tn = walker.nextNode())) {
+                const p = tn.parentNode;
+                if (!p || (p.closest && p.closest("pre"))) continue;
+                // 仅处理含实际内容的文本节点；元素间的格式化空白 \n（如 <ol>\n<li>）不转 <br>
+                if (tn.nodeValue && tn.nodeValue.includes("\n") && tn.nodeValue.trim() !== "") softBreaks.push(tn);
+              }
+              softBreaks.forEach(tn => {
+                const frag = document.createDocumentFragment();
+                const parts = tn.nodeValue.split("\n");
+                parts.forEach((part, i) => {
+                  if (i > 0) frag.appendChild(document.createElement("br"));
+                  if (part) frag.appendChild(document.createTextNode(part));
+                });
+                tn.parentNode.replaceChild(frag, tn);
+              });
+            }
             editor.commands.setContent(tmp.innerHTML);
           }
         },

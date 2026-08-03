@@ -18,6 +18,7 @@ globalThis.document = window.document;
 Object.defineProperty(globalThis, "navigator", { value: window.navigator, configurable: true });
 Object.defineProperty(globalThis, "HTMLElement", { value: window.HTMLElement, configurable: true });
 Object.defineProperty(globalThis, "Node", { value: window.Node, configurable: true });
+Object.defineProperty(globalThis, "NodeFilter", { value: window.NodeFilter, configurable: true });
 Object.defineProperty(globalThis, "getComputedStyle", { value: window.getComputedStyle, configurable: true });
 Object.defineProperty(globalThis, "requestAnimationFrame", { value: (cb) => setTimeout(cb, 0), configurable: true });
 Object.defineProperty(globalThis, "MutationObserver", { value: window.MutationObserver, configurable: true });
@@ -105,6 +106,21 @@ function editorHtmlToMarkdown(html, originalMd = "") {
   });
   td.addRule("mykLink", linkRule);
   td.addRule("mykHr", { filter: "hr", replacement: () => "\n\n---\n\n" });
+  td.addRule("br", { filter: "br", replacement: () => "\n" });
+  td.addRule("listItem", {
+    filter: "li",
+    replacement: (content, node, options) => {
+      content = content.replace(/^\n+/, "").replace(/\n+$/, "\n").replace(/\n/gm, "\n  ");
+      let prefix = "- ";
+      const parent = node.parentNode;
+      if (parent && parent.nodeName === "OL") {
+        const start = parent.getAttribute("start");
+        const index = Array.prototype.indexOf.call(parent.children, node);
+        prefix = (start ? Number(start) + index : index + 1) + ". ";
+      }
+      return prefix + content + (node.nextSibling && !/\n$/.test(content) ? "\n" : "");
+    },
+  });
   let markdown = td.turndown(tmp.innerHTML);
   tableMarkers.forEach(({ marker, md }) => {
     markdown = markdown.replace(marker, md);
@@ -141,6 +157,23 @@ function preprocessForEditor(html) {
     const text = code.textContent;
     code.textContent = text;
   });
+  const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT);
+  const softBreaks = [];
+  let tn;
+  while ((tn = walker.nextNode())) {
+    const p = tn.parentNode;
+    if (!p || (p.closest && p.closest("pre"))) continue;
+    if (tn.nodeValue && tn.nodeValue.includes("\n") && tn.nodeValue.trim() !== "") softBreaks.push(tn);
+  }
+  softBreaks.forEach((tn) => {
+    const frag = document.createDocumentFragment();
+    const parts = tn.nodeValue.split("\n");
+    parts.forEach((part, i) => {
+      if (i > 0) frag.appendChild(document.createElement("br"));
+      if (part) frag.appendChild(document.createTextNode(part));
+    });
+    tn.parentNode.replaceChild(frag, tn);
+  });
   return tmp.innerHTML;
 }
 
@@ -148,8 +181,12 @@ function preprocessForEditor(html) {
 const CASES = [
   { name: "标题+段落", md: "# 一级标题\n\n正文段落。\n\n## 二级\n\n### 三级\n\n#### 四级" },
   { name: "内联格式", md: "**加粗** *斜体* ~~删除线~~ `行内代码`" },
-  // 注：2 空格嵌套在 turndown 段落化后归一化为 4 空格（语义等价，一次性格式 diff，已知可接受）
-  { name: "无序列表", md: "- 项1\n- 项2\n    - 嵌套项" },
+  { name: "无序列表", md: "- 项1\n- 项2\n  - 嵌套项" },
+  { name: "软换行引用", md: "> 第一行\n> 第二行" },
+  { name: "组合:标题+表格+引用", md: "# 标题\n\n| A | B |\n|------|------|\n| 1 | 2 |\n\n> 引用文字\n\n## 小结" },
+  { name: "组合:列表+代码块+分割线", md: "- 项1\n  - 子项\n\n```python\nprint(1)\n```\n\n---\n\n结尾" },
+  { name: "组合:代码块紧邻表格", md: "```js\nconst t = 1;\n```\n\n| 列1 | 列2 |\n|-----|-----|\n| a | b |\n\n之后文字" },
+  { name: "组合:ref链接段落中+外链+列表", md: "前文[技术选型](ref:common-knowledge/技术选型.md::技术栈选型)中段\n\n[外链](https://example.com)\n\n- 项a\n- 项b" },
   { name: "有序列表", md: "1. 第一\n2. 第二" },
   { name: "引用多段", md: "> 第一段\n>\n> 第二段" },
   { name: "代码块带语言", md: "```javascript\nconst x = 1;\nconsole.log(x);\n```" },
@@ -182,6 +219,7 @@ for (const c of CASES) {
     ed.commands.setContent(prepped);
     // 与 doc.js _editorToMarkdown 一致：用渲染 DOM 的 innerHTML（保留 .tableWrapper）
     const outMd = editorHtmlToMarkdown(ed.view.dom.innerHTML, c.md);
+
     if (norm(outMd) === norm(c.md)) {
       pass++;
       console.log(`  PASS  ${c.name}`);
