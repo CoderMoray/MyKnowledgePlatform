@@ -531,6 +531,8 @@ Alpine.data("docComponent", () => ({
         }
       });
       td.addRule("mykLink", linkRule);
+      // 分割线统一输出 ---（turndown 默认 * * *，会造成保存时的噪声 diff）
+      td.addRule("mykHr", { filter: "hr", replacement: () => "\n\n---\n\n" });
       let markdown = td.turndown(cleanHtml);
 
       // 还原表格标记
