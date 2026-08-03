@@ -8,7 +8,7 @@ import TurndownService from "turndown";
 import { readFileSync } from "node:fs";
 
 const BUNDLE = await import("/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_PlatForm/frontend/tiptap-bundle.mjs");
-const { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, CodeBlockLowlight, createLowlight, MyLowlightCommon } = BUNDLE;
+const { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, CodeBlockLowlight, createLowlight, MyLowlightCommon, SlashCommand: SlashCommandExt } = BUNDLE;
 
 // ── jsdom 全局注入 ──
 const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", { url: "http://127.0.0.1:8080/", pretendToBeVisual: true });
@@ -253,6 +253,42 @@ for (const c of CASES) {
   }
   ed.destroy();
 }
+// ── 斜杠触发行为（与飞书一致：光标前无内容即触发，含表格单元格） ──
+const TRIGGER_CASES = [
+  { name: "触发:行中(前方有内容)", html: "<p>前方文字 后方文字</p>", pos: 2, expectOpen: false },
+  { name: "触发:行首(行尾有内容)", html: "<p>前方文字 后方文字</p>", pos: 0, expectOpen: true },
+  { name: "触发:表格单元格行首", html: "<table><tr><td><p>单元格内容</p></td></tr></table>", pos: "cell", expectOpen: true, withTable: true },
+];
+const TRIGGER_EXT = [StarterKit.configure(), SlashCommandExt.configure({})];
+const TRIGGER_EXT_TABLE = [StarterKit.configure(), SlashCommandExt.configure({}), Table.configure({ resizable: true }), TableRow, TableCell, TableHeader];
+for (const t of TRIGGER_CASES) {
+  const ed = new Editor({ element: document.createElement("div"), extensions: t.withTable ? TRIGGER_EXT_TABLE : TRIGGER_EXT });
+  try {
+    ed.commands.setContent(t.html);
+    let pos = t.pos;
+    if (pos === "cell") {
+      let cellP = -1;
+      ed.state.doc.descendants((node, p) => { if (node.type.name === "paragraph" && p > 0) { cellP = p; return false; } });
+      pos = cellP;
+    }
+    ed.view.dispatch(ed.state.tr.setSelection(ed.state.selection.constructor.create(ed.state.doc, pos, pos)));
+    ed.view.someProp("handleTextInput", (fn) => fn(ed.view, pos, pos, "/"));
+    const sc = ed.extensionManager.extensions.find((e) => e.name === "slashCommand");
+    const open = sc ? sc.storage.open : false;
+    if (open === t.expectOpen) {
+      pass++;
+      console.log(`  PASS  ${t.name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL  ${t.name}: open=${open} expect=${t.expectOpen}`);
+    }
+  } catch (e) {
+    fail++;
+    console.log(`  ERROR ${t.name}: ${e.message}`);
+  }
+  ed.destroy();
+}
+
 // ── 斜杠插入测试执行 ──
 for (const c of SLASH_CASES) {
   const html = renderMarkdown(c.md);
@@ -285,6 +321,6 @@ for (const c of SLASH_CASES) {
   }
   ed.destroy();
 }
-const TOTAL = CASES.length + SLASH_CASES.length;
+const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length;
 console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${TOTAL}`);
 process.exit(fail ? 1 : 0);
