@@ -52,14 +52,14 @@
 
   <!-- highlight.js 主题 -->
   <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css"
+        href="vendor/github.min.css"
         id="hljs-theme" />
 
   <!-- ═══ JS CDN ═════════════════════════════════════════════════════════ -->
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/turndown@7.1.3/dist/turndown.js"></script>
+  <script defer src="vendor/alpine.min.js"></script>
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/highlight.js"></script>
+  <script src="vendor/turndown.js"></script>
 
   <!-- TipTap CDN（完整 URL 直接加载） -->
 
@@ -1137,8 +1137,8 @@
           window.matchMedia('(prefers-color-scheme: dark)').matches);
 
       link.href = isDark
-        ? 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css'
-        : 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css';
+        ? 'vendor/github-dark.min.css'
+        : 'vendor/github.min.css';
     }
 
     updateHljsTheme();
