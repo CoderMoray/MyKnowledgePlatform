@@ -66,6 +66,7 @@ Alpine.data("docComponent", () => ({
       if (_editorInstance && this._lastDocPath !== path) {
         _editorInstance.destroy();
         _editorInstance = null;
+        window.__mykEditor = null;
         this.editorReady = false;
       }
       this._lastDocPath = path;
@@ -565,6 +566,8 @@ Alpine.data("docComponent", () => ({
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
 
+      // 非响应式调试引用（避免 Alpine proxy 包装，供 console/自动化测试）
+      window.__mykEditor = null;
       _editorInstance = new Editor({
         element: el,
         extensions,
@@ -587,6 +590,7 @@ Alpine.data("docComponent", () => ({
         },
       });
 
+      window.__mykEditor = _editorInstance;
       this.editorReady = true;
 
       // 自动保存：update 事件 → debounce（任务 14 实现）
