@@ -26952,7 +26952,7 @@ var SlashCommand = Extension.create({
       onClose: null,
       // () => void
       onKeydown: null
-      // (event) => boolean — 菜单打开时键盘事件转交宿主，返回 true 表示消费
+      // (event) => boolean — 菜单打开时键盘事件转交宿主
     };
   },
   addStorage() {
@@ -26986,7 +26986,10 @@ var SlashCommand = Extension.create({
               return this.options.onKeydown(event);
             }
             if (event.key === "Escape") {
-              this._close();
+              this.storage.open = false;
+              this.storage.pos = null;
+              this.storage.query = "";
+              this.options.onClose && this.options.onClose();
               return true;
             }
             return false;
@@ -26994,24 +26997,6 @@ var SlashCommand = Extension.create({
         }
       })
     ];
-  },
-  /** 选中命令：先删除 "/" 及后续 query，再执行宿主回调 */
-  select(cb) {
-    if (!this.storage.open) return;
-    const pos = this.storage.pos;
-    const { state, dispatch } = this.editor.view;
-    const to = state.selection.from;
-    if (to > pos) {
-      dispatch(state.tr.deleteRange(pos, to));
-    }
-    this._close();
-    if (typeof cb === "function") cb(this.editor);
-  },
-  _close() {
-    this.storage.open = false;
-    this.storage.pos = null;
-    this.storage.query = "";
-    this.options.onClose && this.options.onClose();
   }
 });
 var slash_command_default = SlashCommand;

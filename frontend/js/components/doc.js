@@ -872,16 +872,25 @@ Alpine.data("docComponent", () => ({
       });
     },
 
-    /** 选中斜杠菜单项：执行命令（"/" 由关闭菜单时的 deleteRange 清理） */
+    /** 选中斜杠菜单项：执行命令 + 删除 "/" + 关闭菜单（扩展实例无自定义方法，逻辑内联） */
     _slashSelect(idx) {
       const item = this._slashItems[idx];
       const ed = _editorInstance;
       if (!item || !ed) return;
       item.run(ed);
-      const ext = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
-      if (ext && typeof ext.select === "function") {
-        ext.select(); // 仅删 "/" + 关闭菜单
+      // 删除 "/" 及后续 query
+      const sc = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
+      if (sc && sc.storage && sc.storage.open) {
+        const pos = sc.storage.pos;
+        const { state, dispatch } = ed.view;
+        const to = state.selection.from;
+        if (to > pos) dispatch(state.tr.deleteRange(pos, to));
+        sc.storage.open = false;
+        sc.storage.pos = null;
+        sc.storage.query = "";
       }
+      const menu = document.getElementById("slash-menu");
+      if (menu) menu.classList.remove("is-active");
       ed.commands.focus();
     },
 
