@@ -538,7 +538,8 @@ Alpine.data("docComponent", () => ({
         element: el,
         extensions,
         editorProps: {
-          attributes: { class: "ProseMirror" },
+          // 复用 markdown-body 排版，保证阅读态/编辑态视觉一致
+          attributes: { class: "ProseMirror markdown-body" },
         },
         onUpdate: () => { store.isDirty = true; },
         onCreate: ({ editor }) => {
@@ -665,34 +666,38 @@ Alpine.data("docComponent", () => ({
 
     /** 构建 BubbleMenu 扩展（选中文字浮出格式条，飞书浮动工具栏同款） */
     _buildBubbleMenuExtension(BubbleMenuCls) {
-      const el = document.getElementById("bubble-menu");
-      if (!el) return null;
-      // 一次性构建按钮 DOM（纯 JS，避免 Alpine 与 TipTap DOM 冲突）
-      if (!el.children.length) {
-        const defs = [
-          { action: "bold", title: "加粗", label: "<b>B</b>" },
-          { action: "italic", title: "斜体", label: "<i>I</i>" },
-          { action: "strike", title: "删除线", label: "<s>S</s>" },
-          { action: "code", title: "行内代码", label: "&lt;/&gt;" },
-          { sep: true },
-          { action: "link", title: "添加链接", label: "&#128279;" },
-        ];
-        defs.forEach(d => {
-          if (d.sep) {
-            const s = document.createElement("span");
-            s.className = "bubble-menu__sep";
-            el.appendChild(s);
-            return;
-          }
-          const btn = document.createElement("button");
-          btn.className = "bubble-menu__btn";
-          btn.title = d.title;
-          btn.dataset.bubbleAction = d.action;
-          btn.innerHTML = d.label;
-          btn.addEventListener("click", () => this._bubbleAction(d.action));
-          el.appendChild(btn);
-        });
-      }
+      // tippy destroy 会把 element 移出 DOM，每次进入编辑都重建
+      const old = document.getElementById("bubble-menu");
+      if (old) old.remove();
+      const el = document.createElement("div");
+      el.id = "bubble-menu";
+      el.className = "bubble-menu";
+      const shell = document.querySelector(".editor-shell");
+      (shell || document.body).appendChild(el);
+
+      const defs = [
+        { action: "bold", title: "加粗", label: "<b>B</b>" },
+        { action: "italic", title: "斜体", label: "<i>I</i>" },
+        { action: "strike", title: "删除线", label: "<s>S</s>" },
+        { action: "code", title: "行内代码", label: "&lt;/&gt;" },
+        { sep: true },
+        { action: "link", title: "添加链接", label: "&#128279;" },
+      ];
+      defs.forEach(d => {
+        if (d.sep) {
+          const s = document.createElement("span");
+          s.className = "bubble-menu__sep";
+          el.appendChild(s);
+          return;
+        }
+        const btn = document.createElement("button");
+        btn.className = "bubble-menu__btn";
+        btn.title = d.title;
+        btn.dataset.bubbleAction = d.action;
+        btn.innerHTML = d.label;
+        btn.addEventListener("click", () => this._bubbleAction(d.action));
+        el.appendChild(btn);
+      });
 
       return BubbleMenuCls.configure({
         element: el,
@@ -823,17 +828,17 @@ Alpine.data("docComponent", () => ({
       });
     },
 
-    /** 选中斜杠菜单项：删 "/" 后执行命令 */
+    /** 选中斜杠菜单项：执行命令（"/" 由关闭菜单时的 deleteRange 清理） */
     _slashSelect(idx) {
       const item = this._slashItems[idx];
       const ed = this.editorInstance;
       if (!item || !ed) return;
+      item.run(ed);
       const ext = ed.extensionManager.extensions.find(e => e.name === "slashCommand");
       if (ext && typeof ext.select === "function") {
-        ext.select(() => item.run(ed));
-      } else {
-        item.run(ed);
+        ext.select(); // 仅删 "/" + 关闭菜单
       }
+      ed.commands.focus();
     },
 
     /* --- 自动保存（debounce + 队列串行） --- */

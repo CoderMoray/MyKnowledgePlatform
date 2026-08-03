@@ -12258,7 +12258,6 @@ function createChainableState(config) {
     ...state,
     apply: state.apply.bind(state),
     applyTransaction: state.applyTransaction.bind(state),
-    filterTransaction: state.filterTransaction,
     plugins: state.plugins,
     schema: state.schema,
     reconfigure: state.reconfigure.bind(state),
@@ -12422,19 +12421,19 @@ function getExtensionField(extension, field, context) {
   }
   return extension.config[field];
 }
-function splitExtensions(extensions2) {
-  const baseExtensions = extensions2.filter((extension) => extension.type === "extension");
-  const nodeExtensions = extensions2.filter((extension) => extension.type === "node");
-  const markExtensions = extensions2.filter((extension) => extension.type === "mark");
+function splitExtensions(extensions) {
+  const baseExtensions = extensions.filter((extension) => extension.type === "extension");
+  const nodeExtensions = extensions.filter((extension) => extension.type === "node");
+  const markExtensions = extensions.filter((extension) => extension.type === "mark");
   return {
     baseExtensions,
     nodeExtensions,
     markExtensions
   };
 }
-function getAttributesFromExtensions(extensions2) {
+function getAttributesFromExtensions(extensions) {
   const extensionAttributes = [];
-  const { nodeExtensions, markExtensions } = splitExtensions(extensions2);
+  const { nodeExtensions, markExtensions } = splitExtensions(extensions);
   const nodeAndMarkExtensions = [...nodeExtensions, ...markExtensions];
   const defaultAttribute = {
     default: null,
@@ -12444,11 +12443,12 @@ function getAttributesFromExtensions(extensions2) {
     keepOnSplit: true,
     isRequired: false
   };
-  extensions2.forEach((extension) => {
+  extensions.forEach((extension) => {
     const context = {
       name: extension.name,
       options: extension.options,
-      storage: extension.storage
+      storage: extension.storage,
+      extensions: nodeAndMarkExtensions
     };
     const addGlobalAttributes = getExtensionField(extension, "addGlobalAttributes", context);
     if (!addGlobalAttributes) {
@@ -12574,7 +12574,7 @@ function fromString(value) {
   return value;
 }
 function injectExtensionAttributesToParseRule(parseRule, extensionAttributes) {
-  if (parseRule.style) {
+  if ("style" in parseRule) {
     return parseRule;
   }
   return {
@@ -12609,10 +12609,10 @@ function cleanUpSchemaItem(data) {
     })
   );
 }
-function getSchemaByResolvedExtensions(extensions2, editor) {
+function getSchemaByResolvedExtensions(extensions, editor) {
   var _a;
-  const allAttributes = getAttributesFromExtensions(extensions2);
-  const { nodeExtensions, markExtensions } = splitExtensions(extensions2);
+  const allAttributes = getAttributesFromExtensions(extensions);
+  const { nodeExtensions, markExtensions } = splitExtensions(extensions);
   const topNode = (_a = nodeExtensions.find((extension) => getExtensionField(extension, "topNode"))) === null || _a === void 0 ? void 0 : _a.name;
   const nodes = Object.fromEntries(nodeExtensions.map((extension) => {
     const extensionAttributes = allAttributes.filter((attribute) => attribute.type === extension.name);
@@ -12622,7 +12622,7 @@ function getSchemaByResolvedExtensions(extensions2, editor) {
       storage: extension.storage,
       editor
     };
-    const extraNodeFields = extensions2.reduce((fields, e) => {
+    const extraNodeFields = extensions.reduce((fields, e) => {
       const extendNodeSchema = getExtensionField(e, "extendNodeSchema", context);
       return {
         ...fields,
@@ -12639,6 +12639,7 @@ function getSchemaByResolvedExtensions(extensions2, editor) {
       selectable: callOrReturn(getExtensionField(extension, "selectable", context)),
       draggable: callOrReturn(getExtensionField(extension, "draggable", context)),
       code: callOrReturn(getExtensionField(extension, "code", context)),
+      whitespace: callOrReturn(getExtensionField(extension, "whitespace", context)),
       defining: callOrReturn(getExtensionField(extension, "defining", context)),
       isolating: callOrReturn(getExtensionField(extension, "isolating", context)),
       attrs: Object.fromEntries(extensionAttributes.map((extensionAttribute) => {
@@ -12671,7 +12672,7 @@ function getSchemaByResolvedExtensions(extensions2, editor) {
       storage: extension.storage,
       editor
     };
-    const extraMarkFields = extensions2.reduce((fields, e) => {
+    const extraMarkFields = extensions.reduce((fields, e) => {
       const extendMarkSchema = getExtensionField(e, "extendMarkSchema", context);
       return {
         ...fields,
@@ -12732,7 +12733,7 @@ var getTextContentFromNodes = ($from, maxMatch = 500) => {
       parent,
       index
     })) || node.textContent || "%leaf%";
-    textBefore += chunk.slice(0, Math.max(0, sliceEndPos - pos));
+    textBefore += node.isAtom && !node.isText ? chunk : chunk.slice(0, Math.max(0, sliceEndPos - pos));
   });
   return textBefore;
 };
@@ -12830,6 +12831,22 @@ function inputRulesPlugin(props) {
         if (stored) {
           return stored;
         }
+        const simulatedInputMeta = tr2.getMeta("applyInputRules");
+        const isSimulatedInput = !!simulatedInputMeta;
+        if (isSimulatedInput) {
+          setTimeout(() => {
+            const { from: from2, text } = simulatedInputMeta;
+            const to = from2 + text.length;
+            run$1({
+              editor,
+              from: from2,
+              to,
+              text,
+              rules,
+              plugin
+            });
+          });
+        }
         return tr2.selectionSet || tr2.docChanged ? null : prev;
       }
     },
@@ -12896,11 +12913,11 @@ var PasteRule = class {
     this.handler = config.handler;
   }
 };
-var pasteRuleMatcherHandler = (text, find2) => {
+var pasteRuleMatcherHandler = (text, find2, event) => {
   if (isRegExp(find2)) {
     return [...text.matchAll(find2)];
   }
-  const matches2 = find2(text);
+  const matches2 = find2(text, event);
   if (!matches2) {
     return [];
   }
@@ -12932,7 +12949,7 @@ function run(config) {
     const resolvedFrom = Math.max(from2, pos);
     const resolvedTo = Math.min(to, pos + node.content.size);
     const textToMatch = node.textBetween(resolvedFrom - pos, resolvedTo - pos, void 0, "\uFFFC");
-    const matches2 = pasteRuleMatcherHandler(textToMatch, rule.find);
+    const matches2 = pasteRuleMatcherHandler(textToMatch, rule.find, pasteEvent);
     matches2.forEach((match) => {
       if (match.index === void 0) {
         return;
@@ -12959,13 +12976,43 @@ function run(config) {
   const success = handlers2.every((handler) => handler !== null);
   return success;
 }
+var createClipboardPasteEvent = (text) => {
+  var _a;
+  const event = new ClipboardEvent("paste", {
+    clipboardData: new DataTransfer()
+  });
+  (_a = event.clipboardData) === null || _a === void 0 ? void 0 : _a.setData("text/html", text);
+  return event;
+};
 function pasteRulesPlugin(props) {
   const { editor, rules } = props;
   let dragSourceElement = null;
   let isPastedFromProseMirror = false;
   let isDroppedFromProseMirror = false;
-  let pasteEvent = new ClipboardEvent("paste");
-  let dropEvent = new DragEvent("drop");
+  let pasteEvent = typeof ClipboardEvent !== "undefined" ? new ClipboardEvent("paste") : null;
+  let dropEvent = typeof DragEvent !== "undefined" ? new DragEvent("drop") : null;
+  const processEvent = ({ state, from: from2, to, rule, pasteEvt }) => {
+    const tr2 = state.tr;
+    const chainableState = createChainableState({
+      state,
+      transaction: tr2
+    });
+    const handler = run({
+      editor,
+      state: chainableState,
+      from: Math.max(from2 - 1, 0),
+      to: to.b - 1,
+      rule,
+      pasteEvent: pasteEvt,
+      dropEvent
+    });
+    if (!handler || !tr2.steps.length) {
+      return;
+    }
+    dropEvent = typeof DragEvent !== "undefined" ? new DragEvent("drop") : null;
+    pasteEvent = typeof ClipboardEvent !== "undefined" ? new ClipboardEvent("paste") : null;
+    return tr2;
+  };
   const plugins = rules.map((rule) => {
     return new Plugin({
       // we register a global drag handler to track the current drag source element
@@ -13001,34 +13048,35 @@ function pasteRulesPlugin(props) {
         const transaction = transactions[0];
         const isPaste = transaction.getMeta("uiEvent") === "paste" && !isPastedFromProseMirror;
         const isDrop = transaction.getMeta("uiEvent") === "drop" && !isDroppedFromProseMirror;
-        if (!isPaste && !isDrop) {
+        const simulatedPasteMeta = transaction.getMeta("applyPasteRules");
+        const isSimulatedPaste = !!simulatedPasteMeta;
+        if (!isPaste && !isDrop && !isSimulatedPaste) {
           return;
+        }
+        if (isSimulatedPaste) {
+          const { from: from3, text } = simulatedPasteMeta;
+          const to2 = from3 + text.length;
+          const pasteEvt = createClipboardPasteEvent(text);
+          return processEvent({
+            rule,
+            state,
+            from: from3,
+            to: { b: to2 },
+            pasteEvt
+          });
         }
         const from2 = oldState.doc.content.findDiffStart(state.doc.content);
         const to = oldState.doc.content.findDiffEnd(state.doc.content);
         if (!isNumber(from2) || !to || from2 === to.b) {
           return;
         }
-        const tr2 = state.tr;
-        const chainableState = createChainableState({
-          state,
-          transaction: tr2
-        });
-        const handler = run({
-          editor,
-          state: chainableState,
-          from: Math.max(from2 - 1, 0),
-          to: to.b - 1,
+        return processEvent({
           rule,
-          pasteEvent,
-          dropEvent
+          state,
+          from: from2,
+          to,
+          pasteEvt: pasteEvent
         });
-        if (!handler || !tr2.steps.length) {
-          return;
-        }
-        dropEvent = new DragEvent("drop");
-        pasteEvent = new ClipboardEvent("paste");
-        return tr2;
       }
     });
   });
@@ -13036,74 +13084,37 @@ function pasteRulesPlugin(props) {
 }
 function findDuplicates(items) {
   const filtered = items.filter((el, index) => items.indexOf(el) !== index);
-  return [...new Set(filtered)];
+  return Array.from(new Set(filtered));
 }
 var ExtensionManager = class _ExtensionManager {
-  constructor(extensions2, editor) {
+  constructor(extensions, editor) {
     this.splittableMarks = [];
     this.editor = editor;
-    this.extensions = _ExtensionManager.resolve(extensions2);
+    this.extensions = _ExtensionManager.resolve(extensions);
     this.schema = getSchemaByResolvedExtensions(this.extensions, editor);
-    this.extensions.forEach((extension) => {
-      var _a;
-      this.editor.extensionStorage[extension.name] = extension.storage;
-      const context = {
-        name: extension.name,
-        options: extension.options,
-        storage: extension.storage,
-        editor: this.editor,
-        type: getSchemaTypeByName(extension.name, this.schema)
-      };
-      if (extension.type === "mark") {
-        const keepOnSplit = (_a = callOrReturn(getExtensionField(extension, "keepOnSplit", context))) !== null && _a !== void 0 ? _a : true;
-        if (keepOnSplit) {
-          this.splittableMarks.push(extension.name);
-        }
-      }
-      const onBeforeCreate = getExtensionField(extension, "onBeforeCreate", context);
-      if (onBeforeCreate) {
-        this.editor.on("beforeCreate", onBeforeCreate);
-      }
-      const onCreate2 = getExtensionField(extension, "onCreate", context);
-      if (onCreate2) {
-        this.editor.on("create", onCreate2);
-      }
-      const onUpdate = getExtensionField(extension, "onUpdate", context);
-      if (onUpdate) {
-        this.editor.on("update", onUpdate);
-      }
-      const onSelectionUpdate = getExtensionField(extension, "onSelectionUpdate", context);
-      if (onSelectionUpdate) {
-        this.editor.on("selectionUpdate", onSelectionUpdate);
-      }
-      const onTransaction = getExtensionField(extension, "onTransaction", context);
-      if (onTransaction) {
-        this.editor.on("transaction", onTransaction);
-      }
-      const onFocus = getExtensionField(extension, "onFocus", context);
-      if (onFocus) {
-        this.editor.on("focus", onFocus);
-      }
-      const onBlur = getExtensionField(extension, "onBlur", context);
-      if (onBlur) {
-        this.editor.on("blur", onBlur);
-      }
-      const onDestroy2 = getExtensionField(extension, "onDestroy", context);
-      if (onDestroy2) {
-        this.editor.on("destroy", onDestroy2);
-      }
-    });
+    this.setupExtensions();
   }
-  static resolve(extensions2) {
-    const resolvedExtensions = _ExtensionManager.sort(_ExtensionManager.flatten(extensions2));
+  /**
+   * Returns a flattened and sorted extension list while
+   * also checking for duplicated extensions and warns the user.
+   * @param extensions An array of Tiptap extensions
+   * @returns An flattened and sorted array of Tiptap extensions
+   */
+  static resolve(extensions) {
+    const resolvedExtensions = _ExtensionManager.sort(_ExtensionManager.flatten(extensions));
     const duplicatedNames = findDuplicates(resolvedExtensions.map((extension) => extension.name));
     if (duplicatedNames.length) {
       console.warn(`[tiptap warn]: Duplicate extension names found: [${duplicatedNames.map((item) => `'${item}'`).join(", ")}]. This can lead to issues.`);
     }
     return resolvedExtensions;
   }
-  static flatten(extensions2) {
-    return extensions2.map((extension) => {
+  /**
+   * Create a flattened array of extensions by traversing the `addExtensions` field.
+   * @param extensions An array of Tiptap extensions
+   * @returns A flattened array of Tiptap extensions
+   */
+  static flatten(extensions) {
+    return extensions.map((extension) => {
       const context = {
         name: extension.name,
         options: extension.options,
@@ -13116,9 +13127,14 @@ var ExtensionManager = class _ExtensionManager {
       return extension;
     }).flat(10);
   }
-  static sort(extensions2) {
+  /**
+   * Sort extensions by priority.
+   * @param extensions An array of Tiptap extensions
+   * @returns A sorted array of Tiptap extensions by priority
+   */
+  static sort(extensions) {
     const defaultPriority = 100;
-    return extensions2.sort((a, b) => {
+    return extensions.sort((a, b) => {
       const priorityA = getExtensionField(a, "priority") || defaultPriority;
       const priorityB = getExtensionField(b, "priority") || defaultPriority;
       if (priorityA > priorityB) {
@@ -13130,6 +13146,10 @@ var ExtensionManager = class _ExtensionManager {
       return 0;
     });
   }
+  /**
+   * Get all commands from the extensions.
+   * @returns An object with all commands where the key is the command name and the value is the command function
+   */
   get commands() {
     return this.extensions.reduce((commands3, extension) => {
       const context = {
@@ -13149,12 +13169,16 @@ var ExtensionManager = class _ExtensionManager {
       };
     }, {});
   }
+  /**
+   * Get all registered Prosemirror plugins from the extensions.
+   * @returns An array of Prosemirror plugins
+   */
   get plugins() {
     const { editor } = this;
-    const extensions2 = _ExtensionManager.sort([...this.extensions].reverse());
+    const extensions = _ExtensionManager.sort([...this.extensions].reverse());
     const inputRules = [];
     const pasteRules = [];
-    const allPlugins = extensions2.map((extension) => {
+    const allPlugins = extensions.map((extension) => {
       const context = {
         name: extension.name,
         options: extension.options,
@@ -13165,7 +13189,7 @@ var ExtensionManager = class _ExtensionManager {
       const plugins = [];
       const addKeyboardShortcuts = getExtensionField(extension, "addKeyboardShortcuts", context);
       let defaultBindings = {};
-      if (extension.type === "mark" && extension.config.exitable) {
+      if (extension.type === "mark" && getExtensionField(extension, "exitable", context)) {
         defaultBindings.ArrowRight = () => Mark2.handleExit({ editor, mark: extension });
       }
       if (addKeyboardShortcuts) {
@@ -13203,9 +13227,17 @@ var ExtensionManager = class _ExtensionManager {
       ...allPlugins
     ];
   }
+  /**
+   * Get all attributes from the extensions.
+   * @returns An array of attributes
+   */
   get attributes() {
     return getAttributesFromExtensions(this.extensions);
   }
+  /**
+   * Get all node views from the extensions.
+   * @returns An object with all node views where the key is the node name and the value is the node view function
+   */
   get nodeViews() {
     const { editor } = this;
     const { nodeExtensions } = splitExtensions(this.extensions);
@@ -13236,6 +13268,61 @@ var ExtensionManager = class _ExtensionManager {
       return [extension.name, nodeview];
     }));
   }
+  /**
+   * Go through all extensions, create extension storages & setup marks
+   * & bind editor event listener.
+   */
+  setupExtensions() {
+    this.extensions.forEach((extension) => {
+      var _a;
+      this.editor.extensionStorage[extension.name] = extension.storage;
+      const context = {
+        name: extension.name,
+        options: extension.options,
+        storage: extension.storage,
+        editor: this.editor,
+        type: getSchemaTypeByName(extension.name, this.schema)
+      };
+      if (extension.type === "mark") {
+        const keepOnSplit = (_a = callOrReturn(getExtensionField(extension, "keepOnSplit", context))) !== null && _a !== void 0 ? _a : true;
+        if (keepOnSplit) {
+          this.splittableMarks.push(extension.name);
+        }
+      }
+      const onBeforeCreate = getExtensionField(extension, "onBeforeCreate", context);
+      const onCreate2 = getExtensionField(extension, "onCreate", context);
+      const onUpdate = getExtensionField(extension, "onUpdate", context);
+      const onSelectionUpdate = getExtensionField(extension, "onSelectionUpdate", context);
+      const onTransaction = getExtensionField(extension, "onTransaction", context);
+      const onFocus = getExtensionField(extension, "onFocus", context);
+      const onBlur = getExtensionField(extension, "onBlur", context);
+      const onDestroy2 = getExtensionField(extension, "onDestroy", context);
+      if (onBeforeCreate) {
+        this.editor.on("beforeCreate", onBeforeCreate);
+      }
+      if (onCreate2) {
+        this.editor.on("create", onCreate2);
+      }
+      if (onUpdate) {
+        this.editor.on("update", onUpdate);
+      }
+      if (onSelectionUpdate) {
+        this.editor.on("selectionUpdate", onSelectionUpdate);
+      }
+      if (onTransaction) {
+        this.editor.on("transaction", onTransaction);
+      }
+      if (onFocus) {
+        this.editor.on("focus", onFocus);
+      }
+      if (onBlur) {
+        this.editor.on("blur", onBlur);
+      }
+      if (onDestroy2) {
+        this.editor.on("destroy", onDestroy2);
+      }
+    });
+  }
 };
 function getType(value) {
   return Object.prototype.toString.call(value).slice(8, -1);
@@ -13250,14 +13337,10 @@ function mergeDeep(target, source) {
   const output = { ...target };
   if (isPlainObject(target) && isPlainObject(source)) {
     Object.keys(source).forEach((key) => {
-      if (isPlainObject(source[key])) {
-        if (!(key in target)) {
-          Object.assign(output, { [key]: source[key] });
-        } else {
-          output[key] = mergeDeep(target[key], source[key]);
-        }
+      if (isPlainObject(source[key]) && isPlainObject(target[key])) {
+        output[key] = mergeDeep(target[key], source[key]);
       } else {
-        Object.assign(output, { [key]: source[key] });
+        output[key] = source[key];
       }
     });
   }
@@ -13278,7 +13361,7 @@ var Extension = class _Extension {
       ...config
     };
     this.name = this.config.name;
-    if (config.defaultOptions) {
+    if (config.defaultOptions && Object.keys(config.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${this.name}".`);
     }
     this.options = this.config.defaultOptions;
@@ -13296,20 +13379,22 @@ var Extension = class _Extension {
     return new _Extension(config);
   }
   configure(options = {}) {
-    const extension = this.extend();
-    extension.options = mergeDeep(this.options, options);
-    extension.storage = callOrReturn(getExtensionField(extension, "addStorage", {
-      name: extension.name,
-      options: extension.options
-    }));
+    const extension = this.extend({
+      ...this.config,
+      addOptions: () => {
+        return mergeDeep(this.options, options);
+      }
+    });
+    extension.name = this.name;
+    extension.parent = this.parent;
     return extension;
   }
   extend(extendedConfig = {}) {
-    const extension = new _Extension(extendedConfig);
+    const extension = new _Extension({ ...this.config, ...extendedConfig });
     extension.parent = this;
     this.child = extension;
     extension.name = extendedConfig.name ? extendedConfig.name : extension.parent.name;
-    if (extendedConfig.defaultOptions) {
+    if (extendedConfig.defaultOptions && Object.keys(extendedConfig.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${extension.name}".`);
     }
     extension.options = callOrReturn(getExtensionField(extension, "addOptions", {
@@ -13326,15 +13411,13 @@ function getTextBetween(startNode, range, options) {
   const { from: from2, to } = range;
   const { blockSeparator = "\n\n", textSerializers = {} } = options || {};
   let text = "";
-  let separated = true;
   startNode.nodesBetween(from2, to, (node, pos, parent, index) => {
     var _a;
+    if (node.isBlock && pos > from2) {
+      text += blockSeparator;
+    }
     const textSerializer = textSerializers === null || textSerializers === void 0 ? void 0 : textSerializers[node.type.name];
     if (textSerializer) {
-      if (node.isBlock && !separated) {
-        text += blockSeparator;
-        separated = true;
-      }
       if (parent) {
         text += textSerializer({
           node,
@@ -13344,12 +13427,10 @@ function getTextBetween(startNode, range, options) {
           range
         });
       }
-    } else if (node.isText) {
+      return false;
+    }
+    if (node.isText) {
       text += (_a = node === null || node === void 0 ? void 0 : node.text) === null || _a === void 0 ? void 0 : _a.slice(Math.max(from2, pos) - pos, to - pos);
-      separated = false;
-    } else if (node.isBlock && !separated) {
-      text += blockSeparator;
-      separated = true;
     }
   });
   return text;
@@ -13359,6 +13440,11 @@ function getTextSerializersFromSchema(schema) {
 }
 var ClipboardTextSerializer = Extension.create({
   name: "clipboardTextSerializer",
+  addOptions() {
+    return {
+      blockSeparator: void 0
+    };
+  },
   addProseMirrorPlugins() {
     return [
       new Plugin({
@@ -13374,6 +13460,7 @@ var ClipboardTextSerializer = Extension.create({
             const textSerializers = getTextSerializersFromSchema(schema);
             const range = { from: from2, to };
             return getTextBetween(doc3, range, {
+              ...this.options.blockSeparator !== void 0 ? { blockSeparator: this.options.blockSeparator } : {},
               textSerializers
             });
           }
@@ -13658,9 +13745,22 @@ var forEach = (items, fn2) => (props) => {
 var insertContent = (value, options) => ({ tr: tr2, commands: commands3 }) => {
   return commands3.insertContentAt({ from: tr2.selection.from, to: tr2.selection.to }, value, options);
 };
+var removeWhitespaces = (node) => {
+  const children = node.childNodes;
+  for (let i2 = children.length - 1; i2 >= 0; i2 -= 1) {
+    const child = children[i2];
+    if (child.nodeType === 3 && child.nodeValue && /^(\n\s\s|\n)$/.test(child.nodeValue)) {
+      node.removeChild(child);
+    } else if (child.nodeType === 1) {
+      removeWhitespaces(child);
+    }
+  }
+  return node;
+};
 function elementFromString(value) {
   const wrappedValue = `<body>${value}</body>`;
-  return new window.DOMParser().parseFromString(wrappedValue, "text/html").body;
+  const html = new window.DOMParser().parseFromString(wrappedValue, "text/html").body;
+  return removeWhitespaces(html);
 }
 function createNodeFromContent(content, schema, options) {
   options = {
@@ -13668,20 +13768,63 @@ function createNodeFromContent(content, schema, options) {
     parseOptions: {},
     ...options
   };
-  if (typeof content === "object" && content !== null) {
+  const isJSONContent = typeof content === "object" && content !== null;
+  const isTextContent = typeof content === "string";
+  if (isJSONContent) {
     try {
-      if (Array.isArray(content) && content.length > 0) {
+      const isArrayContent = Array.isArray(content) && content.length > 0;
+      if (isArrayContent) {
         return Fragment.fromArray(content.map((item) => schema.nodeFromJSON(item)));
       }
       return schema.nodeFromJSON(content);
     } catch (error) {
+      if (options.errorOnInvalidContent) {
+        throw new Error("[tiptap error]: Invalid JSON content", { cause: error });
+      }
       console.warn("[tiptap warn]: Invalid content.", "Passed value:", content, "Error:", error);
       return createNodeFromContent("", schema, options);
     }
   }
-  if (typeof content === "string") {
+  if (isTextContent) {
+    if (options.errorOnInvalidContent) {
+      let hasInvalidContent = false;
+      let invalidContent = "";
+      const contentCheckSchema = new Schema({
+        topNode: schema.spec.topNode,
+        marks: schema.spec.marks,
+        // Prosemirror's schemas are executed such that: the last to execute, matches last
+        // This means that we can add a catch-all node at the end of the schema to catch any content that we don't know how to handle
+        nodes: schema.spec.nodes.append({
+          __tiptap__private__unknown__catch__all__node: {
+            content: "inline*",
+            group: "block",
+            parseDOM: [
+              {
+                tag: "*",
+                getAttrs: (e) => {
+                  hasInvalidContent = true;
+                  invalidContent = typeof e === "string" ? e : e.outerHTML;
+                  return null;
+                }
+              }
+            ]
+          }
+        })
+      });
+      if (options.slice) {
+        DOMParser.fromSchema(contentCheckSchema).parseSlice(elementFromString(content), options.parseOptions);
+      } else {
+        DOMParser.fromSchema(contentCheckSchema).parse(elementFromString(content), options.parseOptions);
+      }
+      if (options.errorOnInvalidContent && hasInvalidContent) {
+        throw new Error("[tiptap error]: Invalid HTML content", { cause: new Error(`Invalid element found: ${invalidContent}`) });
+      }
+    }
     const parser = DOMParser.fromSchema(schema);
-    return options.slice ? parser.parseSlice(elementFromString(content), options.parseOptions).content : parser.parse(elementFromString(content), options.parseOptions);
+    if (options.slice) {
+      return parser.parseSlice(elementFromString(content), options.parseOptions).content;
+    }
+    return parser.parse(elementFromString(content), options.parseOptions);
   }
   return createNodeFromContent("", schema, options);
 }
@@ -13704,23 +13847,36 @@ function selectionToInsertionEnd2(tr2, startLen, bias) {
   tr2.setSelection(Selection.near(tr2.doc.resolve(end2), bias));
 }
 var isFragment = (nodeOrFragment) => {
-  return nodeOrFragment.toString().startsWith("<");
+  return !("type" in nodeOrFragment);
 };
 var insertContentAt = (position, value, options) => ({ tr: tr2, dispatch, editor }) => {
+  var _a;
   if (dispatch) {
     options = {
       parseOptions: {},
       updateSelection: true,
+      applyInputRules: false,
+      applyPasteRules: false,
       ...options
     };
-    const content = createNodeFromContent(value, editor.schema, {
-      parseOptions: {
-        preserveWhitespace: "full",
-        ...options.parseOptions
-      }
-    });
-    if (content.toString() === "<>") {
-      return true;
+    let content;
+    try {
+      content = createNodeFromContent(value, editor.schema, {
+        parseOptions: {
+          preserveWhitespace: "full",
+          ...options.parseOptions
+        },
+        errorOnInvalidContent: (_a = options.errorOnInvalidContent) !== null && _a !== void 0 ? _a : editor.options.enableContentCheck
+      });
+    } catch (e) {
+      editor.emit("contentError", {
+        editor,
+        error: e,
+        disableCollaboration: () => {
+          console.error("[tiptap error]: Unable to disable collaboration at this point in time");
+        }
+      });
+      return false;
     }
     let { from: from2, to } = typeof position === "number" ? { from: position, to: position } : { from: position.from, to: position.to };
     let isOnlyTextContent = true;
@@ -13739,19 +13895,28 @@ var insertContentAt = (position, value, options) => ({ tr: tr2, dispatch, editor
         to += 1;
       }
     }
+    let newContent;
     if (isOnlyTextContent) {
       if (Array.isArray(value)) {
-        tr2.insertText(value.map((v) => v.text || "").join(""), from2, to);
+        newContent = value.map((v) => v.text || "").join("");
       } else if (typeof value === "object" && !!value && !!value.text) {
-        tr2.insertText(value.text, from2, to);
+        newContent = value.text;
       } else {
-        tr2.insertText(value, from2, to);
+        newContent = value;
       }
+      tr2.insertText(newContent, from2, to);
     } else {
-      tr2.replaceWith(from2, to, content);
+      newContent = content;
+      tr2.replaceWith(from2, to, newContent);
     }
     if (options.updateSelection) {
       selectionToInsertionEnd2(tr2, tr2.steps.length - 1, -1);
+    }
+    if (options.applyInputRules) {
+      tr2.setMeta("applyInputRules", { from: from2, text: newContent });
+    }
+    if (options.applyPasteRules) {
+      tr2.setMeta("applyPasteRules", { from: from2, text: newContent });
     }
   }
   return true;
@@ -13768,7 +13933,7 @@ var joinBackward2 = () => ({ state, dispatch }) => {
 var joinForward2 = () => ({ state, dispatch }) => {
   return joinForward(state, dispatch);
 };
-var joinItemBackward = () => ({ tr: tr2, state, dispatch }) => {
+var joinItemBackward = () => ({ state, dispatch, tr: tr2 }) => {
   try {
     const point = joinPoint(state.doc, state.selection.$from.pos, -1);
     if (point === null || point === void 0) {
@@ -13779,7 +13944,7 @@ var joinItemBackward = () => ({ tr: tr2, state, dispatch }) => {
       dispatch(tr2);
     }
     return true;
-  } catch {
+  } catch (e) {
     return false;
   }
 };
@@ -13797,6 +13962,12 @@ var joinItemForward = () => ({ state, dispatch, tr: tr2 }) => {
   } catch (e) {
     return false;
   }
+};
+var joinTextblockBackward2 = () => ({ state, dispatch }) => {
+  return joinTextblockBackward(state, dispatch);
+};
+var joinTextblockForward2 = () => ({ state, dispatch }) => {
+  return joinTextblockForward(state, dispatch);
 };
 function isMacOS() {
   return typeof navigator !== "undefined" ? /Mac/.test(navigator.platform) : false;
@@ -13991,16 +14162,32 @@ var selectTextblockEnd2 = () => ({ state, dispatch }) => {
 var selectTextblockStart2 = () => ({ state, dispatch }) => {
   return selectTextblockStart(state, dispatch);
 };
-function createDocument(content, schema, parseOptions = {}) {
-  return createNodeFromContent(content, schema, { slice: false, parseOptions });
+function createDocument(content, schema, parseOptions = {}, options = {}) {
+  return createNodeFromContent(content, schema, {
+    slice: false,
+    parseOptions,
+    errorOnInvalidContent: options.errorOnInvalidContent
+  });
 }
-var setContent = (content, emitUpdate = false, parseOptions = {}) => ({ tr: tr2, editor, dispatch }) => {
+var setContent = (content, emitUpdate = false, parseOptions = {}, options = {}) => ({ editor, tr: tr2, dispatch, commands: commands3 }) => {
+  var _a, _b;
   const { doc: doc3 } = tr2;
-  const document2 = createDocument(content, editor.schema, parseOptions);
-  if (dispatch) {
-    tr2.replaceWith(0, doc3.content.size, document2).setMeta("preventUpdate", !emitUpdate);
+  if (parseOptions.preserveWhitespace !== "full") {
+    const document2 = createDocument(content, editor.schema, parseOptions, {
+      errorOnInvalidContent: (_a = options.errorOnInvalidContent) !== null && _a !== void 0 ? _a : editor.options.enableContentCheck
+    });
+    if (dispatch) {
+      tr2.replaceWith(0, doc3.content.size, document2).setMeta("preventUpdate", !emitUpdate);
+    }
+    return true;
   }
-  return true;
+  if (dispatch) {
+    tr2.setMeta("preventUpdate", !emitUpdate);
+  }
+  return commands3.insertContentAt({ from: 0, to: doc3.content.size }, content, {
+    parseOptions,
+    errorOnInvalidContent: (_b = options.errorOnInvalidContent) !== null && _b !== void 0 ? _b : editor.options.enableContentCheck
+  });
 };
 function getMarkAttributes(state, typeOrName) {
   const type = getMarkType(typeOrName, state.schema);
@@ -14160,7 +14347,7 @@ function getMarksBetween(from2, to, doc3) {
   const marks = [];
   if (from2 === to) {
     doc3.resolve(from2).marks().forEach((mark) => {
-      const $pos = doc3.resolve(from2 - 1);
+      const $pos = doc3.resolve(from2);
       const range = getMarkRange($pos, mark.type);
       if (!range) {
         return;
@@ -14172,6 +14359,9 @@ function getMarksBetween(from2, to, doc3) {
     });
   } else {
     doc3.nodesBetween(from2, to, (node, pos) => {
+      if (!node || (node === null || node === void 0 ? void 0 : node.nodeSize) === void 0) {
+        return;
+      }
       marks.push(...node.marks.map((mark) => ({
         from: pos,
         to: pos + node.nodeSize,
@@ -14254,8 +14444,8 @@ function isActive(state, name, attributes = {}) {
   }
   return false;
 }
-function isList(name, extensions2) {
-  const { nodeExtensions } = splitExtensions(extensions2);
+function isList(name, extensions) {
+  const { nodeExtensions } = splitExtensions(extensions);
   const extension = nodeExtensions.find((item) => item.name === name);
   if (!extension) {
     return false;
@@ -14271,11 +14461,38 @@ function isList(name, extensions2) {
   }
   return group.split(" ").includes("list");
 }
-function isNodeEmpty(node) {
+function isNodeEmpty(node, { checkChildren = true, ignoreWhitespace = false } = {}) {
   var _a;
-  const defaultContent = (_a = node.type.createAndFill()) === null || _a === void 0 ? void 0 : _a.toJSON();
-  const content = node.toJSON();
-  return JSON.stringify(defaultContent) === JSON.stringify(content);
+  if (ignoreWhitespace) {
+    if (node.type.name === "hardBreak") {
+      return true;
+    }
+    if (node.isText) {
+      return /^\s*$/m.test((_a = node.text) !== null && _a !== void 0 ? _a : "");
+    }
+  }
+  if (node.isText) {
+    return !node.text;
+  }
+  if (node.isAtom || node.isLeaf) {
+    return false;
+  }
+  if (node.content.childCount === 0) {
+    return true;
+  }
+  if (checkChildren) {
+    let isContentEmpty = true;
+    node.content.forEach((childNode) => {
+      if (isContentEmpty === false) {
+        return;
+      }
+      if (!isNodeEmpty(childNode, { ignoreWhitespace, checkChildren })) {
+        isContentEmpty = false;
+      }
+    });
+    return isContentEmpty;
+  }
+  return false;
 }
 function isNodeSelection(value) {
   return value instanceof NodeSelection;
@@ -14448,29 +14665,29 @@ var splitBlock2 = ({ keepMarks = true } = {}) => ({ tr: tr2, state, dispatch, ed
   if (!$from.parent.isBlock) {
     return false;
   }
-  if (dispatch) {
-    const atEnd = $to.parentOffset === $to.parent.content.size;
-    if (selection instanceof TextSelection) {
-      tr2.deleteSelection();
+  const atEnd = $to.parentOffset === $to.parent.content.size;
+  const deflt = $from.depth === 0 ? void 0 : defaultBlockAt2($from.node(-1).contentMatchAt($from.indexAfter(-1)));
+  let types = atEnd && deflt ? [
+    {
+      type: deflt,
+      attrs: newAttributes
     }
-    const deflt = $from.depth === 0 ? void 0 : defaultBlockAt2($from.node(-1).contentMatchAt($from.indexAfter(-1)));
-    let types = atEnd && deflt ? [
+  ] : void 0;
+  let can = canSplit(tr2.doc, tr2.mapping.map($from.pos), 1, types);
+  if (!types && !can && canSplit(tr2.doc, tr2.mapping.map($from.pos), 1, deflt ? [{ type: deflt }] : void 0)) {
+    can = true;
+    types = deflt ? [
       {
         type: deflt,
         attrs: newAttributes
       }
     ] : void 0;
-    let can = canSplit(tr2.doc, tr2.mapping.map($from.pos), 1, types);
-    if (!types && !can && canSplit(tr2.doc, tr2.mapping.map($from.pos), 1, deflt ? [{ type: deflt }] : void 0)) {
-      can = true;
-      types = deflt ? [
-        {
-          type: deflt,
-          attrs: newAttributes
-        }
-      ] : void 0;
-    }
+  }
+  if (dispatch) {
     if (can) {
+      if (selection instanceof TextSelection) {
+        tr2.deleteSelection();
+      }
       tr2.split(tr2.mapping.map($from.pos), 1, types);
       if (deflt && !atEnd && !$from.parentOffset && $from.parent.type !== deflt) {
         const first3 = tr2.mapping.map($from.before());
@@ -14485,9 +14702,9 @@ var splitBlock2 = ({ keepMarks = true } = {}) => ({ tr: tr2, state, dispatch, ed
     }
     tr2.scrollIntoView();
   }
-  return true;
+  return can;
 };
-var splitListItem = (typeOrName) => ({ tr: tr2, state, dispatch, editor }) => {
+var splitListItem = (typeOrName, overrideAttrs = {}) => ({ tr: tr2, state, dispatch, editor }) => {
   var _a;
   const type = getNodeType(typeOrName, state.schema);
   const { $from, $to } = state.selection;
@@ -14511,7 +14728,10 @@ var splitListItem = (typeOrName) => ({ tr: tr2, state, dispatch, editor }) => {
         wrap2 = Fragment.from($from.node(d).copy(wrap2));
       }
       const depthAfter = $from.indexAfter(-1) < $from.node(-2).childCount ? 1 : $from.indexAfter(-2) < $from.node(-3).childCount ? 2 : 3;
-      const newNextTypeAttributes2 = getSplittedAttributes(extensionAttributes, $from.node().type.name, $from.node().attrs);
+      const newNextTypeAttributes2 = {
+        ...getSplittedAttributes(extensionAttributes, $from.node().type.name, $from.node().attrs),
+        ...overrideAttrs
+      };
       const nextType2 = ((_a = type.contentMatch.defaultType) === null || _a === void 0 ? void 0 : _a.createAndFill(newNextTypeAttributes2)) || void 0;
       wrap2 = wrap2.append(Fragment.from(type.createAndFill(null, nextType2) || void 0));
       const start2 = $from.before($from.depth - (depthBefore - 1));
@@ -14533,8 +14753,14 @@ var splitListItem = (typeOrName) => ({ tr: tr2, state, dispatch, editor }) => {
     return true;
   }
   const nextType = $to.pos === $from.end() ? grandParent.contentMatchAt(0).defaultType : null;
-  const newTypeAttributes = getSplittedAttributes(extensionAttributes, grandParent.type.name, grandParent.attrs);
-  const newNextTypeAttributes = getSplittedAttributes(extensionAttributes, $from.node().type.name, $from.node().attrs);
+  const newTypeAttributes = {
+    ...getSplittedAttributes(extensionAttributes, grandParent.type.name, grandParent.attrs),
+    ...overrideAttrs
+  };
+  const newNextTypeAttributes = {
+    ...getSplittedAttributes(extensionAttributes, $from.node().type.name, $from.node().attrs),
+    ...overrideAttrs
+  };
   tr2.delete($from.pos, $to.pos);
   const types = nextType ? [
     { type, attrs: newTypeAttributes },
@@ -14591,7 +14817,7 @@ var joinListForwards = (tr2, listType) => {
   return true;
 };
 var toggleList = (listTypeOrName, itemTypeOrName, keepMarks, attributes = {}) => ({ editor, tr: tr2, state, dispatch, chain, commands: commands3, can }) => {
-  const { extensions: extensions2, splittableMarks } = editor.extensionManager;
+  const { extensions, splittableMarks } = editor.extensionManager;
   const listType = getNodeType(listTypeOrName, state.schema);
   const itemType = getNodeType(itemTypeOrName, state.schema);
   const { selection, storedMarks } = state;
@@ -14601,12 +14827,12 @@ var toggleList = (listTypeOrName, itemTypeOrName, keepMarks, attributes = {}) =>
   if (!range) {
     return false;
   }
-  const parentList = findParentNode((node) => isList(node.type.name, extensions2))(selection);
+  const parentList = findParentNode((node) => isList(node.type.name, extensions))(selection);
   if (range.depth >= 1 && parentList && range.depth - parentList.depth <= 1) {
     if (parentList.node.type === listType) {
       return commands3.liftListItem(itemType);
     }
-    if (isList(parentList.node.type.name, extensions2) && listType.validContent(parentList.node.content) && dispatch) {
+    if (isList(parentList.node.type.name, extensions) && listType.validContent(parentList.node.content) && dispatch) {
       return chain().command(() => {
         tr2.setNodeMarkup(parentList.pos, listType);
         return true;
@@ -14790,12 +15016,14 @@ var commands = /* @__PURE__ */ Object.freeze({
   forEach,
   insertContent,
   insertContentAt,
-  joinUp: joinUp2,
-  joinDown: joinDown2,
   joinBackward: joinBackward2,
+  joinDown: joinDown2,
   joinForward: joinForward2,
   joinItemBackward,
   joinItemForward,
+  joinTextblockBackward: joinTextblockBackward2,
+  joinTextblockForward: joinTextblockForward2,
+  joinUp: joinUp2,
   keyboardShortcut,
   lift: lift3,
   liftEmptyBlock: liftEmptyBlock2,
@@ -14887,11 +15115,11 @@ var Keymap = Extension.create({
         const { selection, doc: doc3 } = tr2;
         const { empty: empty2, $anchor } = selection;
         const { pos, parent } = $anchor;
-        const $parentPos = $anchor.parent.isTextblock ? tr2.doc.resolve(pos - 1) : $anchor;
+        const $parentPos = $anchor.parent.isTextblock && pos > 0 ? tr2.doc.resolve(pos - 1) : $anchor;
         const parentIsIsolating = $parentPos.parent.type.spec.isolating;
         const parentPos = $anchor.pos - $anchor.parentOffset;
         const isAtStart = parentIsIsolating && $parentPos.parent.childCount === 1 ? parentPos === $anchor.pos : Selection.atStart(doc3).from === pos;
-        if (!empty2 || !isAtStart || !parent.type.isTextblock || parent.textContent.length) {
+        if (!empty2 || !parent.type.isTextblock || parent.textContent.length || !isAtStart || isAtStart && $anchor.parent.type.name === "paragraph") {
           return false;
         }
         return commands3.clearNodes();
@@ -14992,21 +15220,179 @@ var Tabindex = Extension.create({
       new Plugin({
         key: new PluginKey("tabindex"),
         props: {
-          attributes: this.editor.isEditable ? { tabindex: "0" } : {}
+          attributes: () => this.editor.isEditable ? { tabindex: "0" } : {}
         }
       })
     ];
   }
 });
-var extensions = /* @__PURE__ */ Object.freeze({
-  __proto__: null,
-  ClipboardTextSerializer,
-  Commands,
-  Editable,
-  FocusEvents,
-  Keymap,
-  Tabindex
-});
+var NodePos = class _NodePos {
+  get name() {
+    return this.node.type.name;
+  }
+  constructor(pos, editor, isBlock = false, node = null) {
+    this.currentNode = null;
+    this.actualDepth = null;
+    this.isBlock = isBlock;
+    this.resolvedPos = pos;
+    this.editor = editor;
+    this.currentNode = node;
+  }
+  get node() {
+    return this.currentNode || this.resolvedPos.node();
+  }
+  get element() {
+    return this.editor.view.domAtPos(this.pos).node;
+  }
+  get depth() {
+    var _a;
+    return (_a = this.actualDepth) !== null && _a !== void 0 ? _a : this.resolvedPos.depth;
+  }
+  get pos() {
+    return this.resolvedPos.pos;
+  }
+  get content() {
+    return this.node.content;
+  }
+  set content(content) {
+    let from2 = this.from;
+    let to = this.to;
+    if (this.isBlock) {
+      if (this.content.size === 0) {
+        console.error(`You can\u2019t set content on a block node. Tried to set content on ${this.name} at ${this.pos}`);
+        return;
+      }
+      from2 = this.from + 1;
+      to = this.to - 1;
+    }
+    this.editor.commands.insertContentAt({ from: from2, to }, content);
+  }
+  get attributes() {
+    return this.node.attrs;
+  }
+  get textContent() {
+    return this.node.textContent;
+  }
+  get size() {
+    return this.node.nodeSize;
+  }
+  get from() {
+    if (this.isBlock) {
+      return this.pos;
+    }
+    return this.resolvedPos.start(this.resolvedPos.depth);
+  }
+  get range() {
+    return {
+      from: this.from,
+      to: this.to
+    };
+  }
+  get to() {
+    if (this.isBlock) {
+      return this.pos + this.size;
+    }
+    return this.resolvedPos.end(this.resolvedPos.depth) + (this.node.isText ? 0 : 1);
+  }
+  get parent() {
+    if (this.depth === 0) {
+      return null;
+    }
+    const parentPos = this.resolvedPos.start(this.resolvedPos.depth - 1);
+    const $pos = this.resolvedPos.doc.resolve(parentPos);
+    return new _NodePos($pos, this.editor);
+  }
+  get before() {
+    let $pos = this.resolvedPos.doc.resolve(this.from - (this.isBlock ? 1 : 2));
+    if ($pos.depth !== this.depth) {
+      $pos = this.resolvedPos.doc.resolve(this.from - 3);
+    }
+    return new _NodePos($pos, this.editor);
+  }
+  get after() {
+    let $pos = this.resolvedPos.doc.resolve(this.to + (this.isBlock ? 2 : 1));
+    if ($pos.depth !== this.depth) {
+      $pos = this.resolvedPos.doc.resolve(this.to + 3);
+    }
+    return new _NodePos($pos, this.editor);
+  }
+  get children() {
+    const children = [];
+    this.node.content.forEach((node, offset2) => {
+      const isBlock = node.isBlock && !node.isTextblock;
+      const targetPos = this.pos + offset2 + 1;
+      const $pos = this.resolvedPos.doc.resolve(targetPos);
+      if (!isBlock && $pos.depth <= this.depth) {
+        return;
+      }
+      const childNodePos = new _NodePos($pos, this.editor, isBlock, isBlock ? node : null);
+      if (isBlock) {
+        childNodePos.actualDepth = this.depth + 1;
+      }
+      children.push(new _NodePos($pos, this.editor, isBlock, isBlock ? node : null));
+    });
+    return children;
+  }
+  get firstChild() {
+    return this.children[0] || null;
+  }
+  get lastChild() {
+    const children = this.children;
+    return children[children.length - 1] || null;
+  }
+  closest(selector, attributes = {}) {
+    let node = null;
+    let currentNode = this.parent;
+    while (currentNode && !node) {
+      if (currentNode.node.type.name === selector) {
+        if (Object.keys(attributes).length > 0) {
+          const nodeAttributes = currentNode.node.attrs;
+          const attrKeys = Object.keys(attributes);
+          for (let index = 0; index < attrKeys.length; index += 1) {
+            const key = attrKeys[index];
+            if (nodeAttributes[key] !== attributes[key]) {
+              break;
+            }
+          }
+        } else {
+          node = currentNode;
+        }
+      }
+      currentNode = currentNode.parent;
+    }
+    return node;
+  }
+  querySelector(selector, attributes = {}) {
+    return this.querySelectorAll(selector, attributes, true)[0] || null;
+  }
+  querySelectorAll(selector, attributes = {}, firstItemOnly = false) {
+    let nodes = [];
+    if (!this.children || this.children.length === 0) {
+      return nodes;
+    }
+    const attrKeys = Object.keys(attributes);
+    this.children.forEach((childPos) => {
+      if (firstItemOnly && nodes.length > 0) {
+        return;
+      }
+      if (childPos.node.type.name === selector) {
+        const doesAllAttributesMatch = attrKeys.every((key) => attributes[key] === childPos.node.attrs[key]);
+        if (doesAllAttributesMatch) {
+          nodes.push(childPos);
+        }
+      }
+      if (firstItemOnly && nodes.length > 0) {
+        return;
+      }
+      nodes = nodes.concat(childPos.querySelectorAll(selector, attributes, firstItemOnly));
+    });
+    return nodes;
+  }
+  setAttribute(attributes) {
+    const oldSelection = this.editor.state.selection;
+    this.editor.chain().setTextSelection(this.from).updateAttributes(this.node.type.name, attributes).setTextSelection(oldSelection.from).run();
+  }
+};
 var style = `.ProseMirror {
   position: relative;
 }
@@ -15100,6 +15486,7 @@ var Editor = class extends EventEmitter {
   constructor(options = {}) {
     super();
     this.isFocused = false;
+    this.isInitialized = false;
     this.extensionStorage = {};
     this.options = {
       element: document.createElement("div"),
@@ -15111,9 +15498,11 @@ var Editor = class extends EventEmitter {
       editable: true,
       editorProps: {},
       parseOptions: {},
+      coreExtensionOptions: {},
       enableInputRules: true,
       enablePasteRules: true,
       enableCoreExtensions: true,
+      enableContentCheck: false,
       onBeforeCreate: () => null,
       onCreate: () => null,
       onUpdate: () => null,
@@ -15121,7 +15510,10 @@ var Editor = class extends EventEmitter {
       onTransaction: () => null,
       onFocus: () => null,
       onBlur: () => null,
-      onDestroy: () => null
+      onDestroy: () => null,
+      onContentError: ({ error }) => {
+        throw error;
+      }
     };
     this.isCapturingTransaction = false;
     this.capturedTransaction = null;
@@ -15131,6 +15523,7 @@ var Editor = class extends EventEmitter {
     this.createSchema();
     this.on("beforeCreate", this.options.onBeforeCreate);
     this.emit("beforeCreate", { editor: this });
+    this.on("contentError", this.options.onContentError);
     this.createView();
     this.injectCSS();
     this.on("create", this.options.onCreate);
@@ -15146,6 +15539,7 @@ var Editor = class extends EventEmitter {
       }
       this.commands.focus(this.options.autofocus);
       this.emit("create", { editor: this });
+      this.isInitialized = true;
     }, 0);
   }
   /**
@@ -15250,7 +15644,17 @@ var Editor = class extends EventEmitter {
    * Creates an extension manager.
    */
   createExtensionManager() {
-    const coreExtensions = this.options.enableCoreExtensions ? Object.values(extensions) : [];
+    var _a, _b;
+    const coreExtensions = this.options.enableCoreExtensions ? [
+      Editable,
+      ClipboardTextSerializer.configure({
+        blockSeparator: (_b = (_a = this.options.coreExtensionOptions) === null || _a === void 0 ? void 0 : _a.clipboardTextSerializer) === null || _b === void 0 ? void 0 : _b.blockSeparator
+      }),
+      Commands,
+      FocusEvents,
+      Keymap,
+      Tabindex
+    ] : [];
     const allExtensions = [...coreExtensions, ...this.options.extensions].filter((extension) => {
       return ["extension", "node", "mark"].includes(extension === null || extension === void 0 ? void 0 : extension.type);
     });
@@ -15274,7 +15678,23 @@ var Editor = class extends EventEmitter {
    * Creates a ProseMirror view.
    */
   createView() {
-    const doc3 = createDocument(this.options.content, this.schema, this.options.parseOptions);
+    let doc3;
+    try {
+      doc3 = createDocument(this.options.content, this.schema, this.options.parseOptions, { errorOnInvalidContent: this.options.enableContentCheck });
+    } catch (e) {
+      if (!(e instanceof Error) || !["[tiptap error]: Invalid JSON content", "[tiptap error]: Invalid HTML content"].includes(e.message)) {
+        throw e;
+      }
+      this.emit("contentError", {
+        editor: this,
+        error: e,
+        disableCollaboration: () => {
+          this.options.extensions = this.options.extensions.filter((extension) => extension.name !== "collaboration");
+          this.createExtensionManager();
+        }
+      });
+      doc3 = createDocument(this.options.content, this.schema, this.options.parseOptions, { errorOnInvalidContent: false });
+    }
     const selection = resolveFocusPosition(doc3, this.options.autofocus);
     this.view = new EditorView(this.options.element, {
       ...this.options.editorProps,
@@ -15297,6 +15717,9 @@ var Editor = class extends EventEmitter {
    * Creates all node views.
    */
   createNodeViews() {
+    if (this.view.isDestroyed) {
+      return;
+    }
     this.view.setProps({
       nodeViews: this.extensionManager.nodeViews
     });
@@ -15337,6 +15760,11 @@ var Editor = class extends EventEmitter {
     }
     const state = this.state.apply(transaction);
     const selectionHasChanged = !this.state.selection.eq(state.selection);
+    this.emit("beforeTransaction", {
+      editor: this,
+      transaction,
+      nextState: state
+    });
     this.view.updateState(state);
     this.emit("transaction", {
       editor: this,
@@ -15440,6 +15868,21 @@ var Editor = class extends EventEmitter {
     var _a;
     return !((_a = this.view) === null || _a === void 0 ? void 0 : _a.docView);
   }
+  $node(selector, attributes) {
+    var _a;
+    return ((_a = this.$doc) === null || _a === void 0 ? void 0 : _a.querySelector(selector, attributes)) || null;
+  }
+  $nodes(selector, attributes) {
+    var _a;
+    return ((_a = this.$doc) === null || _a === void 0 ? void 0 : _a.querySelectorAll(selector, attributes)) || null;
+  }
+  $pos(pos) {
+    const $pos = this.state.doc.resolve(pos);
+    return new NodePos($pos, this);
+  }
+  get $doc() {
+    return this.$pos(0);
+  }
 };
 var Mark2 = class _Mark {
   constructor(config = {}) {
@@ -15456,7 +15899,7 @@ var Mark2 = class _Mark {
       ...config
     };
     this.name = this.config.name;
-    if (config.defaultOptions) {
+    if (config.defaultOptions && Object.keys(config.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${this.name}".`);
     }
     this.options = this.config.defaultOptions;
@@ -15474,12 +15917,14 @@ var Mark2 = class _Mark {
     return new _Mark(config);
   }
   configure(options = {}) {
-    const extension = this.extend();
-    extension.options = mergeDeep(this.options, options);
-    extension.storage = callOrReturn(getExtensionField(extension, "addStorage", {
-      name: extension.name,
-      options: extension.options
-    }));
+    const extension = this.extend({
+      ...this.config,
+      addOptions: () => {
+        return mergeDeep(this.options, options);
+      }
+    });
+    extension.name = this.name;
+    extension.parent = this.parent;
     return extension;
   }
   extend(extendedConfig = {}) {
@@ -15487,7 +15932,7 @@ var Mark2 = class _Mark {
     extension.parent = this;
     this.child = extension;
     extension.name = extendedConfig.name ? extendedConfig.name : extension.parent.name;
-    if (extendedConfig.defaultOptions) {
+    if (extendedConfig.defaultOptions && Object.keys(extendedConfig.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${extension.name}".`);
     }
     extension.options = callOrReturn(getExtensionField(extension, "addOptions", {
@@ -15535,7 +15980,7 @@ var Node2 = class _Node {
       ...config
     };
     this.name = this.config.name;
-    if (config.defaultOptions) {
+    if (config.defaultOptions && Object.keys(config.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${this.name}".`);
     }
     this.options = this.config.defaultOptions;
@@ -15553,12 +15998,14 @@ var Node2 = class _Node {
     return new _Node(config);
   }
   configure(options = {}) {
-    const extension = this.extend();
-    extension.options = mergeDeep(this.options, options);
-    extension.storage = callOrReturn(getExtensionField(extension, "addStorage", {
-      name: extension.name,
-      options: extension.options
-    }));
+    const extension = this.extend({
+      ...this.config,
+      addOptions: () => {
+        return mergeDeep(this.options, options);
+      }
+    });
+    extension.name = this.name;
+    extension.parent = this.parent;
     return extension;
   }
   extend(extendedConfig = {}) {
@@ -15566,7 +16013,7 @@ var Node2 = class _Node {
     extension.parent = this;
     this.child = extension;
     extension.name = extendedConfig.name ? extendedConfig.name : extension.parent.name;
-    if (extendedConfig.defaultOptions) {
+    if (extendedConfig.defaultOptions && Object.keys(extendedConfig.defaultOptions).length > 0) {
       console.warn(`[tiptap warn]: BREAKING CHANGE: "defaultOptions" is deprecated. Please use "addOptions" instead. Found in extension: "${extension.name}".`);
     }
     extension.options = callOrReturn(getExtensionField(extension, "addOptions", {
@@ -15756,10 +16203,10 @@ function getExtensionField2(extension, field, context) {
   }
   return extension.config[field];
 }
-function splitExtensions2(extensions2) {
-  const baseExtensions = extensions2.filter((extension) => extension.type === "extension");
-  const nodeExtensions = extensions2.filter((extension) => extension.type === "node");
-  const markExtensions = extensions2.filter((extension) => extension.type === "mark");
+function splitExtensions2(extensions) {
+  const baseExtensions = extensions.filter((extension) => extension.type === "extension");
+  const nodeExtensions = extensions.filter((extension) => extension.type === "node");
+  const markExtensions = extensions.filter((extension) => extension.type === "mark");
   return {
     baseExtensions,
     nodeExtensions,
@@ -16349,14 +16796,14 @@ var forEach2 = (items, fn2) => (props) => {
 var insertContent2 = (value, options) => ({ tr: tr2, commands: commands3 }) => {
   return commands3.insertContentAt({ from: tr2.selection.from, to: tr2.selection.to }, value, options);
 };
-var removeWhitespaces = (node) => {
+var removeWhitespaces2 = (node) => {
   const children = node.childNodes;
   for (let i2 = children.length - 1; i2 >= 0; i2 -= 1) {
     const child = children[i2];
     if (child.nodeType === 3 && child.nodeValue && /^(\n\s\s|\n)$/.test(child.nodeValue)) {
       node.removeChild(child);
     } else if (child.nodeType === 1) {
-      removeWhitespaces(child);
+      removeWhitespaces2(child);
     }
   }
   return node;
@@ -16364,7 +16811,7 @@ var removeWhitespaces = (node) => {
 function elementFromString2(value) {
   const wrappedValue = `<body>${value}</body>`;
   const html = new window.DOMParser().parseFromString(wrappedValue, "text/html").body;
-  return removeWhitespaces(html);
+  return removeWhitespaces2(html);
 }
 function createNodeFromContent2(content, schema, options) {
   if (content instanceof Node || content instanceof Fragment) {
@@ -16598,10 +17045,10 @@ var joinItemForward2 = () => ({ state, dispatch, tr: tr2 }) => {
     return false;
   }
 };
-var joinTextblockBackward2 = () => ({ state, dispatch }) => {
+var joinTextblockBackward3 = () => ({ state, dispatch }) => {
   return joinTextblockBackward(state, dispatch);
 };
-var joinTextblockForward2 = () => ({ state, dispatch }) => {
+var joinTextblockForward3 = () => ({ state, dispatch }) => {
   return joinTextblockForward(state, dispatch);
 };
 function isMacOS2() {
@@ -16958,8 +17405,8 @@ function isMarkActive2(state, typeOrName, attributes = {}) {
   const range = matchedRange > 0 ? matchedRange + excludedRange : matchedRange;
   return range >= selectionRange;
 }
-function isList2(name, extensions2) {
-  const { nodeExtensions } = splitExtensions2(extensions2);
+function isList2(name, extensions) {
+  const { nodeExtensions } = splitExtensions2(extensions);
   const extension = nodeExtensions.find((item) => item.name === name);
   if (!extension) {
     return false;
@@ -17305,7 +17752,7 @@ var joinListForwards2 = (tr2, listType) => {
   return true;
 };
 var toggleList2 = (listTypeOrName, itemTypeOrName, keepMarks, attributes = {}) => ({ editor, tr: tr2, state, dispatch, chain, commands: commands3, can }) => {
-  const { extensions: extensions2, splittableMarks } = editor.extensionManager;
+  const { extensions, splittableMarks } = editor.extensionManager;
   const listType = getNodeType2(listTypeOrName, state.schema);
   const itemType = getNodeType2(itemTypeOrName, state.schema);
   const { selection, storedMarks } = state;
@@ -17315,12 +17762,12 @@ var toggleList2 = (listTypeOrName, itemTypeOrName, keepMarks, attributes = {}) =
   if (!range) {
     return false;
   }
-  const parentList = findParentNode2((node) => isList2(node.type.name, extensions2))(selection);
+  const parentList = findParentNode2((node) => isList2(node.type.name, extensions))(selection);
   if (range.depth >= 1 && parentList && range.depth - parentList.depth <= 1) {
     if (parentList.node.type === listType) {
       return commands3.liftListItem(itemType);
     }
-    if (isList2(parentList.node.type.name, extensions2) && listType.validContent(parentList.node.content) && dispatch) {
+    if (isList2(parentList.node.type.name, extensions) && listType.validContent(parentList.node.content) && dispatch) {
       return chain().command(() => {
         tr2.setNodeMarkup(parentList.pos, listType);
         return true;
@@ -17554,8 +18001,8 @@ var commands2 = /* @__PURE__ */ Object.freeze({
   joinForward: joinForward3,
   joinItemBackward: joinItemBackward2,
   joinItemForward: joinItemForward2,
-  joinTextblockBackward: joinTextblockBackward2,
-  joinTextblockForward: joinTextblockForward2,
+  joinTextblockBackward: joinTextblockBackward3,
+  joinTextblockForward: joinTextblockForward3,
   joinUp: joinUp3,
   keyboardShortcut: keyboardShortcut2,
   lift: lift4,
@@ -19947,62 +20394,62 @@ var StarterKit = Extension2.create({
   name: "starterKit",
   addExtensions() {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
-    const extensions2 = [];
-    if (this.options.blockquote !== false) {
-      extensions2.push(Blockquote.configure((_a = this.options) === null || _a === void 0 ? void 0 : _a.blockquote));
-    }
+    const extensions = [];
     if (this.options.bold !== false) {
-      extensions2.push(Bold.configure((_b = this.options) === null || _b === void 0 ? void 0 : _b.bold));
+      extensions.push(Bold.configure((_a = this.options) === null || _a === void 0 ? void 0 : _a.bold));
+    }
+    if (this.options.blockquote !== false) {
+      extensions.push(Blockquote.configure((_b = this.options) === null || _b === void 0 ? void 0 : _b.blockquote));
     }
     if (this.options.bulletList !== false) {
-      extensions2.push(BulletList.configure((_c = this.options) === null || _c === void 0 ? void 0 : _c.bulletList));
+      extensions.push(BulletList.configure((_c = this.options) === null || _c === void 0 ? void 0 : _c.bulletList));
     }
     if (this.options.code !== false) {
-      extensions2.push(Code.configure((_d = this.options) === null || _d === void 0 ? void 0 : _d.code));
+      extensions.push(Code.configure((_d = this.options) === null || _d === void 0 ? void 0 : _d.code));
     }
     if (this.options.codeBlock !== false) {
-      extensions2.push(CodeBlock.configure((_e = this.options) === null || _e === void 0 ? void 0 : _e.codeBlock));
+      extensions.push(CodeBlock.configure((_e = this.options) === null || _e === void 0 ? void 0 : _e.codeBlock));
     }
     if (this.options.document !== false) {
-      extensions2.push(Document.configure((_f = this.options) === null || _f === void 0 ? void 0 : _f.document));
+      extensions.push(Document.configure((_f = this.options) === null || _f === void 0 ? void 0 : _f.document));
     }
     if (this.options.dropcursor !== false) {
-      extensions2.push(Dropcursor.configure((_g = this.options) === null || _g === void 0 ? void 0 : _g.dropcursor));
+      extensions.push(Dropcursor.configure((_g = this.options) === null || _g === void 0 ? void 0 : _g.dropcursor));
     }
     if (this.options.gapcursor !== false) {
-      extensions2.push(Gapcursor.configure((_h = this.options) === null || _h === void 0 ? void 0 : _h.gapcursor));
+      extensions.push(Gapcursor.configure((_h = this.options) === null || _h === void 0 ? void 0 : _h.gapcursor));
     }
     if (this.options.hardBreak !== false) {
-      extensions2.push(HardBreak.configure((_j = this.options) === null || _j === void 0 ? void 0 : _j.hardBreak));
+      extensions.push(HardBreak.configure((_j = this.options) === null || _j === void 0 ? void 0 : _j.hardBreak));
     }
     if (this.options.heading !== false) {
-      extensions2.push(Heading.configure((_k = this.options) === null || _k === void 0 ? void 0 : _k.heading));
+      extensions.push(Heading.configure((_k = this.options) === null || _k === void 0 ? void 0 : _k.heading));
     }
     if (this.options.history !== false) {
-      extensions2.push(History.configure((_l = this.options) === null || _l === void 0 ? void 0 : _l.history));
+      extensions.push(History.configure((_l = this.options) === null || _l === void 0 ? void 0 : _l.history));
     }
     if (this.options.horizontalRule !== false) {
-      extensions2.push(HorizontalRule.configure((_m = this.options) === null || _m === void 0 ? void 0 : _m.horizontalRule));
+      extensions.push(HorizontalRule.configure((_m = this.options) === null || _m === void 0 ? void 0 : _m.horizontalRule));
     }
     if (this.options.italic !== false) {
-      extensions2.push(Italic.configure((_o = this.options) === null || _o === void 0 ? void 0 : _o.italic));
+      extensions.push(Italic.configure((_o = this.options) === null || _o === void 0 ? void 0 : _o.italic));
     }
     if (this.options.listItem !== false) {
-      extensions2.push(ListItem.configure((_p = this.options) === null || _p === void 0 ? void 0 : _p.listItem));
+      extensions.push(ListItem.configure((_p = this.options) === null || _p === void 0 ? void 0 : _p.listItem));
     }
     if (this.options.orderedList !== false) {
-      extensions2.push(OrderedList.configure((_q = this.options) === null || _q === void 0 ? void 0 : _q.orderedList));
+      extensions.push(OrderedList.configure((_q = this.options) === null || _q === void 0 ? void 0 : _q.orderedList));
     }
     if (this.options.paragraph !== false) {
-      extensions2.push(Paragraph.configure((_r = this.options) === null || _r === void 0 ? void 0 : _r.paragraph));
+      extensions.push(Paragraph.configure((_r = this.options) === null || _r === void 0 ? void 0 : _r.paragraph));
     }
     if (this.options.strike !== false) {
-      extensions2.push(Strike.configure((_s = this.options) === null || _s === void 0 ? void 0 : _s.strike));
+      extensions.push(Strike.configure((_s = this.options) === null || _s === void 0 ? void 0 : _s.strike));
     }
     if (this.options.text !== false) {
-      extensions2.push(Text.configure((_t = this.options) === null || _t === void 0 ? void 0 : _t.text));
+      extensions.push(Text.configure((_t = this.options) === null || _t === void 0 ? void 0 : _t.text));
     }
-    return extensions2;
+    return extensions;
   }
 });
 
@@ -21154,6 +21601,15 @@ function find(str, type = null, opts = null) {
 }
 
 // node_modules/@tiptap/extension-link/dist/index.js
+function isValidLinkStructure(tokens) {
+  if (tokens.length === 1) {
+    return tokens[0].isLink;
+  }
+  if (tokens.length === 3 && tokens[1].isLink) {
+    return ["()", "[]"].includes(tokens[0].value + tokens[2].value);
+  }
+  return false;
+}
 function autolink(options) {
   return new Plugin({
     key: new PluginKey("autolink"),
@@ -21187,7 +21643,11 @@ function autolink(options) {
           if (!lastWordBeforeSpace) {
             return false;
           }
-          find(lastWordBeforeSpace).filter((link) => link.isLink).map((link) => ({
+          const linksBeforeSpace = tokenize(lastWordBeforeSpace).map((t) => t.toObject(options.defaultProtocol));
+          if (!isValidLinkStructure(linksBeforeSpace)) {
+            return false;
+          }
+          linksBeforeSpace.filter((link) => link.isLink).map((link) => ({
             ...link,
             from: lastWordAndBlockOffset + link.start + 1,
             to: lastWordAndBlockOffset + link.end + 1
@@ -21196,12 +21656,7 @@ function autolink(options) {
               return true;
             }
             return !newState.doc.rangeHasMark(link.from, link.to, newState.schema.marks.code);
-          }).filter((link) => {
-            if (options.validate) {
-              return options.validate(link.value);
-            }
-            return true;
-          }).forEach((link) => {
+          }).filter((link) => options.validate(link.value)).forEach((link) => {
             if (getMarksBetween(link.from, link.to, newState.doc).some((item) => item.mark.type === options.type)) {
               return;
             }
@@ -21227,8 +21682,16 @@ function clickHandler(options) {
         if (event.button !== 0) {
           return false;
         }
-        const eventTarget = event.target;
-        if (eventTarget.nodeName !== "A") {
+        if (!view.editable) {
+          return false;
+        }
+        let a = event.target;
+        const els = [];
+        while (a.nodeName !== "DIV") {
+          els.push(a);
+          a = a.parentNode;
+        }
+        if (!els.find((value) => value.nodeName === "A")) {
           return false;
         }
         const attrs = getAttributes(view.state, options.type.name);
@@ -21236,9 +21699,7 @@ function clickHandler(options) {
         const href = (_a = link === null || link === void 0 ? void 0 : link.href) !== null && _a !== void 0 ? _a : attrs.href;
         const target = (_b = link === null || link === void 0 ? void 0 : link.target) !== null && _b !== void 0 ? _b : attrs.target;
         if (link && href) {
-          if (view.editable) {
-            window.open(href, target);
-          }
+          window.open(href, target);
           return true;
         }
         return false;
@@ -21251,7 +21712,6 @@ function pasteHandler(options) {
     key: new PluginKey("handlePasteLink"),
     props: {
       handlePaste: (view, event, slice2) => {
-        var _a;
         const { state } = view;
         const { selection } = state;
         const { empty: empty2 } = selection;
@@ -21262,26 +21722,28 @@ function pasteHandler(options) {
         slice2.content.forEach((node) => {
           textContent += node.textContent;
         });
-        const link = find(textContent).find((item) => item.isLink && item.value === textContent);
+        const link = find(textContent, { defaultProtocol: options.defaultProtocol }).find((item) => item.isLink && item.value === textContent);
         if (!textContent || !link) {
           return false;
         }
-        const html = (_a = event.clipboardData) === null || _a === void 0 ? void 0 : _a.getData("text/html");
-        const hrefRegex = /href="([^"]*)"/;
-        const existingLink = html === null || html === void 0 ? void 0 : html.match(hrefRegex);
-        const url = existingLink ? existingLink[1] : link.href;
         options.editor.commands.setMark(options.type, {
-          href: url
+          href: link.href
         });
         return true;
       }
     }
   });
 }
+var ATTR_WHITESPACE = /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g;
+var IS_ALLOWED_URI = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+function isAllowedUri(uri) {
+  return !uri || uri.replace(ATTR_WHITESPACE, "").match(IS_ALLOWED_URI);
+}
 var Link = Mark2.create({
   name: "link",
   priority: 1e3,
   keepOnSplit: false,
+  exitable: true,
   onCreate() {
     this.options.protocols.forEach((protocol) => {
       if (typeof protocol === "string") {
@@ -21303,18 +21765,22 @@ var Link = Mark2.create({
       linkOnPaste: true,
       autolink: true,
       protocols: [],
+      defaultProtocol: "http",
       HTMLAttributes: {
         target: "_blank",
         rel: "noopener noreferrer nofollow",
         class: null
       },
-      validate: void 0
+      validate: (url) => !!url
     };
   },
   addAttributes() {
     return {
       href: {
-        default: null
+        default: null,
+        parseHTML(element) {
+          return element.getAttribute("href");
+        }
       },
       target: {
         default: this.options.HTMLAttributes.target
@@ -21328,11 +21794,19 @@ var Link = Mark2.create({
     };
   },
   parseHTML() {
-    return [{ tag: 'a[href]:not([href *= "javascript:" i])' }];
+    return [{
+      tag: "a[href]",
+      getAttrs: (dom) => {
+        const href = dom.getAttribute("href");
+        if (!href || !isAllowedUri(href)) {
+          return false;
+        }
+        return null;
+      }
+    }];
   },
   renderHTML({ HTMLAttributes }) {
-    var _a;
-    if ((_a = HTMLAttributes.href) === null || _a === void 0 ? void 0 : _a.startsWith("javascript:")) {
+    if (!isAllowedUri(HTMLAttributes.href)) {
       return ["a", mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href: "" }), 0];
     }
     return ["a", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
@@ -21353,29 +21827,28 @@ var Link = Mark2.create({
   addPasteRules() {
     return [
       markPasteRule({
-        find: (text) => find(text).filter((link) => {
-          if (this.options.validate) {
-            return this.options.validate(link.value);
+        find: (text) => {
+          const foundLinks = [];
+          if (text) {
+            const { validate } = this.options;
+            const links = find(text).filter((item) => item.isLink && validate(item.value));
+            if (links.length) {
+              links.forEach((link) => foundLinks.push({
+                text: link.value,
+                data: {
+                  href: link.href
+                },
+                index: link.start
+              }));
+            }
           }
-          return true;
-        }).filter((link) => link.isLink).map((link) => ({
-          text: link.value,
-          index: link.start,
-          data: link
-        })),
+          return foundLinks;
+        },
         type: this.type,
-        getAttributes: (match, pasteEvent) => {
-          var _a, _b;
-          const html = (_a = pasteEvent === null || pasteEvent === void 0 ? void 0 : pasteEvent.clipboardData) === null || _a === void 0 ? void 0 : _a.getData("text/html");
-          const hrefRegex = /href="([^"]*)"/;
-          const existingLink = html === null || html === void 0 ? void 0 : html.match(hrefRegex);
-          if (existingLink) {
-            return {
-              href: existingLink[1]
-            };
-          }
+        getAttributes: (match) => {
+          var _a;
           return {
-            href: (_b = match.data) === null || _b === void 0 ? void 0 : _b.href
+            href: (_a = match.data) === null || _a === void 0 ? void 0 : _a.href
           };
         }
       })
@@ -21386,10 +21859,11 @@ var Link = Mark2.create({
     if (this.options.autolink) {
       plugins.push(autolink({
         type: this.type,
+        defaultProtocol: this.options.defaultProtocol,
         validate: this.options.validate
       }));
     }
-    if (this.options.openOnClick) {
+    if (this.options.openOnClick === true) {
       plugins.push(clickHandler({
         type: this.type
       }));
@@ -21397,6 +21871,7 @@ var Link = Mark2.create({
     if (this.options.linkOnPaste) {
       plugins.push(pasteHandler({
         editor: this.editor,
+        defaultProtocol: this.options.defaultProtocol,
         type: this.type
       }));
     }
@@ -23189,6 +23664,31 @@ var TableView2 = class {
     return mutation.type === "attributes" && (mutation.target === this.table || this.colgroup.contains(mutation.target));
   }
 };
+function createColGroup(node, cellMinWidth, overrideCol, overrideValue) {
+  let totalWidth = 0;
+  let fixedWidth = true;
+  const cols = [];
+  const row = node.firstChild;
+  if (!row) {
+    return {};
+  }
+  for (let i2 = 0, col = 0; i2 < row.childCount; i2 += 1) {
+    const { colspan, colwidth } = row.child(i2).attrs;
+    for (let j = 0; j < colspan; j += 1, col += 1) {
+      const hasWidth = overrideCol === col ? overrideValue : colwidth && colwidth[j];
+      const cssWidth = hasWidth ? `${hasWidth}px` : "";
+      totalWidth += hasWidth || cellMinWidth;
+      if (!hasWidth) {
+        fixedWidth = false;
+      }
+      cols.push(["col", cssWidth ? { style: `width: ${cssWidth}` } : {}]);
+    }
+  }
+  const tableWidth = fixedWidth ? `${totalWidth}px` : "";
+  const tableMinWidth = fixedWidth ? "" : `${totalWidth}px`;
+  const colgroup = ["colgroup", {}, ...cols];
+  return { colgroup, tableWidth, tableMinWidth };
+}
 function createCell(cellType, cellContent) {
   if (cellContent) {
     return cellType.createChecked(null, cellContent);
@@ -23280,15 +23780,24 @@ var Table = Node2.create({
   parseHTML() {
     return [{ tag: "table" }];
   },
-  renderHTML({ HTMLAttributes }) {
-    return ["table", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), ["tbody", 0]];
+  renderHTML({ node, HTMLAttributes }) {
+    const { colgroup, tableWidth, tableMinWidth } = createColGroup(node, this.options.cellMinWidth);
+    const table = [
+      "table",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        style: tableWidth ? `width: ${tableWidth}` : `min-width: ${tableMinWidth}`
+      }),
+      colgroup,
+      ["tbody", 0]
+    ];
+    return table;
   },
   addCommands() {
     return {
       insertTable: ({ rows = 3, cols = 3, withHeaderRow = true } = {}) => ({ tr: tr2, dispatch, editor }) => {
         const node = createTable(editor.schema, rows, cols, withHeaderRow);
         if (dispatch) {
-          const offset2 = tr2.selection.anchor + 1;
+          const offset2 = tr2.selection.from + 1;
           tr2.replaceSelectionWith(node).scrollIntoView().setSelection(TextSelection.near(tr2.doc.resolve(offset2)));
         }
         return true;
@@ -23384,10 +23893,7 @@ var Table = Node2.create({
         columnResizing({
           handleWidth: this.options.handleWidth,
           cellMinWidth: this.options.cellMinWidth,
-          // @ts-ignore (incorrect type)
           View: this.options.View,
-          // TODO: PR for @types/prosemirror-tables
-          // @ts-ignore (incorrect type)
           lastColumnResizable: this.options.lastColumnResizable
         })
       ] : [],
@@ -26373,7 +26879,7 @@ var BubbleMenuView = class {
   }
   update(view, oldState) {
     const { state } = view;
-    const hasValidSelection = state.selection.$from.pos !== state.selection.$to.pos;
+    const hasValidSelection = state.selection.from !== state.selection.to;
     if (this.updateDelay > 0 && hasValidSelection) {
       this.handleDebouncedUpdate(view, oldState);
       return;
