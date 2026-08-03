@@ -963,8 +963,8 @@ Alpine.data("docComponent", () => ({
       if (md === current) return;
       try {
         await store.saveDocumentSilent(store.currentPath, { content: md, summary: store.document?.summary || "" });
-        // 保存成功且之前有离线草稿 → 清理
-        await this._draftClear(store.currentPath);
+        // 保存成功且之前有离线草稿 → 清理（_draftDelete 为模块级函数）
+        await _draftDelete(store.currentPath);
         if (store.draftBanner) store.draftBanner = false;
       } catch (e) {
         // 锁冲突/路径错误不是离线：不写草稿（静默，等锁释放或用户操作）

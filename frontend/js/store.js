@@ -364,6 +364,14 @@ document.addEventListener("alpine:init", () => {
       this.draftInfo = null;
     },
 
+    /** 横幅「放弃草稿」→ 删除本地草稿并隐藏（内容以线上为准） */
+    async discardDraft() {
+      const path = this.currentPath;
+      try { await _draftDelete(path); } catch (e) { /* 忽略 */ }
+      this.draftBanner = false;
+      this.draftInfo = null;
+    },
+
     /**
      * 检查锁状态
      */

@@ -262,6 +262,7 @@
           </svg>
           <span x-text="$store.app.backendOffline ? '服务已断开，编辑已保存至本地草稿' : '有未同步的本地草稿'"></span>
           <button class="draft-banner__btn" @click="Alpine.store('app').syncDraft()">立即同步</button>
+          <button class="draft-banner__btn" @click="Alpine.store('app').discardDraft()">放弃草稿</button>
           <button class="draft-banner__btn" @click="Alpine.store('app').dismissDraft()">忽略</button>
         </div>
       </div>
