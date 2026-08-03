@@ -353,16 +353,35 @@ Alpine.data("docComponent", () => ({
     /** 点击正文 → 进入编辑 */
     async enterEdit() {
       const store = Alpine.store("app");
-      if (store.isLocked) return;
-      this._editingPath = store.currentPath; // 记录编辑的文档，返回/导航后仍能正确保存
-      let content = store.htmlContent;
-      if (!content || !content.trim()) {
-        await store.loadDocument(store.currentPath);
-        content = store.htmlContent;
+      if (store.isLocked || this._entering) return;
+      this._entering = true; // 重入锁：防止 $nextTick 竞态下多次初始化编辑器
+      try {
+        this._editingPath = store.currentPath; // 记录编辑的文档，返回/导航后仍能正确保存
+        let content = store.htmlContent;
+        if (!content || !content.trim()) {
+          await store.loadDocument(store.currentPath);
+          content = store.htmlContent;
+        }
+        store.setView("edit", store.currentPath);
+        await new Promise(r => this.$nextTick(r));
+        this.initEditor(content);
+      } finally {
+        this._entering = false;
       }
-      store.setView("edit", store.currentPath);
-      await new Promise(r => this.$nextTick(r));
-      this.initEditor(content);
+    },
+
+    /**
+     * 编辑区点击处理：仅当点击真正发生在编辑器容器外部时才退出编辑。
+     * 不用 @click.outside —— ProseMirror 在 selection 变化时重建 DOM，
+     * click 的 target 可能变成已脱离文档的节点，contains() 误判为外部，
+     * 导致拖选文字时误退出编辑。
+     */
+    onEditorAreaClick(e) {
+      if (!e || !e.target) return;
+      const shell = this.$el.querySelector(".editor-shell");
+      if (!shell) return;
+      const inEditor = e.target.isConnected && shell.contains(e.target);
+      if (!inEditor) this.exitEdit();
     },
 
     /** 点击外部 → 退出编辑并保存 */

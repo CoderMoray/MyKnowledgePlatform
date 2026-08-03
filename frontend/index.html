@@ -765,7 +765,7 @@
 
             <!-- 正文: 编辑态（TipTap 就地编辑） -->
             <div x-show="$store.app.currentView === 'edit'">
-              <div class="editor-shell" @click.outside="exitEdit()">
+              <div class="editor-shell" @click="onEditorAreaClick($event)">
                 <!-- TipTap 编辑器 -->
                 <div class="editor-content">
                   <div id="tiptap-editor"></div>
