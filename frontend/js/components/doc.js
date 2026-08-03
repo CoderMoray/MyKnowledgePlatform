@@ -620,6 +620,14 @@ Alpine.data("docComponent", () => ({
               const section = a.dataset.refSection ? "::" + a.dataset.refSection : "";
               a.setAttribute("href", "ref:" + a.dataset.refPath + section);
             });
+            // 代码块净化：阅读态 HTML 里的代码已被 hljs 高亮（含 span），
+            // 且可能含未转义的 HTML（marked 对部分内容原样输出）。
+            // 这里还原为纯文本（textContent 赋值会自动转义 < > &），
+            // 避免 TipTap 把代码内容当 HTML 解析（裸标签 → hljs unescaped 警告 / 结构破坏）。
+            tmp.querySelectorAll("pre code").forEach(code => {
+              const text = code.textContent; // 提取纯文本（去掉 hljs span）
+              code.textContent = text;       // 重新赋值：浏览器自动转义 < > &，防裸标签
+            });
             editor.commands.setContent(tmp.innerHTML);
           }
         },
@@ -716,14 +724,9 @@ Alpine.data("docComponent", () => ({
         };
         setTimeout(retryBind, 500);
       }
-
-      requestAnimationFrame(() => {
-        if (typeof hljs !== "undefined") {
-          el.querySelectorAll("pre code").forEach((block) => {
-            hljs.highlightElement(block);
-          });
-        }
-      });
+      // 注意：编辑态不跑 highlight.js —— hljs 会改写 code 的 innerHTML，
+      // 破坏 ProseMirror 的 DOM 同步（引发 mismatch/光标错乱），且对代码内容
+      // 做未转义检查会产生安全警告。代码高亮只在阅读态（renderer.js）做。
     },
 
     async waitForTipTap() {
