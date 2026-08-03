@@ -561,7 +561,6 @@ Alpine.data("docComponent", () => ({
         TT.TableRow || null,
         TT.TableCell || null,
         TT.TableHeader || null,
-        TM.BubbleMenu ? this._buildBubbleMenuExtension(TM.BubbleMenu) : null,
         TM.SlashCommand ? TM.SlashCommand.configure(this._buildSlashOptions(TM.SlashCommand)) : null,
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
@@ -595,6 +594,8 @@ Alpine.data("docComponent", () => ({
 
       // 自动保存：update 事件 → debounce（任务 14 实现）
       this._setupAutosave();
+      // 浮动格式条：自实现定位（绕开官方 BubbleMenu 的 tippy 依赖）
+      this._setupBubbleMenu();
       // 关页面前强制写草稿
       this._bindBeforeUnloadDraft();
 
@@ -698,9 +699,13 @@ Alpine.data("docComponent", () => ({
 
     /* --- BubbleMenu / SlashCommand --- */
 
-    /** 构建 BubbleMenu 扩展（选中文字浮出格式条，飞书浮动工具栏同款） */
-    _buildBubbleMenuExtension(BubbleMenuCls) {
-      // tippy destroy 会把 element 移出 DOM，每次进入编辑都重建
+    /** 自实现浮动格式条：监听 selection，手动定位显示（绕开官方 BubbleMenu 的 tippy） */
+    _setupBubbleMenu() {
+      const ed = _editorInstance;
+      if (!ed || this._bubbleBound) return;
+      this._bubbleBound = true;
+
+      // 构建按钮 DOM（一次性）
       const old = document.getElementById("bubble-menu");
       if (old) old.remove();
       const el = document.createElement("div");
@@ -708,7 +713,6 @@ Alpine.data("docComponent", () => ({
       el.className = "bubble-menu";
       const shell = document.querySelector(".editor-shell");
       (shell || document.body).appendChild(el);
-
       const defs = [
         { action: "bold", title: "加粗", label: "<b>B</b>" },
         { action: "italic", title: "斜体", label: "<i>I</i>" },
@@ -729,30 +733,36 @@ Alpine.data("docComponent", () => ({
         btn.title = d.title;
         btn.dataset.bubbleAction = d.action;
         btn.innerHTML = d.label;
+        btn.addEventListener("mousedown", (e) => e.preventDefault()); // 防止编辑器失焦丢选区
         btn.addEventListener("click", () => this._bubbleAction(d.action));
         el.appendChild(btn);
       });
 
-      return BubbleMenuCls.configure({
-        element: el,
-        update: ({ editor }) => {
-          const sel = editor.state.selection;
-          const hasSel = !sel.empty;
-          const isLink = editor.isActive("link");
-          el.classList.toggle("is-active", hasSel || isLink);
-          if (!hasSel && !isLink) return;
-          el.querySelectorAll("[data-bubble-action]").forEach(b => {
-            const act = b.dataset.bubbleAction;
-            let active = false;
-            if (act === "bold") active = editor.isActive("bold");
-            else if (act === "italic") active = editor.isActive("italic");
-            else if (act === "strike") active = editor.isActive("strike");
-            else if (act === "code") active = editor.isActive("code");
-            else if (act === "link") active = isLink;
-            b.classList.toggle("is-active", active);
-          });
-        },
-      });
+      // selection 变化 → 显示/隐藏 + 定位
+      const update = () => {
+        if (!ed.isFocused && ed.state.selection.empty) { el.classList.remove("is-active"); return; }
+        const sel = ed.state.selection;
+        const hasSel = !sel.empty;
+        const isLink = ed.isActive("link");
+        if (!hasSel && !isLink) { el.classList.remove("is-active"); return; }
+        // 定位到选区（to 端）
+        const coords = ed.view.coordsAtPos(sel.to);
+        el.style.left = Math.min(coords.left, window.innerWidth - 200) + "px";
+        el.style.top = (coords.top - 44) + "px";
+        el.classList.add("is-active");
+        el.querySelectorAll("[data-bubble-action]").forEach(b => {
+          const act = b.dataset.bubbleAction;
+          let active = false;
+          if (act === "bold") active = ed.isActive("bold");
+          else if (act === "italic") active = ed.isActive("italic");
+          else if (act === "strike") active = ed.isActive("strike");
+          else if (act === "code") active = ed.isActive("code");
+          else if (act === "link") active = isLink;
+          b.classList.toggle("is-active", active);
+        });
+      };
+      ed.on("selectionUpdate", update);
+      ed.on("transaction", update);
     },
 
     /** BubbleMenu 按钮点击分发 */
