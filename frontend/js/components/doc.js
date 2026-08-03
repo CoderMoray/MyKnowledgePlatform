@@ -75,9 +75,37 @@ Alpine.data("docComponent", () => ({
         store.loadDocument(path);
       }
 
+      // 任何方式离开编辑态（返回按钮在编辑器外、侧边栏、路由切换）→ 保存并销毁编辑器，
+      // 防止旧文档内容残留串台到下一个文档
+      Alpine.effect(() => {
+        const v = store.currentView;
+        if (this._lastEditView === "edit" && v !== "edit" && _editorInstance) {
+          this._saveAndDestroy();
+        }
+        this._lastEditView = v;
+      });
+
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
       this.$nextTick(() => this._bindViewerRefLinks(store));
+    },
+
+    /** 离开编辑态兜底：保存当前编辑内容并销毁编辑器（幂等，exitEdit 已处理后这里直接跳过） */
+    async _saveAndDestroy() {
+      if (!_editorInstance) return;
+      const store = Alpine.store("app");
+      const path = this._editingPath || store.currentPath;
+      const fullMd = this._editorToMarkdown();
+      if (fullMd) {
+        try {
+          await store.saveDocumentSilent(path, { content: fullMd, summary: store.document?.summary || "" });
+        } catch (e) { /* 失败不打断导航，自动保存/草稿兜底 */ }
+      }
+      _editorInstance.destroy();
+      _editorInstance = null;
+      window.__mykEditor = null;
+      this._editingPath = null;
+      this.editorReady = false;
     },
 
     /* --- 阅读态 --- */
@@ -524,9 +552,17 @@ Alpine.data("docComponent", () => ({
 
     async initEditor(initialContent) {
       const el = document.getElementById("tiptap-editor");
-      if (!el || _editorInstance) return;
-
+      if (!el) return;
+      // 保险：编辑器已存在但文档已切换（上一轮保存兜底竞态漏掉）→ 强制重建，防止内容串台
       const store = Alpine.store("app");
+      if (_editorInstance) {
+        const editing = this._editingPath || store.currentPath;
+        if (editing === store.currentPath) return; // 同一文档再次进入 → 保持
+        _editorInstance.destroy();
+        _editorInstance = null;
+        window.__mykEditor = null;
+        this.editorReady = false;
+      }
 
       await this.waitForTipTap();
 
