@@ -1081,8 +1081,8 @@ Alpine.data("docComponent", () => ({
           if (!block || !block.empty) { btn.classList.remove("is-visible"); currentBlock = null; return; }
           currentBlock = block.start;
           const coords = ed.view.coordsAtPos(block.start);
-          const editorRect = dom.getBoundingClientRect();
-          btn.style.left = Math.max(4, editorRect.left - 34) + "px";
+          // 按钮贴近行首（行首 x - 24px；当前 -34 距行首偏远）
+          btn.style.left = Math.max(4, coords.left - 24) + "px";
           btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
           btn.classList.add("is-visible");
         }, 30);

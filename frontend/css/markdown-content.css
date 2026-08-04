@@ -4,7 +4,7 @@
    ========================================================================== */
 
 .markdown-body {
-  font-size: var(--text-md);
+  font-size: 16px; /* 飞书同款：正文 16px（原 --text-md 14px 偏小，行高显矮） */
   line-height: var(--leading-relaxed);
   color: var(--text-primary);
   word-wrap: break-word;
