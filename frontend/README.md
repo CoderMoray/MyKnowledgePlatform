@@ -149,21 +149,9 @@ python3 build.py    # 重新内联生成 standalone
 
 ## 依赖
 
-全部 CDN 加载，零 npm install：
+全部 CDN 加载，零 npm install。CDN import map 定义在 `index.html` 的 `<script type="importmap">` 块中。
 
-| 库 | 版本 | 来源 | 作用 |
-|----|------|------|------|
-| alpinejs | 3.13.5 | jsdelivr | SPA 框架 |
-| marked | 11.1.1 | jsdelivr | MD→HTML |
-| highlight.js | 11.9.0 | jsdelivr | 代码高亮 |
-| turndown | 7.1.3 | jsdelivr | HTML→MD |
-| @tiptap/core | 2.1.13 | jsdelivr | 编辑器内核 |
-| @tiptap/starter-kit | 2.1.13 | jsdelivr | 编辑器扩展 |
-| @tiptap/extension-link | 2.1.13 | jsdelivr | 链接编辑 |
-| @tiptap/extension-table* | 2.1.13 | jsdelivr | 表格编辑 |
-| Gravatar | — | — | 作者头像 |
-
-CDN import map 定义在 `index.html` 的 `<script type="importmap">` 块中。
+**版本锁定清单见项目根目录 [`DEPENDENCIES.md`](../DEPENDENCIES.md)（前端 + 后端统一记录）。** 升级依赖时同步更新该文件。
 
 ### 已知 Patch：Link 扩展 href 序列化
 

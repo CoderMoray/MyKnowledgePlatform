@@ -470,7 +470,9 @@ document.addEventListener("alpine:init", () => {
         const view = this.currentView;
         if (view === "dashboard") this.loadDashboard();
         else if (view === "project" && this.currentPath) this.loadProjectDocuments(this.currentPath);
-        else if ((view === "view" || view === "edit") && this.currentPath) this.loadDocument(this.currentPath);
+        // 仅阅读态重载（实时同步）；编辑态不重载——保护正在编辑的内容，
+        // 且保持旧 version：用户保存时 expected_version 不匹配 → 409 → diff 冲突弹窗
+        else if (view === "view" && this.currentPath) this.loadDocument(this.currentPath);
       });
 
       // 处理初始 hash
