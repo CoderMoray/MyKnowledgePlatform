@@ -801,6 +801,7 @@ Alpine.data("docComponent", () => ({
       this._setupAutosave();
       // 浮动格式条：自实现定位（绕开官方 BubbleMenu 的 tippy 依赖）
       this._setupBubbleMenu();
+      this._setupPlusMenu();
       // 关页面前强制写草稿
       this._bindBeforeUnloadDraft();
 
@@ -1028,6 +1029,129 @@ Alpine.data("docComponent", () => ({
       const dd = document.getElementById("block-dropdown");
       if (dd) dd.classList.remove("is-active");
       this._blockDropdownOpen = false;
+    },
+
+    /**
+     * 行首 + 插入按钮（飞书同款）：mousemove 检测当前块 → 按钮定位到编辑器左边缘；
+     * 点击弹出插入菜单（复用 _slashItems，同款 UI/命令）；选择后在块位置插入。
+     */
+    _setupPlusMenu() {
+      const ed = _editorInstance;
+      if (!ed || this._plusBound) return;
+      this._plusBound = true;
+      const store = Alpine.store("app");
+      const dom = ed.view.dom;
+      const btn = document.getElementById("plus-btn");
+      const menu = document.getElementById("plus-menu");
+      if (!btn || !menu) return;
+      let currentBlock = null; // 当前鼠标所在块起点 pos
+
+      // 块起点：posAtCoords → resolve → 向上找 block 节点起点
+      // 边界兜底：pos 落在块边界时 resolve.depth 可能为 0（doc 层），试 pos+1 / pos-1
+      const findBlockStart = (pos) => {
+        if (pos == null) return null;
+        const tryResolve = (p) => {
+          if (p < 0 || p > ed.state.doc.content.size) return null;
+          const resolved = ed.state.doc.resolve(p);
+          for (let d = resolved.depth; d >= 0; d--) {
+            const node = resolved.node(d);
+            if (node && node.isBlock && node.type.name !== "doc") {
+              return Math.max(0, resolved.before(d) + 1);
+            }
+          }
+          return null;
+        };
+        return tryResolve(pos) || tryResolve(pos + 1) || tryResolve(Math.max(0, pos - 1));
+      };
+
+      // mousemove：定位 + 按钮（仅编辑态；菜单打开时保持不动）
+      let moveTimer = null;
+      dom.addEventListener("mousemove", (e) => {
+        if (store.currentView !== "edit" || this._plusMenuOpen) return;
+        if (moveTimer) clearTimeout(moveTimer);
+        moveTimer = setTimeout(() => {
+          const hit = ed.view.posAtCoords({ left: e.clientX, top: e.clientY });
+          const pos = hit ? hit.pos : null; // posAtCoords 返回 {pos, inside}
+          const blockStart = findBlockStart(pos);
+          if (blockStart == null) { btn.classList.remove("is-visible"); currentBlock = null; return; }
+          currentBlock = blockStart;
+          const coords = ed.view.coordsAtPos(blockStart);
+          const editorRect = dom.getBoundingClientRect();
+          btn.style.left = Math.max(4, editorRect.left - 34) + "px";
+          btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
+          btn.classList.add("is-visible");
+        }, 30);
+      });
+      dom.addEventListener("mouseleave", () => {
+        if (!this._plusMenuOpen) { btn.classList.remove("is-visible"); currentBlock = null; }
+      });
+
+      // 点击 +：光标移到块，弹出插入菜单
+      btn.addEventListener("mousedown", (e) => e.preventDefault());
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this._plusMenuOpen) { this._closePlusMenu(); return; }
+        if (currentBlock != null) ed.commands.setTextSelection(currentBlock);
+        this._renderPlusMenu(menu);
+        const r = btn.getBoundingClientRect();
+        menu.style.left = r.left + "px";
+        menu.style.top = (r.bottom + 4) + "px";
+        menu.classList.add("is-active");
+        btn.classList.add("is-open");
+        this._plusMenuOpen = true;
+      });
+
+      // 点击菜单外关闭（capture 先于 ProseMirror stopPropagation）
+      document.addEventListener("mousedown", (e) => {
+        if (!this._plusMenuOpen) return;
+        if (e.target && e.target.closest && !e.target.closest("#plus-menu")) this._closePlusMenu();
+      }, true);
+
+      // 编辑器更新后若块消失（如删除）→ 隐藏按钮
+      ed.on("transaction", () => {
+        if (!this._plusMenuOpen) {
+          const sel = ed.state.selection;
+          if (currentBlock != null && currentBlock > ed.state.doc.content.size) {
+            btn.classList.remove("is-visible");
+            currentBlock = null;
+          }
+        }
+      });
+    },
+
+    /** 渲染加号插入菜单（复用 _slashItems，表格内过滤表格项） */
+    _renderPlusMenu(menu) {
+      const list = menu.querySelector(".plus-menu__list");
+      if (!list) return;
+      list.innerHTML = "";
+      const inTable = _editorInstance ? _editorInstance.isActive("table") : false;
+      const items = this._slashItems.filter((it) => !(it.type === "table" && inTable));
+      items.forEach((item) => {
+        const div = document.createElement("div");
+        div.className = "plus-menu__item";
+        div.innerHTML =
+          '<span class="plus-menu__icon">' + item.icon + '</span>' +
+          '<div class="plus-menu__text">' +
+          '<div class="plus-menu__name">' + item.name + '</div>' +
+          '<div class="plus-menu__desc">' + item.desc + '</div>' +
+          '</div>';
+        div.addEventListener("mousedown", (e) => e.preventDefault());
+        div.addEventListener("click", () => {
+          item.run(_editorInstance);
+          this._closePlusMenu();
+          _editorInstance && _editorInstance.commands.focus();
+        });
+        list.appendChild(div);
+      });
+    },
+
+    _closePlusMenu() {
+      const menu = document.getElementById("plus-menu");
+      if (menu) menu.classList.remove("is-active");
+      const btn = document.getElementById("plus-btn");
+      if (btn) btn.classList.remove("is-open");
+      this._plusMenuOpen = false;
     },
 
     /** BubbleMenu 按钮点击分发 */

@@ -539,3 +539,60 @@
 /* 冲突描述：新增/删除 词汇用对应颜色字体 */
 .conflict-desc--add { color: #1c7a3d; font-weight: 600; }
 .conflict-desc--del { color: #b03030; font-weight: 600; }
+
+/* ── 行首 + 插入按钮（飞书同款） ───────────────────────────────────────── */
+.plus-btn {
+  position: fixed;
+  z-index: 150;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: none;
+  background: var(--bg-primary, #fff);
+  color: var(--text-tertiary, #999);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  transition: color 0.12s, background 0.12s;
+}
+.plus-btn.is-visible { display: flex; }
+.plus-btn:hover { color: var(--accent, #534ab7); background: var(--bg-tertiary, #f0f0f0); }
+.plus-btn.is-open { color: var(--accent, #534ab7); }
+
+/* 加号插入菜单（复用 slash 菜单视觉） */
+.plus-menu {
+  position: fixed;
+  z-index: 160;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-primary, #fff);
+  border: 0.5px solid var(--border-subtle, #e6e6e6);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14);
+  padding: 4px;
+  display: none;
+}
+.plus-menu.is-active { display: block; }
+.plus-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.plus-menu__item:hover, .plus-menu__item--active { background: var(--bg-tertiary, #f0f0f0); }
+.plus-menu__icon {
+  width: 26px; height: 26px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-tertiary, #f0f0f0);
+  border-radius: 7px;
+  font-size: 12px; font-weight: 600; color: var(--text-secondary, #555);
+}
+.plus-menu__name { font-size: 13px; color: var(--text-primary, #1a1a1a); }
+.plus-menu__desc { font-size: 11px; color: var(--text-tertiary, #999); }
