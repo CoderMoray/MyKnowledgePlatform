@@ -62,21 +62,11 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       const path = store.currentPath;
 
-      // 切文档时销毁旧编辑器，防止内容串台
-      if (_editorInstance && this._lastDocPath !== path) {
-        _editorInstance.destroy();
-        _editorInstance = null;
-        window.__mykEditor = null;
-        this.editorReady = false;
-      }
-      this._lastDocPath = path;
-
       if (!store.document && path) {
         store.loadDocument(path);
       }
 
-      // 任何方式离开编辑态（返回按钮在编辑器外、侧边栏、路由切换）→ 保存并销毁编辑器，
-      // 防止旧文档内容残留串台到下一个文档
+      // 任何方式离开编辑态（返回按钮在编辑器外、侧边栏、路由切换）→ 保存并隐藏装饰
       Alpine.effect(() => {
         const v = store.currentView;
         if (this._lastEditView === "edit" && v !== "edit" && _editorInstance) {
@@ -85,14 +75,45 @@ Alpine.data("docComponent", () => ({
         this._lastEditView = v;
       });
 
+      // 单 DOM 核心：htmlContent 就绪 → 创建编辑器（view 态只读渲染）；切文档 → 更新内容。
+      // 统一走 effect，避免 loadDocument 与组件 init 的竞态（document 存在但 html 未就绪时漏创建）。
+      Alpine.effect(() => {
+        const h = store.htmlContent;
+        if (!h || !h.trim()) return;
+        if (!_editorInstance) {
+          this._ensureEditorForView(); // 内部有 _editorInstance 防重
+          return;
+        }
+        if (store.currentView !== "edit") {
+          const cur = _editorInstance.view ? _editorInstance.view.dom.innerHTML : "";
+          if (cur !== h) {
+            _editorInstance.commands.setContent(h);
+            _editorInstance.setEditable(false);
+          }
+        }
+      });
+
       this.titleValue = store.document?.title || "";
       this.summaryValue = store.document?.summary || "";
-      this.$nextTick(() => this._bindViewerRefLinks(store));
     },
 
-    /** 离开编辑态兜底：保存当前编辑内容并销毁编辑器（幂等，exitEdit 已处理后这里直接跳过） */
+    /** 单 DOM：确保编辑器已创建（阅读态也用它渲染，editable=false） */
+    async _ensureEditorForView() {
+      const store = Alpine.store("app");
+      if (_editorInstance || !store.htmlContent || !store.htmlContent.trim()) return;
+      await new Promise(r => this.$nextTick(r));
+      await this.initEditor(store.htmlContent);
+      if (_editorInstance) {
+        _editorInstance.setEditable(false);
+        this._bindEditorRefLinks(store);
+      }
+    },
+
+    /** 离开编辑态兜底：保存当前编辑内容并隐藏装饰（不销毁编辑器，单 DOM 复用） */
     async _saveAndDestroy() {
       if (!_editorInstance) return;
+      // exitEdit 正常退出已保存（_editingPath 已清空）→ 这里跳过，避免重复保存
+      if (!this._editingPath) return;
       const store = Alpine.store("app");
       const path = this._editingPath || store.currentPath;
       const fullMd = this._editorToMarkdown();
@@ -101,11 +122,10 @@ Alpine.data("docComponent", () => ({
           await store.saveDocumentSilent(path, { content: fullMd, summary: store.document?.summary || "" });
         } catch (e) { /* 失败不打断导航，自动保存/草稿兜底 */ }
       }
-      _editorInstance.destroy();
-      _editorInstance = null;
-      window.__mykEditor = null;
+      _editorInstance.setEditable(false);
+      this._hideEditDecorations();
       this._editingPath = null;
-      this.editorReady = false;
+      this.editorReady = true;
     },
 
     /* --- 阅读态 --- */
@@ -314,29 +334,34 @@ Alpine.data("docComponent", () => ({
       }
     },
 
-    _bindViewerRefLinks(store) {
-      const viewer = document.getElementById("viewer-content");
-      if (!viewer || this._viewerBound) return;
+    /** 单 DOM：在 ProseMirror 容器上委托绑定链接交互（hover 卡片 + 阅读态点击跳转） */
+    _bindEditorRefLinks(store) {
+      const ed = _editorInstance;
+      if (!ed || !ed.view || this._viewerBound) return;
       this._viewerBound = true;
       this._hoverTimer = null;
       const self = this;
+      const dom = ed.view.dom;
 
+      // ProseMirror 渲染的链接无 ref-link class，用 href 协议识别
       const findLink = (target) => {
         let el = target;
-        while (el && el !== viewer) {
+        while (el && el !== dom && el.nodeType === 1) {
           if (el.tagName === "A") {
-            if (el.classList.contains("ref-link")) return { el, type: "ref", path: el.dataset.refPath };
-            if (el.classList.contains("ext-link")) return { el, type: "ext", url: el.dataset.extLink };
+            const href = el.getAttribute("href") || "";
+            if (href.startsWith("ref:")) return { el, type: "ref", path: href.slice(4).replace(/%20/g, " ") };
+            if (href.startsWith("http")) return { el, type: "ext", url: href };
           }
           el = el.parentElement;
         }
         return null;
       };
 
-      viewer.addEventListener("mouseover", (e) => {
+      // hover 卡片：仅阅读态（editable=false 且未锁）
+      dom.addEventListener("mouseover", (e) => {
+        if (store.currentView !== "view" || store.isLocked) return;
         const link = findLink(e.target);
         if (!link) return;
-        if (store.editingMode || store.isLocked) return;
         clearTimeout(self._hoverTimer);
         self._hoverTimer = setTimeout(() => {
           if (link.type === "ext") {
@@ -347,11 +372,27 @@ Alpine.data("docComponent", () => ({
         }, 200);
       });
 
-      viewer.addEventListener("mouseout", (e) => {
+      dom.addEventListener("mouseout", (e) => {
         const link = findLink(e.relatedTarget);
         if (link) return;
         clearTimeout(self._hoverTimer);
         self._hoverTimer = setTimeout(() => self.closePopover(), 200);
+      });
+
+      // 阅读态点击链接：ref → 跳转目标文档；ext → 新窗口打开
+      dom.addEventListener("click", (e) => {
+        if (store.currentView !== "view") return;
+        const link = findLink(e.target);
+        if (!link) return;
+        e.preventDefault();
+        e.stopPropagation();
+        self._hideRefCard(true);
+        if (link.type === "ref") {
+          const target = link.path.split("::")[0]; // 去掉 section 定位
+          window.location.hash = "doc/" + hashEncode(target);
+        } else {
+          window.open(link.url, "_blank", "noopener");
+        }
       });
     },
 
@@ -389,21 +430,29 @@ Alpine.data("docComponent", () => ({
       this._entering = true; // 重入锁：防止 $nextTick 竞态下多次初始化编辑器
       try {
         this._editingPath = store.currentPath; // 记录编辑的文档，返回/导航后仍能正确保存
-        let content = store.htmlContent;
-        if (!content || !content.trim()) {
-          await store.loadDocument(store.currentPath);
-          content = store.htmlContent;
+        // 单 DOM：编辑器常驻，首次进入才创建，之后复用（内容/滚动保持）
+        if (!_editorInstance) {
+          let content = store.htmlContent;
+          if (!content || !content.trim()) {
+            await store.loadDocument(store.currentPath);
+            content = store.htmlContent;
+          }
+          await new Promise(r => this.$nextTick(r));
+          await this.initEditor(content);
+          this._bindEditorRefLinks(store);
         }
+        _editorInstance.setEditable(true);
+        _editorInstance.commands.focus();
         store.setView("edit", store.currentPath);
-        await new Promise(r => this.$nextTick(r));
-        this.initEditor(content);
       } finally {
         this._entering = false;
       }
     },
 
     /**
-     * 编辑区点击处理：仅当点击真正发生在编辑器容器外部时才退出编辑。
+     * 编辑区点击处理（单 DOM）：
+     * - 阅读态（view）：点击编辑器内部 → 进入编辑
+     * - 编辑态：仅当点击真正发生在编辑器容器外部时才退出编辑。
      * 不用 @click.outside —— ProseMirror 在 selection 变化时重建 DOM，
      * click 的 target 可能变成已脱离文档的节点，contains() 误判为外部，
      * 导致拖选文字时误退出编辑。
@@ -413,10 +462,16 @@ Alpine.data("docComponent", () => ({
       const shell = this.$el.querySelector(".editor-shell");
       if (!shell) return;
       const inEditor = e.target.isConnected && shell.contains(e.target);
+      const store = Alpine.store("app");
+      if (store.currentView !== "edit") {
+        // 阅读态：点击编辑器（且不是链接）→ 进入编辑
+        if (inEditor && !e.target.closest("a")) this.enterEdit();
+        return;
+      }
       if (!inEditor) this.exitEdit();
     },
 
-    /** 点击外部 → 退出编辑并保存 */
+    /** 点击外部 → 退出编辑并保存（单 DOM：只切只读，不销毁编辑器） */
     async exitEdit() {
       const store = Alpine.store("app");
       if (store.currentView !== "edit" || !_editorInstance) return;
@@ -430,7 +485,9 @@ Alpine.data("docComponent", () => ({
       const html = _editorInstance.view ? _editorInstance.view.dom.innerHTML : _editorInstance.getHTML();
       if (!html || html === "<p></p>" || html.trim() === "") {
         _editorInstance.setEditable(false);
+        this._hideEditDecorations();
         if (stillOnDoc) store.setView("view", path);
+        this._editingPath = null;
         return;
       }
 
@@ -441,17 +498,25 @@ Alpine.data("docComponent", () => ({
         } catch (e) {}
       }
 
-      // 销毁编辑器，下次进入重新创建（避免 ProseMirror 状态错乱）
-      if (_editorInstance) {
-        _editorInstance.destroy();
-        _editorInstance = null;
-      }
+      // 单 DOM：不销毁编辑器，切只读 + 隐藏编辑装饰；内容就是最新，无需重载
+      _editorInstance.setEditable(false);
+      this._hideEditDecorations();
       this._editingPath = null;
-      // 仅当用户仍停留在本文档时才切回阅读态并重载
       if (stillOnDoc) {
         store.setView("view", path);
-        store.loadDocument(path);
       }
+    },
+
+    /** 隐藏编辑态装饰（浮动条/斜杠菜单/锁遮罩） */
+    _hideEditDecorations() {
+      const bubble = document.getElementById("bubble-menu");
+      if (bubble) bubble.classList.remove("is-active");
+      const slash = document.getElementById("slash-menu");
+      if (slash) slash.classList.remove("is-active");
+      const overlay = document.getElementById("editor-lock-overlay");
+      if (overlay) overlay.remove();
+      const panel = document.getElementById("content-panel");
+      if (panel) panel.classList.remove("content-panel--locked", "content-panel--unlocking");
     },
 
     /** 编辑器 DOM → Markdown（exitEdit 与自动保存共用） */
@@ -844,6 +909,8 @@ Alpine.data("docComponent", () => ({
 
       // selection 变化 → 显示/隐藏 + 定位
       const update = () => {
+        // 单 DOM：只读态（阅读态）绝不弹浮动条——选中文字是复制行为，命令会改内容
+        if (!ed.isEditable) { el.classList.remove("is-active"); return; }
         if (!ed.isFocused && ed.state.selection.empty) { el.classList.remove("is-active"); return; }
         const sel = ed.state.selection;
         const hasSel = !sel.empty;

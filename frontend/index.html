@@ -72,7 +72,7 @@
   <script src="js/store.js?v=f93f03a293"></script>
   <script src="js/router.js?v=53fe46cc15"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=92c67db4c6"></script>
+  <script src="js/components/doc.js?v=605e2c07e2"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=3854c04775"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -756,29 +756,21 @@
               </div>
             </div>
 
-            <!-- 正文: 阅读态 -->
-            <div @click="enterEdit()" class="viewer__body-wrapper" x-show="$store.app.currentView === 'view'">
-            <div class="viewer__body markdown-body"
-                 id="viewer-content"
-                 x-html="$store.app.htmlContent">
-            </div>
-            </div>
+            <!-- 正文: 单容器（ProseMirror 常驻，editable 切换阅读/编辑态，飞书同款无闪烁） -->
+            <div class="editor-shell" @click="onEditorAreaClick($event)">
 
-            <!-- 正文: 编辑态（TipTap 就地编辑） -->
-            <div x-show="$store.app.currentView === 'edit'">
-              <div class="editor-shell" @click="onEditorAreaClick($event)">
-                <!-- TipTap 编辑器 -->
-                <div class="editor-content">
-                  <div id="tiptap-editor"></div>
-                </div>
+              <!-- TipTap 编辑器 -->
+              <div class="editor-content">
+                <div id="tiptap-editor"></div>
+              </div>
 
-                <!-- BubbleMenu：选中文字浮出格式条（内容由 JS 构建，避免与 TipTap DOM 冲突） -->
-                <div id="bubble-menu" class="bubble-menu" x-cloak></div>
 
-                <!-- SlashCommand：/ 唤出的插入菜单（内容由 JS 构建） -->
-                <div id="slash-menu" class="slash-menu" x-cloak>
-                  <div class="slash-menu__list"></div>
-                </div>
+              <!-- BubbleMenu：选中文字浮出格式条（内容由 JS 构建，避免与 TipTap DOM 冲突） -->
+              <div id="bubble-menu" class="bubble-menu" x-cloak></div>
+
+              <!-- SlashCommand：/ 唤出的插入菜单（内容由 JS 构建） -->
+              <div id="slash-menu" class="slash-menu" x-cloak>
+                <div class="slash-menu__list"></div>
               </div>
             </div>
 

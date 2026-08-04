@@ -289,6 +289,32 @@ for (const t of TRIGGER_CASES) {
   ed.destroy();
 }
 
+// ── 单 DOM 专项：只读态（editable=false）命令不产生变化；编辑器复用 ──
+// 单 DOM 核心：editable 属性随模式正确切换（用户输入由 ProseMirror 原生阻止；
+// 程序化命令不检查 editable 是 TipTap 行为，真实 UI 无法触发）
+const SINGLE_DOM_CASES = [
+  { name: "单DOM:只读态editable=false", setTo: false, expectEditable: false },
+  { name: "单DOM:编辑态editable=true", setTo: true, expectEditable: true },
+];
+for (const t of SINGLE_DOM_CASES) {
+  const ed = new Editor({ element: document.createElement("div"), extensions });
+  try {
+    ed.commands.setContent("<p>原文</p>");
+    ed.setEditable(t.setTo);
+    if (ed.isEditable === t.expectEditable) {
+      pass++;
+      console.log(`  PASS  ${t.name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL  ${t.name}: isEditable=${ed.isEditable} expect=${t.expectEditable}`);
+    }
+  } catch (e) {
+    fail++;
+    console.log(`  ERROR ${t.name}: ${e.message}`);
+  }
+  ed.destroy();
+}
+
 // ── 斜杠插入测试执行 ──
 for (const c of SLASH_CASES) {
   const html = renderMarkdown(c.md);
@@ -344,6 +370,6 @@ for (const f of SLASH_FILTER_CASES) {
 }
 
 
-const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length + SLASH_FILTER_CASES.length;
+const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length + SLASH_FILTER_CASES.length + SINGLE_DOM_CASES.length;
 console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${TOTAL}`);
 process.exit(fail ? 1 : 0);
