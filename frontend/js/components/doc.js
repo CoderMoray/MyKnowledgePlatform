@@ -63,6 +63,9 @@ Alpine.data("docComponent", () => ({
       const path = store.currentPath;
       this._bindDocClick();
 
+      // 编辑态收到 SSE 文档变更（别处保存）→ 主动检查版本，冲突立即弹 diff（不等保存、不覆盖内容）
+      window.addEventListener("myk:doc-modified", () => this._checkExternalModification());
+
       if (!store.document && path) {
         store.loadDocument(path);
       }
@@ -1253,6 +1256,26 @@ Alpine.data("docComponent", () => ({
      * 处理保存错误：409 冲突 → 弹可视化 diff（暂停自动保存）；其他 → false
      * @returns {boolean} 是否已处理（冲突）
      */
+    /** 编辑态收到"文档已在别处修改"事件 → 主动比对版本，冲突立即弹 diff（不覆盖正在编辑的内容） */
+    async _checkExternalModification() {
+      const store = Alpine.store("app");
+      if (store.currentView !== "edit" || !_editorInstance || this._conflictActive) return;
+      try {
+        const data = await api.getDocument(store.currentPath);
+        if (data.version && store.document && data.version !== store.document.version) {
+          // 内容被别处修改：用当前编辑器内容作为"我的"，服务端最新作对比
+          this._conflictActive = true; // 暂停自动保存，等待用户决策
+          const myMd = this._editorToMarkdown() || "";
+          this._showConflictModal(
+            myMd,
+            data.content || "",
+            (this.summaryValue || store.document.summary || "").trim(),
+            data.summary || ""
+          );
+        }
+      } catch (e) { /* 检查失败不打断编辑 */ }
+    },
+
     _handleSaveError(e) {
       if (e && e.status === 409) {
         this._conflictActive = true; // 暂停后续自动保存，避免反复弹窗

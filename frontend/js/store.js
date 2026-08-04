@@ -473,8 +473,9 @@ document.addEventListener("alpine:init", () => {
         if (view === "dashboard") this.loadDashboard();
         else if (view === "project" && this.currentPath) this.loadProjectDocuments(this.currentPath);
         // 仅阅读态重载（实时同步）；编辑态不重载——保护正在编辑的内容，
-        // 且保持旧 version：用户保存时 expected_version 不匹配 → 409 → diff 冲突弹窗
+        // 改为派发事件，由 docComponent 主动检查版本 → 冲突立即弹 diff（不等保存）
         else if (view === "view" && this.currentPath) this.loadDocument(this.currentPath);
+        else if (view === "edit" && this.currentPath) window.dispatchEvent(new CustomEvent("myk:doc-modified"));
       });
 
       // 处理初始 hash
