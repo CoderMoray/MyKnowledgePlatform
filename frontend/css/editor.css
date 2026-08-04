@@ -525,10 +525,11 @@
 
 /* 冲突弹窗 summary 差异区 */
 .conflict-diff--summary { margin-bottom: 10px; }
+/* summary 输入框：编辑态与阅读态视觉一致（无边框透明），hover/focus 才轻微提示可编辑 */
 .viewer__summary-input {
-  flex: 1; min-width: 0; padding: 4px 8px;
-  border: 0.5px solid var(--border-subtle, #ddd); border-radius: 6px;
-  font-size: 13px; color: var(--text-primary, #1a1a1a);
-  background: var(--bg-primary, #fff); outline: none;
+  flex: 1; min-width: 0; padding: 0;
+  border: none; background: transparent;
+  font: inherit; font-size: 13px; color: inherit;
+  outline: none;
 }
-.viewer__summary-input:focus { border-color: var(--accent, #534ab7); }
+.viewer__summary-input:hover, .viewer__summary-input:focus { background: var(--bg-tertiary, #f0f0f0); border-radius: 4px; }
