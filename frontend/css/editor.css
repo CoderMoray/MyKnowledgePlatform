@@ -162,8 +162,7 @@
   overflow-x: auto;
   margin: 0 0 var(--space-4);
   border-radius: var(--radius-lg, 12px);
-  /* 外框加粗（1px + 加深）——内部行线保持细（0.5px），外粗内细 */
-  border: 1px solid var(--border-strong);
+  border: 0.5px solid var(--border-default); /* 完全恢复原始（浅色细外框） */
 }
 
 .ProseMirror table {
