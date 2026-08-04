@@ -483,3 +483,13 @@
 .link-popover__btn--cancel:hover { background: var(--bg-tertiary, #f0f0f0); }
 .link-popover__btn--ok { background: var(--accent, #534ab7); color: #fff; }
 .link-popover__btn--ok:hover { opacity: 0.9; }
+
+/* 缩进按钮不可用态（非列表项） */
+.bubble-menu__btn.is-disabled {
+  opacity: 0.35;
+  cursor: default;
+  color: var(--text-secondary, #555);
+  background: transparent;
+}
+.bubble-menu__btn.is-disabled:hover { background: transparent; color: var(--text-secondary, #555); }
+.bubble-menu__btn svg { display: block; }
