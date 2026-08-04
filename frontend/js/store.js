@@ -303,6 +303,8 @@ document.addEventListener("alpine:init", () => {
         if (!data.unchanged) showToast("文档已保存", "success");
         return data;
       } catch (err) {
+        // 409 乐观锁冲突：不弹 toast，交由调用方弹 diff 冲突弹窗处理
+        if (err.status === 409) throw err;
         if (err.isLocked) {
           showToast("知识库正在整理中，暂时只读", "warning");
         } else {
