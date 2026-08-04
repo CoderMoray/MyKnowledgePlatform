@@ -315,6 +315,40 @@ for (const t of SINGLE_DOM_CASES) {
   ed.destroy();
 }
 
+// ── 切文档路径：编辑器先载入文档A，再 setContent 更新为文档B（模拟单 DOM 的 effect 切文档），
+//    保存必须零 diff（尤其 ref 链接——切文档 setContent 必须与 onCreate 走同样的预处理） ──
+const SWITCH_DOC_CASES = [
+  { name: "切文档:更新后ref链接保留", mdA: "<p>文档A内容</p>", mdB: "前文[技术选型](ref:common-knowledge/技术选型.md::技术栈选型)中段" },
+  { name: "切文档:更新后表格+代码块保留", mdA: "<p>文档A</p>", mdB: "## 标题\n\n```js\nconst a = 1;\n```\n\n| A | B |\n|------|------|\n| 1 | 2 |" },
+];
+for (const t of SWITCH_DOC_CASES) {
+  const ed = new Editor({ element: document.createElement("div"), extensions });
+  try {
+    // 先载入 A（onCreate 路径：预处理后 setContent）
+    const aHtml = preprocessForEditor(renderMarkdown(t.mdA));
+    ed.commands.setContent(aHtml);
+    // 切到 B（effect 路径：与 onCreate 相同的预处理——这就是 _prepareEditorHtml 的职责）
+    const bHtml = preprocessForEditor(renderMarkdown(t.mdB));
+    ed.commands.setContent(bHtml);
+    const outMd = editorHtmlToMarkdown(ed.view.dom.innerHTML, t.mdB);
+    if (norm(outMd) === norm(t.mdB)) {
+      pass++;
+      console.log(`  PASS  ${t.name}`);
+    } else {
+      fail++;
+      console.log(`  FAIL  ${t.name}`);
+      console.log("   ── 原文 ──");
+      console.log("   " + norm(t.mdB).split("\n").join("\n   "));
+      console.log("   ── 转回 ──");
+      console.log("   " + norm(outMd).split("\n").join("\n   "));
+    }
+  } catch (e) {
+    fail++;
+    console.log(`  ERROR ${t.name}: ${e.message}`);
+  }
+  ed.destroy();
+}
+
 // ── 斜杠插入测试执行 ──
 for (const c of SLASH_CASES) {
   const html = renderMarkdown(c.md);
@@ -370,6 +404,6 @@ for (const f of SLASH_FILTER_CASES) {
 }
 
 
-const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length + SLASH_FILTER_CASES.length + SINGLE_DOM_CASES.length;
+const TOTAL = CASES.length + SLASH_CASES.length + TRIGGER_CASES.length + SLASH_FILTER_CASES.length + SINGLE_DOM_CASES.length + SWITCH_DOC_CASES.length;
 console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${TOTAL}`);
 process.exit(fail ? 1 : 0);
