@@ -554,7 +554,8 @@
 .viewer__summary-input {
   flex: 1; min-width: 0; padding: 0;
   border: none; background: transparent;
-  font: inherit; font-size: 13px; color: inherit;
+  font: inherit; /* 继承容器 16px（去掉显式 13px——之前导致编辑态 summary 变小） */
+  color: inherit;
   outline: none;
   caret-color: var(--accent, #534ab7);
 }
