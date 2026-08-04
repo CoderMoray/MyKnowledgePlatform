@@ -273,7 +273,7 @@
 
 .project-panel__section {
   padding: 6px 14px 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -308,7 +308,7 @@
 }
 
 .project-panel__item-summary {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   display: block;
   margin-top: 1px;
@@ -418,7 +418,7 @@
 /* 状态 badge */
 .badge {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   padding: 1px 7px;
   border-radius: var(--radius-sm);
@@ -1086,7 +1086,7 @@
   color: var(--color-text-primary);
 }
 .share-project-count {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-tertiary);
   margin-left: auto;
 }
@@ -1096,7 +1096,7 @@
   gap: 6px;
   padding: 10px 0;
   margin-top: 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-tertiary);
   line-height: 1.5;
 }
