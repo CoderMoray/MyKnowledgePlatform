@@ -195,6 +195,15 @@
   border-right: none; /* 最右列不画（外框右侧已有） */
 }
 
+/* 数据行行列线统一 --border-default（比 subtle 深一档，介于表头与数据之间） */
+.ProseMirror .tableWrapper td {
+  border-bottom: 0.5px solid var(--border-default);
+  border-right: 0.5px solid var(--border-default);
+}
+.ProseMirror .tableWrapper td:last-child {
+  border-right: none;
+}
+
 .ProseMirror td {
   padding: var(--space-2) var(--space-3);
   border-bottom: 0.5px solid var(--border-subtle); /* 恢复原始 */
