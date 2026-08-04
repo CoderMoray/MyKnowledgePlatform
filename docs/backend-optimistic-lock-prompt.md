@@ -101,3 +101,51 @@ HTTP 409 Conflict
 ## 附：可选第二需求（独立，本次可不做）
 
 **前端保存产生 git commit**：目前前端编辑无 git 版本历史（无法回滚）。建议 PUT 保存时按策略 commit（如：仅"手动保存/退出保存"commit，自动保存不 commit，避免高频刷 commit）。此项独立，需另行确认频率策略。
+
+---
+
+## 后端评审批注（2026-08-05）
+
+### ✅ 确认实施（主需求合理）
+
+乐观锁核心方案正确、应实施：
+- `version` = 内容指纹（不用 git HEAD，因为前端保存不 commit）
+- 无状态（GET 现算、PUT 比对），`expected_version` 可选向后兼容
+- 409 返回最新 content，优先级高于死链 400
+- 零 diff 保存 hash 相同 → 不冲突
+
+### ⚠️ 修改：summary 纳入 version
+
+**决定**：`version` 从 content-only 改为 **content + summary** 共同计算，否则 summary 的并发修改无法触发冲突。
+
+> 连锁影响：
+> - 前端 PUT 必须携带它持有的 `summary`（即使未改），后端才能正确比对
+> - **前端当前未实现 summary 编辑**——这是一个功能缺口，需补上（后端 `api_get_document_meta` 已返回 summary，`PUT /api/document` 已支持改 summary，只是前端没有对应输入框）
+
+### ⚠️ 修改：409 响应补 `current_summary`
+
+summary 纳入后可能出现"content 相同、summary 不同"的冲突。前端两栏 diff 只对比 content 看不出差异，故 409 需额外返回 `current_summary` 供前端展示。
+
+### 🎯 hash 实现基准（已定）
+
+- `version = sha256(f"{summary}\x00{content}")[:12]`，其中：
+  - `content` = 纯 body（PUT 传来的正文，不含 frontmatter）
+  - `summary` = 显式 summary 字段，用 `summary or ""` 兜底空值
+  - `\x00` 分隔符（null 字节，不会出现在正常文本，避免碰撞）
+- **前端不计算 hash**——只 GET 存 version → PUT 回传 `expected_version` → 保存后收新 version。分隔符/hash 基准为后端内部实现，前端只需回传语义。
+- 后端仅在 `read_document` 返回的精确字符串上算，不做 normalize，保证 GET/PUT 一致。
+
+### ⚠️ 前端需注意：新建文档 summary 空值
+
+后端 REST 已强制 summary 非空（空 summary 保存返回 400）。前端需在**新建文档**时处理：
+- 保存前检测 summary 为空 → 弹窗提示补充，或给默认字符串（如文档名）
+- 编辑页也应补上 summary 输入框（当前缺失）
+
+### ❌ 驳回：可选第二需求（前端保存产生 git commit）
+
+**理由**：前端保存不 commit 是刻意设计——它留下 dirty working tree，供 AI 在下一次会话的 `maint__read_diff`（checkpoint→HEAD）中审查、校验、commit。若前端自动 commit：
+1. `read_diff` 看不到前端变更（已进 HEAD），AI 失去"评估内容是否有问题"的入口
+2. 自动保存高频 commit 污染 git 历史
+3. 违背 DESIGN.md 场景 2（Web UI 编辑"留 dirty 等 AI 处理"）
+
+前端写操作重新生成的相关文件仅 2 个：父级 `readme.md` + `project-status.md`（加上被编辑文档本身），无其他关联文件。

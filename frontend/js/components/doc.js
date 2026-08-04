@@ -1234,7 +1234,10 @@ Alpine.data("docComponent", () => ({
     _buildSaveBody() {
       const store = Alpine.store("app");
       const md = this._editorToMarkdown();
-      const body = { content: md, summary: store.document?.summary || "" };
+      // summary 纳入乐观锁 version 基准（后端决定）：取编辑态输入框值，空则用文档标题兜底
+      // （后端 REST 强制 summary 非空，空保存 400）
+      const summary = (this.summaryValue || store.document?.summary || this.titleValue || "").trim();
+      const body = { content: md, summary };
       if (store.document && store.document.version) body.expected_version = store.document.version;
       return body;
     },
@@ -1249,20 +1252,32 @@ Alpine.data("docComponent", () => ({
         const detail = e.detail || {};
         const latestMd = detail.content || "";
         const myMd = this._editorToMarkdown() || "";
-        this._showConflictModal(myMd, latestMd);
+        // summary 纳入 version 基准后，可能出现"content 相同、summary 不同"的冲突（后端 409 带 current_summary）
+        const latestSummary = detail.current_summary || "";
+        const mySummary = (this.summaryValue || Alpine.store("app").document?.summary || "").trim();
+        this._showConflictModal(myMd, latestMd, mySummary, latestSummary);
         return true;
       }
       return false;
     },
 
-    /** 冲突可视化弹窗：两栏 diff（我的草稿 vs 服务端最新），行级 LCS 高亮 */
-    _showConflictModal(myMd, latestMd) {
+    /** 冲突可视化弹窗：两栏 diff（我的草稿 vs 服务端最新），行级 LCS 高亮；summary 有差异时单独展示 */
+    _showConflictModal(myMd, latestMd, mySummary, latestSummary) {
       const store = Alpine.store("app");
       const existing = document.getElementById("conflict-modal");
       if (existing) existing.remove();
 
       const rows = lineDiff(myMd, latestMd);
       const esc = escapeHtml;
+      // summary 差异区：content 相同但 summary 不同（后端 409 带 current_summary）也能可视化
+      let summaryDiffHtml = "";
+      if (String(mySummary || "") !== String(latestSummary || "")) {
+        summaryDiffHtml =
+          '<div class="conflict-diff conflict-diff--summary">' +
+          '<div class="conflict-diff__col"><div class="conflict-diff__header">摘要（我的）</div><div class="conflict-diff__body"><div class="conflict-diff__line' + (mySummary ? ' conflict-diff__line--add' : ' conflict-diff__line--gap') + '">' + esc(mySummary || '（空）') + '</div></div></div>' +
+          '<div class="conflict-diff__col"><div class="conflict-diff__header">摘要（服务端）</div><div class="conflict-diff__body"><div class="conflict-diff__line' + (latestSummary ? ' conflict-diff__line--add' : ' conflict-diff__line--gap') + '">' + esc(latestSummary || '（空）') + '</div></div></div>' +
+          '</div>';
+      }
       let leftHtml = "", rightHtml = "";
       rows.forEach(r => {
         if (r.type === "same") {
@@ -1285,6 +1300,7 @@ Alpine.data("docComponent", () => ({
         '<div class="conflict-modal__card">' +
         '<div class="conflict-modal__title">文档已被其他会话修改</div>' +
         '<div class="conflict-modal__desc">对比下方差异，选择处理方式。绿色为新增、红色为删除（git diff 风格）。</div>' +
+        summaryDiffHtml +
         '<div class="conflict-diff">' +
         '<div class="conflict-diff__col conflict-diff__col--left"><div class="conflict-diff__header">我的修改（草稿）</div><div class="conflict-diff__body">' + leftHtml + '</div></div>' +
         '<div class="conflict-diff__col conflict-diff__col--right"><div class="conflict-diff__header">服务端最新版本</div><div class="conflict-diff__body">' + rightHtml + '</div></div>' +
@@ -1301,8 +1317,8 @@ Alpine.data("docComponent", () => ({
       modal.querySelector("#conflict-mine").addEventListener("click", async () => {
         const path = this._editingPath || store.currentPath;
         try {
-          await store.saveDocumentSilent(path, { content: myMd, summary: store.document?.summary || "" });
-          store.document = { ...store.document, content: myMd, version: "" };
+          await store.saveDocumentSilent(path, { content: myMd, summary: mySummary || store.document?.summary || "" });
+          store.document = { ...store.document, content: myMd, summary: mySummary || "", version: "" };
           this._conflictActive = false;
           modal.remove();
           showToast("已保留你的修改", "success");

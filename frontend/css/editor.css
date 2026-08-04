@@ -522,3 +522,13 @@
 .conflict-modal__btn--latest:hover { background: #e3e3e3; }
 .conflict-modal__btn--mine { background: var(--accent, #534ab7); color: #fff; }
 .conflict-modal__btn--mine:hover { opacity: 0.9; }
+
+/* 冲突弹窗 summary 差异区 */
+.conflict-diff--summary { margin-bottom: 10px; }
+.viewer__summary-input {
+  flex: 1; min-width: 0; padding: 4px 8px;
+  border: 0.5px solid var(--border-subtle, #ddd); border-radius: 6px;
+  font-size: 13px; color: var(--text-primary, #1a1a1a);
+  background: var(--bg-primary, #fff); outline: none;
+}
+.viewer__summary-input:focus { border-color: var(--accent, #534ab7); }
