@@ -61,6 +61,7 @@ Alpine.data("docComponent", () => ({
     init() {
       const store = Alpine.store("app");
       const path = store.currentPath;
+      this._bindDocClick();
 
       if (!store.document && path) {
         store.loadDocument(path);
@@ -450,14 +451,18 @@ Alpine.data("docComponent", () => ({
     },
 
     /**
-     * 编辑区点击处理（单 DOM）：
-     * - 阅读态（view）：点击编辑器内部 → 进入编辑
-     * - 编辑态：仅当点击真正发生在编辑器容器外部时才退出编辑。
+     * 全局点击处理（单 DOM，capture 阶段先于 ProseMirror 的 stopPropagation）：
+     * - 阅读态（view）：点击编辑器内部（非链接）→ 进入编辑
+     * - 编辑态：点击编辑器容器外部 → 退出编辑
      * 不用 @click.outside —— ProseMirror 在 selection 变化时重建 DOM，
-     * click 的 target 可能变成已脱离文档的节点，contains() 误判为外部，
-     * 导致拖选文字时误退出编辑。
+     * click 的 target 可能变成已脱离文档的节点，contains() 误判为外部。
      */
-    onEditorAreaClick(e) {
+    _bindDocClick() {
+      if (this._docClickBound) return;
+      this._docClickBound = true;
+      document.addEventListener("click", (e) => this.onDocClick(e), true);
+    },
+    onDocClick(e) {
       if (!e || !e.target) return;
       const shell = this.$el.querySelector(".editor-shell");
       if (!shell) return;
