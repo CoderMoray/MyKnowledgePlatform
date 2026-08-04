@@ -77,17 +77,41 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 **`refs[i].type`**：`"ref"`（内部 KB 引用）或 `"external"`（http/https 外链）。外部链接无 `content` 字段。
 **代码块/行内代码/图片链接**中的链接不会被解析。
 
+### 读取
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/document/{path}` | 文档全文。响应含 `summary` 和 `version`（乐观锁指纹） |
+
 ### 写入
 
 | 方法 | 路径 | Body | 说明 |
 |------|------|------|------|
 | POST | `/api/document/{path}` | `{content, summary?, doc_type?}` | 新建知识 |
-| PUT | `/api/document/{path}` | `{content?, summary?}` | 更新知识 |
+| PUT | `/api/document/{path}` | `{content?, summary?, expected_version?}` | 更新知识（支持乐观锁） |
 | DELETE | `/api/document/{path}` | — | 删除知识 |
 | PUT | `/api/project/{path}` | `{name?, summary?, status?}` | 改项目元信息 |
 
 > 写入接口可能返回 **423 Locked**。返回 423 表示 AI 正在操作知识库，
 > Web UI 应进入只读模式，提示用户「AI 正在同步」。
+
+### 乐观锁（PUT /api/document）
+
+- **`version` 指纹**：`sha256(f"{summary}\\x00{content}")[:12]`，content 为纯 body（不含 frontmatter）
+- **GET 返回** `summary` + `version`；前端存下 version，编辑后回传给 PUT 的 `expected_version`
+- **PUT 带 `expected_version`**：与当前文档指纹不匹配 → **409**，响应体：
+  ```json
+  {
+    "error": "conflict",
+    "message": "文档已被其他会话修改",
+    "current_version": "...",
+    "content": "<最新内容>",
+    "current_summary": "<最新摘要>"
+  }
+  ```
+- **409 优先于死链 400**：冲突检测先于内容校验
+- **不带 `expected_version`**：行为不变（强制覆盖，逃生舱）
+- 保存成功响应含新 `version`（含 no-op 时）
 
 ### 维护
 

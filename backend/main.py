@@ -345,6 +345,8 @@ def api_get_document(path: str):
         meta, body = storage.read_document(path)
         return {
             "content": body,
+            "summary": meta.get("summary", ""),
+            "version": _doc_version(body, meta.get("summary", "")),
             "meta": {k: v for k, v in meta.items()
                      if k in ("id", "type", "summary", "author",
                               "maintainer", "created", "updated", "template")},
@@ -364,6 +366,18 @@ class DocumentPayload(BaseModel):
     content: str
     summary: str = ""
     doc_type: str = "knowledge"
+    expected_version: str = ""
+
+
+def _doc_version(content: str, summary: str = "") -> str:
+    """Optimistic-lock version fingerprint.
+
+    ``sha256(f"{summary}\\x00{content}")[:12]`` — content is the raw body
+    (no frontmatter), summary is the explicit frontmatter summary field.
+    The ``\\x00`` separator never appears in normal text so it's collision-free.
+    """
+    import hashlib
+    return hashlib.sha256(f"{summary or ''}\x00{content}".encode("utf-8")).hexdigest()[:12]
 
 
 @app.post("/api/document/{path:path}", status_code=201)
@@ -398,6 +412,22 @@ def api_update_document(path: str, payload: DocumentPayload):
     except FileNotFoundError:
         raise HTTPException(404, "document not found")
 
+    # ── Optimistic lock check (409 takes precedence over 400) ──
+    if payload.expected_version:
+        current_version = _doc_version(old_body, old_meta.get("summary", ""))
+        if current_version != payload.expected_version:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "conflict",
+                    "message": "文档已被其他会话修改",
+                    "current_version": current_version,
+                    "content": old_body,
+                    "current_summary": old_meta.get("summary", ""),
+                },
+            )
+
     # If content/summary are empty they mean "keep existing", so fill before validate
     if not payload.content:
         payload.content = old_body
@@ -410,7 +440,12 @@ def api_update_document(path: str, payload: DocumentPayload):
 
     # ── No-op: skip write if nothing changed ──────────────
     if new_content == old_body and new_summary == old_meta.get("summary", ""):
-        return {"status": "ok", "id": old_meta.get("id", ""), "unchanged": True}
+        return {
+            "status": "ok",
+            "id": old_meta.get("id", ""),
+            "unchanged": True,
+            "version": _doc_version(old_body, old_meta.get("summary", "")),
+        }
 
     new_meta = dict(old_meta)
     new_meta["summary"] = payload.summary
@@ -423,7 +458,12 @@ def api_update_document(path: str, payload: DocumentPayload):
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "ok", "id": new_meta.get("id", ""), "unchanged": False}
+    return {
+        "status": "ok",
+        "id": new_meta.get("id", ""),
+        "unchanged": False,
+        "version": _doc_version(new_content, new_summary),
+    }
 
 
 @app.delete("/api/document/{path:path}")

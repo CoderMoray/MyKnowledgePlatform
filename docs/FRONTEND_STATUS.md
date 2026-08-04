@@ -164,6 +164,7 @@
 | AI 锁态遮罩 / 锁横幅 / Toast 居中 | ✅ | |
 | 编辑器退出销毁重建 | ✅ | 早期方案；单 DOM 后改为复用（不销毁） |
 | 分享导出弹窗 + /api/export | ✅ | 项目选择 + 加密 + 下载 |
+| 乐观锁（后端就绪） | ✅ 待前端验证 | GET 返回 `version`，PUT 带 `expected_version`，冲突返回 409 |
 | MCP 状态指示器 | ✅ | top-header 15s 轮询 |
 | Headbar 面包屑重设计 / 文档页删除按钮 | ✅ | |
 | 路由统一 view→doc、URL 清洁化 | ✅ | hashEncode 仅编码 `/` |

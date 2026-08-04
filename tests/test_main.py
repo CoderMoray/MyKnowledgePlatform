@@ -289,6 +289,100 @@ class TestApiUpdateDocument:
         assert data.get("unchanged") is True
 
 
+class TestOptimisticLock:
+    """Test optimistic locking on GET/PUT /api/document/{path}."""
+
+    def _make_doc(self, storage: Storage, path: str,
+                  summary: str = "summary") -> str:
+        from backend.main import _doc_version
+        storage.write_document(path, {"id": path, "summary": summary,
+                                      "maintainer": "Me",
+                                      "created": "2026-01-01",
+                                      "updated": "2026-01-01"},
+                               "# body", auto_id=False)
+        return _doc_version("# body", summary)
+
+    def test_get_returns_version(self, client, tmp_kb_root: Path):
+        from backend.main import _doc_version
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make_doc(storage, "common-knowledge/v.md", "s")
+        resp = client.get("/api/document/common-knowledge/v.md")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["version"] == _doc_version("# body", "s")
+        assert data["summary"] == "s"
+
+    def test_put_with_correct_version_succeeds(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        version = self._make_doc(storage, "common-knowledge/ok.md", "s")
+        resp = client.put("/api/document/common-knowledge/ok.md", json={
+            "content": "# new body",
+            "summary": "s",
+            "expected_version": version,
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["unchanged"] is False
+        from backend.main import _doc_version
+        assert data["version"] == _doc_version("# new body", "s")
+
+    def test_put_with_stale_version_conflict(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        version = self._make_doc(storage, "common-knowledge/stale.md", "s")
+
+        # Simulate another session modifying the doc
+        storage.write_document("common-knowledge/stale.md",
+                               {"id": "stale", "summary": "s2",
+                                "maintainer": "Other",
+                                "created": "2026-01-01", "updated": "2026-01-02"},
+                               "# changed by other", auto_id=False)
+
+        resp = client.put("/api/document/common-knowledge/stale.md", json={
+            "content": "# my edit",
+            "summary": "s",
+            "expected_version": version,  # stale
+        })
+        assert resp.status_code == 409
+        data = resp.json()
+        assert data["error"] == "conflict"
+        assert "current_version" in data
+        assert "content" in data
+        assert "current_summary" in data
+        assert data["current_summary"] == "s2"
+        assert data["content"] == "# changed by other"
+
+    def test_put_without_expected_version_still_works(self, client, tmp_kb_root: Path):
+        """No expected_version → old behavior (force overwrite)."""
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make_doc(storage, "common-knowledge/force.md", "s")
+        resp = client.put("/api/document/common-knowledge/force.md", json={
+            "content": "# overwritten",
+            "summary": "new summary",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["unchanged"] is False
+        _, body = storage.read_document("common-knowledge/force.md")
+        assert "# overwritten" in body
+
+    def test_conflict_409_precedes_validation_400(self, client, tmp_kb_root: Path):
+        """409 (conflict) should take priority over 400 (dead ref validation)."""
+        storage = Storage(kb_root=tmp_kb_root)
+        version = self._make_doc(storage, "common-knowledge/prio.md", "s")
+        # Modify elsewhere
+        storage.write_document("common-knowledge/prio.md",
+                               {"id": "prio", "summary": "s", "maintainer": "O",
+                                "created": "2026-01-01", "updated": "2026-01-02"},
+                               "# other", auto_id=False)
+        # Stale version + dead ref (would 400 if not for conflict)
+        resp = client.put("/api/document/common-knowledge/prio.md", json={
+            "content": "# edit [dead](ref:common-knowledge/nope.md)",
+            "summary": "s",
+            "expected_version": version,
+        })
+        assert resp.status_code == 409
+
+
 class TestApiExport:
     """Test the /api/export endpoint."""
 

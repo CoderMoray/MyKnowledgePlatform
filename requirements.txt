@@ -27,3 +27,6 @@ oss2>=2.18.0
 
 # Automation scheduler (optional SyncJob)
 apscheduler>=3.10.0
+
+# Test client (starlette 0.36.x TestClient requires httpx <0.28)
+httpx>=0.23,<0.28

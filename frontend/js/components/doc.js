@@ -81,6 +81,10 @@ Alpine.data("docComponent", () => ({
       Alpine.effect(() => {
         const h = store.htmlContent;
         if (!h || !h.trim()) return;
+        // 切文档/重载 → 同步标题/摘要输入框（避免残留上一文档的值）。
+        // htmlContent 只在 loadDocument 时更新（编辑态保存不改它），不会覆盖正在输入的摘要。
+        this.summaryValue = store.document?.summary || "";
+        this.titleValue = store.document?.title || "";
         if (!_editorInstance) {
           this._ensureEditorForView(); // 内部有 _editorInstance 防重
           return;
