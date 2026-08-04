@@ -12,7 +12,7 @@
 
 - [x] **锁状态过期不刷新 UI** ✅ 已解决（2026-08-04 验证）：`store.init()` 有 15s 轮询 `checkLock` + doc.js `Alpine.effect` 监听 `isLocked` 响应遮罩
 - [x] **"Node cannot be found" warning** ✅ 已解决（2026-08-04 验证）：单 DOM 改造后编辑器复用（不再销毁重建），进编辑/退出/切文档 console 干净
-- [ ] **数据一致性：旧编辑会话覆盖**：改文档内容时若仍有该文档的编辑会话开着，退出保存会用旧内容覆盖新内容——需锁/版本冲突机制（后端协作讨论，前端单独做不了）
+- [x] **数据一致性（乐观锁）** ✅ 已完成（2026-08-05 双窗口实测通过）：后端 `version=sha256(f"{summary}\x00{content}")[:12]` + 409 冲突；前端保存带 `expected_version`、编辑中收到 SSE 变更主动弹 diff 弹窗（内容不静默覆盖）、冲突可视化（两栏行号 diff + summary 差异 + 保留我的/采用服务端/取消）；detail 见 `docs/backend-optimistic-lock-prompt.md`
 
 ### P1 编辑器 / 体验（飞书对齐）
 
