@@ -165,7 +165,7 @@
   margin: 0 0 var(--space-4);
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--text-sm);
+  font-size: 16px; /* 与正文一致（原 --text-sm 12px 偏小） */
   border-radius: 12px;
   overflow: hidden;
   border: none;
