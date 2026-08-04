@@ -350,7 +350,7 @@ Alpine.data("docComponent", () => ({
         while (el && el !== dom && el.nodeType === 1) {
           if (el.tagName === "A") {
             const href = el.getAttribute("href") || "";
-            if (href.startsWith("ref:")) return { el, type: "ref", path: href.slice(4).replace(/%20/g, " ") };
+            if (href.startsWith("ref:")) return { el, type: "ref", path: href.slice(4).replace(/%20/g, " ").split("::")[0] };
             if (href.startsWith("http")) return { el, type: "ext", url: href };
           }
           el = el.parentElement;
