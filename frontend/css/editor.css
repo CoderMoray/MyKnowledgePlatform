@@ -183,7 +183,7 @@
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border-bottom: 0.5px solid var(--border-default); /* 恢复原始 */
+  border-bottom: 0.5px solid var(--border-strong); /* 表头线加深（td 不动） */
 }
 
 .ProseMirror td {
