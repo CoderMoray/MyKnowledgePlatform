@@ -171,6 +171,12 @@
   font-size: 16px; /* 保留：与阅读态一致的表格字体 */
 }
 
+/* 编辑态表格贴紧外框底（列线延伸到外框下侧边缘）：
+   .markdown-body table 的 margin-bottom 会留空隙，此处用更高特异性覆盖 */
+.ProseMirror .tableWrapper table {
+  margin: 0;
+}
+
 .ProseMirror th {
   font-weight: 600;
   text-align: left;
