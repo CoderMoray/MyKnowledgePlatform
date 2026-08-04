@@ -5,6 +5,29 @@
 
 ---
 
+## 📅 2026-08-04 增量（本文件其余部分为 7-29 快照，以下为最近完成/修正）
+
+### 近期完成（7-30 → 8-04）
+- **编辑器飞书化全套**：浮动格式条（自实现定位，绕开 tippy）、斜杠菜单（H1-H4/列表/引用/代码块/分割线/表格，上下文过滤表格项）、编辑态实时代码高亮（CodeBlockLowlight）
+- **双 DOM → 单容器**：删除 viewer__body，ProseMirror 常驻，阅读态=editable:false（无闪烁/无跳位/滚动保持）；ref hover/点击跳转迁移 editor.dom 委托；bubble 只读态不弹
+- **保存零差异 + 回归测试**：36/36（往返 17 + 斜杠插入 10 + 触发 3 + 过滤 2 + 单DOM 2 + 切文档 2），`cd frontend && node tests/save-regression.mjs`
+- **ref 链接链路彻底修复**：isAllowedUri 拒绝 ref: 协议（parseHTML/renderHTML 覆写）、::section 后缀 hover 404、切文档预处理统一（_prepareEditorHtml）
+- **浮动条第一波**：T 块类型下拉、下划线（`<u>` 内联 HTML 存储）、缩进（列表嵌套，非列表置灰）、链接浮层（替代 prompt）、自定义 tooltip 0.18s、SVG 图标
+- **数据恢复**：技术选型.md / 编辑保存测试.md 从 git 恢复 + 补回 ref 链接
+- **基建**：CDN 全本地化（vendor/）、build contenthash 版本化 + 后端 no-cache
+
+### 状态修正（旧快照标注 vs 实际）
+- **C1 合并 view/edit**：✅ 已完成（原已标注）
+- **E1 ref 链接编辑处理**：✅ 已解决（isAllowedUri 覆写 + _prepareEditorHtml），不再是"待讨论"
+- **H2 系统状态页（#status）**：✅ 路由 + 状态页已实现（store.setView("status") + statusSummary），原标注"未开始"已过时
+- **E 编辑器**：大部分已完成（见上），原列表过时
+- **A2 离线 12 场景**：部分实现（横幅 + IndexedDB 草稿 + ���复）；**全屏阻断/toast/5b 冷启动直进编辑未做** → 已并入 TODO
+- **C2 卡片 hover 重命名/删除**：未做 → 已并入 TODO
+- **动态 icon（cardIconSvg）**：定义未接入 → 已并入 TODO
+- **E2 元信息展示时机**：待讨论 → 已并入 TODO
+
+---
+
 ## ✅ 已完成
 
 ### I1. 加载动画（Splash Screen）
