@@ -183,7 +183,11 @@
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border-bottom: 0.5px solid var(--border-strong); /* 表头线加深（td 不动） */
+}
+
+/* 表头线加深（更高特异性覆盖 .markdown-body th；td 不动） */
+.ProseMirror .tableWrapper th {
+  border-bottom: 0.5px solid var(--border-strong);
 }
 
 .ProseMirror td {
