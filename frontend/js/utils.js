@@ -281,3 +281,32 @@ function cardIconSvg(name) {
   const paths = _ICON_SVGS[iconKey] || _ICON_SVGS["file-text"];
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
 }
+
+/**
+ * 行级文本 diff（LCS）：返回对齐行数组，供冲突可视化对比
+ * @param {string} aText 版本 A（我的草稿）
+ * @param {string} bText 版本 B（服务端最新）
+ * @returns {Array<{type:"same"|"del"|"add", a:string, b:string}>}
+ */
+function lineDiff(aText, bText) {
+  const a = String(aText || "").replace(/\r\n/g, "\n").split("\n");
+  const b = String(bText || "").replace(/\r\n/g, "\n").split("\n");
+  const n = a.length, m = b.length;
+  // LCS DP（文档几百行内可接受）
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const rows = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { rows.push({ type: "same", a: a[i], b: b[j] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { rows.push({ type: "del", a: a[i], b: "" }); i++; }
+    else { rows.push({ type: "add", a: "", b: b[j] }); j++; }
+  }
+  while (i < n) { rows.push({ type: "del", a: a[i], b: "" }); i++; }
+  while (j < m) { rows.push({ type: "add", a: "", b: b[j] }); j++; }
+  return rows;
+}

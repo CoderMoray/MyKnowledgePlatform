@@ -158,8 +158,12 @@ Alpine.data("docComponent", () => ({
       const fullMd = this._editorToMarkdown();
       if (fullMd) {
         try {
-          await store.saveDocumentSilent(path, { content: fullMd, summary: store.document?.summary || "" });
-        } catch (e) { /* 失败不打断导航，自动保存/草稿兜底 */ }
+          await store.saveDocumentSilent(path, this._buildSaveBody());
+        } catch (e) {
+          // 409 冲突：弹可视化 diff（保持编辑态，不打断导航兜底）
+          if (this._handleSaveError(e)) return;
+          /* 其他失败不打断导航，自动保存/草稿兜底 */
+        }
       }
       _editorInstance.setEditable(false);
       this._hideEditDecorations();
@@ -537,8 +541,11 @@ Alpine.data("docComponent", () => ({
       const fullMd = this._editorToMarkdown();
       if (fullMd) {
         try {
-          await store.saveDocument(path, { content: fullMd, summary: store.document?.summary || "" });
-        } catch (e) {}
+          await store.saveDocument(path, this._buildSaveBody());
+        } catch (e) {
+          // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
+          if (this._handleSaveError(e)) return;
+        }
       }
 
       // 单 DOM：不销毁编辑器，切只读 + 隐藏编辑装饰；内容就是最新，无需重载
@@ -1223,20 +1230,126 @@ Alpine.data("docComponent", () => ({
     },
 
     /** 执行一次保存：内容未变跳过；失败 → IndexedDB 草稿兜底 + 横幅 */
+    /** 统一构造保存 body（content + summary + 乐观锁指纹 expected_version） */
+    _buildSaveBody() {
+      const store = Alpine.store("app");
+      const md = this._editorToMarkdown();
+      const body = { content: md, summary: store.document?.summary || "" };
+      if (store.document && store.document.version) body.expected_version = store.document.version;
+      return body;
+    },
+
+    /**
+     * 处理保存错误：409 冲突 → 弹可视化 diff（暂停自动保存）；其他 → false
+     * @returns {boolean} 是否已处理（冲突）
+     */
+    _handleSaveError(e) {
+      if (e && e.status === 409) {
+        this._conflictActive = true; // 暂停后续自动保存，避免反复弹窗
+        const detail = e.detail || {};
+        const latestMd = detail.content || "";
+        const myMd = this._editorToMarkdown() || "";
+        this._showConflictModal(myMd, latestMd);
+        return true;
+      }
+      return false;
+    },
+
+    /** 冲突可视化弹窗：两栏 diff（我的草稿 vs 服务端最新），行级 LCS 高亮 */
+    _showConflictModal(myMd, latestMd) {
+      const store = Alpine.store("app");
+      const existing = document.getElementById("conflict-modal");
+      if (existing) existing.remove();
+
+      const rows = lineDiff(myMd, latestMd);
+      const esc = escapeHtml;
+      let leftHtml = "", rightHtml = "";
+      rows.forEach(r => {
+        if (r.type === "same") {
+          leftHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.a) + '</div>';
+          rightHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.b) + '</div>';
+        } else if (r.type === "del") {
+          leftHtml += '<div class="conflict-diff__line conflict-diff__line--del"><span class="conflict-diff__ln">-</span>' + esc(r.a) + '</div>';
+          rightHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
+        } else {
+          leftHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
+          rightHtml += '<div class="conflict-diff__line conflict-diff__line--add"><span class="conflict-diff__ln">+</span>' + esc(r.b) + '</div>';
+        }
+      });
+
+      const modal = document.createElement("div");
+      modal.id = "conflict-modal";
+      modal.className = "conflict-modal";
+      modal.innerHTML =
+        '<div class="conflict-modal__backdrop"></div>' +
+        '<div class="conflict-modal__card">' +
+        '<div class="conflict-modal__title">文档已被其他会话修改</div>' +
+        '<div class="conflict-modal__desc">对比下方差异，选择处理方式。绿色为新增、红色为删除（git diff 风格）。</div>' +
+        '<div class="conflict-diff">' +
+        '<div class="conflict-diff__col conflict-diff__col--left"><div class="conflict-diff__header">我的修改（草稿）</div><div class="conflict-diff__body">' + leftHtml + '</div></div>' +
+        '<div class="conflict-diff__col conflict-diff__col--right"><div class="conflict-diff__header">服务端最新版本</div><div class="conflict-diff__body">' + rightHtml + '</div></div>' +
+        '</div>' +
+        '<div class="conflict-modal__actions">' +
+        '<button class="conflict-modal__btn conflict-modal__btn--ghost" id="conflict-cancel">取消（继续编辑）</button>' +
+        '<button class="conflict-modal__btn conflict-modal__btn--latest" id="conflict-latest">采用最新版本</button>' +
+        '<button class="conflict-modal__btn conflict-modal__btn--mine" id="conflict-mine">保留我的修改</button>' +
+        '</div>' +
+        '</div>';
+      (document.querySelector(".editor-shell") || document.body).appendChild(modal);
+
+      // 保留我的修改：不带 expected_version 强写
+      modal.querySelector("#conflict-mine").addEventListener("click", async () => {
+        const path = this._editingPath || store.currentPath;
+        try {
+          await store.saveDocumentSilent(path, { content: myMd, summary: store.document?.summary || "" });
+          store.document = { ...store.document, content: myMd, version: "" };
+          this._conflictActive = false;
+          modal.remove();
+          showToast("已保留你的修改", "success");
+        } catch (e2) {
+          modal.remove();
+          showToast(e2.message || "保存失败", "error");
+        }
+      });
+
+      // 采用最新版本：重载文档（effect 自动更新编辑器内容），丢弃我的
+      modal.querySelector("#conflict-latest").addEventListener("click", async () => {
+        const path = this._editingPath || store.currentPath;
+        this._conflictActive = false;
+        modal.remove();
+        try {
+          await store.loadDocument(path);
+        } catch (e) {}
+        // 回到只读（最新内容已加载）
+        if (_editorInstance) _editorInstance.setEditable(false);
+        this._hideEditDecorations();
+        this._editingPath = null;
+        if (store.currentPath === path) store.setView("view", path);
+        showToast("已加载最新版本", "success");
+      });
+
+      modal.querySelector("#conflict-cancel").addEventListener("click", () => {
+        modal.remove();
+      });
+    },
+
     async _performSave() {
       const store = Alpine.store("app");
       if (store.isLocked || store.currentView !== "edit" || !_editorInstance) return;
+      if (this._conflictActive) return; // 冲突未解决前暂停自动保存
       const md = this._editorToMarkdown();
       if (!md) return;
       // 内容未变 → 不重复调 API（后端 unchanged 是兜底，前端先自己比对）
       const current = store.document?.content || "";
       if (md === current) return;
       try {
-        await store.saveDocumentSilent(store.currentPath, { content: md, summary: store.document?.summary || "" });
+        await store.saveDocumentSilent(store.currentPath, this._buildSaveBody());
         // 保存成功且之前有离线草稿 → 清理（_draftDelete 为模块级函数）
         await _draftDelete(store.currentPath);
         if (store.draftBanner) store.draftBanner = false;
       } catch (e) {
+        // 409 冲突 → 弹可视化 diff（暂停自动保存）
+        if (this._handleSaveError(e)) return;
         // 锁冲突/路径错误不是离线：不写草稿（静默，等锁释放或用户操作）
         if (e && (e.isLocked || e.isNotFound || e.isBadRequest)) return;
         // 后端离线/网络失败 → 写本地草稿，不打断输入

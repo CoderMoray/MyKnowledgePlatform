@@ -493,3 +493,32 @@
 }
 .bubble-menu__btn.is-disabled:hover { background: transparent; color: var(--text-secondary, #555); }
 .bubble-menu__btn svg { display: block; }
+
+/* ── 冲突可视化弹窗（409 乐观锁） ───────────────────────────────────────── */
+.conflict-modal { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; }
+.conflict-modal__backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.35); }
+.conflict-modal__card {
+  position: relative; width: min(860px, 92vw); max-height: 82vh;
+  background: var(--bg-primary, #fff); border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.18); padding: 18px;
+  display: flex; flex-direction: column;
+}
+.conflict-modal__title { font-size: 15px; font-weight: 600; color: var(--text-primary, #1a1a1a); }
+.conflict-modal__desc { font-size: 12px; color: var(--text-tertiary, #999); margin: 6px 0 12px; }
+.conflict-diff { display: flex; gap: 10px; min-height: 0; flex: 1; overflow: hidden; }
+.conflict-diff__col { flex: 1; display: flex; flex-direction: column; min-width: 0; border: 0.5px solid var(--border-subtle, #e6e6e6); border-radius: 8px; overflow: hidden; }
+.conflict-diff__header { padding: 6px 10px; font-size: 11px; font-weight: 500; color: var(--text-secondary, #555); background: var(--bg-secondary, #fafafa); border-bottom: 0.5px solid var(--border-subtle, #e6e6e6); }
+.conflict-diff__body { overflow-y: auto; flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; }
+.conflict-diff__line { display: flex; padding: 0 8px; white-space: pre-wrap; word-break: break-all; color: var(--text-primary, #1a1a1a); }
+.conflict-diff__ln { width: 14px; flex-shrink: 0; color: #bbb; user-select: none; margin-right: 6px; }
+.conflict-diff__line--del { background: #fdecec; color: #b03030; }
+.conflict-diff__line--add { background: #e9f7ec; color: #1c7a3d; }
+.conflict-diff__line--gap { height: 1.5em; background: var(--bg-tertiary, #f5f5f5); }
+.conflict-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.conflict-modal__btn { padding: 7px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.conflict-modal__btn--ghost { background: transparent; color: var(--text-secondary, #555); }
+.conflict-modal__btn--ghost:hover { background: var(--bg-tertiary, #f0f0f0); }
+.conflict-modal__btn--latest { background: var(--bg-tertiary, #f0f0f0); color: var(--text-primary, #1a1a1a); }
+.conflict-modal__btn--latest:hover { background: #e3e3e3; }
+.conflict-modal__btn--mine { background: var(--accent, #534ab7); color: #fff; }
+.conflict-modal__btn--mine:hover { opacity: 0.9; }

@@ -249,6 +249,8 @@ document.addEventListener("alpine:init", () => {
           updated_at: (data.meta && data.meta.updated) || "",
           // 最后编辑人
           maintainer: (data.meta && data.meta.maintainer) || "",
+          // 内容指纹（乐观锁：保存时带回给后端比对，后端提供后生效）
+          version: data.version || "",
         };
         this.htmlContent = data.html || (data.content ? marked.parse(
           // 编码 ref: URL 中的空格，防止 marked 截断
