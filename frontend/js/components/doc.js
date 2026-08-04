@@ -1287,18 +1287,24 @@ Alpine.data("docComponent", () => ({
           '</div>';
       }
       // 左列 = 服务端（add 行=服务端有而我没有 → 绿，在左）；右列 = 我的（del 行=我有而服务端没有 → 红，在右）
+      // 行号每列独立计数（服务端从 1 计，我的从 1 计），便于对照
       let leftHtml = "", rightHtml = "";
+      let leftLine = 1, rightLine = 1;
       rows.forEach(r => {
+        const lineHtml = (num, sign, content, cls) =>
+          '<div class="conflict-diff__line' + (cls ? " " + cls : "") + '">' +
+          '<span class="conflict-diff__num">' + num + '</span>' +
+          '<span class="conflict-diff__ln">' + sign + '</span>' + content + '</div>';
         if (r.type === "same") {
-          leftHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.a) + '</div>';
-          rightHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.b) + '</div>';
+          leftHtml += lineHtml(leftLine++, "·", esc(r.a), "");
+          rightHtml += lineHtml(rightLine++, "·", esc(r.b), "");
         } else if (r.type === "del") {
-          // 我有、服务端无 → 左（服务端）空，右（我的）红
+          // 我有、服务端无 → 左（服务端）空，右（我的）红（带我的行号）
           leftHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
-          rightHtml += '<div class="conflict-diff__line conflict-diff__line--del"><span class="conflict-diff__ln">-</span>' + esc(r.a) + '</div>';
+          rightHtml += lineHtml(rightLine++, "-", esc(r.a), "conflict-diff__line--del");
         } else {
-          // 服务端有、我没有 → 左（服务端）绿，右（我的）空
-          leftHtml += '<div class="conflict-diff__line conflict-diff__line--add"><span class="conflict-diff__ln">+</span>' + esc(r.b) + '</div>';
+          // 服务端有、我没有 → 左（服务端）绿（带服务端行号），右（我的）空
+          leftHtml += lineHtml(leftLine++, "+", esc(r.b), "conflict-diff__line--add");
           rightHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
         }
       });

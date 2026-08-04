@@ -510,6 +510,7 @@
 .conflict-diff__header { padding: 6px 10px; font-size: 11px; font-weight: 500; color: var(--text-secondary, #555); background: var(--bg-secondary, #fafafa); border-bottom: 0.5px solid var(--border-subtle, #e6e6e6); }
 .conflict-diff__body { overflow-y: auto; flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; }
 .conflict-diff__line { display: flex; padding: 0 8px; white-space: pre-wrap; word-break: break-all; color: var(--text-primary, #1a1a1a); }
+.conflict-diff__num { width: 26px; flex-shrink: 0; text-align: right; color: #bbb; user-select: none; margin-right: 8px; font-size: 10px; line-height: inherit; }
 .conflict-diff__ln { width: 14px; flex-shrink: 0; color: #bbb; user-select: none; margin-right: 6px; }
 .conflict-diff__line--del { background: #fdecec; color: #b03030; }
 .conflict-diff__line--add { background: #e9f7ec; color: #1c7a3d; }
