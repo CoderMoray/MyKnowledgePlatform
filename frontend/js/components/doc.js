@@ -88,7 +88,7 @@ Alpine.data("docComponent", () => ({
         if (store.currentView !== "edit") {
           const cur = _editorInstance.view ? _editorInstance.view.dom.innerHTML : "";
           if (cur !== h) {
-            _editorInstance.commands.setContent(h);
+            _editorInstance.commands.setContent(this._prepareEditorHtml(h));
             _editorInstance.setEditable(false);
           }
         }
@@ -108,6 +108,44 @@ Alpine.data("docComponent", () => ({
         _editorInstance.setEditable(false);
         this._bindEditorRefLinks(store);
       }
+    },
+
+    /**
+     * 把阅读态 HTML（marked 渲染）预处理成编辑器可解析的内容：
+     * 1. ref 链接 data-ref-path → href="ref:..."（否则 TipTap 解析 javascript:void(0) 时 Link mark 不应用 → 链接变纯文本）
+     * 2. 代码块净化（去 hljs span + 转义裸标签）
+     * 3. 块内软换行 \n → <br>（ProseMirror 不保留裸 \n，round-trip 零 diff）
+     * onCreate 与切文档 setContent 必须共用（否则切文档后 ref 链接丢失）
+     */
+    _prepareEditorHtml(html) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      tmp.querySelectorAll("[data-ref-path]").forEach(a => {
+        const section = a.dataset.refSection ? "::" + a.dataset.refSection : "";
+        a.setAttribute("href", "ref:" + a.dataset.refPath + section);
+      });
+      tmp.querySelectorAll("pre code").forEach(code => {
+        const text = code.textContent;
+        code.textContent = text;
+      });
+      const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT);
+      const softBreaks = [];
+      let tn;
+      while ((tn = walker.nextNode())) {
+        const p = tn.parentNode;
+        if (!p || (p.closest && p.closest("pre"))) continue;
+        if (tn.nodeValue && tn.nodeValue.includes("\n") && tn.nodeValue.trim() !== "") softBreaks.push(tn);
+      }
+      softBreaks.forEach(tn => {
+        const frag = document.createDocumentFragment();
+        const parts = tn.nodeValue.split("\n");
+        parts.forEach((part, i) => {
+          if (i > 0) frag.appendChild(document.createElement("br"));
+          if (part) frag.appendChild(document.createTextNode(part));
+        });
+        tn.parentNode.replaceChild(frag, tn);
+      });
+      return tmp.innerHTML;
     },
 
     /** 离开编辑态兜底：保存当前编辑内容并隐藏装饰（不销毁编辑器，单 DOM 复用） */
@@ -726,44 +764,7 @@ Alpine.data("docComponent", () => ({
         onCreate: ({ editor }) => {
           const html = initialContent || store.htmlContent || (store.document && store.document.content) || "";
           if (html) {
-            const tmp = document.createElement("div");
-            tmp.innerHTML = html;
-            tmp.querySelectorAll("[data-ref-path]").forEach(a => {
-              const section = a.dataset.refSection ? "::" + a.dataset.refSection : "";
-              a.setAttribute("href", "ref:" + a.dataset.refPath + section);
-            });
-            // 代码块净化：阅读态 HTML 里的代码已被 hljs 高亮（含 span），
-            // 且可能含未转义的 HTML（marked 对部分内容原样输出）。
-            // 这里还原为纯文本（textContent 赋值会自动转义 < > &），
-            // 避免 TipTap 把代码内容当 HTML 解析（裸标签 → hljs unescaped 警告 / 结构破坏）。
-            tmp.querySelectorAll("pre code").forEach(code => {
-              const text = code.textContent; // 提取纯文本（去掉 hljs span）
-              code.textContent = text;       // 重新赋值：浏览器自动转义 < > &，防裸标签
-            });
-            // 块内软换行（\n）→ <br>：ProseMirror 段落内不保留裸 \n（会变空格），
-            // 转 <br> 后编辑态显示换行、保存时 turndown 还原为软换行（round-trip 零 diff）。
-            // 只处理文本节点，跳过代码块。
-            {
-              const walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT);
-              const softBreaks = [];
-              let tn;
-              while ((tn = walker.nextNode())) {
-                const p = tn.parentNode;
-                if (!p || (p.closest && p.closest("pre"))) continue;
-                // 仅处理含实际内容的文本节点；元素间的格式化空白 \n（如 <ol>\n<li>）不转 <br>
-                if (tn.nodeValue && tn.nodeValue.includes("\n") && tn.nodeValue.trim() !== "") softBreaks.push(tn);
-              }
-              softBreaks.forEach(tn => {
-                const frag = document.createDocumentFragment();
-                const parts = tn.nodeValue.split("\n");
-                parts.forEach((part, i) => {
-                  if (i > 0) frag.appendChild(document.createElement("br"));
-                  if (part) frag.appendChild(document.createTextNode(part));
-                });
-                tn.parentNode.replaceChild(frag, tn);
-              });
-            }
-            editor.commands.setContent(tmp.innerHTML);
+            editor.commands.setContent(this._prepareEditorHtml(html));
           }
         },
       });
