@@ -534,3 +534,7 @@
   caret-color: var(--accent, #534ab7);
 }
 .viewer__summary-input:hover, .viewer__summary-input:focus { background: transparent; border-radius: 0; }
+
+/* 冲突描述：新增/删除 词汇用对应颜色字体 */
+.conflict-desc--add { color: #1c7a3d; font-weight: 600; }
+.conflict-desc--del { color: #b03030; font-weight: 600; }

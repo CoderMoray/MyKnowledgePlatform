@@ -1277,25 +1277,29 @@ Alpine.data("docComponent", () => ({
       const rows = lineDiff(myMd, latestMd);
       const esc = escapeHtml;
       // summary 差异区：content 相同但 summary 不同（后端 409 带 current_summary）也能可视化
+      // 布局与正文一致：左=服务端，右=我的
       let summaryDiffHtml = "";
       if (String(mySummary || "") !== String(latestSummary || "")) {
         summaryDiffHtml =
           '<div class="conflict-diff conflict-diff--summary">' +
-          '<div class="conflict-diff__col"><div class="conflict-diff__header">摘要（我的）</div><div class="conflict-diff__body"><div class="conflict-diff__line' + (mySummary ? ' conflict-diff__line--add' : ' conflict-diff__line--gap') + '">' + esc(mySummary || '（空）') + '</div></div></div>' +
           '<div class="conflict-diff__col"><div class="conflict-diff__header">摘要（服务端）</div><div class="conflict-diff__body"><div class="conflict-diff__line' + (latestSummary ? ' conflict-diff__line--add' : ' conflict-diff__line--gap') + '">' + esc(latestSummary || '（空）') + '</div></div></div>' +
+          '<div class="conflict-diff__col"><div class="conflict-diff__header">摘要（我的）</div><div class="conflict-diff__body"><div class="conflict-diff__line' + (mySummary ? ' conflict-diff__line--add' : ' conflict-diff__line--gap') + '">' + esc(mySummary || '（空）') + '</div></div></div>' +
           '</div>';
       }
+      // 左列 = 服务端（add 行=服务端有而我没有 → 绿，在左）；右列 = 我的（del 行=我有而服务端没有 → 红，在右）
       let leftHtml = "", rightHtml = "";
       rows.forEach(r => {
         if (r.type === "same") {
           leftHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.a) + '</div>';
           rightHtml += '<div class="conflict-diff__line"><span class="conflict-diff__ln">·</span>' + esc(r.b) + '</div>';
         } else if (r.type === "del") {
-          leftHtml += '<div class="conflict-diff__line conflict-diff__line--del"><span class="conflict-diff__ln">-</span>' + esc(r.a) + '</div>';
-          rightHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
-        } else {
+          // 我有、服务端无 → 左（服务端）空，右（我的）红
           leftHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
-          rightHtml += '<div class="conflict-diff__line conflict-diff__line--add"><span class="conflict-diff__ln">+</span>' + esc(r.b) + '</div>';
+          rightHtml += '<div class="conflict-diff__line conflict-diff__line--del"><span class="conflict-diff__ln">-</span>' + esc(r.a) + '</div>';
+        } else {
+          // 服务端有、我没有 → 左（服务端）绿，右（我的）空
+          leftHtml += '<div class="conflict-diff__line conflict-diff__line--add"><span class="conflict-diff__ln">+</span>' + esc(r.b) + '</div>';
+          rightHtml += '<div class="conflict-diff__line conflict-diff__line--gap"></div>';
         }
       });
 
@@ -1306,15 +1310,15 @@ Alpine.data("docComponent", () => ({
         '<div class="conflict-modal__backdrop"></div>' +
         '<div class="conflict-modal__card">' +
         '<div class="conflict-modal__title">文档已被其他会话修改</div>' +
-        '<div class="conflict-modal__desc">对比下方差异，选择处理方式。绿色为新增、红色为删除（git diff 风格）。</div>' +
+        '<div class="conflict-modal__desc">对比下方差异，选择处理方式。<span class="conflict-desc--add">绿色为新增</span>、<span class="conflict-desc--del">红色为删除</span>。</div>' +
         summaryDiffHtml +
         '<div class="conflict-diff">' +
-        '<div class="conflict-diff__col conflict-diff__col--left"><div class="conflict-diff__header">我的修改（草稿）</div><div class="conflict-diff__body">' + leftHtml + '</div></div>' +
-        '<div class="conflict-diff__col conflict-diff__col--right"><div class="conflict-diff__header">服务端最新版本</div><div class="conflict-diff__body">' + rightHtml + '</div></div>' +
+        '<div class="conflict-diff__col conflict-diff__col--left"><div class="conflict-diff__header">服务端最新版本</div><div class="conflict-diff__body">' + leftHtml + '</div></div>' +
+        '<div class="conflict-diff__col conflict-diff__col--right"><div class="conflict-diff__header">我的修改（草稿）</div><div class="conflict-diff__body">' + rightHtml + '</div></div>' +
         '</div>' +
         '<div class="conflict-modal__actions">' +
         '<button class="conflict-modal__btn conflict-modal__btn--ghost" id="conflict-cancel">取消（继续编辑）</button>' +
-        '<button class="conflict-modal__btn conflict-modal__btn--latest" id="conflict-latest">采用最新版本</button>' +
+        '<button class="conflict-modal__btn conflict-modal__btn--latest" id="conflict-latest">采用服务端版本</button>' +
         '<button class="conflict-modal__btn conflict-modal__btn--mine" id="conflict-mine">保留我的修改</button>' +
         '</div>' +
         '</div>';
