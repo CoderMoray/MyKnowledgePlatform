@@ -557,7 +557,8 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-  transition: color 0.12s, background 0.12s;
+  /* 位置变化平滑跟随（光标在空行间切换时滑动过去，而非原地消失再现） */
+  transition: left 0.15s ease, top 0.15s ease, color 0.12s, background 0.12s;
 }
 .plus-btn.is-visible { display: flex; }
 .plus-btn:hover { color: var(--accent, #534ab7); background: var(--bg-tertiary, #f0f0f0); }

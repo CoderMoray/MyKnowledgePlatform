@@ -1046,9 +1046,9 @@ Alpine.data("docComponent", () => ({
       if (!btn || !menu) return;
       let currentBlock = null; // 当前鼠标所在块起点 pos
 
-      // 块起点：posAtCoords → resolve → 向上找 block 节点起点
+      // 块查找：posAtCoords → resolve → 向上找 block 节点，返回 {start, empty}
       // 边界兜底：pos 落在块边界时 resolve.depth 可能为 0（doc 层），试 pos+1 / pos-1
-      const findBlockStart = (pos) => {
+      const findBlock = (pos) => {
         if (pos == null) return null;
         const tryResolve = (p) => {
           if (p < 0 || p > ed.state.doc.content.size) return null;
@@ -1056,7 +1056,11 @@ Alpine.data("docComponent", () => ({
           for (let d = resolved.depth; d >= 0; d--) {
             const node = resolved.node(d);
             if (node && node.isBlock && node.type.name !== "doc") {
-              return Math.max(0, resolved.before(d) + 1);
+              return {
+                start: Math.max(0, resolved.before(d) + 1),
+                // 空块（空行）：无文本且无子内容（飞书：+ 仅出现在空行行首）
+                empty: node.textContent === "" && node.content.size === 0,
+              };
             }
           }
           return null;
@@ -1072,10 +1076,11 @@ Alpine.data("docComponent", () => ({
         moveTimer = setTimeout(() => {
           const hit = ed.view.posAtCoords({ left: e.clientX, top: e.clientY });
           const pos = hit ? hit.pos : null; // posAtCoords 返回 {pos, inside}
-          const blockStart = findBlockStart(pos);
-          if (blockStart == null) { btn.classList.remove("is-visible"); currentBlock = null; return; }
-          currentBlock = blockStart;
-          const coords = ed.view.coordsAtPos(blockStart);
+          const block = findBlock(pos);
+          // 仅空行显示 + 按钮（飞书行为）
+          if (!block || !block.empty) { btn.classList.remove("is-visible"); currentBlock = null; return; }
+          currentBlock = block.start;
+          const coords = ed.view.coordsAtPos(block.start);
           const editorRect = dom.getBoundingClientRect();
           btn.style.left = Math.max(4, editorRect.left - 34) + "px";
           btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
