@@ -162,7 +162,7 @@
   overflow-x: auto;
   margin: 0 0 var(--space-4);
   border-radius: var(--radius-lg, 12px);
-  border: 0.5px solid var(--border-strong); /* 外框与表格框线同色（用户要求颜色一致，非去除） */
+  border: 1px solid var(--border-strong); /* 外框与表格框线同色（用户要求颜色一致，非去除） */
 }
 
 .ProseMirror table {
@@ -177,14 +177,14 @@
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border-bottom: 0.5px solid var(--border-strong);
-  border-right: 0.5px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
 }
 
 .ProseMirror td {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 0.5px solid var(--border-strong);
-  border-right: 0.5px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
   color: var(--text-primary);
 }
 
