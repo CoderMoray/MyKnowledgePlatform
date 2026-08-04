@@ -46,7 +46,7 @@
   <link rel="stylesheet" href="css/layout.css?v=96b40fc992" />
   <link rel="stylesheet" href="css/sidebar.css?v=838170485d" />
   <link rel="stylesheet" href="css/viewer.css?v=0b4f70dfe6" />
-  <link rel="stylesheet" href="css/editor.css?v=7203c4716f" />
+  <link rel="stylesheet" href="css/editor.css?v=1a4fc1c5f6" />
   <link rel="stylesheet" href="css/components.css?v=6bc68d2569" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6318dc95e2" />
 
@@ -72,7 +72,7 @@
   <script src="js/store.js?v=f93f03a293"></script>
   <script src="js/router.js?v=53fe46cc15"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=6979b16efa"></script>
+  <script src="js/components/doc.js?v=61bec07da7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=3854c04775"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -1100,13 +1100,13 @@
       <script type="importmap">
     {
       "imports": {
-        "myk-tiptap": "./tiptap-bundle.mjs?v=07b1e6e6a8"
+        "myk-tiptap": "./tiptap-bundle.mjs?v=b84cafc347"
       }
     }
   </script>
 
   <script type="module">
-    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, BubbleMenu, Extension, SlashCommand, CodeBlockLowlight, createLowlight, MyLowlightCommon } from "myk-tiptap";
+    import { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, BubbleMenu, Extension, SlashCommand, CodeBlockLowlight, createLowlight, MyLowlightCommon, UnderlineExt } from "myk-tiptap";
 
     window.TipTapCore = { Editor, Extension };
     window.TipTapStarterKit = { StarterKit };
@@ -1114,6 +1114,7 @@
     window.TipTapTable = { Table, TableRow, TableCell, TableHeader };
     window.TipTapMenu = { BubbleMenu, SlashCommand };
     window.TipTapCode = { CodeBlockLowlight, createLowlight, MyLowlightCommon };
+    window.TipTapUnderline = UnderlineExt;
 
   </script>
 

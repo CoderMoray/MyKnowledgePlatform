@@ -8,7 +8,7 @@ import TurndownService from "turndown";
 import { readFileSync } from "node:fs";
 
 const BUNDLE = await import("/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_PlatForm/frontend/tiptap-bundle.mjs");
-const { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, CodeBlockLowlight, createLowlight, MyLowlightCommon, SlashCommand: SlashCommandExt } = BUNDLE;
+const { Editor, StarterKit, LinkExt, Table, TableRow, TableCell, TableHeader, CodeBlockLowlight, createLowlight, MyLowlightCommon, SlashCommand: SlashCommandExt, UnderlineExt } = BUNDLE;
 
 // ── jsdom 全局注入 ──
 const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", { url: "http://127.0.0.1:8080/", pretendToBeVisual: true });
@@ -106,6 +106,7 @@ function editorHtmlToMarkdown(html, originalMd = "") {
   });
   td.addRule("mykLink", linkRule);
   td.addRule("mykHr", { filter: "hr", replacement: () => "\n\n---\n\n" });
+  td.addRule("underline", { filter: ["u", "ins"], replacement: (content) => "<u>" + content + "</u>" });
   td.addRule("br", { filter: "br", replacement: () => "\n" });
   td.addRule("listItem", {
     filter: "li",
@@ -180,7 +181,7 @@ function preprocessForEditor(html) {
 // ── 测试用例 ──
 const CASES = [
   { name: "标题+段落", md: "# 一级标题\n\n正文段落。\n\n## 二级\n\n### 三级\n\n#### 四级" },
-  { name: "内联格式", md: "**加粗** *斜体* ~~删除线~~ `行内代码`" },
+  { name: "内联格式", md: "**加粗** *斜体* ~~删除线~~ `行内代码` <u>下划线</u>" },
   { name: "无序列表", md: "- 项1\n- 项2\n  - 嵌套项" },
   { name: "软换行引用", md: "> 第一行\n> 第二行" },
   { name: "组合:标题+表格+引用", md: "# 标题\n\n| A | B |\n|------|------|\n| 1 | 2 |\n\n> 引用文字\n\n## 小结" },
@@ -216,6 +217,7 @@ const SLASH_CASES = [
 
 const extensions = [
   StarterKit.configure({ codeBlock: false }),
+  UnderlineExt,
   PatchedLink,
   Table.configure({ resizable: true }),
   TableRow,

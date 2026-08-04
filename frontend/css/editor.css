@@ -309,6 +309,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative; /* 自定义 tooltip 定位锚点 */
   min-width: 30px;
   height: 28px;
   padding: 0 7px;
@@ -319,6 +320,27 @@
   font-size: 13px;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
+}
+.bubble-menu__btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease 0.18s; /* 悬停 0.18s 后出现（原生 title 约 1s，太慢） */
+  z-index: 10;
+}
+.bubble-menu__btn:hover::after {
+  opacity: 1;
 }
 .bubble-menu__btn:hover {
   background: var(--bg-tertiary, #f0f0f0);
@@ -394,3 +416,70 @@
   color: var(--text-tertiary, #888);
   line-height: 1.4;
 }
+
+/* ── T 块类型下拉（飞书同款） ────────────────────────────────────────────── */
+.block-dropdown {
+  position: fixed;
+  z-index: 200;
+  min-width: 180px;
+  background: var(--bg-primary, #fff);
+  border: 0.5px solid var(--border-subtle, #e6e6e6);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  display: none;
+}
+.block-dropdown.is-active { display: block; }
+.block-dropdown__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.block-dropdown__item:hover { background: var(--bg-tertiary, #f0f0f0); }
+.block-dropdown__name { color: var(--text-primary, #1a1a1a); }
+.block-dropdown__desc { color: var(--text-tertiary, #999); font-size: 11px; }
+
+/* ── 链接浮层（飞书同款：显示文本 + URL） ────────────────────────────────── */
+.link-popover {
+  position: fixed;
+  z-index: 210;
+  width: 280px;
+  background: var(--bg-primary, #fff);
+  border: 0.5px solid var(--border-subtle, #e6e6e6);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.14);
+  padding: 14px;
+  display: none;
+}
+.link-popover.is-active { display: block; }
+.link-popover__title { font-size: 13px; font-weight: 500; margin-bottom: 10px; color: var(--text-primary, #1a1a1a); }
+.link-popover__label { display: block; font-size: 11px; color: var(--text-tertiary, #999); margin: 8px 0 4px; }
+.link-popover__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 0.5px solid var(--border-subtle, #ddd);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #1a1a1a);
+  background: var(--bg-secondary, #fafafa);
+  outline: none;
+}
+.link-popover__input:focus { border-color: var(--accent, #534ab7); background: var(--bg-primary, #fff); }
+.link-popover__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.link-popover__btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.link-popover__btn--cancel { background: transparent; color: var(--text-secondary, #555); }
+.link-popover__btn--cancel:hover { background: var(--bg-tertiary, #f0f0f0); }
+.link-popover__btn--ok { background: var(--accent, #534ab7); color: #fff; }
+.link-popover__btn--ok:hover { opacity: 0.9; }

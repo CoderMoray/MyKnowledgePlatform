@@ -26547,6 +26547,50 @@ var SlashCommand = Extension.create({
 });
 var slash_command_default = SlashCommand;
 
+// node_modules/@tiptap/extension-underline/dist/index.js
+var Underline = Mark2.create({
+  name: "underline",
+  addOptions() {
+    return {
+      HTMLAttributes: {}
+    };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: "u"
+      },
+      {
+        style: "text-decoration",
+        consuming: false,
+        getAttrs: (style2) => style2.includes("underline") ? {} : false
+      }
+    ];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["u", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
+  },
+  addCommands() {
+    return {
+      setUnderline: () => ({ commands: commands2 }) => {
+        return commands2.setMark(this.name);
+      },
+      toggleUnderline: () => ({ commands: commands2 }) => {
+        return commands2.toggleMark(this.name);
+      },
+      unsetUnderline: () => ({ commands: commands2 }) => {
+        return commands2.unsetMark(this.name);
+      }
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      "Mod-u": () => this.editor.commands.toggleUnderline(),
+      "Mod-U": () => this.editor.commands.toggleUnderline()
+    };
+  }
+});
+
 // node_modules/@tiptap/extension-code-block-lowlight/dist/index.js
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
@@ -40605,8 +40649,8 @@ function ok() {
 }
 
 // node_modules/highlight.js/es/core.js
-var import_core29 = __toESM(require_core(), 1);
-var core_default = import_core29.default;
+var import_core30 = __toESM(require_core(), 1);
+var core_default = import_core30.default;
 
 // node_modules/lowlight/lib/index.js
 var emptyOptions = {};
@@ -40845,5 +40889,6 @@ export {
   TableCell,
   TableHeader,
   TableRow,
+  Underline as UnderlineExt,
   createLowlight
 };

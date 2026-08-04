@@ -641,6 +641,8 @@ Alpine.data("docComponent", () => ({
       td.addRule("mykLink", linkRule);
       // 分割线统一输出 ---（turndown 默认 * * *，会造成保存时的噪声 diff）
       td.addRule("mykHr", { filter: "hr", replacement: () => "\n\n---\n\n" });
+      // 下划线：markdown 无标准语法，用内联 HTML <u> 保留（marked 渲染 raw HTML 也保留）
+      td.addRule("underline", { filter: ["u", "ins"], replacement: (content) => "<u>" + content + "</u>" });
       // <br> → 软换行（无行尾空格）：与预处理 \n→<br> 对应，round-trip 零 diff
       td.addRule("br", { filter: "br", replacement: () => "\n" });
       // 嵌套列表缩进用 2 空格（替换 turndown 默认 4 空格，匹配常见手写格式，零 diff）
@@ -747,6 +749,7 @@ Alpine.data("docComponent", () => ({
         TT.TableRow || null,
         TT.TableCell || null,
         TT.TableHeader || null,
+        window.TipTapUnderline ? window.TipTapUnderline : null,
         TM.SlashCommand ? TM.SlashCommand.configure(this._buildSlashOptions(TM.SlashCommand)) : null,
       ].filter(Boolean);
       console.log("[doc] extensions count:", extensions.length);
@@ -889,10 +892,16 @@ Alpine.data("docComponent", () => ({
       const shell = document.querySelector(".editor-shell");
       (shell || document.body).appendChild(el);
       const defs = [
+        { dropdown: "block", title: "块类型（正文/标题/列表）", label: "T" },
+        { sep: true },
         { action: "bold", title: "加粗", label: "<b>B</b>" },
         { action: "italic", title: "斜体", label: "<i>I</i>" },
+        { action: "underline", title: "下划线", label: "<u>U</u>" },
         { action: "strike", title: "删除线", label: "<s>S</s>" },
         { action: "code", title: "行内代码", label: "&lt;/&gt;" },
+        { sep: true },
+        { action: "indent", title: "增加缩进", label: "&#8594;" },
+        { action: "outdent", title: "减少缩进", label: "&#8592;" },
         { sep: true },
         { action: "link", title: "添加链接", label: "&#128279;" },
       ];
@@ -905,11 +914,15 @@ Alpine.data("docComponent", () => ({
         }
         const btn = document.createElement("button");
         btn.className = "bubble-menu__btn";
-        btn.title = d.title;
-        btn.dataset.bubbleAction = d.action;
+        btn.dataset.tip = d.title; // 自定义 tooltip（原生 title 延迟 ~1s 不可控）
+        btn.dataset.bubbleAction = d.dropdown ? "dd:" + d.dropdown : d.action;
+        btn.dataset.bubbleDropdown = d.dropdown || "";
         btn.innerHTML = d.label;
         btn.addEventListener("mousedown", (e) => e.preventDefault()); // 防止编辑器失焦丢选区
-        btn.addEventListener("click", () => this._bubbleAction(d.action));
+        btn.addEventListener("click", () => {
+          if (d.dropdown) this._toggleBlockDropdown(btn, d.dropdown);
+          else this._bubbleAction(d.action);
+        });
         el.appendChild(btn);
       });
 
@@ -932,14 +945,64 @@ Alpine.data("docComponent", () => ({
           let active = false;
           if (act === "bold") active = ed.isActive("bold");
           else if (act === "italic") active = ed.isActive("italic");
+          else if (act === "underline") active = ed.isActive("underline");
           else if (act === "strike") active = ed.isActive("strike");
           else if (act === "code") active = ed.isActive("code");
           else if (act === "link") active = isLink;
           b.classList.toggle("is-active", active);
         });
+        // 选中态变化 → 关闭 T 下拉（保持菜单与内容同步）
+        this._closeBlockDropdown();
       };
       ed.on("selectionUpdate", update);
       ed.on("transaction", update);
+    },
+
+    /** T 块类型下拉：正文 / 标题 1-4 / 有序 / 无序（飞书同款） */
+    _toggleBlockDropdown(btn, kind) {
+      const ed = _editorInstance;
+      if (!ed) return;
+      // 关闭已打开的其他下拉
+      if (this._blockDropdownOpen) { this._closeBlockDropdown(); return; }
+      const items = [
+        { name: "正文", desc: "普通文本", run: () => ed.commands.setParagraph() },
+        { name: "标题 1", desc: "一级大标题", run: () => ed.commands.toggleHeading({ level: 1 }) },
+        { name: "标题 2", desc: "二级标题", run: () => ed.commands.toggleHeading({ level: 2 }) },
+        { name: "标题 3", desc: "三级标题", run: () => ed.commands.toggleHeading({ level: 3 }) },
+        { name: "标题 4", desc: "四级标题", run: () => ed.commands.toggleHeading({ level: 4 }) },
+        { name: "有序列表", desc: "编号列表", run: () => ed.commands.toggleOrderedList() },
+        { name: "无序列表", desc: "项目符号列表", run: () => ed.commands.toggleBulletList() },
+      ];
+      let dd = document.getElementById("block-dropdown");
+      if (!dd) {
+        dd = document.createElement("div");
+        dd.id = "block-dropdown";
+        dd.className = "block-dropdown";
+        (document.querySelector(".editor-shell") || document.body).appendChild(dd);
+      }
+      dd.innerHTML = "";
+      items.forEach((it) => {
+        const div = document.createElement("div");
+        div.className = "block-dropdown__item";
+        div.innerHTML = '<span class="block-dropdown__name">' + it.name + '</span><span class="block-dropdown__desc">' + it.desc + '</span>';
+        div.addEventListener("mousedown", (e) => e.preventDefault());
+        div.addEventListener("click", () => {
+          this._closeBlockDropdown();
+          it.run();
+        });
+        dd.appendChild(div);
+      });
+      const r = btn.getBoundingClientRect();
+      dd.style.left = r.left + "px";
+      dd.style.top = (r.bottom + 4) + "px";
+      dd.classList.add("is-active");
+      this._blockDropdownOpen = true;
+    },
+
+    _closeBlockDropdown() {
+      const dd = document.getElementById("block-dropdown");
+      if (dd) dd.classList.remove("is-active");
+      this._blockDropdownOpen = false;
     },
 
     /** BubbleMenu 按钮点击分发 */
@@ -948,12 +1011,16 @@ Alpine.data("docComponent", () => ({
       if (!ed) return;
       if (action === "bold") ed.commands.toggleBold();
       else if (action === "italic") ed.commands.toggleItalic();
+      else if (action === "underline") ed.commands.toggleUnderline();
       else if (action === "strike") ed.commands.toggleStrike();
       else if (action === "code") ed.commands.toggleCode();
+      else if (action === "indent") ed.commands.sinkListItem("listItem");
+      else if (action === "outdent") ed.commands.liftListItem("listItem");
       else if (action === "link") this._bubbleLink();
     },
 
     /** 链接：无链接 → 提示输入；已有链接 → 取消 */
+    /** 链接浮层：主题化小弹窗（替代浏览器 prompt，飞书同款：选中文字作显示名 + URL 输入） */
     _bubbleLink() {
       const ed = _editorInstance;
       if (!ed) return;
@@ -961,10 +1028,59 @@ Alpine.data("docComponent", () => ({
         ed.commands.unsetLink();
         return;
       }
-      const url = window.prompt("输入链接地址（外部 URL 或 ref:知识路径）", "");
-      if (!url || !url.trim()) return;
-      const href = url.trim().replace(/ /g, "%20");
-      ed.chain().focus().setLink({ href }).run();
+      // 已有浮层 → 关闭
+      const existing = document.getElementById("link-popover");
+      if (existing) { existing.remove(); return; }
+
+      const sel = ed.state.selection;
+      const selectedText = sel.empty ? "" : ed.state.doc.textBetween(sel.from, sel.to, " ").slice(0, 60);
+
+      const pop = document.createElement("div");
+      pop.id = "link-popover";
+      pop.className = "link-popover";
+      pop.innerHTML =
+        '<div class="link-popover__title">添加链接</div>' +
+        '<label class="link-popover__label">显示文本</label>' +
+        '<input class="link-popover__input" id="link-popover-text" type="text" value="' + escapeHtml(selectedText) + '" placeholder="链接显示的文字">' +
+        '<label class="link-popover__label">链接地址</label>' +
+        '<input class="link-popover__input" id="link-popover-url" type="text" placeholder="外部 URL 或 ref:知识路径" spellcheck="false">' +
+        '<div class="link-popover__actions">' +
+        '<button class="link-popover__btn link-popover__btn--cancel" id="link-popover-cancel">取消</button>' +
+        '<button class="link-popover__btn link-popover__btn--ok" id="link-popover-ok">确定</button>' +
+        '</div>';
+      (document.querySelector(".editor-shell") || document.body).appendChild(pop);
+      // 定位：基于浮动条位置
+      const bubble = document.getElementById("bubble-menu");
+      const r = bubble ? bubble.getBoundingClientRect() : ed.view.dom.getBoundingClientRect();
+      pop.style.left = r.left + "px";
+      pop.style.top = (r.top - 140) + "px";
+      pop.classList.add("is-active");
+
+      const urlInput = pop.querySelector("#link-popover-url");
+      const textInput = pop.querySelector("#link-popover-text");
+      urlInput.focus();
+
+      const apply = () => {
+        const url = (urlInput.value || "").trim().replace(/ /g, "%20");
+        const text = (textInput.value || "").trim();
+        if (!url) { pop.remove(); return; }
+        ed.chain().focus().insertContent([
+          { type: "text", text: text || selectedText || url },
+          { type: "text", text: " " },
+        ]).deleteRange({ from: sel.from, to: sel.to }).setLink({ href: url }).run();
+        pop.remove();
+      };
+      pop.querySelector("#link-popover-ok").addEventListener("mousedown", (e) => e.preventDefault());
+      pop.querySelector("#link-popover-ok").addEventListener("click", apply);
+      pop.querySelector("#link-popover-cancel").addEventListener("mousedown", (e) => e.preventDefault());
+      pop.querySelector("#link-popover-cancel").addEventListener("click", () => pop.remove());
+      urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+      // 点击浮层外关闭
+      setTimeout(() => {
+        document.addEventListener("click", (e) => {
+          if (pop.isConnected && !pop.contains(e.target)) pop.remove();
+        }, { once: true });
+      }, 0);
     },
 
     /** 构建 SlashCommand 选项（/ 唤出插入菜单，飞书斜杠菜单同款） */
