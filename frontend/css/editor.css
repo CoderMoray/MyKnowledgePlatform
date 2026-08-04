@@ -185,9 +185,14 @@
   color: var(--text-primary);
 }
 
-/* 表头线加深（更高特异性覆盖 .markdown-body th；td 不动） */
+/* 表头线加深（更高特异性覆盖 .markdown-body th；td 不动）：
+   border-bottom = 表头底线，border-right = 表头单元格间垂线（列分隔线） */
 .ProseMirror .tableWrapper th {
   border-bottom: 0.5px solid var(--border-strong);
+  border-right: 0.5px solid var(--border-strong);
+}
+.ProseMirror .tableWrapper th:last-child {
+  border-right: none; /* 最右列不画（外框右侧已有） */
 }
 
 .ProseMirror td {
