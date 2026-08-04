@@ -552,6 +552,11 @@ Alpine.data("docComponent", () => ({
       if (fullMd) {
         try {
           await store.saveDocument(path, this._buildSaveBody());
+          // 保存成功后同步 htmlContent = 编辑器 DOM 快照：
+          // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）
+          if (_editorInstance && _editorInstance.view) {
+            store.htmlContent = _editorInstance.view.dom.innerHTML;
+          }
         } catch (e) {
           // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
           if (this._handleSaveError(e)) return;
