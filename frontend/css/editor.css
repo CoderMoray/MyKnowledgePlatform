@@ -162,13 +162,13 @@
   overflow-x: auto;
   margin: 0 0 var(--space-4);
   border-radius: var(--radius-lg, 12px);
-  border: 0.5px solid var(--border-default);
+  border: 0.5px solid var(--border-strong); /* 外框与行边框统一加深 */
 }
 
 .ProseMirror table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: 16px; /* 与阅读态一致（原 --text-sm 12px） */
 }
 
 .ProseMirror th {
@@ -177,13 +177,25 @@
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  border-bottom: 0.5px solid var(--border-default);
+  border-bottom: 0.5px solid var(--border-strong);
+  border-right: 0.5px solid var(--border-strong);
 }
 
 .ProseMirror td {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 0.5px solid var(--border-subtle);
+  border-bottom: 0.5px solid var(--border-strong);
+  border-right: 0.5px solid var(--border-strong);
   color: var(--text-primary);
+}
+
+.ProseMirror th:last-child,
+.ProseMirror td:last-child {
+  border-right: none;
+}
+
+/* 最后一行去底边框（与阅读态一致） */
+.ProseMirror tr:last-child td {
+  border-bottom: none;
 }
 
 .ProseMirror th p,
