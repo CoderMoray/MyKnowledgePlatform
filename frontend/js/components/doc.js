@@ -1309,8 +1309,8 @@ Alpine.data("docComponent", () => ({
       modal.innerHTML =
         '<div class="conflict-modal__backdrop"></div>' +
         '<div class="conflict-modal__card">' +
-        '<div class="conflict-modal__title">文档已被其他会话修改</div>' +
-        '<div class="conflict-modal__desc">对比下方差异，选择处理方式。<span class="conflict-desc--add">绿色为新增</span>、<span class="conflict-desc--del">红色为删除</span>。</div>' +
+        '<div class="conflict-modal__title">文档已在别处被修改</div>' +
+        '<div class="conflict-modal__desc">你编辑期间，它被其他窗口、设备或 AI 工具更新了。对比下方差异，选择处理方式。<span class="conflict-desc--add">绿色为新增</span>、<span class="conflict-desc--del">红色为删除</span>。</div>' +
         summaryDiffHtml +
         '<div class="conflict-diff">' +
         '<div class="conflict-diff__col conflict-diff__col--left"><div class="conflict-diff__header">服务端最新版本</div><div class="conflict-diff__body">' + leftHtml + '</div></div>' +
