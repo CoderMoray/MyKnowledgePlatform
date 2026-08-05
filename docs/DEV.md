@@ -70,7 +70,7 @@
 
 ### 测试
 
-- 16 个测试文件，164 个测试通过，3 个前端 smoke 测试因 CDN 环境待修复
+- 16 个测试文件，172 个测试通过，3 个前端 smoke 测试因 CDN 环境待修复
 - 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager
 
 ---

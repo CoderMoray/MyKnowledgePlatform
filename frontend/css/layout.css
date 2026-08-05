@@ -282,7 +282,7 @@
 .sidebar-section__label {
   display: block;
   padding: var(--space-2) 0 var(--space-1);
-  font-size: var(--text-3xs);
+  font-size: var(--text-2xs); /* 10px（整体提档 B 方案，原 9px） */
   font-weight: 600;
   color: var(--text-tertiary);
   text-transform: uppercase;
@@ -299,7 +299,7 @@
   padding: 5px var(--space-2);
   margin: 1px 0;
   border-radius: var(--radius-md);
-  font-size: var(--text-sm);
+  font-size: var(--text-md); /* 14px（整体提档 B 方案，原 --text-sm 12px） */
   color: var(--text-secondary);
   cursor: pointer;
   transition: var(--transition-interactive);

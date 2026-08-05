@@ -516,10 +516,10 @@ class TestApiRenameDocument:
     def test_rebuild_generates_new_path(self, client, tmp_kb_root: Path):
         """Parent readme / project-status rebuilt without dead links."""
         from backend.readme_generator import ReadmeGenerator
+        shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
         tmpl = tmp_kb_root / "_templates" / "readme.md"
-        if not tmpl.exists():
-            tmpl.parent.mkdir(parents=True, exist_ok=True)
-            tmpl.write_text("# {name}\n\n{summary}")
+        tmpl.parent.mkdir(parents=True, exist_ok=True)
+        tmpl.write_text(shipped.read_text())
         gen = ReadmeGenerator(storage=Storage(kb_root=tmp_kb_root), template_path=tmpl)
         gen.rebuild("", name="KB", summary="t")
 
