@@ -387,7 +387,9 @@ function buildTrashPrompt(ref, item, full, content) {
 
   let daysLeft = "";
   if (deletedAt) {
-    const ms = new Date(String(deletedAt).replace(" ", "T")).getTime();
+    // 兼容 git 时间格式（"2026-08-05 18:30:00 +0800"）→ ISO（去空格 + 时区偏移去空格）
+    const iso = String(deletedAt).replace(" ", "T").replace(/ (\+\d{4})$/, "$1");
+    const ms = new Date(iso).getTime();
     if (!isNaN(ms)) daysLeft = Math.max(0, 30 - Math.floor((Date.now() - ms) / 86400000));
   }
   const daysTxt = daysLeft !== "" ? "剩余约 " + daysLeft + " 天可恢复" : "30 天内可恢复";
@@ -414,6 +416,8 @@ function buildTrashPrompt(ref, item, full, content) {
     "   - 不值得恢复 → 保持不恢复，垃圾箱 30 天到期后系统自动清除（注: 剩余天数 >0 时无法立即永久删除）\n" +
     "4. 若恢复时收到写锁提示，先 `maint__acquire_lock` 再重试。";
 }
+window.buildTrashPrompt = buildTrashPrompt; // 显式挂载（jsdom eval 不自动挂函数声明）
+window.copyText = copyText;
 
 /* ── 重命名（标题可编辑 = 重命名）纯函数 ────────────────────────────────
  * 独立成纯函数便于自动化测试（frontend/tests/rename-logic.mjs）
