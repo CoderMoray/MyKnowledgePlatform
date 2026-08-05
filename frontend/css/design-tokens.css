@@ -103,8 +103,8 @@
 
   /* ── 1.6 阴影 ─────────────────────────────────────────────────────────── */
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05); /* 轻微明显 */
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.10);
 
   /* ── 1.7 毛玻璃 ───────────────────────────────────────────────────────── */
 
@@ -223,8 +223,8 @@
   --color-info: #60a5fa;
   --color-locked: #a78bfa;
 
-  --shadow-card: none;
-  --shadow-card-hover: none;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28); /* 暗色也加轻微阴影 */
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.42);
 
   --glass-bg: rgba(44, 44, 46, 0.82);
   --glass-blur: blur(24px);
@@ -661,8 +661,8 @@ textarea,
   --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 14px;
-  --shadow-card: none;
-  --shadow-card-hover: none;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28); /* 暗色也加轻微阴影 */
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.42);
   --glass-bg: rgba(255, 253, 248, 0.88);
   --glass-blur: blur(12px);
   --glass-border: 0.5px solid #ebe7e0;
@@ -745,8 +745,8 @@ textarea,
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
-  --shadow-card: none;
-  --shadow-card-hover: none;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.28); /* 暗色也加轻微阴影 */
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.42);
   --glass-bg: rgba(255, 255, 255, 0.9);
   --glass-blur: blur(12px);
   --glass-border: 1px solid rgba(0, 0, 0, 0.06);
