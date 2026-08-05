@@ -50,7 +50,7 @@ Alpine.data("modalComponent", () => ({
 
       try {
         await api.deleteDocument(path);
-        showToast("文档已删除", "success");
+        showToast("已移入垃圾箱（30 天内可恢复）", "success");
         store.closeModal();
 
         const projPath = projectName(path);

@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=b86bbdd887"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=3854c04775"></script>
+  <script src="js/components/modal.js?v=7a399c0bc0"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1000,12 +1000,16 @@
          x-cloak
          @click.self="$store.app.closeModal()">
       <div class="modal">
-        <h2 class="modal__title">确认删除</h2>
+        <h2 class="modal__title">删除文档</h2>
         <p class="modal__description">
-          确定要删除文档 <strong x-text="$store.app.modalData?.title"></strong> 吗？此操作不可撤销。
+          将把文档 <strong x-text="$store.app.modalData?.title"></strong> 移入垃圾箱，
+          <strong>30 天内可恢复</strong>。
         </p>
         <div class="modal__actions">
           <button class="btn" @click="$store.app.closeModal()">取消</button>
+          <button class="btn" @click="$store.app.closeModal(); window.location.hash = 'trash'">
+            去垃圾箱查看
+          </button>
           <button class="btn btn--danger"
                   @click="confirmDelete()"
                   :disabled="$store.app.isLocked">
