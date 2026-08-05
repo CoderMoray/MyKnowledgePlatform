@@ -398,6 +398,28 @@ def api_create_document(path: str, payload: DocumentPayload):
     return {"status": "ok", "id": meta.get("id", "")}
 
 
+class DocRenamePayload(BaseModel):
+    path: str
+    new_name: str
+
+
+@app.put("/api/document/rename")
+def api_rename_document(payload: DocRenamePayload):
+    """Rename a single document (file mv + refs + rebuild).
+
+    必须定义在 {path:path} 端点之前：{path:path} 会贪婪匹配 "rename"，
+    后定义的精确端点永远匹配不到。
+    """
+    from backend.mcp_server import rename_document as _rd
+    _check_write_allowed()
+    storage, gen = get_storage()
+    try:
+        result = _rd(storage, payload.path, payload.new_name)
+        return {"status": "ok", "message": result}
+    except (ValueError, FileNotFoundError, FileExistsError) as e:
+        raise HTTPException(400, str(e))
+
+
 @app.put("/api/document/{path:path}")
 def api_update_document(path: str, payload: DocumentPayload):
     """Update an existing knowledge document.
@@ -570,20 +592,11 @@ def api_rename_project(project_rel: str, payload: RenamePayload):
 
 
 class DocRenamePayload(BaseModel):
+    path: str
     new_name: str
 
 
-@app.put("/api/document/{path:path}/rename")
-def api_rename_document(path: str, payload: DocRenamePayload):
-    """Rename a single document (file mv + refs + rebuild)."""
-    from backend.mcp_server import rename_document as _rd
-    _check_write_allowed()
-    storage, gen = get_storage()
-    try:
-        result = _rd(storage, path, payload.new_name)
-        return {"status": "ok", "message": result}
-    except (ValueError, FileNotFoundError, FileExistsError) as e:
-        raise HTTPException(400, str(e))
+
 
 
 # ══════════════════════════════════════════════════════════════

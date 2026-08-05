@@ -164,9 +164,9 @@ const api = {
    * @param {string} newName - 新名称
    */
   async renameDocument(path, newName) {
-    return apiRequest(`/api/document/${encodeURIComponent(path)}/rename`, {
+    return apiRequest("/api/document/rename", {
       method: "PUT",
-      body: JSON.stringify({ new_name: newName }),
+      body: JSON.stringify({ path, new_name: newName }),
     });
   },
 

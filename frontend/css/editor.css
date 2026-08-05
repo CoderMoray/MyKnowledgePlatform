@@ -622,3 +622,15 @@
 }
 .plus-menu__name { font-size: 13px; color: var(--text-primary, #1a1a1a); }
 .plus-menu__desc { font-size: 12px; color: var(--text-tertiary, #999); }
+
+/* 编辑态标题输入框：与阅读态完全一致（无边框无背景），仅光标闪烁 */
+.viewer__title-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  outline: none;
+  caret-color: var(--accent, #534ab7);
+}

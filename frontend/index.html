@@ -46,7 +46,7 @@
   <link rel="stylesheet" href="css/layout.css?v=96b40fc992" />
   <link rel="stylesheet" href="css/sidebar.css?v=838170485d" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
-  <link rel="stylesheet" href="css/editor.css?v=4f412ca452" />
+  <link rel="stylesheet" href="css/editor.css?v=21f963d908" />
   <link rel="stylesheet" href="css/components.css?v=2f3cc10405" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
@@ -65,14 +65,14 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=55bfe67195"></script>
-  <script src="js/api.js?v=2e29068fb2"></script>
+  <script src="js/api.js?v=943819e9d0"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
   <script src="js/store.js?v=621db57241"></script>
   <script src="js/router.js?v=53fe46cc15"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=587c80e828"></script>
+  <script src="js/components/doc.js?v=6c5f3a7711"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=3854c04775"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -727,8 +727,17 @@
           <!-- 文档阅读区 -->
           <article class="viewer" x-show="!$store.app.loading && $store.app.document">
             <div class="viewer__header">
-              <h1 class="viewer__title"
-                  x-text="$store.app.document?.title || fileName($store.app.currentPath)"></h1>
+              <!-- 标题：view 态 span / edit 态可编辑输入框（与 summary 同款；改标题=重命名文件） -->
+              <h1 class="viewer__title">
+                <span x-show="$store.app.currentView !== 'edit'"
+                      x-text="$store.app.document?.title || fileName($store.app.currentPath)"></span>
+                <input x-show="$store.app.currentView === 'edit'"
+                       class="viewer__title-input"
+                       type="text"
+                       x-model="titleValue"
+                       placeholder="文档标题"
+                       @keydown.enter.prevent="exitEdit()" />
+              </h1>
               <!-- 作者信息 -->
               <div class="viewer__meta">
                 <div class="viewer__meta-row" x-show="authorAvatar.initial && $store.app.document?.maintainer !== $store.app.document?.author">

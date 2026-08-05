@@ -85,9 +85,12 @@ Alpine.data("docComponent", () => ({
         const h = store.htmlContent;
         if (!h || !h.trim()) return;
         // 切文档/重载 → 同步标题/摘要输入框（避免残留上一文档的值）。
-        // htmlContent 只在 loadDocument 时更新（编辑态保存不改它），不会覆盖正在输入的摘要。
-        this.summaryValue = store.document?.summary || "";
-        this.titleValue = store.document?.title || "";
+        // 仅非编辑态同步：编辑态保护用户正在输入的内容（保存时 htmlContent 快照也会触发本 effect，
+        // 若同步会把刚输入的标题覆盖回文件名，导致重命名判断失效）。
+        if (store.currentView !== "edit") {
+          this.summaryValue = store.document?.summary || "";
+          this.titleValue = store.document?.title || fileName(store.currentPath || "");
+        }
         if (!_editorInstance) {
           this._ensureEditorForView(); // 内部有 _editorInstance 防重
           return;
@@ -162,6 +165,7 @@ Alpine.data("docComponent", () => ({
       if (!this._editingPath) return;
       const store = Alpine.store("app");
       const path = this._editingPath || store.currentPath;
+      let finalPath = path; // rename 后路径可能变化，setView 用新路径
       const fullMd = this._editorToMarkdown();
       if (fullMd) {
         try {
@@ -548,6 +552,7 @@ Alpine.data("docComponent", () => ({
         return;
       }
 
+      let finalPath = path; // rename 后路径可能变化，setView 用新路径
       const fullMd = this._editorToMarkdown();
       if (fullMd) {
         try {
@@ -557,9 +562,17 @@ Alpine.data("docComponent", () => ({
           if (_editorInstance && _editorInstance.view) {
             store.htmlContent = _editorInstance.view.dom.innerHTML;
           }
+          // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）
+          const currentTitle = store.document?.title || fileName(path);
+          const newTitle = (this.titleValue || "").trim();
+          if (newTitle && newTitle !== currentTitle) {
+            finalPath = await this._renameCurrentDocument(path, newTitle);
+          }
         } catch (e) {
           // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
           if (this._handleSaveError(e)) return;
+          // 其他失败（含 rename 失败）：toast，不打断退出（内容已保存）
+          if (e && e.status !== 409) showToast(e.message || "保存失败", "error");
         }
       }
 
@@ -568,7 +581,7 @@ Alpine.data("docComponent", () => ({
       this._hideEditDecorations();
       this._editingPath = null;
       if (stillOnDoc) {
-        store.setView("view", path);
+        store.setView("view", finalPath);
       }
     },
 
@@ -1375,6 +1388,25 @@ Alpine.data("docComponent", () => ({
 
     /** 执行一次保存：内容未变跳过；失败 → IndexedDB 草稿兜底 + 横幅 */
     /** 统一构造保存 body（content + summary + 乐观锁指纹 expected_version） */
+    /** 重命名当前文档（标题变化时）：文件 mv + 引用更新（后端），当前会话跟随新路径 */
+    async _renameCurrentDocument(oldPath, newTitle) {
+      const store = Alpine.store("app");
+      const newName = newTitle.endsWith(".md") ? newTitle : newTitle + ".md";
+      await api.renameDocument(oldPath, newName);
+      // 新路径 = 原目录 + 新文件名
+      const slash = oldPath.lastIndexOf("/");
+      const newPath = (slash >= 0 ? oldPath.substring(0, slash + 1) : "") + newName;
+      store.currentPath = newPath;
+      if (store.document) store.document.title = newTitle;
+      // 路由跟随新路径（hash 更新；当前视图无需重载，内容已在编辑器）
+      const hash = "doc/" + encodeURIComponent(newPath);
+      if (window.location.hash !== "#" + hash) {
+        history.replaceState(null, "", "#" + hash);
+      }
+      showToast("已重命名为 " + newTitle, "success");
+      return newPath;
+    },
+
     _buildSaveBody() {
       const store = Alpine.store("app");
       const md = this._editorToMarkdown();
