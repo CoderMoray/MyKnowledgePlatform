@@ -576,9 +576,13 @@ Alpine.data("docComponent", () => ({
             store.htmlContent = _editorInstance.view.dom.innerHTML;
           }
           // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）
-          const currentTitle = store.document?.title || fileName(path);
+          const currentTitle = MykRename.currentTitle(store.document, path);
           const newTitle = (this.titleValue || "").trim();
-          if (newTitle && newTitle !== currentTitle) {
+          const titleErr = MykRename.titleError(newTitle);
+          if (titleErr) {
+            // 非法标题：内容已保存，提示但跳过重命名
+            showToast(titleErr + "，未重命名", "warning");
+          } else if (MykRename.shouldRename(currentTitle, newTitle)) {
             finalPath = await this._renameCurrentDocument(path, newTitle);
           }
         } catch (e) {
@@ -1404,11 +1408,10 @@ Alpine.data("docComponent", () => ({
     /** 重命名当前文档（标题变化时）：文件 mv + 引用更新（后端），当前会话跟随新路径 */
     async _renameCurrentDocument(oldPath, newTitle) {
       const store = Alpine.store("app");
-      const newName = newTitle.endsWith(".md") ? newTitle : newTitle + ".md";
+      const newName = MykRename.buildNewName(newTitle);
       await api.renameDocument(oldPath, newName);
       // 新路径 = 原目录 + 新文件名
-      const slash = oldPath.lastIndexOf("/");
-      const newPath = (slash >= 0 ? oldPath.substring(0, slash + 1) : "") + newName;
+      const newPath = MykRename.buildNewPath(oldPath, newName);
       store.currentPath = newPath;
       if (store.document) store.document.title = newTitle;
       // 路由跟随新路径（hash 更新；当前视图无需重载，内容已在编辑器）

@@ -310,3 +310,43 @@ function lineDiff(aText, bText) {
   while (j < m) { rows.push({ type: "add", a: "", b: b[j] }); j++; }
   return rows;
 }
+
+/* ── 重命名（标题可编辑 = 重命名）纯函数 ────────────────────────────────
+ * 独立成纯函数便于自动化测试（frontend/tests/rename-logic.mjs）
+ */
+window.MykRename = {
+  /** 标题 → 完整文件名（自动补 .md，已带不重复加） */
+  buildNewName(title) {
+    const t = (title || "").trim();
+    if (!t) return "";
+    return t.endsWith(".md") ? t : t + ".md";
+  },
+
+  /** 旧路径 + 新文件名 → 新路径（同目录替换文件名） */
+  buildNewPath(oldPath, newName) {
+    const slash = oldPath.lastIndexOf("/");
+    return (slash >= 0 ? oldPath.substring(0, slash + 1) : "") + newName;
+  },
+
+  /** 当前显示标题：frontmatter title 优先，否则文件名（去目录 + 去 .md） */
+  currentTitle(doc, path) {
+    if (doc && doc.title) return doc.title;
+    const file = String(path || "").split("/").pop() || "";
+    return file.replace(/\.md$/, "");
+  },
+
+  /** 标题是否变化（空标题/未变 → 不 rename） */
+  shouldRename(currentTitle, newTitle) {
+    const nt = (newTitle || "").trim();
+    return !!(nt && nt !== currentTitle);
+  },
+
+  /** 标题合法性：非空、不含路径分隔符、不含非法文件名字符 */
+  titleError(title) {
+    const t = (title || "").trim();
+    if (!t) return "标题不能为空";
+    if (t.includes("/") || t.includes("\\")) return "标题不能包含路径分隔符";
+    if (/[:*?"<>|]/.test(t)) return "标题不能包含 : * ? \" < > | 字符";
+    return "";
+  },
+};
