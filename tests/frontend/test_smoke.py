@@ -221,6 +221,12 @@ class TestRouteRendering:
             opacity = banner.first.evaluate("el => getComputedStyle(el).opacity")
             assert opacity == "0", f"Lock banner should be hidden when unlocked, opacity={opacity}"
 
+    def test_trash_view_renders(self, page):
+        """#trash 垃圾箱视图加载（空状态渲染）"""
+        page.goto(f"file://{FRONTEND.absolute()}#trash")
+        page.wait_for_timeout(2000)
+        expect(page.locator(".page-title", has_text="垃圾箱")).to_be_visible(timeout=5000)
+
     def test_empty_state_handled(self, page):
         """无数据时显示空状态而非崩溃"""
         page.goto(f"file://{FRONTEND.absolute()}#dashboard")
@@ -362,6 +368,21 @@ class TestBuild:
         ]
         for t in texts:
             assert t in content, f"Missing text: {t}"
+
+        # ── 垃圾箱（trash）新增功能 ──
+        trash_checks = [
+            "垃圾箱",                 # 侧栏入口 + 视图标题
+            "30 天内可恢复",           # 删除弹窗文案
+            "去垃圾箱查看",           # 删除弹窗按钮
+            "清空垃圾箱",             # trash 视图按钮
+            "该文档已被删除",         # 404 已删除视图
+            "去垃圾箱恢复",           # 404 恢复入口
+            "已进垃圾箱·可恢复",      # refs 面板 in_trash 徽标
+            "引用不存在",             # refs 面板 dead 徽标
+            "#trash",                # 路由
+        ]
+        for t in trash_checks:
+            assert t in content, f"Missing trash feature text: {t}"
 
         # ── x-cloak ──
         assert "[x-cloak]{display:none!important}" in content.replace(" ", ""), \
