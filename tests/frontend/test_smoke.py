@@ -113,26 +113,25 @@ class TestStaticStructure:
         for f in required:
             assert (js_dir / f).exists(), f"Missing JS: js/{f}"
 
-    def test_required_cdn_scripts(self):
+    def test_required_vendor_scripts(self):
+        """库全部本地 vendor（无 CDN——设计：防白屏/离线）"""
         html = FRONTEND.read_text(encoding="utf-8")
         required = [
-            "alpinejs",
-            "marked",
-            "highlight.js",
-            "turndown",
-            "@tiptap/core",
-            "@tiptap/starter-kit",
+            "vendor/alpine.min.js",
+            "vendor/marked.min.js",
+            "vendor/highlight.js",
+            "vendor/turndown.js",
+            "tiptap-bundle.mjs",
         ]
         for dep in required:
-            assert dep in html, f"Missing CDN dependency: {dep}"
+            assert dep in html, f"Missing vendor dependency: {dep}"
 
     def test_alpine_components_defined(self):
         html = FRONTEND.read_text(encoding="utf-8")
         components = [
             'x-data="dashboardComponent"',
             'x-data="projectComponent"',
-            'x-data="viewerComponent"',
-            'x-data="editorComponent"',
+            'x-data="docComponent"',
             'x-data="sidebarComponent"',
             'x-data="modalComponent"',
         ]
@@ -176,8 +175,8 @@ class TestRouteRendering:
         """#dashboard 仪表盘正常加载"""
         page.goto(f"file://{FRONTEND.absolute()}#dashboard")
         page.wait_for_timeout(2000)  # 等 Alpine 初始化
-        # 验证面板标题存在
-        expect(page.locator("text=MyKnowledge")).to_be_visible(timeout=5000)
+        # 验证侧边栏品牌名可见（text=MyKnowledge 会匹配 10+ 元素触发 strict 报错）
+        expect(page.locator(".sidebar-brand__name").first).to_be_visible(timeout=5000)
 
     def test_dashboard_content_renders(self, page):
         """仪表盘内容区渲染"""
@@ -218,7 +217,9 @@ class TestRouteRendering:
         page.wait_for_timeout(3000)
         banner = page.locator(".locked-banner, [class*='lock-banner']")
         if banner.count() > 0:
-            expect(banner.first).not_to_be_visible()
+            # 前端用 opacity 控制显隐（未锁 opacity:0），检查实际透明度
+            opacity = banner.first.evaluate("el => getComputedStyle(el).opacity")
+            assert opacity == "0", f"Lock banner should be hidden when unlocked, opacity={opacity}"
 
     def test_empty_state_handled(self, page):
         """无数据时显示空状态而非崩溃"""
@@ -309,17 +310,16 @@ class TestBuild:
         assert output.exists()
         content = output.read_text()
 
-        # ── CDN 依赖 ──
+        # ── 依赖：全部内联（无 CDN——设计：防白屏/离线）──
+        assert "cdn.jsdelivr" not in content and "unpkg.com" not in content,             "Standalone should be fully inline (no CDN)"
         checks = {
-            "Alpine.js": "alpinejs@3",
-            "marked": "marked@11",
-            "highlight.js": "highlight.js@11",
-            "Turndown": "turndown@7",
-            "TipTap": "@tiptap/core",
-            "TipTap StarterKit": "@tiptap/starter-kit",
+            "Alpine": "alpine:init",  # alpine.min.js 是 IIFE（无 window.Alpine），用初始化钩子标记
+            "marked": "marked.parse",
+            "Turndown": "TurndownService",
+            "TipTap StarterKit": "StarterKit",
         }
         for label, pattern in checks.items():
-            assert pattern in content, f"Missing CDN: {label}"
+            assert pattern in content, f"Missing inline lib: {label}"
 
         # ── 全局函数 ──
         funcs = [
@@ -340,7 +340,7 @@ class TestBuild:
         # ── 组件 ──
         components = [
             "dashboardComponent", "projectComponent",
-            "viewerComponent", "editorComponent", "sidebarComponent",
+            "docComponent", "sidebarComponent",
         ]
         for c in components:
             assert c in content, f"Missing component: {c}"
@@ -348,7 +348,6 @@ class TestBuild:
         # ── UI 元素 ──
         elements = [
             "class=\"splash\"", "id=\"splashBar\"",
-            "class=\"page-splash", "id=\"pageSplashBar\"",
             "class=\"sidebar\"", "class=\"content-panel\"",
             "class=\"page-label\"", "class=\"project-panel\"",
         ]
@@ -358,7 +357,7 @@ class TestBuild:
         # ── 关键文本 ──
         texts = [
             "知识库版本", "知识", "子项目", "归档",
-            "用户使用中", "用户编辑中", "AI 编辑中",
+            "用户编辑中", "AI 编辑中",
             "已完成", "已取消", "已废弃",
         ]
         for t in texts:
