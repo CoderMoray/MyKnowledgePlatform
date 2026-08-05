@@ -168,6 +168,20 @@
             </svg>
             <span class="sidebar-item__name">仪表盘</span>
           </div>
+          <!-- 垃圾箱快捷入口 -->
+          <div class="sidebar-item"
+               :class="{ 'sidebar-item--active': $store.app.currentView === 'trash' }"
+               @click="window.location.hash='trash'"
+               title="垃圾箱（30 天内可恢复）">
+            <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
+                 stroke="currentColor" stroke-width="1.5">
+              <path d="M2.5 4.5h11"/>
+              <path d="M6.5 4.5V3h3v1.5"/>
+              <path d="M4 4.5l.5 8.5a1 1 0 0 0 1 .9h5a1 1 0 0 0 1-.9l.5-8.5"/>
+              <path d="M6.5 7v3.5M9.5 7v3.5"/>
+            </svg>
+            <span class="sidebar-item__name">垃圾箱</span>
+          </div>
         </div>
 
         <!-- 项目列表 -->
@@ -222,12 +236,6 @@
       <div class="sidebar-footer">
         <span class="sidebar-footer__version"
               x-text="$store.app.kbVersion ? '知识库版本 ' + $store.app.kbVersion : '知识库版本 —'"></span>
-        <a href="#trash" class="sidebar-footer__status" style="margin-left:auto"
-           title="垃圾箱（30 天内可恢复）">
-          <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-tertiary)">
-            🗑 垃圾箱
-          </span>
-        </a>
         <a href="#status" class="sidebar-footer__status">
           <span class="status-dot"
                 :class="$store.app.systemStatus.dotClass"
@@ -873,7 +881,7 @@
           <!-- 文档已删除（可在垃圾箱恢复） -->
           <div class="loading-state" x-show="$store.app.deletedInfo" x-cloak>
             <p class="text-danger" style="font-size:15px;font-weight:600">该文档已被删除</p>
-            <p x-text="'删除时间: ' + ($store.app.deletedInfo.deleted_at || '—')"
+            <p x-text="'删除时间: ' + (($store.app.deletedInfo && $store.app.deletedInfo.deleted_at) || '—')"
                style="color:var(--text-secondary);font-size:13px"></p>
             <p style="color:var(--text-tertiary);font-size:12px">可在垃圾箱中恢复（30 天内）</p>
             <div style="display:flex;gap:8px;justify-content:center;margin-top:4px">
