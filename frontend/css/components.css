@@ -522,8 +522,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.12);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(2px);
 }
 
@@ -1181,19 +1181,58 @@
 }
 .ref-card__action:hover { text-decoration: underline; }
 
-/* ── 倒计时 toast（删除后返回） ────────────────────────────────────────── */
-.toast--countdown {
+/* ── 倒计时面板（删除后返回；与 modal 设计语言一致） ────────────────────── */
+.countdown-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 300;
   display: flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
+  gap: 12px;
+  max-width: 420px;
+  padding: 14px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  animation: countdown-in 0.25s ease both;
 }
-.toast--countdown:hover { opacity: 0.92; }
-.toast__count {
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 9999px;
-  padding: 2px 7px;
+@keyframes countdown-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.countdown-panel__icon {
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--accent-subtle, rgba(83, 74, 183, 0.1));
+  color: var(--accent, #534ab7);
+}
+.countdown-panel__body { flex: 1; min-width: 0; }
+.countdown-panel__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+.countdown-panel__meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.countdown-panel__count {
+  font-weight: 700;
+  color: var(--accent, #534ab7);
+  font-variant-numeric: tabular-nums;
+}
+.countdown-panel__jump {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 8px;
 }

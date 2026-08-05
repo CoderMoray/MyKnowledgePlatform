@@ -731,9 +731,13 @@ document.addEventListener("alpine:init", () => {
       if (!path || this.isLocked) return;
       try {
         await api.deleteProject(path);
-        showToast("已移入垃圾箱（30 天内可恢复）", "success");
         this.closeModal();
-        window.location.hash = "dashboard";
+        // 倒计时面板：明确跳转目标（首页）
+        showCountdownToast(
+          "项目已移入垃圾箱，3 秒后返回首页",
+          () => { window.location.hash = "dashboard"; },
+          3
+        );
       } catch (e) {
         showToast(e.message || "删除失败", "error");
         this.closeModal();

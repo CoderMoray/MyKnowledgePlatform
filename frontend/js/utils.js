@@ -127,8 +127,12 @@ function statusLabel(status) {
 function projectName(path) {
   if (!path) return "";
   const clean = path.replace(/\\/g, "/").replace(/^\//, "");
-  const idx = clean.indexOf("/");
-  return idx > 0 ? clean.substring(0, idx) : clean;
+  // 只有 projects/ 或 archive/ 前缀才是项目（根 common-knowledge/ 不属于任何项目）
+  if (clean.startsWith("projects/") || clean.startsWith("archive/")) {
+    const parts = clean.split("/");
+    return parts.length >= 2 ? parts[0] + "/" + parts[1] : "";
+  }
+  return "";
 }
 
 /**
@@ -193,33 +197,39 @@ function showToast(message, type = "info", duration = 900) {
   }, duration);
 }
 
-/** 倒计时提示（删除后返回上级页）：可点击立即跳转，或等待倒计时自动跳转 */
+/** 倒计时面板（删除后返回上级）：浅色面板 + 「立刻跳转」按钮 + 倒计时自动跳转 */
 function showCountdownToast(message, jumpFn, seconds = 3) {
-  const container =
-    document.querySelector(".toast-container") || createToastContainer();
-  const toast = document.createElement("div");
-  toast.className = "toast toast--info toast--countdown";
-  toast.innerHTML =
-    '<span class="toast__text">' + escapeHtml(message) + '</span>' +
-    '<span class="toast__count">' + seconds + 's</span>';
-  toast.title = "点击立即返回";
-  container.appendChild(toast);
+  const panel = document.createElement("div");
+  panel.className = "countdown-panel";
+  panel.innerHTML =
+    '<div class="countdown-panel__icon">' +
+    '  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '    <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+    '    <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>' +
+    '  </svg>' +
+    '</div>' +
+    '<div class="countdown-panel__body">' +
+    '  <div class="countdown-panel__title">' + escapeHtml(message) + '</div>' +
+    '  <div class="countdown-panel__meta"><span class="countdown-panel__count">' + seconds + '</span> 秒后自动跳转</div>' +
+    '</div>' +
+    '<button class="btn btn--primary countdown-panel__jump">立刻跳转</button>';
+  document.body.appendChild(panel);
 
   let remain = seconds;
   const finish = () => {
     clearInterval(timer);
-    toast.remove();
+    clearTimeout(autoTimer);
+    panel.remove();
     if (jumpFn) jumpFn();
   };
-  toast.addEventListener("click", finish);
+  panel.querySelector(".countdown-panel__jump").addEventListener("click", finish);
   const timer = setInterval(() => {
     remain -= 1;
-    const countEl = toast.querySelector(".toast__count");
-    if (countEl) countEl.textContent = remain + "s";
+    const countEl = panel.querySelector(".countdown-panel__count");
+    if (countEl) countEl.textContent = remain;
     if (remain <= 0) finish();
   }, 1000);
-  // 兜底：3 秒自动跳转
-  setTimeout(finish, (seconds + 1) * 1000);
+  const autoTimer = setTimeout(finish, (seconds + 1) * 1000);
 }
 
 function createToastContainer() {

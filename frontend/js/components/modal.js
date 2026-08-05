@@ -52,10 +52,12 @@ Alpine.data("modalComponent", () => ({
         await api.deleteDocument(path);
         store.closeModal();
 
-        // 倒计时提示：可点击立即返回上级，或 3 秒后自动返回
+        // 倒计时面板：明确跳转目标（项目页 / 首页）
         const projPath = projectName(path);
         showCountdownToast(
-          "已移入垃圾箱，3 秒后返回上级项目页面",
+          projPath
+            ? "已移入垃圾箱，3 秒后返回项目「" + fileName(projPath) + "」"
+            : "已移入垃圾箱，3 秒后返回首页",
           () => {
             if (projPath) window.location.hash = "project/" + projPath;
             else window.location.hash = "dashboard";
