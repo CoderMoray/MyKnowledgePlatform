@@ -352,6 +352,69 @@ function lineDiff(aText, bText) {
 }
 window.lineDiff = lineDiff; // 显式挂载（jsdom eval 不自动挂函数声明；浏览器 script 顶层即 window）
 
+/** 复制文本到剪贴板（http 下用 Clipboard API，失败回退 execCommand） */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) { /* fall through */ }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;left:-9999px;top:0";
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (_) {}
+  ta.remove();
+  return ok;
+}
+
+/** 垃圾箱处理 prompt（发给能操作 MCP 的 agent——精确工具名，后端已核对）
+ *  @param ref     引用条目（{title, path}）
+ *  @param item    垃圾箱条目（{name, original_path, trash_path, deleted_at, type, summary}）
+ *  @param full    是否含全文（全文版前置敏感提示）
+ *  @param content 文档全文（full=true 时必传）
+ */
+function buildTrashPrompt(ref, item, full, content) {
+  const name = (item && item.name) || (ref && ref.title) || "";
+  const original = (item && item.original_path) || (ref && ref.path) || "";
+  const trashPath = (item && item.trash_path) || "";
+  const deletedAt = (item && item.deleted_at) || "";
+  const restoreTool = item && item.type === "project"
+    ? "write__restore_project" : "write__restore_document";
+
+  let daysLeft = "";
+  if (deletedAt) {
+    const ms = new Date(String(deletedAt).replace(" ", "T")).getTime();
+    if (!isNaN(ms)) daysLeft = Math.max(0, 30 - Math.floor((Date.now() - ms) / 86400000));
+  }
+  const daysTxt = daysLeft !== "" ? "剩余约 " + daysLeft + " 天可恢复" : "30 天内可恢复";
+
+  const header =
+    "MyKnowledge 知识库文档「" + name + "」目前在我的回收站（垃圾箱）中，请评估处理。\n" +
+    "- 原路径: " + original + "\n" +
+    "- 回收站路径: " + trashPath + "\n" +
+    "- 删除时间: " + deletedAt + " · " + daysTxt;
+
+  if (full) {
+    return "⚠ 以下内容可能含敏感信息，请确认发送对象后再粘贴。\n\n" +
+      header + "\n\n文档全文:\n" + (content || "") + "\n\n" +
+      "请用 `maint__check_refs` 确认引用来源后，给出处理建议: " +
+      "恢复(`" + restoreTool + "(\x22" + trashPath + "\x22))`) 或保持不恢复(30 天后自动清除)，并说明理由。";
+  }
+  return header +
+    "\n- 摘要: " + ((item && item.summary) || (ref && ref.title) || "(无摘要)") + "\n\n" +
+    "请按以下步骤评估并给出建议:\n" +
+    "1. 用 `maint__check_refs` 扫描知识库，确认还有哪些文档仍在引用它，据此判断其引用价值。\n" +
+    "2. 需要看全文时，用 `nav__get_document(\x22" + trashPath + "\x22)` 读取（回收站文档可直接读）。\n" +
+    "3. 给出处理建议并说明理由:\n" +
+    "   - 值得恢复 → 调 `" + restoreTool + "(\x22" + trashPath + "\x22)` 恢复\n" +
+    "   - 不值得恢复 → 保持不恢复，垃圾箱 30 天到期后系统自动清除（注: 剩余天数 >0 时无法立即永久删除）\n" +
+    "4. 若恢复时收到写锁提示，先 `maint__acquire_lock` 再重试。";
+}
+
 /* ── 重命名（标题可编辑 = 重命名）纯函数 ────────────────────────────────
  * 独立成纯函数便于自动化测试（frontend/tests/rename-logic.mjs）
  */

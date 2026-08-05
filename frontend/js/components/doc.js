@@ -358,8 +358,10 @@ Alpine.data("docComponent", () => ({
         <div class="ref-card__divider"></div>
         ${isTrash
           ? `<div class="ref-card__summary" style="color:var(--color-warning, #d97706)">该知识已进垃圾箱${remainDays !== "" ? `，剩余 ${remainDays} 天可恢复` : "，可在垃圾箱恢复"}</div>
-             <div class="ref-card__footer" style="justify-content:flex-end;gap:10px">
+             <div class="ref-card__footer" style="justify-content:flex-end;gap:8px">
                <a href="#trash" class="ref-card__action">去垃圾箱恢复</a>
+               <button class="ref-card__action ref-card__action--btn" data-copy-prompt>复制处理 prompt</button>
+               <button class="ref-card__action ref-card__action--btn" data-copy-full title="含全文（可能含敏感信息）">含全文</button>
              </div>`
           : `<div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在</div>
              <div class="ref-card__footer" style="justify-content:flex-end;font-size:11px;color:var(--text-tertiary)">ref 链接指向的文档路径无效</div>`}
@@ -370,6 +372,18 @@ Alpine.data("docComponent", () => ({
       // 点击「去垃圾箱恢复」→ 立即缩回卡片（不等鼠标移出）
       const action = card.querySelector("a.ref-card__action");
       if (action) action.addEventListener("click", () => this._hideRefCard());
+
+      // 复制处理 prompt（摘要版 / 含全文版）——点击时不缩回卡片
+      const copyBtn = card.querySelector("[data-copy-prompt]");
+      if (copyBtn) copyBtn.addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        this._copyTrashPrompt(refPath, false);
+      });
+      const copyFullBtn = card.querySelector("[data-copy-full]");
+      if (copyFullBtn) copyFullBtn.addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        this._copyTrashPrompt(refPath, true);
+      });
 
       // 若还没拿到 deleted_at（trashItems 未加载）→ 异步查一次并重建卡片（动态剩余天数）
       if (isTrash && !deletedAt) {
@@ -382,6 +396,37 @@ Alpine.data("docComponent", () => ({
             if (link) this._showDeadRefCard(link, refPath);
           }
         }).catch(() => {});
+      }
+    },
+
+    /** 复制垃圾箱处理 prompt（MCP 精确工具名模板，后端已核对） */
+    async _copyTrashPrompt(refPath, full) {
+      const store = Alpine.store("app");
+      const ref = (store.refs || []).find(r => r.path === refPath);
+      let item = (store.trashItems || []).find(i => i.original_path === refPath);
+      try {
+        if (!item) {
+          const data = await api.getTrash();
+          store.trashItems = data.items || [];
+          item = store.trashItems.find(i => i.original_path === refPath);
+        }
+        if (!item) { showToast("未找到垃圾箱条目", "error"); return; }
+        let summary = "", content = "";
+        try {
+          const data = await api.getDocument(item.trash_path); // trash 路径可直接读
+          summary = data.summary || "";
+          content = data.content || "";
+        } catch (_) {
+          summary = (ref && ref.title) || "";
+        }
+        const prompt = buildTrashPrompt(ref, Object.assign({}, item, { summary }), full, content);
+        const ok = await copyText(prompt);
+        showToast(
+          ok ? (full ? "已复制（含全文，注意敏感信息）" : "已复制处理 prompt，可发送给 agent") : "复制失败",
+          ok ? "success" : "error"
+        );
+      } catch (e) {
+        showToast(e.message || "复制失败", "error");
       }
     },
 
