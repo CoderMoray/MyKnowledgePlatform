@@ -289,8 +289,9 @@ function cardIconSvg(name) {
  * @returns {Array<{type:"same"|"del"|"add", a:string, b:string}>}
  */
 function lineDiff(aText, bText) {
-  const a = String(aText || "").replace(/\r\n/g, "\n").split("\n");
-  const b = String(bText || "").replace(/\r\n/g, "\n").split("\n");
+  // 空文本 → 无行（"" .split("\n") 会返回 [""] 一个空行，空文档不该有行）
+  const a = aText ? String(aText).replace(/\r\n/g, "\n").split("\n") : [];
+  const b = bText ? String(bText).replace(/\r\n/g, "\n").split("\n") : [];
   const n = a.length, m = b.length;
   // LCS DP（文档几百行内可接受）
   const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
@@ -310,6 +311,7 @@ function lineDiff(aText, bText) {
   while (j < m) { rows.push({ type: "add", a: "", b: b[j] }); j++; }
   return rows;
 }
+window.lineDiff = lineDiff; // 显式挂载（jsdom eval 不自动挂函数声明；浏览器 script 顶层即 window）
 
 /* ── 重命名（标题可编辑 = 重命名）纯函数 ────────────────────────────────
  * 独立成纯函数便于自动化测试（frontend/tests/rename-logic.mjs）

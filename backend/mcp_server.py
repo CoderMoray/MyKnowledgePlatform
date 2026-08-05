@@ -183,42 +183,36 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
 
 
 def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
-    """Rename a single document: file mv + ref replacement + rebuild."""
+    """Rename a single document: file mv + ref replacement + rebuild.
+
+    Lock is guaranteed released via ``finally`` even on error.
+    """
     import shutil, re
 
     acquire_lock(storage)  # ensure lock held for this write
-    old_path = storage.kb_root / old_rel
-    if not old_path.is_file():
-        raise FileNotFoundError(f"文件不存在: {old_rel}")
+    try:
+        old_path = storage.kb_root / old_rel
+        if not old_path.is_file():
+            raise FileNotFoundError(f"文件不存在: {old_rel}")
 
-    # Compute new path (same directory, new name)
-    new_rel = str(Path(old_rel).parent / new_name)
-    new_path = storage.kb_root / new_rel
-    if new_path.exists():
-        raise FileExistsError(f"目标文件已存在: {new_rel}")
+        # Compute new path (same directory, new name)
+        new_rel = str(Path(old_rel).parent / new_name)
+        new_path = storage.kb_root / new_rel
+        if new_path.exists():
+            raise FileExistsError(f"目标文件已存在: {new_rel}")
 
-    # Move
-    shutil.move(str(old_path), str(new_path))
+        # Move
+        shutil.move(str(old_path), str(new_path))
 
-    committed_files = {str(new_path)}
+        committed_files = {str(new_path)}
 
-    # Replace ref: links (exact path match only)
-    old_escaped = re.escape(old_rel)
-    pattern = re.compile(r'(ref:)' + old_escaped + r'(?=[\): ]|$)')
+        # Replace ref: links (exact path match only)
+        old_escaped = re.escape(old_rel)
+        pattern = re.compile(r'(ref:)' + old_escaped + r'(?=[\): ]|$)')
 
-    for md_file in storage.kb_root.rglob("*.md"):
-        if ".git" in md_file.parts:
-            continue
-        text = md_file.read_text(encoding="utf-8")
-        if old_rel in text:
-            updated = pattern.sub(r'\g<1>' + new_rel, text)
-            if updated != text:
-                md_file.write_text(updated, encoding="utf-8")
-                committed_files.add(str(md_file))
-
-    # Also scan _refs/ directories
-    for refs_dir in storage.kb_root.rglob("_refs"):
-        for md_file in refs_dir.rglob("*.md"):
+        for md_file in storage.kb_root.rglob("*.md"):
+            if ".git" in md_file.parts:
+                continue
             text = md_file.read_text(encoding="utf-8")
             if old_rel in text:
                 updated = pattern.sub(r'\g<1>' + new_rel, text)
@@ -226,32 +220,43 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
                     md_file.write_text(updated, encoding="utf-8")
                     committed_files.add(str(md_file))
 
-    # Rebuild parent project readme
-    from backend.readme_generator import ReadmeGenerator
-    template = storage.kb_root / "_templates" / "readme.md"
-    parent_rel = _parent_rel(old_rel)
-    if template.exists() and parent_rel:
-        gen = ReadmeGenerator(storage=storage, template_path=template)
-        gen.rebuild(parent_rel)
-        gen.rebuild_project_status()
-        committed_files.add(str(storage.kb_root / "readme.md"))
-        committed_files.add(str(storage.kb_root / "project-status.md"))
+        # Also scan _refs/ directories
+        for refs_dir in storage.kb_root.rglob("_refs"):
+            for md_file in refs_dir.rglob("*.md"):
+                text = md_file.read_text(encoding="utf-8")
+                if old_rel in text:
+                    updated = pattern.sub(r'\g<1>' + new_rel, text)
+                    if updated != text:
+                        md_file.write_text(updated, encoding="utf-8")
+                        committed_files.add(str(md_file))
 
-    # Git commit
-    from backend.git_manager import GitManager
-    try:
-        gm = GitManager(storage.kb_root)
-        file_args = sorted(f for f in committed_files if Path(f).is_file())
-        if file_args:
-            gm._run("add", "--", *file_args)
-            gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}")
-        from backend.events import broadcast as _evt
-        _evt(storage.kb_root)
-    except Exception:
-        pass
+        # Rebuild parent project readme
+        from backend.readme_generator import ReadmeGenerator
+        template = storage.kb_root / "_templates" / "readme.md"
+        parent_rel = _parent_rel(old_rel)
+        if template.exists() and parent_rel:
+            gen = ReadmeGenerator(storage=storage, template_path=template)
+            gen.rebuild(parent_rel)
+            gen.rebuild_project_status()
+            committed_files.add(str(storage.kb_root / "readme.md"))
+            committed_files.add(str(storage.kb_root / "project-status.md"))
 
-    release_lock(storage)
-    return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
+        # Git commit
+        from backend.git_manager import GitManager
+        try:
+            gm = GitManager(storage.kb_root)
+            file_args = sorted(f for f in committed_files if Path(f).is_file())
+            if file_args:
+                gm._run("add", "--", *file_args)
+                gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}")
+            from backend.events import broadcast as _evt
+            _evt(storage.kb_root)
+        except Exception:
+            pass
+
+        return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
+    finally:
+        release_lock(storage)
 
 
 def delete_project(storage: Storage, project_rel: str) -> str:

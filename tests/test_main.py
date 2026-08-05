@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from backend.storage import Storage
+from backend.mcp_server import _lock_file
 
 
 # ══════════════════════════════════════════════════════════════
@@ -419,3 +420,120 @@ class TestApiExport:
     def test_export_nonexistent_project(self, client):
         resp = client.post("/api/export", json={"projects": ["projects/Nope"]})
         assert resp.status_code == 400
+
+
+class TestApiRenameDocument:
+    """Test PUT /api/document/rename (REST shell of rename_document)."""
+
+    def _make(self, storage: Storage, path: str, body: str = "# body") -> None:
+        storage.write_document(path, {"id": path, "summary": "s",
+                                      "maintainer": "Me",
+                                      "created": "2026-01-01",
+                                      "updated": "2026-01-01"},
+                               body, auto_id=False)
+
+    def _rename(self, client, path: str, new_name: str):
+        return client.put("/api/document/rename",
+                          json={"path": path, "new_name": new_name})
+
+    def test_file_moved(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make(storage, "common-knowledge/old.md")
+        resp = self._rename(client, "common-knowledge/old.md", "new.md")
+        assert resp.status_code == 200
+        assert (tmp_kb_root / "common-knowledge" / "new.md").is_file()
+        assert not (tmp_kb_root / "common-knowledge" / "old.md").exists()
+        meta, body = storage.read_document("common-knowledge/new.md")
+        assert "# body" in body
+
+    def test_ref_exact_replacement_no_false_positive(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make(storage, "common-knowledge/old.md")
+        # Referrer doc: exact ref (should replace), plain-text mention (should not),
+        # prefix-similar ref (should not), unrelated ref (should not)
+        referrer = (
+            "[目标](ref:common-knowledge/old.md)\n"
+            "正文里提到 common-knowledge/old.md 不是引用\n"
+            "[子](ref:common-knowledge/old.md/sub.md)\n"
+            "[无关](ref:common-knowledge/other.md)\n"
+        )
+        self._make(storage, "common-knowledge/referrer.md", referrer)
+        self._make(storage, "common-knowledge/other.md", "other")
+
+        resp = self._rename(client, "common-knowledge/old.md", "new.md")
+        assert resp.status_code == 200
+
+        content = storage.read_content("common-knowledge/referrer.md")
+        assert "ref:common-knowledge/new.md" in content      # exact replaced
+        assert "正文里提到 common-knowledge/old.md 不是引用" in content  # plain text kept
+        assert "ref:common-knowledge/old.md/sub.md" in content  # prefix-similar kept
+        assert "ref:common-knowledge/other.md" in content     # unrelated kept
+
+    def test_rename_duplicate_400(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make(storage, "common-knowledge/a.md")
+        self._make(storage, "common-knowledge/b.md")
+        resp = self._rename(client, "common-knowledge/a.md", "b.md")
+        assert resp.status_code == 400
+        # original unchanged
+        assert (tmp_kb_root / "common-knowledge" / "a.md").is_file()
+        # lock released even on error
+        assert not _lock_file(tmp_kb_root).exists()
+
+    def test_rename_nonexistent_400(self, client, tmp_kb_root: Path):
+        resp = self._rename(client, "common-knowledge/nope.md", "new.md")
+        assert resp.status_code == 400
+
+    def test_lock_released_after_rename(self, client, tmp_kb_root: Path):
+        """Frontend-reported bug: rename must not leave .lock behind."""
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make(storage, "common-knowledge/lock.md")
+        resp = self._rename(client, "common-knowledge/lock.md", "renamed.md")
+        assert resp.status_code == 200
+        # Lock MUST be released (frontend gets stuck read-only if left)
+        assert not _lock_file(tmp_kb_root).exists()
+
+    def test_lock_released_on_failure(self, client, tmp_kb_root: Path):
+        """Lock released even when rename fails (finally guarantees it)."""
+        storage = Storage(kb_root=tmp_kb_root)
+        self._make(storage, "common-knowledge/fail.md")
+        self._make(storage, "common-knowledge/taken.md")
+        resp = self._rename(client, "common-knowledge/fail.md", "taken.md")
+        assert resp.status_code == 400
+        assert not _lock_file(tmp_kb_root).exists()
+
+    def test_special_char_paths(self, client, tmp_kb_root: Path):
+        """Chinese / spaces / parentheses in filenames."""
+        storage = Storage(kb_root=tmp_kb_root)
+        old = "common-knowledge/旧文档 (草稿).md"
+        new = "common-knowledge/新文档 (正式).md"
+        self._make(storage, old, "# 中文正文")
+        resp = self._rename(client, old, "新文档 (正式).md")
+        assert resp.status_code == 200
+        assert (tmp_kb_root / "common-knowledge" / "新文档 (正式).md").is_file()
+        assert not (tmp_kb_root / "common-knowledge" / "旧文档 (草稿).md").exists()
+
+    def test_rebuild_generates_new_path(self, client, tmp_kb_root: Path):
+        """Parent readme / project-status rebuilt without dead links."""
+        from backend.readme_generator import ReadmeGenerator
+        tmpl = tmp_kb_root / "_templates" / "readme.md"
+        if not tmpl.exists():
+            tmpl.parent.mkdir(parents=True, exist_ok=True)
+            tmpl.write_text("# {name}\n\n{summary}")
+        gen = ReadmeGenerator(storage=Storage(kb_root=tmp_kb_root), template_path=tmpl)
+        gen.rebuild("", name="KB", summary="t")
+
+        from backend.storage import dump_frontmatter
+        storage = Storage(kb_root=tmp_kb_root)
+        (tmp_kb_root / "projects" / "P" / "common-knowledge").mkdir(parents=True)
+        storage.write_readme("projects/P", {"id": "P", "name": "P", "summary": "p"},
+                             dump_frontmatter({"id": "P", "name": "P", "summary": "p"}, "# P"))
+        self._make(storage, "projects/P/common-knowledge/doc.md")
+        gen.rebuild("projects/P")
+
+        resp = self._rename(client, "projects/P/common-knowledge/doc.md", "renamed.md")
+        assert resp.status_code == 200
+        # project readme references the new file, no dead link
+        readme = storage.read_content("projects/P/readme.md")
+        assert "renamed.md" in readme
+        assert "doc.md" not in readme
