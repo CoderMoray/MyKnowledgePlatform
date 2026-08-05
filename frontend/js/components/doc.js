@@ -415,7 +415,7 @@ Alpine.data("docComponent", () => ({
         }
         const prompt = buildTrashPrompt(ref, Object.assign({}, item, { summary }), false, "");
         const ok = await copyText(prompt);
-        showToast(ok ? "已复制处理 prompt，可发送给 agent" : "复制失败", ok ? "success" : "error");
+        showToast(ok ? "Prompt 已复制，可以发送给你的 AI" : "复制失败", ok ? "success" : "error", 1800);
       } catch (e) {
         showToast(e.message || "复制失败", "error");
       }
