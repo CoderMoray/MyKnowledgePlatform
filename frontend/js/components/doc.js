@@ -1326,12 +1326,20 @@ Alpine.data("docComponent", () => ({
 
       const apply = () => {
         const url = (urlInput.value || "").trim().replace(/ /g, "%20");
-        const text = (textInput.value || "").trim();
+        const text = (textInput.value || "").trim() || selectedText || url;
         if (!url) { pop.remove(); return; }
-        ed.chain().focus().insertContent([
-          { type: "text", text: text || selectedText || url },
-          { type: "text", text: " " },
-        ]).deleteRange({ from: sel.from, to: sel.to }).setLink({ href: url }).run();
+        // 删除选中 → 原地插入带 link mark 的文本（一次事务，避免 selection 漂移导致文本消失/链接不生效）
+        const linkMark = { type: "link", attrs: { href: url } };
+        if (sel.empty) {
+          ed.chain().focus()
+            .insertContent([{ type: "text", text: text + " ", marks: [linkMark] }])
+            .run();
+        } else {
+          ed.chain().focus()
+            .deleteRange({ from: sel.from, to: sel.to })
+            .insertContent([{ type: "text", text: text + " ", marks: [linkMark] }])
+            .run();
+        }
         pop.remove();
       };
       pop.querySelector("#link-popover-ok").addEventListener("mousedown", (e) => e.preventDefault());
