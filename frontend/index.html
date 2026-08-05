@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=bb5c234134" />
+  <link rel="stylesheet" href="css/components.css?v=e11f2886d4" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -72,7 +72,7 @@
   <script src="js/store.js?v=59b4596b87"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=19a54df528"></script>
+  <script src="js/components/doc.js?v=b86bbdd887"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=3854c04775"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -815,7 +815,7 @@
                          'viewer__ref-item--dead': !ref.resolved && ref.type !== 'external',
                          'viewer__ref-item--external': ref.type === 'external'
                        }"
-                       @click="ref.type === 'external' ? window.open(ref.path, '_blank', 'noopener') : (ref.resolved && goToRef(ref.path))">
+                       @click="ref.type === 'external' ? window.open(ref.path, '_blank', 'noopener') : (ref.resolved ? goToRef(ref.path) : (ref.ref_status === 'in_trash' ? window.location.hash = 'trash' : null))">
                     <div class="viewer__ref-icon"
                          :class="{
                            'viewer__ref-icon--dead': !ref.resolved && ref.type !== 'external',
@@ -837,8 +837,10 @@
                       </svg>
                     </div>
                     <div class="viewer__ref-info">
-                      <div style="display:flex;align-items:center;gap:6px">
+                      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                         <span class="viewer__ref-name" x-text="ref.title || fileName(ref.path)"></span>
+                        <span x-show="ref.ref_status === 'in_trash'" class="ref-status ref-status--trash">已进垃圾箱·可恢复</span>
+                        <span x-show="ref.ref_status === 'dead'" class="ref-status ref-status--dead">引用不存在</span>
                         <span class="viewer__ref-badge viewer__ref-badge--dead" x-show="!ref.resolved && ref.type !== 'external'">已失效</span>
                         <span class="viewer__ref-badge viewer__ref-badge--external" x-show="ref.type === 'external'">外部</span>
                       </div>

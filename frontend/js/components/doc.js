@@ -328,10 +328,15 @@ Alpine.data("docComponent", () => ({
       this._attachCardEvents(card, linkEl);
     },
 
-    /** 死链卡片 — ref 文档不存在 */
+    /** 死链卡片 — ref 文档不存在（区分 in_trash 可恢复 / dead 不存在） */
     _showDeadRefCard(linkEl, refPath) {
       const existing = document.getElementById("ref-card");
       if (existing) existing.remove();
+
+      const store = Alpine.store("app");
+      const ref = (store.refs || []).find(r => r.path === refPath);
+      const status = (ref && ref.ref_status) || "dead";
+      const isTrash = status === "in_trash";
 
       const card = document.createElement("div");
       card.id = "ref-card";
@@ -341,8 +346,13 @@ Alpine.data("docComponent", () => ({
         <div class="ref-card__title">${escapeHtml(linkEl.textContent.trim())}</div>
         <div class="ref-card__source" style="word-break:break-all;font-size:11px;color:var(--text-tertiary)">${escapeHtml(refPath)}</div>
         <div class="ref-card__divider"></div>
-        <div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在或已被删除</div>
-        <div class="ref-card__footer" style="justify-content:flex-end;font-size:11px;color:var(--text-tertiary)">ref 链接指向的文档路径无效</div>
+        ${isTrash
+          ? `<div class="ref-card__summary" style="color:var(--color-warning, #d97706)">该知识已进垃圾箱，30 天内可恢复</div>
+             <div class="ref-card__footer" style="justify-content:flex-end">
+               <a href="#trash" class="ref-card__action">去垃圾箱恢复</a>
+             </div>`
+          : `<div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在</div>
+             <div class="ref-card__footer" style="justify-content:flex-end;font-size:11px;color:var(--text-tertiary)">ref 链接指向的文档路径无效</div>`}
       `;
 
       this._attachCardEvents(card, linkEl);
