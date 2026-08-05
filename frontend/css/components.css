@@ -1184,23 +1184,25 @@
 /* ── 倒计时面板（删除后返回；与 modal 设计语言一致） ────────────────────── */
 .countdown-panel {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 300;
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: 420px;
-  padding: 14px 16px;
+  max-width: 460px;
+  width: min(92vw, 460px);
+  padding: 16px 18px;
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   animation: countdown-in 0.25s ease both;
 }
 @keyframes countdown-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translate(-50%, -42%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
 }
 .countdown-panel__icon {
   width: 34px;

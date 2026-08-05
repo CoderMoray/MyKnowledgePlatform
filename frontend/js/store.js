@@ -198,7 +198,10 @@ document.addEventListener("alpine:init", () => {
     async loadProjects() {
       try {
         const data = await api.list("projects");
-        this.projects = data && data.items ? data.items : [];
+        // 只保留项目目录（排除文件，如 projects/readme.md 总览文档）
+        this.projects = data && data.items
+          ? data.items.filter(i => i.is_dir && !/^readme\.md$/i.test(i.name || ""))
+          : [];
       } catch (err) {
         console.error("加载项目列表失败:", err);
       }
