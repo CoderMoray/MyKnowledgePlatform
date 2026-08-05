@@ -956,13 +956,18 @@ Alpine.data("docComponent", () => ({
         const bindRefLinks = () => {
           pmRoot.querySelectorAll("a").forEach((link) => {
             const title = link.getAttribute("title") || "";
-            if (!title.startsWith("关联文档:") || link.dataset._refBound) return;
+            const href = link.getAttribute("href") || "";
+            // 兼容两种渲染：title="关联文档:..."（前端 renderer）或 href="ref:..."（后端 html）
+            const isRef = title.startsWith("关联文档:") || href.startsWith("ref:");
+            if (!isRef || link.dataset._refBound) return;
             link.dataset._refBound = "1";
 
             link.addEventListener("mouseenter", () => {
               if (store.editingMode || store.isLocked) return;
               clearTimeout(self._hoverTimer);
-              const refPath = title.replace(/^关联文档:\s*/, "").trim();
+              const refPath = title.startsWith("关联文档:")
+                ? title.replace(/^关联文档:\s*/, "").trim()
+                : href.slice(4).split("::")[0];
               if (refPath) {
                 self._hoverTimer = setTimeout(() => {
                   self.openRefPopover(link, refPath);
