@@ -519,10 +519,12 @@ Alpine.data("docComponent", () => ({
       if (!e || !e.target) return;
       const shell = this.$el.querySelector(".editor-shell");
       if (!shell) return;
-      // summary 区在 editor-shell 外，但属于文档编辑区域：点它进编辑（view）/ 不退出（edit）
+      // summary/标题区在 editor-shell 外，但属于文档编辑区域：点它进编辑（view）/ 不退出（edit）
       const summaryEl = this.$el.querySelector(".viewer__summary");
       const inSummary = summaryEl && e.target.isConnected && summaryEl.contains(e.target);
-      const inEditor = (e.target.isConnected && shell.contains(e.target)) || inSummary;
+      const titleEl = this.$el.querySelector(".viewer__title");
+      const inTitle = titleEl && e.target.isConnected && titleEl.contains(e.target);
+      const inEditor = (e.target.isConnected && shell.contains(e.target)) || inSummary || inTitle;
       const store = Alpine.store("app");
       if (store.currentView !== "edit") {
         // 阅读态：点击编辑器/摘要（且不是链接）→ 进入编辑
