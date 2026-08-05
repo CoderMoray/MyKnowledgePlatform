@@ -383,7 +383,8 @@ def api_get_document(path: str):
                               "maintainer", "created", "updated", "template")},
         }
     except FileNotFoundError:
-        raise HTTPException(404, "document not found")
+        # 404 区分"已删除(可恢复)"与"从未存在"（与其他端点一致）
+        raise HTTPException(404, _deleted_detail(storage, path))
 
 
 # ══════════════════════════════════════════════════════════════

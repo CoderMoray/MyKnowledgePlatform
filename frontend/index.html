@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=a0846c8ab7"></script>
-  <script src="js/api.js?v=4c50688439"></script>
+  <script src="js/api.js?v=46ce58a11e"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=59b4596b87"></script>
+  <script src="js/store.js?v=3522dbb4ba"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=b86bbdd887"></script>
@@ -865,9 +865,21 @@
           </div>
 
           <!-- 错误 -->
-          <div class="loading-state" x-show="$store.app.error" x-cloak>
+          <div class="loading-state" x-show="$store.app.error && !$store.app.deletedInfo" x-cloak>
             <p x-text="$store.app.error" class="text-danger"></p>
             <a href="#dashboard" class="btn">返回仪表盘</a>
+          </div>
+
+          <!-- 文档已删除（可在垃圾箱恢复） -->
+          <div class="loading-state" x-show="$store.app.deletedInfo" x-cloak>
+            <p class="text-danger" style="font-size:15px;font-weight:600">该文档已被删除</p>
+            <p x-text="'删除时间: ' + ($store.app.deletedInfo.deleted_at || '—')"
+               style="color:var(--text-secondary);font-size:13px"></p>
+            <p style="color:var(--text-tertiary);font-size:12px">可在垃圾箱中恢复（30 天内）</p>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:4px">
+              <a href="#trash" class="btn btn--primary">去垃圾箱恢复</a>
+              <a href="#dashboard" class="btn">返回仪表盘</a>
+            </div>
           </div>
 
           <!-- 加载中 -->

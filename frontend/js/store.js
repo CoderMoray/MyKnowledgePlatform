@@ -31,6 +31,9 @@ document.addEventListener("alpine:init", () => {
     trashItems: [],
     trashLoading: false,
 
+    /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
+    deletedInfo: null,
+
     /** 锁信息 */
     lockInfo: null,
 
@@ -272,6 +275,13 @@ document.addEventListener("alpine:init", () => {
         this.htmlContent = "";
         this.refs = [];
         this.documentMeta = null;
+        // 404 区分：文档曾存在后被删除（可恢复）vs 从未存在
+        // err.message 已由 apiRequest 解嵌套（"deleted"）；deleted_at 在 err.detail.detail 里
+        const dd = err && err.detail && err.detail.detail;
+        this.deletedInfo =
+          err && err.status === 404 && err.message === "deleted"
+            ? { deleted_at: (dd && dd.deleted_at) || "" }
+            : null;
       }
     },
 

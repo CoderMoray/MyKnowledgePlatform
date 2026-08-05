@@ -50,8 +50,11 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!res.ok) {
+    // detail 可能是字符串（"deleted"/"not_found"）或嵌套对象 {detail, deleted_at}
+    const dd = data && data.detail;
     const message =
-      (data && data.detail) ||
+      (typeof dd === "string" && dd) ||
+      (dd && dd.detail) ||
       (data && data.message) ||
       `请求失败 (${res.status})`;
 
