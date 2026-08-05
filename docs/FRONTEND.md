@@ -62,13 +62,23 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
       "title": "链接文本",
       "type": "ref",
       "content": "引用文档全文",
-      "resolved": true
+      "resolved": true,
+      "ref_status": "normal"
+    },
+    {
+      "path": "common-knowledge/deleted.md",
+      "title": "已删除引用",
+      "type": "ref",
+      "content": "⚠ 引用路径不存在",
+      "resolved": false,
+      "ref_status": "in_trash"
     },
     {
       "path": "https://example.com",
       "title": "外部链接",
       "type": "external",
-      "resolved": true
+      "resolved": true,
+      "ref_status": "normal"
     }
   ]
 }
@@ -76,6 +86,29 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 **`refs[i].type`**：`"ref"`（内部 KB 引用）或 `"external"`（http/https 外链）。外部链接无 `content` 字段。
 **代码块/行内代码/图片链接**中的链接不会被解析。
+
+**`refs[i].ref_status`**：引用目标的状态，前端可用它区分死链的两种类型：
+- `"normal"`：目标正常存在（`resolved: true`）。
+- `"in_trash"`：目标已被删除但仍在垃圾箱、可恢复（`resolved: false`）。前端可展示「引用已进垃圾箱」并提示恢复。
+- `"dead"`：目标从未存在（`resolved: false`）。前端可提示用户补充知识或更新引用。
+
+> 兼容性：`ref_status` 是新增字段，旧前端忽略即可，不影响既有 `resolved`/`content` 语义。
+
+### 垃圾箱
+
+| 方法 | 路径 | Body | 说明 |
+|------|------|------|------|
+| GET | `/api/trash` | — | 列出垃圾箱（document/project、original_path、deleted_at、trash_path） |
+| POST | `/api/trash/restore` | `{trash_path}` | 恢复条目到原路径 |
+| POST | `/api/trash/empty` | — | 永久清空超过 30 天的条目 |
+
+**`DELETE /api/document/{path}`** 现在将文档移入垃圾箱而非删除，返回 `{"status": "trashed", "trash_path": "..."}`，30 天内可恢复。
+
+**`GET /api/document/{path}` 404 响应**区分两种情况：
+- 路径曾在 git 中被删除 → `{"detail": "deleted", "deleted_at": "<ISO 时间>"}`
+- 路径从未存在 → `{"detail": "not_found"}`
+
+前端可据此显示「文档在 X 被删除」vs「文档不存在」。
 
 ### 读取
 
@@ -89,7 +122,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 |------|------|------|------|
 | POST | `/api/document/{path}` | `{content, summary?, doc_type?}` | 新建知识 |
 | PUT | `/api/document/{path}` | `{content?, summary?, expected_version?}` | 更新知识（支持乐观锁） |
-| DELETE | `/api/document/{path}` | — | 删除知识 |
+| DELETE | `/api/document/{path}` | — | 移入垃圾箱（30 天可恢复） |
 | PUT | `/api/project/{path}` | `{name?, summary?, status?}` | 改项目元信息 |
 
 > 写入接口可能返回 **423 Locked**。返回 423 表示 AI 正在操作知识库，

@@ -140,6 +140,11 @@ function setupRouter() {
   });
 
   // #status
+  router.on("trash", async () => {
+    store.setView("trash");
+    store.loadTrash();
+  });
+
   router.on("status", async () => {
     store.setView("status");
     store.loading = true;

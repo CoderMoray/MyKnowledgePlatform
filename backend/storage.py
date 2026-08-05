@@ -209,7 +209,8 @@ class Storage:
             if not full.is_dir():
                 return []
             hidden = {".git", "__pycache__", ".events", ".lock"}
-            top_level_hidden = {"_templates", "publish", "config.yaml", "agent-commit.txt"}
+            top_level_hidden = {"_templates", "publish", "config.yaml",
+                                "agent-commit.txt", "trash"}
 
             items: list[DirEntry] = []
             for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
@@ -242,7 +243,8 @@ class Storage:
             return []
 
         hidden = {".git", "__pycache__", ".events", ".lock"}
-        top_level_hidden = {"_templates", "publish", "config.yaml", "agent-commit.txt"}
+        top_level_hidden = {"_templates", "publish", "config.yaml",
+                            "agent-commit.txt", "trash"}
 
         entries: list[DirEntry] = []
         for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):

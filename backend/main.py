@@ -289,7 +289,34 @@ def api_get_document_meta(path: str):
             "template": meta.get("template", ""),
         }
     except FileNotFoundError:
-        raise HTTPException(404, "document not found")
+        raise HTTPException(404, _deleted_detail(storage, path))
+
+
+def _deleted_detail(storage: Storage, path: str) -> dict:
+    """Distinguish a trashed/deleted doc from a never-existed path.
+
+    Returns ``{"detail": "deleted", "deleted_at": "<ISO>"}`` if the path was
+    tracked in git and later deleted, otherwise ``{"detail": "not_found"}``.
+    """
+    import subprocess
+
+    kb = storage.kb_root
+    git_dir = kb / ".git"
+    if not git_dir.is_dir():
+        return {"detail": "not_found"}
+
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(kb), "log", "--diff-filter=D",
+             "--format=%ci", "--", path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            first = r.stdout.strip().splitlines()[0]
+            return {"detail": "deleted", "deleted_at": first.strip()}
+    except Exception:
+        pass
+    return {"detail": "not_found"}
 
 
 @app.get("/api/document/{path:path}/refs")
@@ -300,6 +327,7 @@ def api_get_document_with_refs(path: str):
     """
     storage, _ = get_storage()
     from backend.mcp_server import _resolve_ref, _yaml_dump, _extract_section
+    from backend.trash import ref_status
 
     try:
         meta, body = storage.read_document(path)
@@ -319,6 +347,7 @@ def api_get_document_with_refs(path: str):
         entry: dict = {"path": ref_path, "title": title, "type": ref_type}
         if ref_type == "external":
             entry["resolved"] = True
+            entry["ref_status"] = "normal"
             resolved_refs.append(entry)
             continue
 
@@ -326,9 +355,11 @@ def api_get_document_with_refs(path: str):
             ref_meta, ref_body = _resolve_ref(path, ref_path, storage)
             entry["content"] = ref_body
             entry["resolved"] = True
+            entry["ref_status"] = "normal"
         except FileNotFoundError:
             entry["content"] = "⚠ 引用路径不存在"
             entry["resolved"] = False
+            entry["ref_status"] = ref_status(storage, ref_path)
         resolved_refs.append(entry)
 
     return {"content": content, "refs": resolved_refs}
@@ -490,19 +521,21 @@ def api_update_document(path: str, payload: DocumentPayload):
 
 @app.delete("/api/document/{path:path}")
 def api_delete_document(path: str):
-    """Delete a knowledge document."""
+    """Move a knowledge document into trash (recoverable, 30 days)."""
     _check_write_allowed()
     storage, gen = get_storage()
     full = storage.kb_root / path
     if not full.exists():
         raise HTTPException(404, "document not found")
-    full.unlink()
+
+    from backend.trash import move_doc_to_trash
+    trash_rel = move_doc_to_trash(storage, path)
     from backend.mcp_server import _parent_rel
     gen.rebuild(_parent_rel(path))
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "deleted"}
+    return {"status": "trashed", "trash_path": trash_rel}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -894,6 +927,55 @@ def api_export(payload: ExportPayload):
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=\"myknowledge-export.zip\""},
     )
+
+
+# ══════════════════════════════════════════════════════════════
+#  Trash
+# ══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/trash")
+def api_trash_list():
+    """List all items currently in the trash."""
+    storage, _ = get_storage()
+    from backend.trash import list_trash
+    return {"items": list_trash(storage)}
+
+
+class TrashRestorePayload(BaseModel):
+    trash_path: str
+
+
+@app.post("/api/trash/restore")
+def api_trash_restore(payload: TrashRestorePayload):
+    """Restore a trashed item to its original path."""
+    storage, gen = get_storage()
+    from backend.trash import restore
+    try:
+        original = restore(storage, payload.trash_path)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, detail=str(e))
+    # Rebuild indices
+    from backend.mcp_server import _parent_rel
+    gen.rebuild(_parent_rel(original))
+    gen.rebuild("")
+    gen.rebuild_project_status()
+    from backend.events import broadcast
+    broadcast(storage.kb_root)
+    return {"status": "restored", "original_path": original}
+
+
+@app.post("/api/trash/empty")
+def api_trash_empty():
+    """Permanently remove trash items older than 30 days."""
+    storage, gen = get_storage()
+    from backend.trash import gc_trash
+    n = gc_trash(storage)
+    gen.rebuild("")
+    gen.rebuild_project_status()
+    from backend.events import broadcast
+    broadcast(storage.kb_root)
+    return {"status": "emptied", "purged": n}
 
 
 _FRONTEND_DIR = (Path.cwd() / "frontend").resolve()

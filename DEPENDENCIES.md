@@ -39,21 +39,22 @@
 
 ---
 
-## 前端（CDN）
+## 前端（本地 vendor + npm）
 
-全部 CDN 加载，零 npm install。CDN import map 定义在 `index.html` 的 `<script type="importmap">` 块。
+**已从 CDN 改为本地化**（2026-08-05 前端 smoke 测试修正时确认）：
+- 运行时库（Alpine.js、TipTap 等）内联在 `frontend/vendor/`，构建时打入 `index.standalone.html`，**无 CDN、离线可用**
+- 构建/测试工具依赖走 npm，锁定版本由 `frontend/package-lock.json` 管理
 
-| 库 | 锁定版本 | 来源 | 作用 |
-|----|---------|------|------|
-| alpinejs | 3.13.5 | jsdelivr | SPA 框架 |
-| marked | 11.1.1 | jsdelivr | MD→HTML |
-| highlight.js | 11.9.0 | jsdelivr | 代码高亮 |
-| turndown | 7.1.3 | jsdelivr | HTML→MD |
-| @tiptap/core | 2.1.13 | jsdelivr | 编辑器内核 |
-| @tiptap/starter-kit | 2.1.13 | jsdelivr | 编辑器扩展 |
-| @tiptap/extension-link | 2.1.13 | jsdelivr | 链接编辑 |
-| @tiptap/extension-table | 2.1.13 | jsdelivr | 表格编辑 |
-| Gravatar | — | — | 作者头像 |
+| 库 | 位置 | 版本来源 |
+|----|------|---------|
+| Alpine.js | `frontend/vendor/`（内联） | 见 `frontend/README.md` 依赖节 |
+| TipTap 全家桶 | `frontend/vendor/` + `tiptap-bundle.mjs` | 见 `frontend/README.md` |
+| marked | npm devDependency | `package-lock.json`（`^11.1.1`） |
+| turndown | npm devDependency | `package-lock.json`（`^7.1.3`） |
+| jsdom | npm devDependency | `package-lock.json`（`^24.1.0`） |
+| highlight.js | `frontend/vendor/`（内联） | 见 `frontend/README.md` |
+
+> npm 依赖的**精确锁定版本**以 `package-lock.json` 为准（`^` 为兼容范围）。
 
 ### 已知 Patch：TipTap Link 扩展
 

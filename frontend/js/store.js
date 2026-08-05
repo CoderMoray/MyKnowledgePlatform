@@ -27,6 +27,10 @@ document.addEventListener("alpine:init", () => {
     /** 是否被锁定 */
     isLocked: false,
 
+    /** 垃圾箱 */
+    trashItems: [],
+    trashLoading: false,
+
     /** 锁信息 */
     lockInfo: null,
 
@@ -658,6 +662,44 @@ document.addEventListener("alpine:init", () => {
         showToast("已导出 " + selected.length + " 个项目", "success");
       } catch (e) {
         showToast("导出失败：" + (e.message || "未知错误"), "error");
+      }
+    },
+
+    /* ── 垃圾箱 ────────────────────────────────────────────────────────── */
+    async loadTrash() {
+      this.trashLoading = true;
+      try {
+        const data = await api.getTrash();
+        this.trashItems = (data && data.items) || [];
+      } catch (e) {
+        showToast(e.message || "加载垃圾箱失败", "error");
+      } finally {
+        this.trashLoading = false;
+      }
+    },
+    /** 恢复条目（文档所属项目在垃圾箱时后端会拒绝——toast 后端消息提示先恢复项目） */
+    async restoreTrashItem(item) {
+      try {
+        await api.restoreTrash(item.trash_path);
+        showToast("已恢复 " + item.name, "success");
+        await this.loadTrash();
+      } catch (e) {
+        showToast(e.message || "恢复失败", "error");
+      }
+    },
+    /** 清空垃圾箱（不可逆，需确认弹窗；后端暂无单条彻底删除 API，只清空全部） */
+    confirmEmptyTrash() {
+      this.openModal("trash-empty", {});
+    },
+    async emptyTrashAction() {
+      try {
+        await api.emptyTrash();
+        showToast("垃圾箱已清空", "success");
+        this.trashItems = [];
+      } catch (e) {
+        showToast(e.message || "清空失败", "error");
+      } finally {
+        this.closeModal();
       }
     },
 

@@ -170,6 +170,20 @@ const api = {
     });
   },
 
+  /* ── 垃圾箱 API ─────────────────────────────────────────────────────── */
+  async getTrash() {
+    return apiRequest("/api/trash");
+  },
+  async restoreTrash(trashPath) {
+    return apiRequest("/api/trash/restore", {
+      method: "POST",
+      body: JSON.stringify({ trash_path: trashPath }),
+    });
+  },
+  async emptyTrash() {
+    return apiRequest("/api/trash/empty", { method: "POST" });
+  },
+
   /* ── 项目 API ────────────────────────────────────────────────────────── */
 
   /**

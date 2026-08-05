@@ -218,6 +218,46 @@ class TestApiDocumentRefs:
         resp = client.get("/api/document/nope.md/refs")
         assert resp.status_code == 404
 
+    def test_refs_ref_status_normal(self, client, tmp_kb_root: Path):
+        """Resolved and external refs report ref_status=normal."""
+        storage = Storage(kb_root=tmp_kb_root)
+        body = "[内](ref:common-knowledge/other.md) [外](https://example.com)"
+        _create_test_doc(storage, "common-knowledge/main.md", body)
+        _create_test_doc(storage, "common-knowledge/other.md", "other")
+
+        data = client.get("/api/document/common-knowledge/main.md/refs").json()
+        assert data["refs"]
+        for r in data["refs"]:
+            assert r["ref_status"] == "normal"
+            assert r["resolved"] is True
+
+    def test_refs_ref_status_in_trash(self, client, tmp_kb_root: Path):
+        """A deleted-but-recoverable ref reports ref_status=in_trash."""
+        storage = Storage(kb_root=tmp_kb_root)
+        body = "[内](ref:common-knowledge/other.md)"
+        _create_test_doc(storage, "common-knowledge/main.md", body)
+        _create_test_doc(storage, "common-knowledge/other.md", "other")
+
+        r = client.delete("/api/document/common-knowledge/other.md")
+        assert r.status_code == 200
+        assert r.json()["status"] == "trashed"
+
+        data = client.get("/api/document/common-knowledge/main.md/refs").json()
+        target = [x for x in data["refs"] if x["path"] == "common-knowledge/other.md"][0]
+        assert target["resolved"] is False
+        assert target["ref_status"] == "in_trash"
+
+    def test_refs_ref_status_dead(self, client, tmp_kb_root: Path):
+        """A never-existing ref reports ref_status=dead."""
+        storage = Storage(kb_root=tmp_kb_root)
+        body = "[死](ref:common-knowledge/nope.md)"
+        _create_test_doc(storage, "common-knowledge/main.md", body)
+
+        data = client.get("/api/document/common-knowledge/main.md/refs").json()
+        target = [x for x in data["refs"] if x["path"] == "common-knowledge/nope.md"][0]
+        assert target["resolved"] is False
+        assert target["ref_status"] == "dead"
+
 
 class TestApiUpdateDocument:
     """Test PUT /api/document/{path} — update and no-op behavior."""

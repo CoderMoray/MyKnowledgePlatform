@@ -311,26 +311,11 @@ def delete_project(storage: Storage, project_rel: str) -> str:
                 + "\n\n请调 maint__read_diff 处理后再重试。"
             )
 
-    # ── 2. Replace ref: links with (已删除) marker ────────
-    import re
-    prefix = f"{project_rel}/"
-    pattern = re.compile(r'(ref:)' + re.escape(prefix))
+    # ── 2. Move project into trash (recoverable) ─────────
+    from backend.trash import move_project_to_trash
+    trash_rel = move_project_to_trash(storage, project_rel)
 
-    for md_file in kb_root.rglob("*.md"):
-        if ".git" in md_file.parts:
-            continue
-        text = md_file.read_text(encoding="utf-8")
-        if prefix in text:
-            updated = pattern.sub(
-                r'\g<1>' + f"({project_name} 已删除)/",
-                text
-            )
-            md_file.write_text(updated, encoding="utf-8")
-
-    # ── 3. Remove directory ───────────────────────────────
-    shutil.rmtree(str(old_dir))
-
-    # ── 4. Rebuild ────────────────────────────────────────
+    # ── 3. Rebuild ────────────────────────────────────────
     template = kb_root / "_templates" / "readme.md"
     committed_files = set()
     if template.exists():
@@ -348,21 +333,22 @@ def delete_project(storage: Storage, project_rel: str) -> str:
         for f in [kb_root / "readme.md", kb_root / "project-status.md"]:
             if f.exists():
                 committed_files.add(str(f))
+        committed_files.add(str(kb_root / "trash"))
 
-    # ── 5. Git commit ────────────────────────────────────
+    # ── 4. Git commit ────────────────────────────────────
     try:
         committed_files.add(str(kb_root / project_rel))  # track deletion
         if committed_files:
             gm._run("add", "--", *sorted(str(f) for f in committed_files if Path(f).is_file()))
             gm._run("add", "--all", str(kb_root))  # ensure deletions tracked
-            gm.commit(f"delete: {project_rel}")
+            gm.commit(f"delete(trash): {project_rel}")
         from backend.events import broadcast as _evt
         _evt(kb_root)
     except Exception:
         pass
 
     release_lock(storage)
-    return f"✓ 已删除项目: {project_rel}"
+    return f"✓ 已移入垃圾箱: {project_rel} → {trash_rel}（30 天内可恢复）"
 
 
 def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> str:
@@ -767,6 +753,20 @@ def create_mcp_app(storage: Storage,
 
     mcp = FastMCP("MyKnowledge")
 
+    def _rebuild_all_for_restore(_storage: Storage, _original: str) -> None:
+        """Rebuild indices after a restore / trash-empty operation."""
+        if gen is None:
+            return
+        from backend.mcp_server import _parent_rel
+        # Rebuild the parent of the restored item (if any)
+        parts = _original.rstrip("/").split("/")
+        if len(parts) > 1:
+            parent = "/".join(parts[:-1])
+            if parent and parent not in ("projects", "archive", "", "trash"):
+                gen.rebuild(parent)  # type: ignore[union-attr]
+        gen.rebuild("")  # type: ignore[union-attr]
+        gen.rebuild_project_status()  # type: ignore[union-attr]
+
     # ── Auto-inject heartbeat on every tool invocation ──
     _orig_tool = mcp.tool
 
@@ -1122,10 +1122,11 @@ def create_mcp_app(storage: Storage,
 
     @mcp.tool()
     def write__delete_document(path: str) -> str:
-        """[write] Delete a knowledge document from the KB.
+        """[write] Move a knowledge document into the trash (recoverable).
 
-        The file is removed from disk, but git history preserves it
-        (can be recovered via ``git checkout``).
+        The document is moved to ``trash/documents/`` with its original
+        path recorded, so it can be restored via ``write__restore_document``
+        within 30 days.
 
         Args:
             path: KB-relative path, e.g. ``"common-knowledge/补贴标准.md"``.
@@ -1133,15 +1134,19 @@ def create_mcp_app(storage: Storage,
             Confirmation message.
         """
         _validate_path(path, kind="file", storage=storage)
-        import os
+        from backend.trash import move_doc_to_trash, docs_dir
         full = storage.kb_root / path
         if not full.exists():
             return f"⚠ 文件不存在: {path}"
 
-        os.remove(str(full))
-        parent_rel = _parent_rel(path)
-        _write_through(parent_rel, f"delete: {path}")
-        return f"✓ 已删除: {path}"
+        acquire_lock(storage)
+        try:
+            trash_rel = move_doc_to_trash(storage, path)
+            parent_rel = _parent_rel(path)
+            _write_through(parent_rel, f"delete(trash): {path}")
+            return f"✓ 已移入垃圾箱: {path} → {trash_rel}（30 天内可恢复）"
+        finally:
+            release_lock(storage)
 
     @mcp.tool()
     def write__rename_project(project_rel: str, new_name: str) -> str:
@@ -1201,11 +1206,11 @@ def create_mcp_app(storage: Storage,
 
     @mcp.tool()
     def write__delete_project(project_rel: str) -> str:
-        """Permanently delete a project (directory and all contents).
+        """Move a project into trash (recoverable, 30 days).
 
-        Ref links pointing into the deleted project are replaced with
-        a ``(已删除)`` marker.  Parent readme and project-status are
-        rebuilt and committed.
+        The whole project tree is moved to ``trash/projects/``.  Ref links
+        pointing into it are left as-is so agents can detect them via
+        ``maint__check_refs``.
 
         Args:
             project_rel: KB-relative path, e.g. ``"projects/已归档旧项目"``.
@@ -1218,6 +1223,139 @@ def create_mcp_app(storage: Storage,
             return _dp(storage, project_rel)
         except (ValueError, FileNotFoundError, FileExistsError) as e:
             return str(e)
+
+    @mcp.tool()
+    def write__restore_document(trash_path: str) -> str:
+        """Restore a trashed document back to its original path.
+
+        Args:
+            trash_path: Path under ``trash/documents/``, e.g.
+                        ``"trash/documents/补贴标准.md"``.  Use
+                        ``maint__list_trash`` to discover available items.
+        Returns:
+            Confirmation message or error.
+        """
+        from backend.trash import restore
+        try:
+            original = restore(storage, trash_path)
+            _rebuild_all_for_restore(storage, original)
+            return f"✓ 已恢复: {trash_path} → {original}"
+        except (ValueError, FileNotFoundError) as e:
+            return str(e)
+
+    @mcp.tool()
+    def write__restore_project(trash_path: str) -> str:
+        """Restore a trashed project back to its original path.
+
+        Args:
+            trash_path: Path under ``trash/projects/``, e.g.
+                        ``"trash/projects/项目A"``.
+        Returns:
+            Confirmation message or error.
+        """
+        from backend.trash import restore
+        try:
+            original = restore(storage, trash_path)
+            _rebuild_all_for_restore(storage, original)
+            return f"✓ 已恢复: {trash_path} → {original}"
+        except (ValueError, FileNotFoundError) as e:
+            return str(e)
+
+    @mcp.tool()
+    def maint__list_trash() -> str:
+        """[maint] List all items currently in the trash.
+
+        Returns document and project entries with their type, name,
+        original path, deletion time, and trash path.
+        """
+        from backend.trash import list_trash
+        items = list_trash(storage)
+        if not items:
+            return "（垃圾箱为空）"
+        lines = ["类型       名称                   原路径        删除时间"]
+        lines.append("─" * 78)
+        for it in items:
+            lines.append(
+                f"{it['type']:<10} {it['name'][:22]:<22} "
+                f"{it['original_path'][:22]:<22} {it['deleted_at']}"
+            )
+        lines.append("─" * 78)
+        lines.append("💡 恢复: write__restore_document / write__restore_project "
+                     "（参数为 trash_path）")
+        return "\n".join(lines)
+
+    @mcp.tool()
+    def maint__check_refs(project_rel: str = "") -> str:
+        """[maint] Scan a project (or entire KB) for ref link health.
+
+        Classifies every ``ref:`` link as ``normal`` (target exists),
+        ``in_trash`` (target was deleted but recoverable), or ``dead``
+        (target never existed).
+
+        Args:
+            project_rel: Optional project to scope the scan to. Empty = entire KB.
+        Returns:
+            A report of all refs grouped by status.
+        """
+        from backend.trash import ref_status
+        import re as _re
+
+        scope = storage.kb_root
+        if project_rel:
+            scope = storage.kb_root / project_rel
+            if not scope.is_dir():
+                return f"⚠ 项目不存在: {project_rel}"
+            scan_files = scope.rglob("*.md")
+        else:
+            scan_files = storage.kb_root.rglob("*.md")
+
+        normal, in_trash, dead = [], [], []
+        for md_file in scan_files:
+            if ".git" in md_file.parts or "/trash/" in str(md_file):
+                continue
+            text = md_file.read_text(encoding="utf-8")
+            for m in _re.finditer(r'ref:([^)\s]+)', text):
+                target = m.group(1)
+                rel = md_file.relative_to(storage.kb_root)
+                status = ref_status(storage, target)
+                entry = {"from": str(rel), "ref": target}
+                if status == "normal":
+                    normal.append(entry)
+                elif status == "in_trash":
+                    in_trash.append(entry)
+                else:
+                    dead.append(entry)
+
+        parts = []
+        parts.append(f"🔍 ref 检查报告（{project_rel or '全库'}）")
+        parts.append(f"  ✅ 正常: {len(normal)}")
+        parts.append(f"  🗑️ 垃圾箱中: {len(in_trash)}")
+        parts.append(f"  ⚠️ 已死: {len(dead)}")
+        if in_trash:
+            parts.append("\n--- 垃圾箱中（可恢复或更新）---")
+            for e in in_trash:
+                parts.append(f"  [{e['from']}] → {e['ref']}")
+        if dead:
+            parts.append("\n--- 已死（需补充知识或更新）---")
+            for e in dead:
+                parts.append(f"  [{e['from']}] → {e['ref']}")
+        return "\n".join(parts)
+
+    @mcp.tool()
+    def maint__empty_trash(confirm: bool = False) -> str:
+        """[maint] Permanently empty all trash items older than 30 days.
+
+        Args:
+            confirm: Must be ``True`` to actually delete.
+        Returns:
+            Number of items purged, or a no-op message.
+        """
+        if not confirm:
+            return "（需 confirm=True 才会清空）"
+        from backend.trash import gc_trash
+        n = gc_trash(storage)
+        _rebuild_all_for_restore(storage, "")
+        return f"🗑️ 已清空 {n} 个超过 30 天的垃圾箱条目"
 
     @mcp.tool()
     def maint__validate_doc(path: str) -> str:
@@ -1496,8 +1634,9 @@ def create_mcp_app(storage: Storage,
 | 你想做的事 | 正确做法 |
 |-----------|---------|
 | 创建/更新文档 | `write__create_document` / `write__update_document` |
-| 删除文档 | `write__delete_document` |
-| 删除项目 | `write__delete_project` |
+| 删除文档（进垃圾箱） | `write__delete_document` |
+| 删除项目（进垃圾箱） | `write__delete_project` |
+| 从垃圾箱恢复 | `write__restore_document` / `write__restore_project` |
 | 改名项目 | `write__rename_project` |
 | 移动项目（换父级） | `write__move_project` |
 | 改名文档 | `write__rename_document` |
@@ -1540,8 +1679,11 @@ def create_mcp_app(storage: Storage,
 - **导航**：`nav__read_readme` → `nav__list_dir` → `nav__exists` → `nav__find` → `nav__get_document_with_refs`
 - **写**：`write__create_document`(支持 `dry_run=True` 预览 + `if_exists="error|skip|overwrite"`) / `write__update_document` / `write__update_project_meta` / `write__delete_project`
 - **改名/移动**：`write__rename_project` / `write__rename_document` / `write__move_project`
-- **维护**：`maint__validate_doc` / `maint__rebuild_index`
+- **删除/恢复**：`write__delete_document` / `write__delete_project`（进垃圾箱，30 天可恢复）/ `write__restore_document` / `write__restore_project`
+- **维护**：`maint__validate_doc` / `maint__rebuild_index` / `maint__list_trash` / `maint__check_refs` / `maint__empty_trash`
 - **分享**：`share__publish` / `share__import_share`
+
+> **垃圾箱与死链**：删除文档/项目会移入 `trash/`（30 天保留）。删除后引用它的文档里 `ref:` 链接保留，可调 `maint__check_refs` 查看死链状态（`normal` / `in_trash` / `dead`）。`in_trash` 可恢复；`dead` 需向用户补充知识或更新。
 
 > **锁说明**：每个写工具执行完毕后**自动释放写锁**。无需手动调 `maint__release_lock`。
 > 如需单独释放锁或只读操作结束（如 `maint__read_diff` 后不想继续写），手动调 `maint__release_lock` 即可。

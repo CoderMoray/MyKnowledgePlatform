@@ -1120,3 +1120,39 @@
 .modal-card-leave { transition: opacity 0.18s ease, transform 0.18s ease; }
 .modal-card-leave-start { opacity: 1; transform: translateY(0) scale(1); }
 .modal-card-leave-end { opacity: 0; transform: translateY(6px) scale(0.98); }
+
+/* ── 垃圾箱视图 ─────────────────────────────────────────────────────────── */
+.trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--space-4);
+}
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px var(--space-3);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+.trash-item__icon { font-size: 20px; flex-shrink: 0; }
+.trash-item__info { flex: 1; min-width: 0; }
+.trash-item__name {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+}
+.trash-item__type {
+  font-size: 10px; font-weight: 500;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border-radius: 9999px;
+  padding: 1px 8px;
+}
+.trash-item__meta {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 11px; color: var(--text-tertiary);
+  margin-top: 2px;
+}

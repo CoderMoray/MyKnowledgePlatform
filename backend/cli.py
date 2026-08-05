@@ -213,6 +213,16 @@ def cmd_check(args: argparse.Namespace) -> int:
     else:
         print("✓ 无过期项目需要清理")
 
+    # GC trash items older than 30 days
+    from backend.trash import gc_trash, list_trash
+    n = gc_trash(storage)
+    if n:
+        print(f"🗑️ 已清空 {n} 个超过 30 天的垃圾箱条目")
+    elif list_trash(storage):
+        print("✓ 垃圾箱无过期条目（30 天内保留）")
+    else:
+        print("✓ 垃圾箱为空")
+
     gen.rebuild_project_status()
     print("✓ 项目状态已更新")
     return 0

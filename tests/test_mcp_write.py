@@ -415,16 +415,17 @@ class TestRebuildIndex:
         # Confirm it exists
         assert (tmp_kb_root / "projects" / "ToDelete").is_dir()
 
-        # Delete it via MCP
+        # Delete it via MCP → moves to trash
         result = asyncio.run(app.call_tool(
             "write__delete_project",
             {"project_rel": "projects/ToDelete"},
         ))
         text = _tool_text(result)
-        assert "已删除" in text
+        assert "已移入垃圾箱" in text
 
-        # Should no longer exist on disk
+        # Should no longer exist at original path, but live in trash
         assert not (tmp_kb_root / "projects" / "ToDelete").exists()
+        assert (tmp_kb_root / "trash" / "projects" / "ToDelete").is_dir()
 
         # Parent readme should have been rebuilt
         root_readme = storage.read_content("readme.md")
