@@ -193,6 +193,35 @@ function showToast(message, type = "info", duration = 900) {
   }, duration);
 }
 
+/** 倒计时提示（删除后返回上级页）：可点击立即跳转，或等待倒计时自动跳转 */
+function showCountdownToast(message, jumpFn, seconds = 3) {
+  const container =
+    document.querySelector(".toast-container") || createToastContainer();
+  const toast = document.createElement("div");
+  toast.className = "toast toast--info toast--countdown";
+  toast.innerHTML =
+    '<span class="toast__text">' + escapeHtml(message) + '</span>' +
+    '<span class="toast__count">' + seconds + 's</span>';
+  toast.title = "点击立即返回";
+  container.appendChild(toast);
+
+  let remain = seconds;
+  const finish = () => {
+    clearInterval(timer);
+    toast.remove();
+    if (jumpFn) jumpFn();
+  };
+  toast.addEventListener("click", finish);
+  const timer = setInterval(() => {
+    remain -= 1;
+    const countEl = toast.querySelector(".toast__count");
+    if (countEl) countEl.textContent = remain + "s";
+    if (remain <= 0) finish();
+  }, 1000);
+  // 兜底：3 秒自动跳转
+  setTimeout(finish, (seconds + 1) * 1000);
+}
+
 function createToastContainer() {
   const container = document.createElement("div");
   container.className = "toast-container";

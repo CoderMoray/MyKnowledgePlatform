@@ -338,6 +338,16 @@ Alpine.data("docComponent", () => ({
       const status = (ref && ref.ref_status) || "dead";
       const isTrash = status === "in_trash";
 
+      // 剩余可恢复天数（30 天 - 已删除天数）；deleted_at 从垃圾箱条目取
+      const trashItem = (store.trashItems || []).find(i => i.original_path === refPath);
+      const deletedAt = trashItem && trashItem.deleted_at;
+      let remainDays = "";
+      if (deletedAt) {
+        const deletedMs = new Date(String(deletedAt).replace(" ", "T")).getTime();
+        const days = Math.floor((Date.now() - (isNaN(deletedMs) ? Date.now() : deletedMs)) / 86400000);
+        remainDays = Math.max(0, 30 - days);
+      }
+
       const card = document.createElement("div");
       card.id = "ref-card";
       card.className = "ref-card";
@@ -347,8 +357,8 @@ Alpine.data("docComponent", () => ({
         <div class="ref-card__source" style="word-break:break-all;font-size:11px;color:var(--text-tertiary)">${escapeHtml(refPath)}</div>
         <div class="ref-card__divider"></div>
         ${isTrash
-          ? `<div class="ref-card__summary" style="color:var(--color-warning, #d97706)">该知识已进垃圾箱，30 天内可恢复</div>
-             <div class="ref-card__footer" style="justify-content:flex-end">
+          ? `<div class="ref-card__summary" style="color:var(--color-warning, #d97706)">该知识已进垃圾箱${remainDays !== "" ? `，剩余 ${remainDays} 天可恢复` : "，可在垃圾箱恢复"}</div>
+             <div class="ref-card__footer" style="justify-content:flex-end;gap:10px">
                <a href="#trash" class="ref-card__action">去垃圾箱恢复</a>
              </div>`
           : `<div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在</div>
@@ -356,6 +366,23 @@ Alpine.data("docComponent", () => ({
       `;
 
       this._attachCardEvents(card, linkEl);
+
+      // 点击「去垃圾箱恢复」→ 立即缩回卡片（不等鼠标移出）
+      const action = card.querySelector("a.ref-card__action");
+      if (action) action.addEventListener("click", () => this._hideRefCard());
+
+      // 若还没拿到 deleted_at（trashItems 未加载）→ 异步查一次并重建卡片（动态剩余天数）
+      if (isTrash && !deletedAt) {
+        api.getTrash().then(data => {
+          const item = (data.items || []).find(i => i.original_path === refPath);
+          if (item && item.deleted_at) {
+            store.trashItems = data.items || [];
+            // 重建卡片以显示剩余天数
+            const link = document.querySelector("a.ref-link[data-ref-path='" + CSS.escape(refPath) + "']");
+            if (link) this._showDeadRefCard(link, refPath);
+          }
+        }).catch(() => {});
+      }
     },
 
     /** 卡片共通定位和事件 */

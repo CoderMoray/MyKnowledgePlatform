@@ -50,15 +50,18 @@ Alpine.data("modalComponent", () => ({
 
       try {
         await api.deleteDocument(path);
-        showToast("已移入垃圾箱（30 天内可恢复）", "success");
         store.closeModal();
 
+        // 倒计时提示：可点击立即返回上级，或 3 秒后自动返回
         const projPath = projectName(path);
-        if (projPath) {
-          window.location.hash = `project/\$\{projPath\}`;
-        } else {
-          window.location.hash = "dashboard";
-        }
+        showCountdownToast(
+          "已移入垃圾箱，3 秒后返回上级项目页面",
+          () => {
+            if (projPath) window.location.hash = "project/" + projPath;
+            else window.location.hash = "dashboard";
+          },
+          3
+        );
       } catch (err) {
         showToast(err.message || "删除失败", "error");
       }
