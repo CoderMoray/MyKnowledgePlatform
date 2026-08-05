@@ -843,7 +843,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 300;
+  z-index: 400; /* 高于 ref-card(300)，复制成功提示不被 hover 卡片遮住 */
   display: flex;
   flex-direction: column-reverse;
   gap: var(--space-2);
