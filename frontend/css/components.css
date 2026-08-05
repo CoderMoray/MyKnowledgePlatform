@@ -1256,3 +1256,32 @@
   font-size: 11px;
   user-select: none;
 }
+
+/* ── 链接浮层搜索结果下拉 ─────────────────────────────────────────────── */
+.link-popover__results {
+  display: none;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+.link-popover__results.is-active { display: block; }
+.link-popover__result {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.link-popover__result:last-child { border-bottom: none; }
+.link-popover__result:hover { background: var(--accent-subtle); }
+.link-popover__result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.link-popover__result-path {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}

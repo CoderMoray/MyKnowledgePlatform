@@ -173,6 +173,11 @@ const api = {
     });
   },
 
+  /* ── 搜索 API（编辑态引用搜索） ────────────────────────────────────── */
+  async searchDocuments(q, limit = 20) {
+    return apiRequest(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  },
+
   /* ── 垃圾箱 API ─────────────────────────────────────────────────────── */
   async getTrash() {
     return apiRequest("/api/trash");

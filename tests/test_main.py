@@ -305,6 +305,44 @@ class TestApiDeleteProject:
         assert target[0]["ref_status"] == "in_trash"
 
 
+class TestApiSearch:
+    """Test GET /api/search — full-KB ranked document search."""
+
+    def test_search_ranked_and_excludes(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        # title+body / title-only / body-only / no-hit
+        _create_test_doc(storage, "common-knowledge/养老金方案.md", "正文调整养老金标准")
+        _create_test_doc(storage, "common-knowledge/养老金政策.md", "正文无关键词")
+        _create_test_doc(storage, "common-knowledge/notes.md", "正文含养老金字样")
+        _create_test_doc(storage, "common-knowledge/other.md", "完全无关内容")
+        # readme.md must be excluded even if it matches
+        _create_test_doc(storage, "common-knowledge/readme.md", "养老金路由索引")
+
+        r = client.get("/api/search", params={"q": "养老金"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total"] == 3
+        paths = [x["path"] for x in data["results"]]
+        assert paths == [
+            "common-knowledge/养老金方案.md",   # title+body → 最前
+            "common-knowledge/养老金政策.md",   # title only → 中间
+            "common-knowledge/notes.md",        # body only → 靠后
+        ]
+        notes = [x for x in data["results"] if x["path"] == "common-knowledge/notes.md"][0]
+        assert "养老金" in notes["snippet"]
+
+    def test_search_case_insensitive_and_empty(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        _create_test_doc(storage, "common-knowledge/Alpha.md", "body contains BETA word")
+
+        data = client.get("/api/search", params={"q": "alpha"}).json()
+        assert data["total"] == 1
+        assert data["results"][0]["path"] == "common-knowledge/Alpha.md"
+
+        assert client.get("/api/search").json()["total"] == 0
+        assert client.get("/api/search", params={"q": " "}).json()["total"] == 0
+
+
 class TestApiUpdateDocument:
     """Test PUT /api/document/{path} — update and no-op behavior."""
 

@@ -964,6 +964,76 @@ def api_export(payload: ExportPayload):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Search
+# ══════════════════════════════════════════════════════════════
+
+
+def _make_snippet(body: str, q_lower: str, radius: int = 40) -> str:
+    """Extract a short match window around the first keyword hit in *body*."""
+    idx = body.lower().find(q_lower)
+    if idx == -1:
+        return ""
+    start = max(0, idx - radius)
+    end = min(len(body), idx + len(q_lower) + radius)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(body) else ""
+    return f"{prefix}{body[start:end].strip()}{suffix}"
+
+
+@app.get("/api/search")
+def api_search(q: str = "", limit: int = 20):
+    """Full-KB document search (ranked by title/body hits).
+
+    Returns ``{"results": [{path, title, summary, snippet}], "total": N}``.
+    Ranking: title+body > title-only > body-only; ties break by path.
+    readme.md (layer indexes), trash/, _templates/, _refs/, publish/
+    are excluded.
+    """
+    storage, _ = get_storage()
+    q = (q or "").strip()
+    if not q:
+        return {"results": [], "total": 0}
+    if len(q) > 200:
+        raise HTTPException(400, "关键词过长（≤200）")
+    q_lower = q.lower()
+
+    hidden = {".git", "__pycache__", "_templates", "trash", "_refs",
+              "publish", ".events", ".lock"}
+    hits: list[dict] = []
+    for md in storage.kb_root.rglob("*.md"):
+        rel_parts = md.relative_to(storage.kb_root).parts
+        if any(p in hidden for p in rel_parts):
+            continue
+        if md.name == "readme.md":
+            continue
+        rel = md.relative_to(storage.kb_root).as_posix()
+        try:
+            meta, body = storage.read_document(rel)
+        except Exception:
+            continue
+        title = md.stem  # filename without .md
+        hit_title = q_lower in title.lower()
+        hit_body = q_lower in body.lower()
+        if not (hit_title or hit_body):
+            continue
+        score = 3 if (hit_title and hit_body) else (2 if hit_title else 1)
+        hits.append({
+            "path": rel,
+            "title": title,
+            "summary": meta.get("summary", ""),
+            "snippet": _make_snippet(body, q_lower) if hit_body else "",
+            "score": score,
+        })
+
+    hits.sort(key=lambda r: (-r["score"], r["path"]))
+    total = len(hits)
+    top = hits[: max(1, min(int(limit), 50))]
+    for r in top:
+        r.pop("score", None)
+    return {"results": top, "total": total}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Trash
 # ══════════════════════════════════════════════════════════════
 

@@ -1307,6 +1307,7 @@ Alpine.data("docComponent", () => ({
         '<input class="link-popover__input" id="link-popover-text" type="text" value="' + escapeHtml(selectedText) + '" placeholder="链接显示的文字">' +
         '<label class="link-popover__label">链接地址</label>' +
         '<input class="link-popover__input" id="link-popover-url" type="text" placeholder="外部 URL 或 ref:知识路径" spellcheck="false">' +
+        '<div class="link-popover__results" id="link-popover-results"></div>' +
         '<div class="link-popover__actions">' +
         '<button class="link-popover__btn link-popover__btn--cancel" id="link-popover-cancel">取消</button>' +
         '<button class="link-popover__btn link-popover__btn--ok" id="link-popover-ok">确定</button>' +
@@ -1338,6 +1339,46 @@ Alpine.data("docComponent", () => ({
       pop.querySelector("#link-popover-cancel").addEventListener("mousedown", (e) => e.preventDefault());
       pop.querySelector("#link-popover-cancel").addEventListener("click", () => pop.remove());
       urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+
+      // ── 引用搜索：地址框输入即搜（debounce），点选填入 ref:路径 ──
+      const resultsEl = pop.querySelector("#link-popover-results");
+      let searchTimer = null;
+      let searchSeq = 0;
+      const renderResults = (results) => {
+        if (!results || results.length === 0) { resultsEl.innerHTML = ""; resultsEl.classList.remove("is-active"); return; }
+        resultsEl.innerHTML = results.map(r =>
+          '<div class="link-popover__result" data-path="' + escapeHtml(r.path) + '">' +
+            '<div class="link-popover__result-title">' + escapeHtml(r.title || fileName(r.path)) + '</div>' +
+            '<div class="link-popover__result-path">' + escapeHtml(r.path) + '</div>' +
+          '</div>'
+        ).join("");
+        resultsEl.classList.add("is-active");
+        resultsEl.querySelectorAll(".link-popover__result").forEach(item => {
+          item.addEventListener("mousedown", (e) => {
+            e.preventDefault(); e.stopPropagation();
+            urlInput.value = "ref:" + item.dataset.path;
+            resultsEl.innerHTML = "";
+            resultsEl.classList.remove("is-active");
+            urlInput.focus();
+          });
+        });
+      };
+      urlInput.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        const q = urlInput.value.trim();
+        if (!q || /^https?:\/\//i.test(q) || /^ref:/i.test(q)) {
+          resultsEl.innerHTML = ""; resultsEl.classList.remove("is-active");
+          return;
+        }
+        searchTimer = setTimeout(async () => {
+          const seq = ++searchSeq;
+          try {
+            const data = await api.searchDocuments(q);
+            if (seq !== searchSeq) return; // 过期响应丢弃
+            renderResults(data && data.results);
+          } catch (_) { /* 搜索失败静默 */ }
+        }, 300);
+      });
       // 点击浮层外关闭
       setTimeout(() => {
         document.addEventListener("click", (e) => {

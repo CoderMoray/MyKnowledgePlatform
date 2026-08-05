@@ -45,6 +45,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 |------|------|------|------|
 | GET | `/api/readme/{path}` | 读路由索引 | Markdown 全文 |
 | GET | `/api/list/{path}` | 列目录 | 表格文本 |
+| GET | `/api/search?q=<关键词>&limit=<n>` | 全库文档搜索（标题/正文分级排序） | `{results, total}` |
 | GET | `/api/document/{path}` | 读文档全文 | Markdown 全文 |
 | GET | `/api/document/{path}/meta` | 读文档 frontmatter JSON | `{id, type, summary, author, maintainer, created, updated}` |
 | GET | `/api/document/{path}/refs` | 读文档 + 引用拼接 | Markdown 全文 |
