@@ -539,6 +539,39 @@ def api_delete_document(path: str):
     return {"status": "trashed", "trash_path": trash_rel}
 
 
+@app.delete("/api/project/{project_rel:path}")
+def api_delete_project(project_rel: str):
+    """Move a whole project tree into trash (recoverable, 30 days).
+
+    Mirrors ``api_delete_document``: no permanent removal.  The project
+    is moved to ``trash/projects/``; refs pointing into it are left as-is
+    so ``ref_status`` reports ``in_trash`` (recoverable).  Restoring a
+    single doc whose containing project is in trash is rejected by
+    ``trash.restore`` until the project is restored first.
+    """
+    _check_write_allowed()
+    storage, gen = get_storage()
+    from backend.trash import move_project_to_trash
+    try:
+        trash_rel = move_project_to_trash(storage, project_rel)
+    except FileNotFoundError:
+        raise HTTPException(404, _deleted_detail(storage, project_rel))
+
+    # Rebuild affected readmes (parent project + root + project-status)
+    parent_parts = project_rel.rstrip("/").split("/")
+    if len(parent_parts) > 2 and parent_parts[-2] == "projects":
+        parent_rel = "/".join(parent_parts[:-2])
+    else:
+        parent_rel = "/".join(parent_parts[:-1])
+    if parent_rel and parent_rel not in ("projects", "archive", ""):
+        gen.rebuild(parent_rel)
+    gen.rebuild("")
+    gen.rebuild_project_status()
+    from backend.events import broadcast
+    broadcast(storage.kb_root)
+    return {"status": "trashed", "trash_path": trash_rel}
+
+
 # ══════════════════════════════════════════════════════════════
 #  Project meta
 # ══════════════════════════════════════════════════════════════

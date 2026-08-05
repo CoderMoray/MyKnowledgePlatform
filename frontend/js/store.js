@@ -228,6 +228,12 @@ document.addEventListener("alpine:init", () => {
         this.projectSubprojects = [];
         this.projectArchived = [];
         this.projectMeta = {};
+        // 项目 404 区分：曾存在后被删除（可恢复）vs 从未存在
+        const dd = err && err.detail && err.detail.detail;
+        this.deletedInfo =
+          err && err.status === 404 && err.message === "deleted"
+            ? { deleted_at: (dd && dd.deleted_at) || "" }
+            : null;
       }
     },
 
@@ -709,6 +715,27 @@ document.addEventListener("alpine:init", () => {
       } catch (e) {
         showToast(e.message || "清空失败", "error");
       } finally {
+        this.closeModal();
+      }
+    },
+
+    /** 项目页 headbar 删除 → 确认弹窗（移入垃圾箱） */
+    confirmDeleteProject() {
+      const path = this.currentPath;
+      if (!path || this.isLocked) return;
+      const name = this.projectMeta && this.projectMeta.name ? this.projectMeta.name : fileName(path);
+      this.openModal("delete-project", { path, name });
+    },
+    async deleteProjectAction() {
+      const path = this.modalData && this.modalData.path;
+      if (!path || this.isLocked) return;
+      try {
+        await api.deleteProject(path);
+        showToast("已移入垃圾箱（30 天内可恢复）", "success");
+        this.closeModal();
+        window.location.hash = "dashboard";
+      } catch (e) {
+        showToast(e.message || "删除失败", "error");
         this.closeModal();
       }
     },

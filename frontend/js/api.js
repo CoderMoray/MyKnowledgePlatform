@@ -214,6 +214,9 @@ const api = {
    * @param {string} path - 当前路径
    * @param {string} newName - 新名称
    */
+  async deleteProject(path) {
+    return apiRequest(`/api/project/${encodeURIComponent(path)}`, { method: "DELETE" });
+  },
   async renameProject(path, newName) {
     return apiRequest(`/api/project/${encodeURIComponent(path)}/rename`, {
       method: "PUT",

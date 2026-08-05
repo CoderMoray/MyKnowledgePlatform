@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=a0846c8ab7"></script>
-  <script src="js/api.js?v=46ce58a11e"></script>
+  <script src="js/api.js?v=406f95a4d4"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=3522dbb4ba"></script>
+  <script src="js/store.js?v=9ab54c1bbd"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=b86bbdd887"></script>
@@ -323,6 +323,17 @@
                   }"></span>
             <span x-text="$store.app.systemStatus.label"></span>
           </div>
+
+          <!-- 项目页删除按钮（移入垃圾箱） -->
+          <button class="btn-delete" x-show="$store.app.currentView === 'project'"
+                  @click="$store.app.confirmDeleteProject()"
+                  :disabled="$store.app.isLocked" title="删除项目（移入垃圾箱）">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2.5 4.5h11"/><path d="M6.5 4.5V3h3v1.5"/>
+              <path d="M4 4.5l.5 8.5a1 1 0 0 0 1 .9h5a1 1 0 0 0 1-.9l.5-8.5"/>
+              <path d="M6.5 7v3.5M9.5 7v3.5"/>
+            </svg>
+          </button>
 
           <!-- 文档页删除按钮（仅阅读态显示） -->
           <button class="btn-delete" x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
@@ -880,7 +891,8 @@
 
           <!-- 文档已删除（可在垃圾箱恢复） -->
           <div class="loading-state" x-show="$store.app.deletedInfo" x-cloak>
-            <p class="text-danger" style="font-size:15px;font-weight:600">该文档已被删除</p>
+            <p class="text-danger" style="font-size:15px;font-weight:600"
+               x-text="$store.app.currentView === 'project' ? '该项目已被删除' : '该文档已被删除'"></p>
             <p x-text="'删除时间: ' + (($store.app.deletedInfo && $store.app.deletedInfo.deleted_at) || '—')"
                style="color:var(--text-secondary);font-size:13px"></p>
             <p style="color:var(--text-tertiary);font-size:12px">可在垃圾箱中恢复（30 天内）</p>
@@ -1026,6 +1038,30 @@
                   :disabled="creating || !newDocName.trim() || !newDocSummary.trim() || $store.app.isLocked">
             <span x-show="creating">创建中...</span>
             <span x-show="!creating">创建文档</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 项目删除确认（移入垃圾箱） -->
+    <div class="modal-overlay"
+         x-show="$store.app.modal === 'delete-project'"
+         x-cloak
+         @click.self="$store.app.closeModal()">
+      <div class="modal">
+        <h2 class="modal__title">删除项目</h2>
+        <p class="modal__description">
+          将把项目 <strong x-text="$store.app.modalData?.name"></strong> 移入垃圾箱，
+          <strong>30 天内可恢复</strong>。
+        </p>
+        <div class="modal__actions">
+          <button class="btn" @click="$store.app.closeModal()">取消</button>
+          <button class="btn" @click="$store.app.closeModal(); window.location.hash = 'trash'">
+            去垃圾箱查看
+          </button>
+          <button class="btn btn--danger" @click="$store.app.deleteProjectAction()"
+                  :disabled="$store.app.isLocked">
+            移入垃圾箱
           </button>
         </div>
       </div>

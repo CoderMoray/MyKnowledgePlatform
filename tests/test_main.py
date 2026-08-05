@@ -259,6 +259,52 @@ class TestApiDocumentRefs:
         assert target["ref_status"] == "dead"
 
 
+class TestApiDeleteProject:
+    """Test DELETE /api/project/{path} — project into trash (mirrors doc delete)."""
+
+    @staticmethod
+    def _mk_project(tmp_kb_root: Path, rel: str = "projects/P") -> Path:
+        from backend.storage import dump_frontmatter
+        pdir = tmp_kb_root / rel
+        (pdir / "common-knowledge").mkdir(parents=True, exist_ok=True)
+        (pdir / "readme.md").write_text(
+            dump_frontmatter({"id": "P", "name": "P", "summary": "p"}, "# P"),
+            encoding="utf-8",
+        )
+        return pdir
+
+    def test_delete_project_trashes(self, client, tmp_kb_root: Path):
+        self._mk_project(tmp_kb_root)
+        r = client.delete("/api/project/projects/P")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "trashed"
+        assert body["trash_path"].startswith("trash/projects/")
+        assert not (tmp_kb_root / "projects" / "P").exists()
+        trash = list((tmp_kb_root / "trash" / "projects").glob("*"))
+        assert len(trash) == 1
+
+    def test_delete_project_404(self, client):
+        r = client.delete("/api/project/projects/nope")
+        assert r.status_code == 404
+        assert r.json()["detail"]["detail"] == "not_found"
+
+    def test_delete_project_refs_in_trash(self, client, tmp_kb_root: Path):
+        """Refs pointing into a trashed project report ref_status=in_trash."""
+        storage = Storage(kb_root=tmp_kb_root)
+        pdir = self._mk_project(tmp_kb_root)
+        (pdir / "common-knowledge" / "doc.md").write_text("# doc", encoding="utf-8")
+        body = "[d](ref:projects/P/common-knowledge/doc.md)"
+        _create_test_doc(storage, "common-knowledge/main.md", body)
+
+        assert client.delete("/api/project/projects/P").status_code == 200
+        data = client.get("/api/document/common-knowledge/main.md/refs").json()
+        target = [x for x in data["refs"] if x["path"] == "projects/P/common-knowledge/doc.md"]
+        assert target
+        assert target[0]["resolved"] is False
+        assert target[0]["ref_status"] == "in_trash"
+
+
 class TestApiUpdateDocument:
     """Test PUT /api/document/{path} — update and no-op behavior."""
 

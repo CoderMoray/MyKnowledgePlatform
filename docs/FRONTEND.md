@@ -104,6 +104,8 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 **`DELETE /api/document/{path}`** 现在将文档移入垃圾箱而非删除，返回 `{"status": "trashed", "trash_path": "..."}`，30 天内可恢复。
 
+**`DELETE /api/project/{path}`** 同理，将整个项目移入 `trash/projects/`（非永久删除），返回 `{"status": "trashed", "trash_path": "..."}`。项目进垃圾箱后，引用其内部文档的 `ref_status` 会变为 `in_trash`（可恢复）。恢复约束：项目在垃圾箱时，其下文档的单独恢复会被拒绝，需先恢复项目。
+
 **`GET /api/document/{path}` 404 响应**区分两种情况：
 - 路径曾在 git 中被删除 → `{"detail": "deleted", "deleted_at": "<ISO 时间>"}`
 - 路径从未存在 → `{"detail": "not_found"}`
@@ -123,6 +125,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | POST | `/api/document/{path}` | `{content, summary?, doc_type?}` | 新建知识 |
 | PUT | `/api/document/{path}` | `{content?, summary?, expected_version?}` | 更新知识（支持乐观锁） |
 | DELETE | `/api/document/{path}` | — | 移入垃圾箱（30 天可恢复） |
+| DELETE | `/api/project/{path}` | — | 移入垃圾箱（30 天可恢复，返回 `{"status":"trashed","trash_path":...}`） |
 | PUT | `/api/project/{path}` | `{name?, summary?, status?}` | 改项目元信息 |
 
 > 写入接口可能返回 **423 Locked**。返回 423 表示 AI 正在操作知识库，
