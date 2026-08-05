@@ -1580,13 +1580,21 @@ Alpine.data("docComponent", () => ({
 
     _handleSaveError(e) {
       if (e && e.status === 409) {
-        this._conflictActive = true; // 暂停后续自动保存，避免反复弹窗
         const detail = e.detail || {};
         const latestMd = detail.content || "";
         const myMd = this._editorToMarkdown() || "";
         // summary 纳入 version 基准后，可能出现"content 相同、summary 不同"的冲突（后端 409 带 current_summary）
         const latestSummary = detail.current_summary || "";
         const mySummary = (this.summaryValue || Alpine.store("app").document?.summary || "").trim();
+        // 内容全等（保存竞态误报）：不弹框，静默同步最新 version 继续编辑
+        if (myMd === latestMd && mySummary === latestSummary) {
+          const store = Alpine.store("app");
+          if (detail.current_version && store.document) {
+            store.document.version = detail.current_version;
+          }
+          return true;
+        }
+        this._conflictActive = true; // 暂停后续自动保存，避免反复弹窗
         this._showConflictModal(myMd, latestMd, mySummary, latestSummary);
         return true;
       }

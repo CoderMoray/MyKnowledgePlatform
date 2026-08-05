@@ -81,7 +81,7 @@ def move_doc_to_trash(storage, rel_path: str) -> str:
     new_meta = dict(meta)
     new_meta["original_path"] = rel_path
     new_meta["deleted_at"] = _now()
-    new_meta["type"] = "document"
+    # 不覆盖 type（文档类型 knowledge/readme 保留；trash 条目分类由目录推断）
     storage.write_document(trash_rel, new_meta, body, auto_id=False)
 
     # Remove original (now duplicated in trash)
@@ -188,7 +188,7 @@ def restore(storage, trash_rel: str) -> str:
             raise ValueError(f"目标路径已存在: {original_path}（不覆盖）")
         _, body = storage.read_document(trash_rel)
         clean = {k: v for k, v in meta.items()
-                 if k not in ("original_path", "deleted_at", "type")}
+                 if k not in ("original_path", "deleted_at")}
         storage.write_document(original_path, clean, body, auto_id=False)
         (storage.kb_root / trash_rel).unlink()
         return original_path
