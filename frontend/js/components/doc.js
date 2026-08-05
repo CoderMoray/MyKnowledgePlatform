@@ -515,7 +515,7 @@ Alpine.data("docComponent", () => ({
       this._docClickBound = true;
       document.addEventListener("click", (e) => this.onDocClick(e), true);
     },
-    onDocClick(e) {
+    async onDocClick(e) {
       if (!e || !e.target) return;
       const shell = this.$el.querySelector(".editor-shell");
       if (!shell) return;
@@ -527,8 +527,19 @@ Alpine.data("docComponent", () => ({
       const inEditor = (e.target.isConnected && shell.contains(e.target)) || inSummary || inTitle;
       const store = Alpine.store("app");
       if (store.currentView !== "edit") {
-        // 阅读态：点击编辑器/摘要（且不是链接）→ 进入编辑
-        if (inEditor && !e.target.closest("a")) this.enterEdit();
+        // 阅读态：点击编辑器/摘要/标题（且不是链接）→ 进入编辑
+        if (inEditor && !e.target.closest("a")) {
+          await this.enterEdit();
+          // 点击标题进入 → 光标落在标题输入框
+          // （setView 后 Alpine 在 nextTick 才显示 input，需等 DOM 更新再 focus）
+          if (inTitle) {
+            await new Promise(r => this.$nextTick(r));
+            setTimeout(() => {
+              const ti = document.querySelector(".viewer__title-input");
+              if (ti) ti.focus();
+            }, 0);
+          }
+        }
         return;
       }
       if (!inEditor) this.exitEdit();

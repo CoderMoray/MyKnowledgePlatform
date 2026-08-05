@@ -630,6 +630,7 @@
   border: none;
   background: transparent;
   font: inherit;
+  letter-spacing: inherit; /* font shorthand 不含 letter-spacing，需显式继承（标题 -0.02em） */
   color: inherit;
   outline: none;
   caret-color: var(--accent, #534ab7);
