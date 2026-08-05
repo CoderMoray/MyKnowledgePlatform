@@ -360,6 +360,7 @@ Alpine.data("docComponent", () => ({
           ? `<div class="ref-card__summary" style="color:var(--color-warning, #d97706)">该知识已进垃圾箱${remainDays !== "" ? `，剩余 ${remainDays} 天可恢复` : "，可在垃圾箱恢复"}</div>
              <div class="ref-card__footer" style="justify-content:flex-end;gap:8px">
                <button class="ref-card__action ref-card__action--btn" data-copy-prompt>复制给 AI 处理</button>
+               <span class="ref-card__sep">|</span>
                <a href="#trash" class="ref-card__action">去垃圾箱恢复</a>
              </div>`
           : `<div class="ref-card__summary" style="color:var(--color-danger)">引用的知识文件不存在</div>

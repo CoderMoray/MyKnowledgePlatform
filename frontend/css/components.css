@@ -1248,3 +1248,11 @@
   font-family: inherit;
 }
 .ref-card__action--btn:hover { text-decoration: underline; }
+
+/* ── 引用卡片操作分隔符 ────────────────────────────────────────────────── */
+.ref-card__sep {
+  color: var(--text-muted, rgba(0, 0, 0, 0.3));
+  opacity: 0.5;
+  font-size: 11px;
+  user-select: none;
+}
