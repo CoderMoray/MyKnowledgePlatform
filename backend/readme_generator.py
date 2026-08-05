@@ -44,6 +44,10 @@ class ReadmeGenerator:
 
         Returns the generated markdown text (also written to disk).
         """
+        # projects/ 是根级系统目录，不是项目层 —— 禁止生成 projects/readme.md。
+        # 真正的项目层是 "projects/xxx"。调用方误传 "projects" 时直接跳过写入。
+        if project_rel == "projects":
+            return ""
         # ── Ensure project directory structure ───────────────
         # 白名单：只有 projects/xxx 或 archive/xxx 才视作项目层
         if project_rel and (project_rel.startswith("projects/")

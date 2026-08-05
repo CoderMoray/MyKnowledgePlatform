@@ -165,6 +165,21 @@ class TestUpdateProjectMeta:
         meta = storage.get_readme_meta("")
         assert meta.name == "Renamed"
 
+    def test_top_level_project_does_not_create_projects_readme(
+            self, app, storage: Storage, tmp_kb_root: Path) -> None:
+        """Updating a top-level project must not create projects/readme.md."""
+        p = tmp_kb_root / "projects" / "P"
+        (p / "common-knowledge").mkdir(parents=True, exist_ok=True)
+        (p / "readme.md").write_text(
+            "---\nid: P\nname: P\nsummary: p\nstatus: active\n---\n\n# P",
+            encoding="utf-8",
+        )
+        asyncio.run(app.call_tool("write__update_project_meta", {
+            "project_rel": "projects/P",
+            "summary": "updated",
+        }))
+        assert not (tmp_kb_root / "projects" / "readme.md").exists()
+
 
 class TestRebuildIndex:
     def test_rebuild_root(self, app, storage: Storage) -> None:

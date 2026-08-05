@@ -1110,10 +1110,16 @@ def create_mcp_app(storage: Storage,
         # Rebuild parent readme (so its child entries reflect new summary)
         if gen is not None:
             parent = "/".join(project_rel.split("/")[:-1]) if project_rel else ""
+            # projects/ 是根级系统目录，不是项目层，应重建根 readme，
+            # 避免意外生成 projects/readme.md。archive/ 层索引（archive/readme.md）
+            # 是预期产物，仍按其 parent 重建。
             if parent in ("", "."):
-                gen.rebuild("")                              # type: ignore[union-attr]
+                rebuild_rel = ""
+            elif parent == "projects":
+                rebuild_rel = ""
             else:
-                gen.rebuild(parent)                          # type: ignore[union-attr]
+                rebuild_rel = parent
+            gen.rebuild(rebuild_rel)                         # type: ignore[union-attr]
             gen.rebuild_project_status()                     # type: ignore[union-attr]
             _git_commit(storage.kb_root, f"meta: {project_rel}")
 

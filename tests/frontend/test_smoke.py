@@ -57,6 +57,21 @@ def backend():
 
 
 @pytest.fixture(scope="module")
+def static_server():
+    """本地静态服务器（http:// 打开 standalone——file:// 下 tiptap-bundle.mjs 会被 CORS 拦截，
+    导致 store.init 卡在 setup，页面视图无法切换，smoke 渲染断言全部失败）。"""
+    import http.server, socketserver, threading
+    frontend = (ROOT / "frontend").resolve()
+    handler = lambda *a, **kw: http.server.SimpleHTTPRequestHandler(*a, directory=str(frontend), **kw)
+    with socketserver.TCPServer(("127.0.0.1", 0), handler) as httpd:
+        port = httpd.server_address[1]
+        t = threading.Thread(target=httpd.serve_forever, daemon=True)
+        t.start()
+        yield f"http://127.0.0.1:{port}/index.standalone.html"
+        httpd.shutdown()
+
+
+@pytest.fixture(scope="module")
 def browser():
     """启动浏览器。优先用系统 Chrome（零下载），fallback 到 Playwright Chromium"""
     with sync_playwright() as p:
@@ -169,18 +184,21 @@ def _has_playwright():
     reason="pip install playwright && playwright install chromium（或用系统 Chrome）"
 )
 class TestRouteRendering:
+    @pytest.fixture(autouse=True)
+    def _base(self, static_server):
+        self.base = static_server
     """验证每个路由页面正确渲染"""
 
     def test_dashboard_loads(self, page):
         """#dashboard 仪表盘正常加载"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
-        page.wait_for_timeout(2000)  # 等 Alpine 初始化
+        page.goto(f"{self.base}#dashboard")
+        page.wait_for_timeout(4000)  # 等 Alpine 初始化（file:// 下 fetch 后端有往返开销）
         # 验证侧边栏品牌名可见（text=MyKnowledge 会匹配 10+ 元素触发 strict 报错）
         expect(page.locator(".sidebar-brand__name").first).to_be_visible(timeout=5000)
 
     def test_dashboard_content_renders(self, page):
         """仪表盘内容区渲染"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(2000)
         # 检查侧边栏
         sidebar = page.locator("[data-sidebar], .sidebar, #sidebar")
@@ -188,7 +206,7 @@ class TestRouteRendering:
 
     def test_no_modal_visible_on_load(self, page):
         """页面加载时弹窗不应显示"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(2000)
         # 所有 modal-overlay 应该不可见
         modals = page.locator(".modal-overlay")
@@ -198,7 +216,7 @@ class TestRouteRendering:
 
     def test_theme_toggle_present(self, page):
         """主题切换控件存在"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(2000)
         toggle = page.locator("[data-theme-switch], .theme-toggle, select[data-theme]")
         if toggle.count() > 0:
@@ -206,14 +224,14 @@ class TestRouteRendering:
 
     def test_dashboard_shows_title(self, page):
         """仪表盘显示产品标题"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(2000)
         header = page.locator("h1, h2").first
         expect(header).to_be_visible(timeout=5000)
 
     def test_lock_banner_hidden_when_not_locked(self, page):
         """未锁定时不显示锁提示"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(3000)
         banner = page.locator(".locked-banner, [class*='lock-banner']")
         if banner.count() > 0:
@@ -223,13 +241,13 @@ class TestRouteRendering:
 
     def test_trash_view_renders(self, page):
         """#trash 垃圾箱视图加载（空状态渲染）"""
-        page.goto(f"file://{FRONTEND.absolute()}#trash")
+        page.goto(f"{self.base}#trash")
         page.wait_for_timeout(2000)
         expect(page.locator(".page-title", has_text="垃圾箱")).to_be_visible(timeout=5000)
 
     def test_empty_state_handled(self, page):
         """无数据时显示空状态而非崩溃"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(3000)
         # 检查没有 Alpine 错误闪现（页面不空白）
         main = page.locator("main, [role='main'], #content").first
@@ -238,7 +256,7 @@ class TestRouteRendering:
 
     def test_sidebar_loads_projects(self, page):
         """侧边栏渲染项目列表"""
-        page.goto(f"file://{FRONTEND.absolute()}#dashboard")
+        page.goto(f"{self.base}#dashboard")
         page.wait_for_timeout(3000)
         sidebar = page.locator("[data-sidebar], .sidebar, #sidebar").first
         if sidebar.count() > 0:
