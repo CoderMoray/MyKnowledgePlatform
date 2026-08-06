@@ -1190,19 +1190,8 @@ Alpine.data("docComponent", () => ({
           if (!block || !block.empty) { btn.classList.remove("is-visible"); currentBlock = null; return; }
           currentBlock = block.start;
           const coords = ed.view.coordsAtPos(block.start);
-          // 呼吸感间距 + 响应式钳制：
-          // 按钮整体在行首左侧，右边缘距行首 GAP（不覆盖可输入区）。
-          // 当行首贴近编辑区起点（sidebar 侧）、放不下"GAP+按钮+GAP"时，
-          // 按钮中线居中于两者之间（两边等距，不贴任意一边）。
-          const GAP = 10, BTN_W = 24;
-          const shellEl = document.querySelector(".editor-shell");
-          const shellLeft = shellEl ? shellEl.getBoundingClientRect().left : 0;
-          const desired = coords.left - BTN_W - GAP;   // 期望：右缘距行首 GAP
-          const minLeft = shellLeft + GAP;             // 与编辑区起点保持 GAP
-          const left = desired >= minLeft
-            ? desired
-            : (shellLeft + (coords.left - BTN_W)) / 2; // 空间不足：中线居中（两侧等距）
-          btn.style.left = Math.max(4, left) + "px";
+          // 按钮贴近行首（行首 x - 24px）
+          btn.style.left = Math.max(4, coords.left - 24) + "px";
           btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
           btn.classList.add("is-visible");
         }, 30);
