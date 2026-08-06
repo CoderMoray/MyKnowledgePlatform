@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=6fce682eff" />
+  <link rel="stylesheet" href="css/components.css?v=b1adcc8b61" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=6239f7a862"></script>
+  <script src="js/store.js?v=da6d8af479"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=969d142d72"></script>
@@ -185,7 +185,7 @@
         </div>
 
         <!-- 项目列表 -->
-        <div class="sidebar-section">
+        <div class="sidebar-section" id="sidebar-project-section">
           <span class="sidebar-section__label">项目</span>
           <template x-for="project in $store.app.projects" :key="project.name">
             <div class="sidebar-item"
@@ -206,6 +206,36 @@
           <!-- 空状态 -->
           <div class="sidebar-empty" x-show="$store.app.projects.length === 0 && !$store.app.loading">
             暂无项目
+          </div>
+        </div>
+
+        <!-- 文档目录（TOC，紧跟项目区；可拖动与项目区交换位置） -->
+        <div class="sidebar-section sidebar-toc"
+             id="sidebar-toc-section"
+             x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
+             x-cloak>
+          <div class="sidebar-toc__header">
+            <span class="sidebar-toc__drag" draggable="true"
+                  title="拖动可与项目区交换位置">⋮⋮</span>
+            <span class="sidebar-section__label">目录</span>
+            <button class="sidebar-toc__toggle"
+                    @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
+                    x-text="$store.app.tocCollapsed ? '▸' : '▾'"></button>
+          </div>
+          <div class="sidebar-toc__list" x-show="!$store.app.tocCollapsed">
+            <template x-for="(item, idx) in $store.app.tocItems" :key="idx">
+              <div class="sidebar-toc__item"
+                   :style="'padding-left:' + (item.indent * 16 + 10) + 'px'"
+                   :class="{
+                     'sidebar-toc__item--active': $store.app.tocActiveIdx === idx,
+                     'sidebar-toc__item--top': item.indent === 0
+                   }"
+                   @click="$store.app.tocJump(idx)"
+                   :title="item.text">
+                <span x-text="item.text"></span>
+              </div>
+            </template>
+            <div class="sidebar-toc__empty" x-show="$store.app.tocItems.length === 0">本文档无标题</div>
           </div>
         </div>
 
@@ -231,33 +261,6 @@
           </div>
         </template>
       </nav>
-
-      <!-- 文档目录（TOC，飞书风格：标题按出现顺序缩进修正） -->
-      <div class="sidebar-toc"
-           x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
-           x-cloak>
-        <div class="sidebar-toc__header">
-          <span class="sidebar-section__label">目录</span>
-          <button class="sidebar-toc__toggle"
-                  @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
-                  x-text="$store.app.tocCollapsed ? '▸' : '▾'"></button>
-        </div>
-        <div class="sidebar-toc__list" x-show="!$store.app.tocCollapsed">
-          <template x-for="(item, idx) in $store.app.tocItems" :key="idx">
-            <div class="sidebar-toc__item"
-                 :style="'padding-left:' + (item.indent * 16 + 10) + 'px'"
-                 :class="{
-                   'sidebar-toc__item--active': $store.app.tocActiveIdx === idx,
-                   'sidebar-toc__item--top': item.indent === 0
-                 }"
-                 @click="$store.app.tocJump(idx)"
-                 :title="item.text">
-              <span x-text="item.text"></span>
-            </div>
-          </template>
-          <div class="sidebar-toc__empty" x-show="$store.app.tocItems.length === 0">本文档无标题</div>
-        </div>
-      </div>
 
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">

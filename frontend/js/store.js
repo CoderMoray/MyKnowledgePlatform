@@ -253,6 +253,47 @@ document.addEventListener("alpine:init", () => {
       if (this._tocIO) { this._tocIO.disconnect(); this._tocIO = null; }
     },
 
+    /** sidebar 区块顺序（目录区 vs 项目区）——localStorage 持久化 + 拖动交换 */
+    _initSidebarOrder() {
+      const toc = document.getElementById("sidebar-toc-section");
+      const proj = document.getElementById("sidebar-project-section");
+      if (!toc || !proj) return;
+      // 目录区在项目区上方（拖动交换结果）
+      if (localStorage.getItem("myknowledge-toc-above") === "1") {
+        proj.before(toc);
+      }
+    },
+    _bindSidebarDrag() {
+      const toc = document.getElementById("sidebar-toc-section");
+      const proj = document.getElementById("sidebar-project-section");
+      const handle = toc && toc.querySelector(".sidebar-toc__drag");
+      if (!toc || !proj || !handle || handle.dataset._dragBound) return;
+      handle.dataset._dragBound = "1";
+      handle.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", "toc");
+        e.dataTransfer.effectAllowed = "move";
+        toc.classList.add("sidebar-toc--dragging");
+      });
+      handle.addEventListener("dragend", () => {
+        toc.classList.remove("sidebar-toc--dragging");
+        proj.classList.remove("sidebar-toc__drop-target");
+      });
+      proj.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        proj.classList.add("sidebar-toc__drop-target");
+      });
+      proj.addEventListener("dragleave", () => proj.classList.remove("sidebar-toc__drop-target"));
+      proj.addEventListener("drop", (e) => {
+        e.preventDefault();
+        proj.classList.remove("sidebar-toc__drop-target");
+        // 交换：目录区移到项目区上方
+        proj.before(toc);
+        localStorage.setItem("myknowledge-toc-above", "1");
+        showToast("目录已移到项目上方（可再次拖回）", "success", 1200);
+      });
+    },
+
     async loadProjects() {
       try {
         const data = await api.list("projects");
@@ -567,6 +608,8 @@ document.addEventListener("alpine:init", () => {
 
       await S.sprint();
       this.loading = false;
+      // sidebar 区块顺序恢复 + 拖动绑定（DOM 已就绪）
+      setTimeout(() => { this._initSidebarOrder(); this._bindSidebarDrag(); }, 0);
     },
 
     /**
