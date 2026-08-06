@@ -198,6 +198,8 @@ document.addEventListener("alpine:init", () => {
       } else {
         this.breadcrumbs = [];
       }
+      // 路由变化 → 刷新树内高亮（文档行/子项目行当前项）
+      if (typeof this._refreshTreeHighlight === "function") this._refreshTreeHighlight();
     },
 
     /**
@@ -313,6 +315,35 @@ document.addEventListener("alpine:init", () => {
 
     /** 项目是否展开 */
     isProjectExpanded(path) { return !!(path && this.projectExpanded[path]); },
+
+    /** 顶层项目是否处于其项目页（淡背景 + 主题色加粗） */
+    isProjectActive(path) {
+      return this.currentView === "project" && this.currentPath === path;
+    },
+
+    /** 当前路径是否在该项目之下（其文档/子项目页 → 仅文字主题色加粗，背景淡出） */
+    isProjectAncestorActive(path) {
+      return !!this.currentPath &&
+        this.currentPath.startsWith(path + "/") &&
+        !this.isProjectActive(path);
+    },
+
+    /** 刷新树内高亮：文档行（view/edit）或子项目行（project）的当前项 */
+    _refreshTreeHighlight() {
+      document.querySelectorAll(".sidebar-tree__item").forEach(el => {
+        const docPath = el.dataset.docPath;
+        const subPath = el.dataset.subPath;
+        if (docPath) {
+          const active = this.currentView !== "project" && this.currentPath === docPath;
+          el.classList.toggle("sidebar-tree__item--active", active);
+          el.classList.remove("sidebar-tree__item--active-project");
+        } else if (subPath) {
+          const active = this.currentView === "project" && this.currentPath === subPath;
+          el.classList.toggle("sidebar-tree__item--active-project", active);
+          el.classList.remove("sidebar-tree__item--active");
+        }
+      });
+    },
 
     /** 展开/收起项目（懒加载 + 纯 DOM 渲染子结构） */
     async toggleProjectExpand(path) {
@@ -434,17 +465,24 @@ document.addEventListener("alpine:init", () => {
             ? '<svg class="sidebar-tree__icon sidebar-tree__icon--archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>'
             : '<svg class="sidebar-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
       if (kind === "doc") {
+        // 文档名去 .md 后缀（列表不显示后缀）；渲染时按当前文档高亮
+        const showName = String(name).replace(/\.md$/i, "");
+        const activeCls = this.currentView !== "project" && this.currentPath === path
+          ? " sidebar-tree__item--active" : "";
         return (
-          '<div class="sidebar-tree__item" data-doc-path="' + escapeHtml(path) + '">' +
+          '<div class="sidebar-tree__item' + activeCls + '" data-doc-path="' + escapeHtml(path) + '">' +
           icon +
-          '<span class="sidebar-tree__name" title="' + escapeHtml(path) + '">' + escapeHtml(name) + "</span></div>"
+          '<span class="sidebar-tree__name" title="' + escapeHtml(path) + '">' + escapeHtml(showName) + "</span></div>"
         );
       }
       const archCls = kind === "archive" ? " sidebar-tree__item--archive" : "";
       // 子项目 chevron：与顶层项目一致的开合旋转动画（is-open → rotate 90°）
       const openCls = this.isProjectExpanded(path) ? " is-open" : "";
+      // 子项目/归档项目：在项目页时淡背景 + 主题色加粗
+      const projActiveCls = this.currentView === "project" && this.currentPath === path
+        ? " sidebar-tree__item--active-project" : "";
       return (
-        '<div class="sidebar-tree__item' + archCls + '" data-sub-path="' + escapeHtml(path) + '">' +
+        '<div class="sidebar-tree__item' + archCls + projActiveCls + '" data-sub-path="' + escapeHtml(path) + '">' +
         '<button class="sidebar-tree__chevron" data-expand-path="' + escapeHtml(path) + '" title="展开">' +
         '<svg class="sidebar-tree__chevron-icon' + openCls + '" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
         "</button>" +
