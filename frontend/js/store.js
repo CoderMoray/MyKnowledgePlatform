@@ -248,7 +248,7 @@ let _tocCollapsedSet = {};
         ].filter(Boolean).join(" ");
         return (
           '<div class="' + cls + '" data-toc-idx="' + idx + '" title="' + escapeHtml(it.text) + '"' +
-          ' style="padding-left:' + (it.indent * 16 + 20) + 'px">' +  // base 20px：chevron 与项目树子项目列对齐
+          ' style="padding-left:' + (it.indent * 16 + 10) + 'px">' +  // base 10px：目录 icon 与项目清单表层项目对齐
           '<button class="sidebar-toc__chev-btn" data-toc-toggle="' + idx + '"' +
           ' style="visibility:' + (it.hasChildren ? "visible" : "hidden") + '"' +
           ' title="' + (it.hasChildren ? "展开/收起子标题" : "") + '">' +
