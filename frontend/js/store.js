@@ -321,25 +321,39 @@ document.addEventListener("alpine:init", () => {
       return this.currentView === "project" && this.currentPath === path;
     },
 
-    /** 当前路径是否在该项目之下（其文档/子项目页 → 仅文字主题色加粗，背景淡出） */
-    isProjectAncestorActive(path) {
-      return !!this.currentPath &&
-        this.currentPath.startsWith(path + "/") &&
-        !this.isProjectActive(path);
+    /** 树结构直接父级：去掉末尾分类段（/common-knowledge/文件、/projects/子项目、/archive/子项目） */
+    _treeParentPath(path) {
+      if (!path) return "";
+      return path.replace(/(\/common-knowledge\/|\/projects\/|\/archive\/)[^/]+$/, "");
     },
 
-    /** 刷新树内高亮：文档行（view/edit）或子项目行（project）的当前项 */
+    /** 顶层项目是否处于其项目页（当前项：文本高亮 + 背景） */
+    isProjectActive(path) {
+      return this.currentView === "project" && this.currentPath === path;
+    },
+
+    /** 顶层项目是否为当前路径的树结构直接父级（仅文本高亮，无背景） */
+    isProjectParentActive(path) {
+      return this._treeParentPath(this.currentPath) === path;
+    },
+
+    /** 刷新树内高亮：当前项（text+bg）与直接父级（仅文本） */
     _refreshTreeHighlight() {
+      const parent = this._treeParentPath(this.currentPath);
       document.querySelectorAll(".sidebar-tree__item").forEach(el => {
         const docPath = el.dataset.docPath;
         const subPath = el.dataset.subPath;
         if (docPath) {
           const active = this.currentView !== "project" && this.currentPath === docPath;
+          const isParent = parent === docPath;
           el.classList.toggle("sidebar-tree__item--active", active);
+          el.classList.toggle("sidebar-tree__item--parent", isParent && !active);
           el.classList.remove("sidebar-tree__item--active-project");
         } else if (subPath) {
           const active = this.currentView === "project" && this.currentPath === subPath;
+          const isParent = parent === subPath;
           el.classList.toggle("sidebar-tree__item--active-project", active);
+          el.classList.toggle("sidebar-tree__item--parent", isParent && !active);
           el.classList.remove("sidebar-tree__item--active");
         }
       });
@@ -465,12 +479,14 @@ document.addEventListener("alpine:init", () => {
             ? '<svg class="sidebar-tree__icon sidebar-tree__icon--archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>'
             : '<svg class="sidebar-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
       if (kind === "doc") {
-        // 文档名去 .md 后缀（列表不显示后缀）；渲染时按当前文档高亮
+        // 文档名去 .md 后缀（列表不显示后缀）；当前项 text+bg，直接父级仅文本
         const showName = String(name).replace(/\.md$/i, "");
         const activeCls = this.currentView !== "project" && this.currentPath === path
           ? " sidebar-tree__item--active" : "";
+        const parentCls = !activeCls && this._treeParentPath(this.currentPath) === path
+          ? " sidebar-tree__item--parent" : "";
         return (
-          '<div class="sidebar-tree__item' + activeCls + '" data-doc-path="' + escapeHtml(path) + '">' +
+          '<div class="sidebar-tree__item' + activeCls + parentCls + '" data-doc-path="' + escapeHtml(path) + '">' +
           icon +
           '<span class="sidebar-tree__name" title="' + escapeHtml(path) + '">' + escapeHtml(showName) + "</span></div>"
         );
@@ -478,11 +494,13 @@ document.addEventListener("alpine:init", () => {
       const archCls = kind === "archive" ? " sidebar-tree__item--archive" : "";
       // 子项目 chevron：与顶层项目一致的开合旋转动画（is-open → rotate 90°）
       const openCls = this.isProjectExpanded(path) ? " is-open" : "";
-      // 子项目/归档项目：在项目页时淡背景 + 主题色加粗
+      // 子项目/归档项目：在项目页时淡背景 + 主题色加粗；作为当前项父级时仅文本高亮
       const projActiveCls = this.currentView === "project" && this.currentPath === path
         ? " sidebar-tree__item--active-project" : "";
+      const projParentCls = !projActiveCls && this._treeParentPath(this.currentPath) === path
+        ? " sidebar-tree__item--parent" : "";
       return (
-        '<div class="sidebar-tree__item' + archCls + projActiveCls + '" data-sub-path="' + escapeHtml(path) + '">' +
+        '<div class="sidebar-tree__item' + archCls + projActiveCls + projParentCls + '" data-sub-path="' + escapeHtml(path) + '">' +
         '<button class="sidebar-tree__chevron" data-expand-path="' + escapeHtml(path) + '" title="展开">' +
         '<svg class="sidebar-tree__chevron-icon' + openCls + '" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
         "</button>" +

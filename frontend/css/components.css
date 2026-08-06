@@ -1480,14 +1480,14 @@
 }
 .sidebar-tree__chevron-icon.is-open { transform: rotate(90deg); } /* 展开：指向下 ∨ */
 
-/* ── sidebar 高亮三级状态 ─────────────────────────────────────────────── */
-/* 顶层项目：其文档/子项目页打开时——仅文字主题色加粗，背景淡出 */
-.sidebar-item--ancestor {
+/* ── sidebar 高亮（当前项 + 直接父级） ───────────────────────────────── */
+/* 顶层项目：当前项的直接父级 → 仅文字主题色加粗，无背景 */
+.sidebar-item--parent {
   background: transparent;
   color: var(--accent);
   font-weight: 600;
 }
-.sidebar-item--ancestor .sidebar-item__icon {
+.sidebar-item--parent .sidebar-item__icon {
   opacity: 1;
   color: var(--accent);
 }
@@ -1505,6 +1505,13 @@
   font-weight: 600;
 }
 .sidebar-tree__item--active-project .sidebar-tree__icon { color: var(--accent); }
+/* 树内行：当前项的直接父级 → 仅文本高亮（无背景） */
+.sidebar-tree__item--parent {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+.sidebar-tree__item--parent .sidebar-tree__icon { color: var(--accent); }
 
 /* active 优先级高于 expanded（展开态背景不覆盖项目页高亮；components.css 在 layout.css 后加载） */
 .sidebar-item--active {
