@@ -99,8 +99,26 @@ cd desktop && npm run release
 - **未签名/公证**：本地构建的 `.app` 首次打开需右键→打开（Gatekeeper 提示）。对外分发需 Apple Developer ID 签名 + notarization（electron-builder 已配置 `hardenedRuntime`，补齐证书后自动签名）。
 - **仅 macOS 14+ 验证**：Electron 自带 Chromium，与浏览器一致，无系统 WebKit 兼容性问题。
 
-## 7. 后续优化路线
+## 7. 打包 App 待办清单
 
-- **Tauri/WKWebView**：体积可从 ~460MB 降到 ~70MB（省掉 Chromium），但需要适配 WKWebView 差异（TipTap 编辑器/中文输入法、`backdrop-filter`、自定义滚动条）。已确认用户 macOS ≥ 14，importmap 无风险。
-- **图标**：`scripts/make-icon.sh` 从 `assets/icon.svg` 生成 `.icns`，替换图标改 SVG 后重跑。
-- **自动更新**：可接入 electron-updater + OSS（项目已有 OSS 同步能力）。
+状态标记：✅ 已完成 · ⏳ 进行中 · ⬜ 待执行
+
+### P0 — 近期（体验与分发核心）
+
+- ⏳ **标题栏一体化（hiddenInset）+ 前端顶栏重构**：`titleBarStyle: 'hiddenInset'` 隐藏标题栏，红绿灯融入 UI；M logo + sidebar 折叠按钮上移顶栏，theme 收进用户菜单；顶栏设 `-webkit-app-region: drag` 拖拽区（交互元素 `no-drag`）；loading 页同步适配。*待与前端 agent 讨论布局后实施*
+- ⬜ **启动动画最终化**：当前 loading 页方案已可用；后续把进度条与后端真实启动进度挂钩、显示阶段文案（检查 Git/初始化知识库/启动服务）
+- ⬜ **自动更新（electron-updater）**：构建产出 `latest-mac.yml`；更新源托管 **OSS**（国内速度，项目已有 oss2 能力，`.env` 配置）；app 内「检查更新」菜单项；差分更新依赖 **zip 产物保留**
+
+### P1 — 内部分发完善
+
+- ⬜ **Intel（x64）或 universal 包**：当前只构建 arm64（Apple Silicon）；`npx electron-builder --mac --x64` 可出 x64，universal 需 `--universal`
+- ⬜ **后端启动提速（~8s → ≤3s）**：冷启动主要耗时在 FastAPI/uvicorn/mcp 全量 import；探索延迟 import mcp 框架、按需加载
+- ⬜ **后端日志落盘**：当前 stdout 直通终端，排查线上问题困难；落地到 `~/Library/Logs/MyKnowledge/`
+- ⬜ **应用内「关于/设置」**：显示版本、知识库位置、按钮「打开数据目录」「查看日志」
+
+### P2 — 对外发布准备
+
+- ⬜ **GitHub Actions 自动构建发布**：`macos-14` runner（arm64），打 tag 触发 → PyInstaller + electron-builder → 产物上传 GitHub Release
+- ⬜ **Developer ID 签名 + 公证**：对外分发硬前提（electron-builder 已配 `hardenedRuntime`，补齐证书自动签名）
+- ⬜ **正式品牌图标**：当前 `assets/icon.svg` 为占位 M 图标，待品牌定稿后替换
+- ⬜ **Tauri/WKWebView 优化路线**：体积 ~460MB → ~70MB（省 Chromium），需适配 WKWebView 差异（TipTap 编辑器/中文输入法、`backdrop-filter`、自定义滚动条）；已确认用户 macOS ≥ 14，importmap 无风险

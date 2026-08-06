@@ -11,6 +11,12 @@ window._mykSplash = {
   init(t0) {
     this._bar = document.getElementById("splashBar");
     this._t0 = t0 || performance.now();
+    // 桌面 app：加载动画由 Electron 壳的 loading 页承担，隐藏前端 splash
+    // （网页端无 __MYK_APP_MODE__，行为不变）
+    if (window.__MYK_APP_MODE__) {
+      const el = document.querySelector(".splash");
+      if (el) el.style.display = "none";
+    }
   },
 
   /** 设进度 0-100 */

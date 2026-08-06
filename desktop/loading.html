@@ -4,51 +4,109 @@
   <meta charset="UTF-8" />
   <meta name="color-scheme" content="light dark" />
   <title>MyKnowledge</title>
+  <!--
+    桌面 app 的唯一加载动画（视觉与前端 splash 一致）：
+    进度 0→100%，完成态（绿色条）后通过 preload 的 __mykLoadingDone__ 通知
+    主进程切换主界面。前端 splash 由 __MYK_APP_MODE__ 隐藏，网页端不受影响。
+  -->
   <style>
+    :root {
+      --bg-primary: #fafafa;
+      --accent-gradient: linear-gradient(135deg, #818cf8, #6366f1);
+      --text-primary: #111827;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1c1e;
+        --accent-gradient: linear-gradient(135deg, #a5b4fc, #818cf8);
+        --text-primary: #f5f5f7;
+        color-scheme: dark;
+      }
+    }
     html, body {
       margin: 0;
       height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
-      background: #fafafa;
-      color: #1a1a2e;
+    }
+    .splash {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+      gap: 16px;
+      user-select: none;
+    }
+    .splash__logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: var(--accent-gradient);
+      color: #fff;
+      font-size: 26px;
+      font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
-      user-select: none;
     }
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #1c1c1e; color: #f2f2f7; }
+    .splash__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
     }
-    .box { text-align: center; }
-    .logo {
-      width: 72px; height: 72px;
-      margin: 0 auto 18px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #6366f1, #818cf8);
-      color: #fff;
-      font-size: 40px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+    .splash__bar {
+      width: 180px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      margin-top: 8px;
     }
-    .title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-    .sub { font-size: 13px; opacity: 0.6; margin-bottom: 22px; }
-    .spinner {
-      width: 22px; height: 22px;
-      border: 2.5px solid rgba(99, 102, 241, 0.2);
-      border-top-color: #6366f1;
-      border-radius: 50%;
-      margin: 0 auto;
-      animation: spin 0.9s linear infinite;
+    .splash__bar-fill {
+      height: 3px;
+      width: 0%;
+      border-radius: 2px;
+      background: var(--accent-gradient);
+      transition: width 0.3s ease, height 0.6s ease, border-radius 0.6s ease, background 0.6s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* 100% 完成态：居中扩展，Apple R 角，绿色（与前端 splash--done 一致） */
+    .splash__bar-fill--done {
+      width: 100% !important;
+      height: 26px !important;
+      border-radius: 8px !important;
+      background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+    }
   </style>
 </head>
 <body>
-  <div class="box">
-    <div class="logo">M</div>
-    <div class="title">MyKnowledge</div>
-    <div class="sub">正在启动后端服务…</div>
-    <div class="spinner"></div>
+  <div class="splash">
+    <div class="splash__logo">M</div>
+    <div class="splash__title">MyKnowledge</div>
+    <div class="splash__bar"><div class="splash__bar-fill" id="bar"></div></div>
   </div>
+  <script>
+    // 进度 0→100%（约 7s，与后端冷启动同步）；完成态后通知主进程切换
+    const bar = document.getElementById("bar");
+    let p = 0;
+    const timer = setInterval(() => {
+      p = Math.min(100, p + 2 + Math.random() * 5);
+      bar.style.width = p + "%";
+      if (p >= 100) {
+        clearInterval(timer);
+        bar.classList.add("splash__bar-fill--done");
+        setTimeout(() => {
+          if (window.__mykLoadingDone__) window.__mykLoadingDone__();
+        }, 400);
+      }
+    }, 150);
+  </script>
 </body>
 </html>

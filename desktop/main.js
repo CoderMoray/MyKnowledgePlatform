@@ -3,18 +3,20 @@
 /**
  * MyKnowledge macOS 桌面壳 — 主进程
  *
- * 职责：
- *   1. 启动时 spawn 打包好的 Python 后端（PyInstaller onedir）
- *   2. 自动协商空闲端口（8080 被占则依次递增），避免与浏览器版冲突
- *   3. 先显示启动等待页，后端就绪后 BrowserWindow 加载 http://127.0.0.1:PORT
- *   4. preload 注入 window.__MYK_API_BASE__（前端 api.js 已有此注入点）
- *   5. 单实例锁 + 窗口关闭时杀掉后端子进程
+ * 启动流程：
+ *   1. 协商空闲端口（8080 被占则依次递增，避免与浏览器版冲突）
+ *   2. 创建 loading 窗口（自带 preload，注入 API 地址）→ 显示唯一加载动画
+ *   3. spawn PyInstaller 打包的 Python 后端（--port <协商端口>）
+ *   4. 后端就绪 且 loading 动画完成 → loadURL 主界面
+ *
+ * 加载动画策略：桌面 app 只有一套（loading.html 0→100%），前端 splash
+ * 通过 preload 注入的 __MYK_APP_MODE__ 隐藏，网页端行为完全不变。
  *
  * 开发模式：设置环境变量 MYKNOWLEDGE_DEV_BACKEND_URL 指向已运行的
- * `myknowledge serve --reload`，则跳过 spawn，直接复用开发者后端（热更新）。
+ * `myknowledge serve --reload`，跳过 spawn，直接复用开发者后端（热更新）。
  */
 
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, dialog, shell, ipcMain } = require("electron");
 const { spawn } = require("child_process");
 const net = require("net");
 const path = require("path");
@@ -32,7 +34,7 @@ let mainWindow = null;
 let backendProc = null;
 let isQuitting = false;
 
-// ── 窗口状态持久化：加载前后窗口尺寸一致，且记住用户调整 ──
+// ── 窗口状态持久化：记住用户调整的窗口尺寸 ──
 const userDataPath = app.getPath("userData");
 const windowStateFile = path.join(userDataPath, "window-state.json");
 
@@ -140,20 +142,13 @@ function stopBackend() {
 
 // ── 启动后端 ─────────────────────────────────────────────
 
-async function startBackend() {
-  if (DEV_BACKEND_URL) {
-    // 开发模式：直接连开发者后端，检查其可用
-    await waitForBackend(DEV_BACKEND_URL);
-    return DEV_BACKEND_URL;
-  }
-
+async function startBackend(port) {
   if (!fs.existsSync(BACKEND_BIN)) {
     throw new Error(
       `未找到后端程序：\n${BACKEND_BIN}\n\n请重新安装应用，或用 npm run build:backend 重新打包。`
     );
   }
 
-  const port = await findFreePort();
   backendProc = spawn(BACKEND_BIN, ["--port", String(port)], {
     env: { ...process.env },
     stdio: ["ignore", "pipe", "pipe"],
@@ -170,15 +165,13 @@ async function startBackend() {
     backendProc = null;
   });
 
-  const url = `http://127.0.0.1:${port}`;
-  await waitForBackend(url);
-  return url;
+  await waitForBackend(`http://127.0.0.1:${port}`);
 }
 
 // ── 窗口 ─────────────────────────────────────────────────
 
-function createLoadingWindow() {
-  // 与主窗口同尺寸（记忆的用户状态），避免加载前后窗口跳变
+function createLoadingWindow(backendUrl) {
+  // 唯一的加载动画窗口；创建时就带 preload（api-base + app 标志 + IPC 桥）
   mainWindow = new BrowserWindow({
     width: windowState.width,
     height: windowState.height,
@@ -186,6 +179,14 @@ function createLoadingWindow() {
     title: "MyKnowledge",
     backgroundColor: "#fafafa",
     show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      // 后端地址传给 preload → 注入 window.__MYK_API_BASE__ / __MYK_APP_MODE__
+      additionalArguments: [`--myk-api-base=${backendUrl}`],
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
   });
   mainWindow.once("ready-to-show", () => mainWindow.show());
   mainWindow.loadFile(path.join(__dirname, "loading.html"));
@@ -223,7 +224,6 @@ function loadAppWindow(backendUrl) {
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      // 把后端地址传给 preload → 注入 window.__MYK_API_BASE__
       additionalArguments: [`--myk-api-base=${backendUrl}`],
       contextIsolation: true,
       nodeIntegration: false,
@@ -234,7 +234,6 @@ function loadAppWindow(backendUrl) {
   mainWindow.once("ready-to-show", () => mainWindow.show());
   mainWindow.on("resize", saveWindowState);
 
-  // 外部链接（ref: 里的 http/https）一律交给系统浏览器
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       shell.openExternal(url);
@@ -242,7 +241,6 @@ function loadAppWindow(backendUrl) {
     return { action: "deny" };
   });
 
-  // 禁止导航离开后端地址（防止被带到外部页面）
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(backendUrl)) event.preventDefault();
   });
@@ -268,12 +266,47 @@ app.whenReady().then(async () => {
     });
   }
 
-  // 先显示启动等待页，避免后端冷启动（~8s）期间黑屏
-  createLoadingWindow();
+  let backendUrl = "";
+  let backendReady = false;
+  let loadingDone = false;
+
+  // 后端就绪 且 loading 动画完成 → 切换主界面
+  const maybeLoad = () => {
+    if (backendReady && loadingDone && mainWindow && !mainWindow.isDestroyed()) {
+      loadAppWindow(backendUrl);
+    }
+  };
+
+  ipcMain.on("loading-done", () => {
+    loadingDone = true;
+    maybeLoad();
+  });
 
   try {
-    const backendUrl = await startBackend();
-    loadAppWindow(backendUrl);
+    if (DEV_BACKEND_URL) {
+      // 开发模式：直接连开发者后端
+      backendUrl = DEV_BACKEND_URL;
+      createLoadingWindow(backendUrl);
+      await waitForBackend(backendUrl);
+      backendReady = true;
+    } else {
+      // 先协商端口，让 loading 窗口从一开始就带正确的 API 地址
+      const port = await findFreePort();
+      backendUrl = `http://127.0.0.1:${port}`;
+      createLoadingWindow(backendUrl);
+      await startBackend(port);
+      backendReady = true;
+    }
+
+    // loading 动画兜底：后端就绪后最多再等 3s（loading 页进度慢或 IPC 异常时）
+    setTimeout(() => {
+      if (!loadingDone) {
+        loadingDone = true;
+        maybeLoad();
+      }
+    }, 3000);
+
+    maybeLoad();
   } catch (err) {
     dialog.showErrorBox(
       "MyKnowledge 启动失败",
