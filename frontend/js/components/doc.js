@@ -596,6 +596,14 @@ Alpine.data("docComponent", () => ({
       this._entering = true; // 重入锁：防止 $nextTick 竞态下多次初始化编辑器
       try {
         this._editingPath = store.currentPath; // 记录编辑的文档，返回/导航后仍能正确保存
+        // 编辑快照 + 脏标记：重命名/摘要只用"用户真正编辑过"的值——
+        // 切文档会污染 titleValue/summaryValue（effect 同步成新文档），脏标记区分"用户改的"与"污染"
+        this._editTitle = store.document?.title || fileName(store.currentPath || "");
+        this._editSummary = store.document?.summary || "";
+        this._titleDirty = false;
+        this._summaryDirty = false;
+        this.titleValue = this._editTitle;
+        this.summaryValue = this._editSummary;
         // 单 DOM：编辑器常驻，首次进入才创建，之后复用（内容/滚动保持）
         if (!_editorInstance) {
           let content = store.htmlContent;
@@ -691,7 +699,8 @@ Alpine.data("docComponent", () => ({
           // 仅当仍在编辑本文档时重命名：用户导航切换文档触发的保存（stillOnDoc=false）
           // 时 titleValue 已被 effect 同步成新文档标题、store.document 也已切换——
           // 若继续比较会把旧文档误重命名成新文档标题（原路径消失且非垃圾箱操作）。
-          if (stillOnDoc) {
+          // 仅用户真正编辑过标题才重命名（切文档造成的 titleValue 污染不算）
+          if (stillOnDoc && this._titleDirty) {
             const currentTitle = MykRename.currentTitle(store.document, path);
             const newTitle = (this.titleValue || "").trim();
             const titleErr = MykRename.titleError(newTitle);
@@ -1668,7 +1677,8 @@ Alpine.data("docComponent", () => ({
       const md = this._editorToMarkdown();
       // summary 纳入乐观锁 version 基准（后端决定）：取编辑态输入框值，空则用文档标题兜底
       // （后端 REST 强制 summary 非空，空保存 400）
-      const summary = (this.summaryValue || store.document?.summary || this.titleValue || "").trim();
+      // 摘要：用户改过用输入框值；否则用编辑快照（切文档后 store.document 已切换，不能兜底）
+      const summary = ((this._summaryDirty && (this.summaryValue || "").trim()) || this._editSummary || "").trim();
       const body = { content: md, summary };
       if (store.document && store.document.version) body.expected_version = store.document.version;
       return body;
