@@ -1196,11 +1196,21 @@ Alpine.data("docComponent", () => ({
           const GAP = 10, BTN_W = 24;
           const sideEl = document.querySelector(".sidebar");
           const sidebarRight = sideEl ? sideEl.getBoundingClientRect().right : 0;
-          const desired = coords.left - BTN_W - GAP;   // 右缘距行首 GAP
+          // 实际行首：列表项（li）的符号在内容盒左侧外部（list-style outside），
+          // 若按 coords.left（可输入位置）定位会遮住序号/符号——
+          // 取 li 左缘 - 符号宽(约24px) 作为基准，与纯空行的按钮位置保持一致。
+          let lineStartX = coords.left;
+          const domAt = ed.view.domAtPos(block.start);
+          const dn = domAt && domAt.node;
+          if (dn && dn.nodeType === 1 && dn.closest) {
+            const liEl = dn.closest("li");
+            if (liEl) lineStartX = liEl.getBoundingClientRect().left - 24;
+          }
+          const desired = lineStartX - BTN_W - GAP;   // 右缘距实际行首 GAP
           const minLeft = sidebarRight + GAP;           // 不贴 sidebar（其右缘 + 间距）
           const left = desired >= minLeft
             ? desired
-            : (sidebarRight + (coords.left - BTN_W)) / 2; // 空间不足：中线居中（两侧等距）
+            : (sidebarRight + (lineStartX - BTN_W)) / 2; // 空间不足：中线居中（两侧等距）
           btn.style.left = Math.max(4, left) + "px";
           btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
           btn.classList.add("is-visible");
