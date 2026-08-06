@@ -663,15 +663,20 @@ Alpine.data("docComponent", () => ({
           if (_editorInstance && _editorInstance.view) {
             store.htmlContent = _editorInstance.view.dom.innerHTML;
           }
-          // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）
-          const currentTitle = MykRename.currentTitle(store.document, path);
-          const newTitle = (this.titleValue || "").trim();
-          const titleErr = MykRename.titleError(newTitle);
-          if (titleErr) {
-            // 非法标题：内容已保存，提示但跳过重命名
-            showToast(titleErr + "，未重命名", "warning");
-          } else if (MykRename.shouldRename(currentTitle, newTitle)) {
-            finalPath = await this._renameCurrentDocument(path, newTitle);
+          // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）。
+          // 仅当仍在编辑本文档时重命名：用户导航切换文档触发的保存（stillOnDoc=false）
+          // 时 titleValue 已被 effect 同步成新文档标题、store.document 也已切换——
+          // 若继续比较会把旧文档误重命名成新文档标题（原路径消失且非垃圾箱操作）。
+          if (stillOnDoc) {
+            const currentTitle = MykRename.currentTitle(store.document, path);
+            const newTitle = (this.titleValue || "").trim();
+            const titleErr = MykRename.titleError(newTitle);
+            if (titleErr) {
+              // 非法标题：内容已保存，提示但跳过重命名
+              showToast(titleErr + "，未重命名", "warning");
+            } else if (MykRename.shouldRename(currentTitle, newTitle)) {
+              finalPath = await this._renameCurrentDocument(path, newTitle);
+            }
           }
         } catch (e) {
           // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
