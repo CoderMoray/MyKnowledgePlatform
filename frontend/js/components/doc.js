@@ -1294,7 +1294,6 @@ Alpine.data("docComponent", () => ({
           if (t === "heading") return "h" + (node.attrs.level || 1);
           if (t === "bulletList") return "bullet";
           if (t === "orderedList") return "ordered";
-          if (t === "todoList" || t === "taskList") return "todo";
           if (t === "blockquote") return "quote";
           if (t === "codeBlock") return "code";
           if (t === "table") return "table";
@@ -1312,12 +1311,11 @@ Alpine.data("docComponent", () => ({
         case "h3": return "<b style='font-size:11px'>H3</b>";
         case "bullet": return "•";
         case "ordered": return "1.";
-        case "todo": return "☑";
         case "quote": return "❝";
         case "code": return "{ }";
         case "table": return "⊞";
         case "hr": return "—";
-        default: return "≡";
+        default: return "T"; // 普通段落（飞书同款）
       }
     },
 
