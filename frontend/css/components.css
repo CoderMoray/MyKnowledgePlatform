@@ -1522,21 +1522,20 @@
 .sidebar-toc__item {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;   /* 与 sidebar-tree__item 一致：chevron/icon 列对齐 */
 }
 .sidebar-toc__chev-btn {
   background: none;
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  padding: 1px 2px;
+  padding: 1px 3px;        /* 与项目树 sidebar-tree__chevron 一致 */
   margin-left: -4px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 14px;
 }
 .sidebar-toc__chev-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .sidebar-toc__item-text {
@@ -1544,3 +1543,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── 目录项知识文件 icon（与项目树同款） ──────────────────────────────── */
+.sidebar-toc__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+.sidebar-toc__item--active .sidebar-toc__icon { color: var(--accent); }
