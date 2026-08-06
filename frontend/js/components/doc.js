@@ -96,23 +96,25 @@ Alpine.data("docComponent", () => ({
           return;
         }
         if (store.currentView !== "edit") {
-          const cur = _editorInstance.view ? _editorInstance.view.dom.innerHTML : "";
-          if (cur !== h) {
+          // 仅在文档路径切换时 setContent（cur !== h 字符串比较不可靠——编辑器 DOM 序列化
+          // 与源 HTML 有规范化差异，恒不相等 → 每次 effect 重跑都重建目录 → hover 闪烁/点击竞态）
+          if (this._contentHtml !== h) {
             _editorInstance.commands.setContent(this._prepareEditorHtml(h));
             _editorInstance.setEditable(false);
+            this._contentHtml = h;
+            // 内容真正更新 → 目录刷新 + 滚动跟随
+            queueMicrotask(() => {
+              if (!store.document || !store.currentPath) return;
+              // 仅文档真正切换时重置折叠（全部展开）
+              if (this._tocDocPath !== store.currentPath) {
+                store.resetTocCollapse();
+                this._tocDocPath = store.currentPath;
+              }
+              store.updateToc();
+              store._bindTocScroll();
+            });
           }
         }
-        // 目录刷新 + 滚动跟随（等渲染完成后提取标题）
-        queueMicrotask(() => {
-          if (!store.document || !store.currentPath) return;
-          // 仅文档真正切换时重置折叠（全部展开）；同文档 effect 重跑保留折叠状态
-          if (this._tocDocPath !== store.currentPath) {
-            store.resetTocCollapse();
-            this._tocDocPath = store.currentPath;
-          }
-          store.updateToc();
-          store._bindTocScroll();
-        });
       });
 
       // 空标题文档（H1 为空）→ 标题输入框兜底文件名（避免退出编辑误报"标题不能为空"）
