@@ -118,6 +118,7 @@ document.addEventListener("alpine:init", () => {
     tocItems: [],          // [{level, indent, text}]（indent 已按出现顺序缩进修正）
     tocActiveIdx: -1,      // 当前可见标题索引（滚动跟随高亮）
     tocCollapsed: false,   // 目录区收起
+    projectsCollapsed: localStorage.getItem("myknowledge-projects-collapsed") === "1", // 项目区收起
 
     /* ── 编辑器状态 ────────────────────────────────────────────────────── */
 
@@ -219,6 +220,12 @@ document.addEventListener("alpine:init", () => {
     },
 
     /** 点击目录项 → 滚动到对应标题（+ 立即高亮） */
+    /** 项目区展开/收起（localStorage 持久化） */
+    toggleProjects() {
+      this.projectsCollapsed = !this.projectsCollapsed;
+      localStorage.setItem("myknowledge-projects-collapsed", this.projectsCollapsed ? "1" : "0");
+    },
+
     tocJump(idx) {
       const pm = document.querySelector(".ProseMirror");
       if (!pm) return;

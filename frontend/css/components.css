@@ -1356,6 +1356,27 @@
   color: var(--accent, #534ab7);
   font-weight: 600;
 }
+/* ── 项目区展开/收起 ──────────────────────────────────────────────────── */
+.sidebar-projects__header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sidebar-projects__header .sidebar-section__label {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-1) 0;
+}
+.sidebar-projects__list {
+  max-height: 800px;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+.sidebar-projects__list.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+}
 .sidebar-toc__empty {
   font-size: 11px;
   color: var(--text-tertiary);
