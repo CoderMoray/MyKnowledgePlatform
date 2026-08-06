@@ -24,3 +24,11 @@ Thumbs.db
 # Build artifacts
 frontend/index.standalone.html
 *.egg-info/
+
+# 构建产物与依赖（勿提交）
+build/
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+__pycache__/
+*.pyc

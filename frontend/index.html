@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=c6e6e3ce21" />
+  <link rel="stylesheet" href="css/components.css?v=15fd8a8787" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=da6d8af479"></script>
+  <script src="js/store.js?v=8ab015b6e1"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=969d142d72"></script>
@@ -215,9 +215,8 @@
              x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
              x-cloak>
           <div class="sidebar-toc__header">
-            <span class="sidebar-toc__drag" draggable="true"
-                  title="拖动此手柄到项目区可交换位置">☰</span>
-            <span class="sidebar-section__label sidebar-toc__label">目录</span>
+            <span class="sidebar-section__label sidebar-toc__label sidebar-toc__drag"
+                  draggable="true" title="拖动「目录」到项目区可交换位置">目录</span>
             <button class="sidebar-toc__toggle"
                     @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
                     :title="$store.app.tocCollapsed ? '展开目录' : '收起目录'">

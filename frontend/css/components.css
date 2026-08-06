@@ -1320,9 +1320,9 @@
 .sidebar-toc__toggle:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .sidebar-toc__chevron {
   transition: transform 0.22s ease;
-  transform: rotate(-90deg);   /* 收起：指向右 > */
+  transform: rotate(0deg);     /* 收起：chevron-right 原样 = >（指向右） */
 }
-.sidebar-toc__chevron.is-open { transform: rotate(0deg); } /* 展开：指向下 ∨ */
+.sidebar-toc__chevron.is-open { transform: rotate(90deg); } /* 展开：顺时针 90° = ∨（指向下） */
 .sidebar-toc__list {
   max-height: 240px;
   overflow-y: auto;
@@ -1365,14 +1365,10 @@
 /* ── 目录区拖动（与项目区交换） ───────────────────────────────────────── */
 .sidebar-toc__drag {
   cursor: grab;
-  color: var(--text-tertiary);
-  font-size: 10px;
-  letter-spacing: -1px;
-  padding: 0 6px 0 2px;
   user-select: none;
   border-radius: 4px;
 }
-.sidebar-toc__drag:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-toc__drag:hover { background: var(--bg-tertiary); }
 .sidebar-toc--dragging { opacity: 0.5; }
 .sidebar-toc__drop-target {
   outline: 2px dashed var(--accent, #534ab7);

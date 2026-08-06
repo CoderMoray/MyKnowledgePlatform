@@ -287,10 +287,17 @@ document.addEventListener("alpine:init", () => {
       proj.addEventListener("drop", (e) => {
         e.preventDefault();
         proj.classList.remove("sidebar-toc__drop-target");
-        // 交换：目录区移到项目区上方
-        proj.before(toc);
-        localStorage.setItem("myknowledge-toc-above", "1");
-        showToast("目录已移到项目上方（可再次拖回）", "success", 1200);
+        // 交换（双向 toggle）：目录已在项目上方 → 移回下方；否则移到上方
+        const tocAbove = (proj.compareDocumentPosition(toc) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
+        if (tocAbove) {
+          proj.after(toc);
+          localStorage.setItem("myknowledge-toc-above", "0");
+          showToast("目录已移回项目下方", "success", 1200);
+        } else {
+          proj.before(toc);
+          localStorage.setItem("myknowledge-toc-above", "1");
+          showToast("目录已移到项目上方", "success", 1200);
+        }
       });
     },
 
