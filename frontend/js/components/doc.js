@@ -1191,17 +1191,17 @@ Alpine.data("docComponent", () => ({
           currentBlock = block.start;
           const coords = ed.view.coordsAtPos(block.start);
           // 呼吸感间距 + 响应式钳制：
-          // 按钮右边缘距行首 GAP；当屏幕变窄、行首贴近 sidebar 时，
-          // 若"距 sidebar 的间距"不足 GAP，则按钮保持在两者之间（区间中点，两边等距）。
+          // 按钮整体在行首左侧，右边缘距行首 GAP（不覆盖可输入区）。
+          // 当行首贴近编辑区起点（sidebar 侧）、放不下"GAP+按钮+GAP"时，
+          // 按钮中线居中于两者之间（两边等距，不贴任意一边）。
           const GAP = 10, BTN_W = 24;
           const shellEl = document.querySelector(".editor-shell");
           const shellLeft = shellEl ? shellEl.getBoundingClientRect().left : 0;
-          const leftMin = shellLeft + GAP;              // 按钮左边缘 ≥ 编辑区起点 + GAP
-          const leftMax = coords.left - BTN_W - GAP;    // 按钮右边缘 ≤ 行首 - GAP
-          const desired = coords.left - BTN_W - GAP;
-          const left = leftMax >= leftMin
-            ? Math.max(leftMin, Math.min(desired, leftMax))
-            : (leftMin + leftMax) / 2;                  // 区间不足：居中（两边等距）
+          const desired = coords.left - BTN_W - GAP;   // 期望：右缘距行首 GAP
+          const minLeft = shellLeft + GAP;             // 与编辑区起点保持 GAP
+          const left = desired >= minLeft
+            ? desired
+            : (shellLeft + (coords.left - BTN_W)) / 2; // 空间不足：中线居中（两侧等距）
           btn.style.left = Math.max(4, left) + "px";
           btn.style.top = ((coords.top + coords.bottom) / 2 - 12) + "px";
           btn.classList.add("is-visible");
