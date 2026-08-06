@@ -4,9 +4,9 @@
  * MyKnowledge macOS 桌面壳 — 主进程
  *
  * 职责：
- *   1. 启动时 spawn 打包好的 Python 后端二进制（PyInstaller onefile）
+ *   1. 启动时 spawn 打包好的 Python 后端（PyInstaller onedir）
  *   2. 自动协商空闲端口（8080 被占则依次递增），避免与浏览器版冲突
- *   3. 等后端就绪后，BrowserWindow 加载 http://127.0.0.1:PORT（与浏览器体验一致）
+ *   3. 先显示启动等待页，后端就绪后 BrowserWindow 加载 http://127.0.0.1:PORT
  *   4. preload 注入 window.__MYK_API_BASE__（前端 api.js 已有此注入点）
  *   5. 单实例锁 + 窗口关闭时杀掉后端子进程
  *
@@ -23,14 +23,46 @@ const fs = require("fs");
 // 开发模式：连开发者自己起的后端（npm run start:dev）
 const DEV_BACKEND_URL = process.env.MYKNOWLEDGE_DEV_BACKEND_URL || "";
 
-// 生产模式：打包进 app 的 Resources/ 的后端二进制
+// 生产模式：打包进 app 的 Resources/ 的后端二进制（PyInstaller onedir 产物）
 const BACKEND_BIN =
   process.env.MYKNOWLEDGE_BACKEND_BIN ||
-  path.join(process.resourcesPath, "myknowledge-backend");
+  path.join(process.resourcesPath, "myknowledge-backend", "myknowledge-backend");
 
 let mainWindow = null;
 let backendProc = null;
 let isQuitting = false;
+
+// ── 窗口状态持久化：加载前后窗口尺寸一致，且记住用户调整 ──
+const userDataPath = app.getPath("userData");
+const windowStateFile = path.join(userDataPath, "window-state.json");
+
+function loadWindowState() {
+  try {
+    const d = JSON.parse(fs.readFileSync(windowStateFile, "utf8"));
+    if (Number.isFinite(d.width) && Number.isFinite(d.height)) {
+      return {
+        width: Math.max(Math.round(d.width), 940),
+        height: Math.max(Math.round(d.height), 600),
+      };
+    }
+  } catch {
+    /* 首次启动或文件损坏 → 使用默认尺寸 */
+  }
+  // 默认 1080x720（3:2，笔记本友好）；用户调整后以 window-state.json 为准
+  return { width: 1080, height: 720 };
+}
+
+function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const [width, height] = mainWindow.getSize();
+  try {
+    fs.writeFileSync(windowStateFile, JSON.stringify({ width, height }));
+  } catch {
+    /* 写入失败不影响运行 */
+  }
+}
+
+let windowState = loadWindowState();
 
 // ── 单实例：防止两个 app 同时写同一个知识库 ──────────────
 const gotLock = app.requestSingleInstanceLock();
@@ -110,7 +142,7 @@ function stopBackend() {
 
 async function startBackend() {
   if (DEV_BACKEND_URL) {
-    // 开发模式：直接连开发者后端，spawn 检查后端可用
+    // 开发模式：直接连开发者后端，检查其可用
     await waitForBackend(DEV_BACKEND_URL);
     return DEV_BACKEND_URL;
   }
@@ -143,12 +175,47 @@ async function startBackend() {
   return url;
 }
 
-// ── 创建窗口 ─────────────────────────────────────────────
+// ── 窗口 ─────────────────────────────────────────────────
 
-function createWindow(backendUrl) {
+function createLoadingWindow() {
+  // 与主窗口同尺寸（记忆的用户状态），避免加载前后窗口跳变
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    width: windowState.width,
+    height: windowState.height,
+    resizable: false,
+    title: "MyKnowledge",
+    backgroundColor: "#fafafa",
+    show: false,
+  });
+  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.loadFile(path.join(__dirname, "loading.html"));
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+}
+
+function loadAppWindow(backendUrl) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // 从 loading 窗口切换：保持同一尺寸（不重新 setSize，避免跳变）
+    mainWindow.setResizable(true);
+    mainWindow.setMinimumSize(940, 600);
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        shell.openExternal(url);
+      }
+      return { action: "deny" };
+    });
+    mainWindow.webContents.on("will-navigate", (event, url) => {
+      if (!url.startsWith(backendUrl)) event.preventDefault();
+    });
+    mainWindow.loadURL(backendUrl);
+    mainWindow.on("resize", saveWindowState);
+    return;
+  }
+
+  mainWindow = new BrowserWindow({
+    width: windowState.width,
+    height: windowState.height,
     minWidth: 940,
     minHeight: 600,
     title: "MyKnowledge",
@@ -165,6 +232,7 @@ function createWindow(backendUrl) {
   });
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.on("resize", saveWindowState);
 
   // 外部链接（ref: 里的 http/https）一律交给系统浏览器
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -200,9 +268,12 @@ app.whenReady().then(async () => {
     });
   }
 
+  // 先显示启动等待页，避免后端冷启动（~8s）期间黑屏
+  createLoadingWindow();
+
   try {
     const backendUrl = await startBackend();
-    createWindow(backendUrl);
+    loadAppWindow(backendUrl);
   } catch (err) {
     dialog.showErrorBox(
       "MyKnowledge 启动失败",

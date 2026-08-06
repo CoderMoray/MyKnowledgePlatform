@@ -18,9 +18,10 @@ echo "==> 1/3 前端构建（生成 index.standalone.html + 资源版本号）"
 
 echo "==> 2/3 PyInstaller 打包后端"
 rm -rf build "${OUT_DIR}"
+# 注意：默认 onedir 模式（不传 --onefile）——onedir 免去每次启动解包，
+# 后端就绪时间从 ~10s 降到 ~2s，对 Electron 冷启动体验影响巨大。
 "${PYTHON}" -m PyInstaller \
   --name myknowledge-backend \
-  --onefile \
   --collect-all uvicorn \
   --collect-all pydantic \
   --collect-all mcp \
@@ -37,8 +38,8 @@ rm -rf build "${OUT_DIR}"
   --noconfirm \
   backend/desktop_server.py
 
-chmod +x "${OUT_DIR}/myknowledge-backend"
+chmod +x "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 
 echo "==> 3/3 完成"
-echo "    后端: ${OUT_DIR}/myknowledge-backend"
-echo "    冒烟测试: ${OUT_DIR}/myknowledge-backend --port 8099"
+echo "    后端: ${OUT_DIR}/myknowledge-backend/myknowledge-backend"
+echo "    冒烟测试: ${OUT_DIR}/myknowledge-backend/myknowledge-backend --port 8099"

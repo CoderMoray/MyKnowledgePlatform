@@ -25,3 +25,11 @@ Thumbs.db
 frontend/index.standalone.html
 *.egg-info/
 
+# Desktop app (Electron + PyInstaller) build artifacts
+dist-backend/
+/build/
+*.spec
+desktop/node_modules/
+desktop/dist/
+desktop/assets/icon.icns
+

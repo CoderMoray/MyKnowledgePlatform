@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <title>MyKnowledge</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #fafafa;
+      color: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #1c1c1e; color: #f2f2f7; }
+    }
+    .box { text-align: center; }
+    .logo {
+      width: 72px; height: 72px;
+      margin: 0 auto 18px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff;
+      font-size: 40px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+    }
+    .title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .sub { font-size: 13px; opacity: 0.6; margin-bottom: 22px; }
+    .spinner {
+      width: 22px; height: 22px;
+      border: 2.5px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      margin: 0 auto;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">M</div>
+    <div class="title">MyKnowledge</div>
+    <div class="sub">正在启动后端服务…</div>
+    <div class="spinner"></div>
+  </div>
+</body>
+</html>

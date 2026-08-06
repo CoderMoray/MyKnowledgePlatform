@@ -10,8 +10,9 @@ directories:
 files:
   - main.js
   - preload.js
+  - loading.html
   - package.json
-# 后端二进制打进 app 的 Resources/（main.js 从 process.resourcesPath 定位）
+# 后端（PyInstaller onedir 目录）打进 app 的 Resources/（main.js 从 process.resourcesPath 定位）
 extraResources:
   - from: ../dist-backend/myknowledge-backend
     to: myknowledge-backend
@@ -20,13 +21,11 @@ mac:
   target:
     - dmg
     - zip
-  # 自定义图标：将 1024x1024 PNG 放入 assets/icon.icns（用 scripts/make-icon.sh 生成）
-  # icon: assets/icon.icns
+  # 自定义图标：desktop/assets/icon.icns（用 scripts/make-icon.sh 生成）
+  icon: assets/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
 dmg:
   title: MyKnowledge ${version}
   artifactName: MyKnowledge-${version}-${arch}.${ext}
-zip:
-  artifactName: MyKnowledge-${version}-${arch}.zip
 npmRebuild: false

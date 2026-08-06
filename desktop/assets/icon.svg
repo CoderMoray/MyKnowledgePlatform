@@ -5,6 +5,7 @@
       <stop offset="1" stop-color="#818cf8"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="228" fill="url(#g)"/>
-  <text x="512" y="712" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="580" font-weight="700" fill="#ffffff">M</text>
+  <!-- Apple HIG 客观标准：1024 画布、内容 824x824、圆角半径 185.4 -->
+  <rect x="100" y="100" width="824" height="824" rx="185.4" fill="url(#g)"/>
+  <text x="512" y="690" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="500" font-weight="700" fill="#ffffff">M</text>
 </svg>
