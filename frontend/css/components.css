@@ -1415,7 +1415,7 @@
   transform: rotate(0deg);     /* 收起：指向右 > */
 }
 .sidebar-project__chevron-icon.is-open { transform: rotate(90deg); } /* 展开：指向下 ∨ */
-.sidebar-item--expanded { background: var(--bg-tertiary); }
+.sidebar-item--expanded { background: transparent; } /* 展开态由 chevron 旋转表达，不设背景（避免深层文档时顶层残留背景） */
 
 .sidebar-project__tree {
   padding-left: 14px;
