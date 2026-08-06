@@ -102,6 +102,12 @@ Alpine.data("docComponent", () => ({
             _editorInstance.setEditable(false);
           }
         }
+        // 目录刷新 + 滚动跟随（等渲染完成后提取标题）
+        queueMicrotask(() => {
+          if (!store.document || !store.currentPath) return;
+          store.updateToc();
+          store._bindTocScroll();
+        });
       });
 
       this.titleValue = store.document?.title || "";
@@ -889,7 +895,16 @@ Alpine.data("docComponent", () => ({
           // 复用 markdown-body 排版，保证阅读态/编辑态视觉一致
           attributes: { class: "ProseMirror markdown-body" },
         },
-        onUpdate: () => { store.isDirty = true; },
+        onUpdate: () => {
+          store.isDirty = true;
+          // 编辑态标题变化 → 目录实时刷新（节流）
+          if (!this._tocTimer) {
+            this._tocTimer = setTimeout(() => {
+              this._tocTimer = null;
+              store.updateToc();
+            }, 400);
+          }
+        },
         onCreate: ({ editor }) => {
           const html = initialContent || store.htmlContent || (store.document && store.document.content) || "";
           if (html) {

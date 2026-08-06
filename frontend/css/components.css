@@ -1285,3 +1285,53 @@
   color: var(--text-tertiary);
   word-break: break-all;
 }
+
+/* ── 侧栏文档目录（TOC） ──────────────────────────────────────────────── */
+.sidebar-toc {
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+.sidebar-toc__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+.sidebar-toc__toggle {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.sidebar-toc__toggle:hover { background: var(--bg-tertiary); }
+.sidebar-toc__list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+.sidebar-toc__item {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.sidebar-toc__item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-toc__item--active {
+  background: var(--accent-subtle, rgba(83, 74, 183, 0.1));
+  color: var(--accent, #534ab7);
+  font-weight: 600;
+}
+.sidebar-toc__empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 6px 8px;
+}

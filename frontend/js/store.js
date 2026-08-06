@@ -114,6 +114,10 @@ document.addEventListener("alpine:init", () => {
 
     /** 侧边栏是否打开 */
     sidebarOpen: true,
+    // 文档目录（TOC）
+    tocItems: [],          // [{level, indent, text}]（indent 已按出现顺序缩进修正）
+    tocActiveIdx: -1,      // 当前可见标题索引（滚动跟随高亮）
+    tocCollapsed: false,   // 目录区收起
 
     /* ── 编辑器状态 ────────────────────────────────────────────────────── */
 
@@ -195,6 +199,60 @@ document.addEventListener("alpine:init", () => {
     /**
      * 加载侧边栏项目列表
      */
+    /** 从 ProseMirror DOM 提取标题 → 目录（缩进修正：按标题级别首次出现顺序分配缩进级） */
+    updateToc() {
+      const pm = document.querySelector(".ProseMirror");
+      const headings = pm ? pm.querySelectorAll("h1,h2,h3,h4,h5,h6,h7,h8,h9") : [];
+      const levelMap = new Map();
+      let counter = 0;
+      this.tocItems = Array.from(headings).map(h => {
+        const level = parseInt(h.tagName.charAt(1), 10);
+        if (!levelMap.has(level)) levelMap.set(level, counter++);
+        return {
+          level,
+          indent: levelMap.get(level),
+          text: h.textContent.trim() || "（空标题）",
+        };
+      });
+      if (this.tocActiveIdx >= this.tocItems.length) this.tocActiveIdx = -1;
+      if (this.tocItems.length === 0) this.tocActiveIdx = -1;
+    },
+
+    /** 点击目录项 → 滚动到对应标题（+ 立即高亮） */
+    tocJump(idx) {
+      const pm = document.querySelector(".ProseMirror");
+      if (!pm) return;
+      const headings = pm.querySelectorAll("h1,h2,h3,h4,h5,h6,h7,h8,h9");
+      const el = headings[idx];
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      this.tocActiveIdx = idx;
+    },
+
+    /** 绑定滚动跟随（IntersectionObserver 高亮当前可见标题）；切换文档前调用 _disposeTocScroll 解绑 */
+    _bindTocScroll() {
+      this._disposeTocScroll();
+      const pm = document.querySelector(".ProseMirror");
+      if (!pm) return;
+      const headings = pm.querySelectorAll("h1,h2,h3,h4,h5,h6,h7,h8,h9");
+      if (!headings.length) return;
+      // root=null（视口）：文档滚动在 window/body（.editor-content 内容撑开不滚动）
+      const self = this;
+      this._tocIO = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length) {
+          const idx = Array.from(headings).indexOf(visible[0].target);
+          if (idx >= 0) self.tocActiveIdx = idx;
+        }
+      }, { root: null, rootMargin: "0px 0px -5% 0px" });
+      headings.forEach(h => this._tocIO.observe(h));
+    },
+    _disposeTocScroll() {
+      if (this._tocIO) { this._tocIO.disconnect(); this._tocIO = null; }
+    },
+
     async loadProjects() {
       try {
         const data = await api.list("projects");

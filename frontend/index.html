@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=28c187fd39" />
+  <link rel="stylesheet" href="css/components.css?v=bf6c22494f" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,10 +69,10 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=0285a0f110"></script>
+  <script src="js/store.js?v=6239f7a862"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
-  <script src="js/components/doc.js?v=4fc4987eb1"></script>
+  <script src="js/components/doc.js?v=6a08c68987"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=abca068661"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
@@ -231,6 +231,30 @@
           </div>
         </template>
       </nav>
+
+      <!-- 文档目录（TOC，飞书风格：标题按出现顺序缩进修正） -->
+      <div class="sidebar-toc"
+           x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
+           x-cloak>
+        <div class="sidebar-toc__header">
+          <span class="sidebar-section__label">目录</span>
+          <button class="sidebar-toc__toggle"
+                  @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
+                  x-text="$store.app.tocCollapsed ? '▸' : '▾'"></button>
+        </div>
+        <div class="sidebar-toc__list" x-show="!$store.app.tocCollapsed">
+          <template x-for="(item, idx) in $store.app.tocItems" :key="idx">
+            <div class="sidebar-toc__item"
+                 :style="'padding-left:' + (item.indent * 12 + 8) + 'px'"
+                 :class="{ 'sidebar-toc__item--active': $store.app.tocActiveIdx === idx }"
+                 @click="$store.app.tocJump(idx)"
+                 :title="item.text">
+              <span x-text="item.text"></span>
+            </div>
+          </template>
+          <div class="sidebar-toc__empty" x-show="$store.app.tocItems.length === 0">本文档无标题</div>
+        </div>
+      </div>
 
       <!-- Sidebar Footer -->
       <div class="sidebar-footer">
