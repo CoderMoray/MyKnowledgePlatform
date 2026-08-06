@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=d7566eb648" />
+  <link rel="stylesheet" href="css/components.css?v=100a2e8983" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -187,7 +187,6 @@
         <!-- 项目列表 -->
         <div class="sidebar-section" id="sidebar-project-section">
           <div class="sidebar-projects__header">
-            <span class="sidebar-section__label">项目</span>
             <button class="sidebar-toc__toggle"
                     @click="$store.app.toggleProjects()"
                     :title="$store.app.projectsCollapsed ? '展开项目' : '收起项目'">
@@ -197,6 +196,7 @@
                 <polyline points="6 4 10 8 6 12"/>
               </svg>
             </button>
+            <span class="sidebar-section__label">项目</span>
           </div>
           <div class="sidebar-projects__list"
                :class="{ 'is-collapsed': $store.app.projectsCollapsed }">
@@ -242,8 +242,6 @@
              x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
              x-cloak>
           <div class="sidebar-toc__header">
-            <span class="sidebar-section__label sidebar-toc__label sidebar-toc__drag"
-                  draggable="true" title="拖动「目录」到项目区可交换位置">目录</span>
             <button class="sidebar-toc__toggle"
                     @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
                     :title="$store.app.tocCollapsed ? '展开目录' : '收起目录'">
@@ -253,6 +251,8 @@
                 <polyline points="6 4 10 8 6 12"/>
               </svg>
             </button>
+            <span class="sidebar-section__label sidebar-toc__label sidebar-toc__drag"
+                  draggable="true" title="拖动「目录」到项目区可交换位置">目录</span>
           </div>
           <div class="sidebar-toc__list"
                :class="{ 'is-collapsed': $store.app.tocCollapsed }">
