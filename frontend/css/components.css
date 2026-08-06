@@ -1396,3 +1396,81 @@
   outline-offset: -2px;
   border-radius: 8px;
 }
+
+/* ── 项目展开树（sidebar 快速索引） ───────────────────────────────────── */
+.sidebar-project__chevron {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-project__chevron:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-project__chevron-icon {
+  transition: transform 0.18s ease;
+  transform: rotate(0deg);     /* 收起：指向右 > */
+}
+.sidebar-project__chevron-icon.is-open { transform: rotate(90deg); } /* 展开：指向下 ∨ */
+.sidebar-item--expanded { background: var(--bg-tertiary); }
+
+.sidebar-project__tree {
+  padding-left: 14px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.sidebar-project__tree--sub { max-height: none; }
+.sidebar-tree__group { margin: 1px 0; }
+.sidebar-tree__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.sidebar-tree__item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-tree__item--archive { color: var(--text-tertiary); }
+.sidebar-tree__item--archive:hover { color: var(--text-secondary); }
+.sidebar-tree__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+.sidebar-tree__item--archive .sidebar-tree__icon--archive { color: var(--color-warning, #b45309); }
+.sidebar-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.sidebar-tree__chevron {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 1px 3px;
+  margin-left: -4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebar-tree__chevron:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-tree__loading,
+.sidebar-tree__error,
+.sidebar-tree__empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 4px 8px;
+}
+.sidebar-tree__error { color: var(--color-danger); }

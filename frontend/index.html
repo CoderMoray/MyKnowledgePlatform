@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=0012a5318c" />
+  <link rel="stylesheet" href="css/components.css?v=d7566eb648" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=3237cec379"></script>
   <script src="js/splash.js?v=605e6159eb"></script>
-  <script src="js/store.js?v=ae8a9342f9"></script>
+  <script src="js/store.js?v=87427976af"></script>
   <script src="js/router.js?v=481ed4e45f"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=969d142d72"></script>
@@ -201,18 +201,31 @@
           <div class="sidebar-projects__list"
                :class="{ 'is-collapsed': $store.app.projectsCollapsed }">
             <template x-for="project in $store.app.projects" :key="project.name">
-              <div class="sidebar-item"
-                   :class="{
-                     'sidebar-item--active':
-                       $store.app.currentPath === project.path &&
-                       $store.app.currentView === 'project'
-                   }"
-                   @click="goToProject(project.path)">
-                <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
-                     stroke="currentColor" stroke-width="1.5">
-                  <path d="M2 3.5h4l1.5 2h5.5v7H2V3.5z"/>
-                </svg>
-                <span class="sidebar-item__name" x-text="project.name"></span>
+              <div class="sidebar-project">
+                <div class="sidebar-item"
+                     :class="{
+                       'sidebar-item--active':
+                         $store.app.currentPath === project.path &&
+                         $store.app.currentView === 'project',
+                       'sidebar-item--expanded': $store.app.isProjectExpanded(project.path)
+                     }"
+                     @click="goToProject(project.path)">
+                  <button class="sidebar-project__chevron"
+                          @click.stop="$store.app.toggleProjectExpand(project.path)"
+                          :title="$store.app.isProjectExpanded(project.path) ? '收起项目' : '展开项目'">
+                    <svg class="sidebar-project__chevron-icon" :class="{ 'is-open': $store.app.isProjectExpanded(project.path) }"
+                         viewBox="0 0 16 16" width="12" height="12" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 4 10 8 6 12"/>
+                    </svg>
+                  </button>
+                  <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
+                       stroke="currentColor" stroke-width="1.5">
+                    <path d="M2 3.5h4l1.5 2h5.5v7H2V3.5z"/>
+                  </svg>
+                  <span class="sidebar-item__name" x-text="project.name"></span>
+                </div>
+                <div class="sidebar-project__tree" :data-tree-path="project.path"></div>
               </div>
             </template>
 

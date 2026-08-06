@@ -119,6 +119,9 @@ document.addEventListener("alpine:init", () => {
     tocActiveIdx: -1,      // 当前可见标题索引（滚动跟随高亮）
     tocCollapsed: false,   // 目录区收起
     projectsCollapsed: localStorage.getItem("myknowledge-projects-collapsed") === "1", // 项目区收起
+    // 项目展开树（快速索引）：path → 展开状态；树内容懒加载纯 DOM 渲染
+    projectExpanded: {},
+    projectTree: {},
 
     /* ── 编辑器状态 ────────────────────────────────────────────────────── */
 
@@ -308,6 +311,151 @@ document.addEventListener("alpine:init", () => {
       });
     },
 
+    /** 项目是否展开 */
+    isProjectExpanded(path) { return !!(path && this.projectExpanded[path]); },
+
+    /** 展开/收起项目（懒加载 + 纯 DOM 渲染子结构） */
+    async toggleProjectExpand(path) {
+      if (!path) return;
+      if (this.projectExpanded[path]) {
+        this.projectExpanded[path] = false;
+        this._persistProjectExpanded();
+        const container = this._treeContainer(path);
+        if (container) container.innerHTML = "";
+        return;
+      }
+      this.projectExpanded[path] = true;
+      this._persistProjectExpanded();
+      const container = this._treeContainer(path);
+      if (!container) return;
+      container.innerHTML = '<div class="sidebar-tree__loading">加载中…</div>';
+      try {
+        this.projectTree[path] = await this._loadProjectTree(path);
+        this._renderProjectTree(container, path);
+      } catch (e) {
+        container.innerHTML = '<div class="sidebar-tree__error">加载失败</div>';
+      }
+    },
+
+    /** 懒加载项目结构：知识文档 + 子项目 + 归档项目（归档下只有归档项目，无文档归档） */
+    async _loadProjectTree(path) {
+      const [docs, subs, arch] = await Promise.all([
+        api.list(path + "/common-knowledge").catch(() => ({ items: [] })),
+        api.list(path + "/projects").catch(() => ({ items: [] })),
+        api.list(path + "/archive").catch(() => ({ items: [] })),
+      ]);
+      const noReadme = (i) => !/^readme\.md$/i.test(i.name || "");
+      return {
+        docs: (docs.items || []).filter(i => !i.is_dir && noReadme(i)),
+        subs: (subs.items || []).filter(i => i.is_dir),
+        archived: (arch.items || []).filter(i => i.is_dir), // 归档项目
+      };
+    },
+
+    _treeContainer(path) {
+      return document.querySelector('[data-tree-path="' + CSS.escape(path) + '"]');
+    },
+
+    /** 渲染项目树（纯 DOM，递归嵌套；图标区分：文档 / 文件夹 / 归档箱） */
+    _renderProjectTree(container, path) {
+      const tree = this.projectTree[path];
+      if (!tree) return;
+      const groups = [];
+      if (tree.docs.length) {
+        groups.push(
+          '<div class="sidebar-tree__group">' +
+          tree.docs.map(d => this._treeRow(d.path, d.name, "doc")).join("") +
+          "</div>"
+        );
+      }
+      if (tree.subs.length) {
+        groups.push(
+          '<div class="sidebar-tree__group">' +
+          tree.subs.map(s => this._treeRow(s.path, s.name, "folder")).join("") +
+          "</div>"
+        );
+      }
+      if (tree.archived.length) {
+        groups.push(
+          '<div class="sidebar-tree__group">' +
+          tree.archived.map(a => this._treeRow(a.path, a.name, "archive")).join("") +
+          "</div>"
+        );
+      }
+      container.innerHTML = groups.join("") || '<div class="sidebar-tree__empty">（无内容）</div>';
+
+      const self = this;
+      container.querySelectorAll("[data-doc-path]").forEach(el => {
+        el.addEventListener("click", () => {
+          window.location.hash = "doc/" + encodeURIComponent(el.dataset.docPath);
+        });
+      });
+      container.querySelectorAll("[data-expand-path]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          self.toggleProjectExpand(el.dataset.expandPath);
+        });
+      });
+      container.querySelectorAll("[data-project-path]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.location.hash = "project/" + encodeURIComponent(el.dataset.projectPath);
+        });
+      });
+      // 已展开的子项目/归档项目：恢复其子树
+      container.querySelectorAll("[data-sub-path]").forEach(el => {
+        const sub = el.dataset.subPath;
+        if (self.projectExpanded[sub]) {
+          const subContainer = el.parentElement.querySelector('[data-tree-path="' + CSS.escape(sub) + '"]');
+          if (subContainer && self.projectTree[sub]) {
+            self._renderProjectTree(subContainer, sub);
+          } else if (subContainer) {
+            self.toggleProjectExpand(sub);
+          }
+        }
+      });
+    },
+
+    /** 树行 HTML：文档/文件夹/归档项目（图标区分） */
+    _treeRow(path, name, kind) {
+      const icon =
+        kind === "doc"
+          ? '<svg class="sidebar-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+          : kind === "archive"
+            ? '<svg class="sidebar-tree__icon sidebar-tree__icon--archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>'
+            : '<svg class="sidebar-tree__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+      if (kind === "doc") {
+        return (
+          '<div class="sidebar-tree__item" data-doc-path="' + escapeHtml(path) + '">' +
+          icon +
+          '<span class="sidebar-tree__name" title="' + escapeHtml(path) + '">' + escapeHtml(name) + "</span></div>"
+        );
+      }
+      const archCls = kind === "archive" ? " sidebar-tree__item--archive" : "";
+      return (
+        '<div class="sidebar-tree__item' + archCls + '" data-sub-path="' + escapeHtml(path) + '">' +
+        '<button class="sidebar-tree__chevron" data-expand-path="' + escapeHtml(path) + '" title="展开">' +
+        '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
+        "</button>" +
+        icon +
+        '<span class="sidebar-tree__name" data-project-path="' + escapeHtml(path) + '" title="' + escapeHtml(path) + '">' + escapeHtml(name) + "</span></div>" +
+        '<div class="sidebar-project__tree sidebar-project__tree--sub" data-tree-path="' + escapeHtml(path) + '"></div>'
+      );
+    },
+
+    /** 展开状态持久化（localStorage JSON 数组） */
+    _persistProjectExpanded() {
+      const arr = Object.keys(this.projectExpanded).filter(k => this.projectExpanded[k]);
+      try { localStorage.setItem("myknowledge-project-expanded", JSON.stringify(arr)); } catch (_) {}
+    },
+
+    /** 恢复上次展开的项目（loadProjects 后调用） */
+    _restoreProjectExpanded() {
+      let arr = [];
+      try { arr = JSON.parse(localStorage.getItem("myknowledge-project-expanded") || "[]") || []; } catch (_) {}
+      arr.forEach(path => { if (this.projectExpanded[path] !== true) this.toggleProjectExpand(path); });
+    },
+
     async loadProjects() {
       try {
         const data = await api.list("projects");
@@ -315,6 +463,8 @@ document.addEventListener("alpine:init", () => {
         this.projects = data && data.items
           ? data.items.filter(i => i.is_dir && !/^readme\.md$/i.test(i.name || ""))
           : [];
+        // 恢复上次展开的项目（懒加载子树）
+        setTimeout(() => this._restoreProjectExpanded(), 50);
       } catch (err) {
         console.error("加载项目列表失败:", err);
       }
