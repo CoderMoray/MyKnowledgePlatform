@@ -775,6 +775,9 @@ let _tocCollapsedSet = {};
           data.content.replace(/\(ref:([^)]+)\)/g, (m, url) => "(ref:" + url.replace(/ /g, "%20") + ")")
         ) : "");
         this.refs = refsData.refs || [];
+        // 显式内容同步钩子：doc 组件监听此事件执行 setContent（Alpine.effect 对
+        // store.htmlContent 的追踪不可靠——编辑态切文档时可能不重跑 → 新文档显示旧内容）
+        document.dispatchEvent(new CustomEvent("myk-doc-html", { detail: this.htmlContent }));
 
         // 并行加载元信息（不阻塞主内容渲染）
         this.loadDocumentMeta(path).catch(() => {});
@@ -846,7 +849,11 @@ let _tocCollapsedSet = {};
      */
     async saveDocumentSilent(path, body) {
       const data = await api.updateDocument(path, body);
-      this.document = { ...this.document, ...data };
+      // 仅当仍停留在保存的文档时合并（编辑态切文档竞态：保存旧文档的响应返回时
+      // document 已切换成新文档——合并会把旧文档 content 污染进新文档）
+      if (this.currentPath === path) {
+        this.document = { ...this.document, ...data };
+      }
       this.isDirty = false;
       return data;
     },

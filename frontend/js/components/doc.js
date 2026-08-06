@@ -117,12 +117,36 @@ Alpine.data("docComponent", () => ({
         }
       });
 
+      // 显式内容同步（loadDocument 完成后触发；effect 追踪不可靠时的可靠路径）
+      document.addEventListener("myk-doc-html", (e) => this._onStoreHtml(e.detail));
+
       // 空标题文档（H1 为空）→ 标题输入框兜底文件名（避免退出编辑误报"标题不能为空"）
       this.titleValue = store.document?.title || fileName(store.currentPath || "");
       this.summaryValue = store.document?.summary || "";
     },
 
     /** 单 DOM：确保编辑器已创建（阅读态也用它渲染，editable=false） */
+    /** loadDocument 完成后的显式内容同步（与 effect 的 setContent 逻辑一致，幂等） */
+    _onStoreHtml(h) {
+      const store = Alpine.store("app");
+      if (!h || !h.trim() || !_editorInstance) return;
+      if (store.currentView === "edit") return; // 编辑态不覆盖用户输入
+      if (this._contentHtml !== h) {
+        _editorInstance.commands.setContent(this._prepareEditorHtml(h));
+        _editorInstance.setEditable(false);
+        this._contentHtml = h;
+        queueMicrotask(() => {
+          if (!store.document || !store.currentPath) return;
+          if (this._tocDocPath !== store.currentPath) {
+            store.resetTocCollapse();
+            this._tocDocPath = store.currentPath;
+          }
+          store.updateToc();
+          store._bindTocScroll();
+        });
+      }
+    },
+
     async _ensureEditorForView() {
       const store = Alpine.store("app");
       if (_editorInstance || !store.htmlContent || !store.htmlContent.trim()) return;
