@@ -1325,6 +1325,10 @@
   line-height: 1.4;
 }
 .sidebar-toc__item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-toc__item--top {
+  font-weight: 600;
+  color: var(--text-primary);
+}
 .sidebar-toc__item--active {
   background: var(--accent-subtle, rgba(83, 74, 183, 0.1));
   color: var(--accent, #534ab7);

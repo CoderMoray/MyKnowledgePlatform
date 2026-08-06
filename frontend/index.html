@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=bf6c22494f" />
+  <link rel="stylesheet" href="css/components.css?v=6fce682eff" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -245,8 +245,11 @@
         <div class="sidebar-toc__list" x-show="!$store.app.tocCollapsed">
           <template x-for="(item, idx) in $store.app.tocItems" :key="idx">
             <div class="sidebar-toc__item"
-                 :style="'padding-left:' + (item.indent * 12 + 8) + 'px'"
-                 :class="{ 'sidebar-toc__item--active': $store.app.tocActiveIdx === idx }"
+                 :style="'padding-left:' + (item.indent * 16 + 10) + 'px'"
+                 :class="{
+                   'sidebar-toc__item--active': $store.app.tocActiveIdx === idx,
+                   'sidebar-toc__item--top': item.indent === 0
+                 }"
                  @click="$store.app.tocJump(idx)"
                  :title="item.text">
               <span x-text="item.text"></span>
