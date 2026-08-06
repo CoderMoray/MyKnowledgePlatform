@@ -317,15 +317,18 @@ document.addEventListener("alpine:init", () => {
     /** 展开/收起项目（懒加载 + 纯 DOM 渲染子结构） */
     async toggleProjectExpand(path) {
       if (!path) return;
+      const chevIcon = this._chevronIcon(path);
       if (this.projectExpanded[path]) {
         this.projectExpanded[path] = false;
         this._persistProjectExpanded();
+        if (chevIcon) chevIcon.classList.remove("is-open"); // 旋转动画（收起）
         const container = this._treeContainer(path);
         if (container) container.innerHTML = "";
         return;
       }
       this.projectExpanded[path] = true;
       this._persistProjectExpanded();
+      if (chevIcon) chevIcon.classList.add("is-open"); // 旋转动画（展开）
       const container = this._treeContainer(path);
       if (!container) return;
       container.innerHTML = '<div class="sidebar-tree__loading">加载中…</div>';
@@ -354,6 +357,12 @@ document.addEventListener("alpine:init", () => {
 
     _treeContainer(path) {
       return document.querySelector('[data-tree-path="' + CSS.escape(path) + '"]');
+    },
+
+    /** 树内子项目 chevron 的 svg（用于开合旋转动画） */
+    _chevronIcon(path) {
+      const btn = document.querySelector('[data-expand-path="' + CSS.escape(path) + '"]');
+      return btn ? btn.querySelector("svg") : null;
     },
 
     /** 渲染项目树（纯 DOM，递归嵌套；图标区分：文档 / 文件夹 / 归档箱） */
@@ -432,10 +441,12 @@ document.addEventListener("alpine:init", () => {
         );
       }
       const archCls = kind === "archive" ? " sidebar-tree__item--archive" : "";
+      // 子项目 chevron：与顶层项目一致的开合旋转动画（is-open → rotate 90°）
+      const openCls = this.isProjectExpanded(path) ? " is-open" : "";
       return (
         '<div class="sidebar-tree__item' + archCls + '" data-sub-path="' + escapeHtml(path) + '">' +
         '<button class="sidebar-tree__chevron" data-expand-path="' + escapeHtml(path) + '" title="展开">' +
-        '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
+        '<svg class="sidebar-tree__chevron-icon' + openCls + '" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
         "</button>" +
         icon +
         '<span class="sidebar-tree__name" data-project-path="' + escapeHtml(path) + '" title="' + escapeHtml(path) + '">' + escapeHtml(name) + "</span></div>" +

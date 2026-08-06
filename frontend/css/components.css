@@ -1472,3 +1472,10 @@
   padding: 4px 8px;
 }
 .sidebar-tree__error { color: var(--color-danger); }
+
+/* ── 树内子项目 chevron 开合旋转动画（与顶层项目一致） ─────────────────── */
+.sidebar-tree__chevron-icon {
+  transition: transform 0.18s ease;
+  transform: rotate(0deg);   /* 收起：指向右 > */
+}
+.sidebar-tree__chevron-icon.is-open { transform: rotate(90deg); } /* 展开：指向下 ∨ */
