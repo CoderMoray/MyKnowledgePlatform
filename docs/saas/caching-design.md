@@ -224,3 +224,60 @@ recency_weight = 0.5 · freq_norm        // 提及频次归一
 - 业务视角 / 收费模型 → `PRD.md`
 - 概念入门（无 AI 背景同事）→ `training/05_context_and_caching.md`
 - **工程实现规则（本文）→ `caching-design.md`**
+
+---
+
+## 14. 补充方案（待验证，未实施）：headroom 上下文压缩层
+
+> 定位：作为 T0–T3 缓存 + L0/L1/L2 压缩的**外部补充**（可选组件，非核心依赖）。
+> 评估日期：2026-08-06。结论：**契合但暂不实施**，先记录待验证。
+
+### 14.1 是什么
+
+- 本地运行的 **LLM 上下文压缩层**（`chopratejas/headroom`，Apache-2.0，实测版 0.33.0）。
+- 在内容发往 LLM **之前**压缩：工具输出、日志、文件、RAG 片段、对话历史。压缩全在本地，不调 LLM，数据不出域。
+- 核心机制：**CacheAligner**（只压缩最新轮、稳定前缀冻结）、**ContentRouter**（JSON/代码/日志/表格/文本分类型压缩器）、**Context Manager**（滚动窗口裁剪）、**CCR 可逆压缩**（原文存本地 SQLite `~/.headroom/ccr_store.db`，默认 TTL 1800s，带引用句柄可按需取回）。
+
+### 14.2 与本文方案的契合点
+
+| 本文设计 | headroom 对应 | 关系 |
+|---|---|---|
+| T0–T3 分层 + 断点（稳定前缀、易变靠后） | CacheAligner 冻结历史前缀、只压 live zone | **同构**，理念一致，不冲突 |
+| L1 摘要 / L2 索引（§7，"用一次模型调用做摘要"） | 本地压缩器（规则 + ONNX 小模型，零模型调用） | 可**替代 LLM 摘要**，免费 |
+| 工具结果进 T2（grep/read 大块输出） | 官方主打场景："MCP tool outputs are the PERFECT use case" | 高契合（表格/JSON 压缩省 90%+） |
+| 数据不出域 / 零模型成本 | 压缩全本地、仅 LLM 请求照常转发 | 符合约束 |
+
+### 14.3 三种接入方式（对本项目）
+
+| 方式 | 说明 | 本项目适用性 |
+|---|---|---|
+| **Library** | `compress_tool_result(content, tool_name, tool_args, user_query)` 直接调 | ✅ 首选（集成到读类 MCP 工具或 harness 层） |
+| **Proxy** | 本地代理，`ANTHROPIC_BASE_URL` 指向 8787，对 Claude Code 透明 | ⚠️ 面向 Anthropic 生态；本项目走国内厂商需实测 litellm 链路 |
+| **MCP Server** | 挂 `headroom_compress` / `headroom_retrieve` 工具，AI 主动调 | ✅ 可作 retrieve 兜底 |
+
+> 注：`headroom install` 的 ToolTarget 原生支持 **opencode**（另支持 claude/codex/cursor/aider/copilot），可 `headroom wrap opencode` 接入 SaaS 方案的 opencode harness。
+
+### 14.4 推荐集成形态（若未来实施）
+
+1. **读类 MCP 工具加 `compressed: bool = False` 参数**（默认 False，向后兼容）：`nav__get_document(path, compressed=True)` 返回压缩结果。
+2. **新增 retrieve 工具**：按引用句柄取回原文（CCR 兜底），实现"惰性加载"而非"有损压缩"。
+3. **按工具配 profile**（headroom 原生 `MCPToolProfile`）：
+   - `nav__list_dir` / `nav__find`（表格/搜索结果）→ 高压缩（收益最大，省 90%+）
+   - `nav__get_document` / `nav__read_readme`（文档全文）→ 低阈值（`min_tokens_to_compress≈500`）或压缩 + 强提示 retrieve
+4. **修改前必须取回原文**：agent 基于压缩版直接 `write__update_document` 有改写风险，压缩返回需提示"修改前先 retrieve"。
+
+### 14.5 关键限制与风险
+
+- **M 系列 Mac 已知 bug**（issue #2742，0.33.0）：kompress 在 Apple Silicon 上压缩率可能≈0%，实施前必须先实测。
+- **依赖重**：`headroom-ai` 带 onnxruntime + litellm + tiktoken；274MB 模型（kompress-v2-base）**首次运行时从 HuggingFace 下载**（非安装自带，存 `~/.cache/huggingface/`），全功能共约 400–800MB 磁盘。
+- **常驻开销**：proxy 模式常驻进程约 300–700MB 内存；压缩瞬间 CPU 突刺 P50~12ms / P90~259ms / P99 可达 4s。
+- **压缩率现实**：官方 60–95% 为最佳场景；生产实测中位数仅 ~4.8%。需在真实 KB + 中文 markdown 上 A/B 验证。
+- **依赖位置**：只能作为 optional extra（如 `myknowledge[headroom]`），不进核心 `pyproject.toml` 依赖。
+
+### 14.6 待验证清单（实施前）
+
+- [ ] M 系列 Mac 真实压缩率（中文 markdown 文档 + `nav__list_dir` 表格两类样本）
+- [ ] `compress_tool_result` 对中文 KB 文档的精度影响（压缩后能否准确回答问题）
+- [ ] 国内厂商链路：headroom Library 模式 → 压缩 → DeepSeek/智谱/通义 的端到端正确性
+- [ ] 压缩 + CCR 取回（retrieve）在知识问答场景的收益/成本净评估（对 7–8 人低频是否划算）
+- [ ] 与 LiteLLM 网关共存时的依赖版本兼容性（headroom 依赖 litellm）

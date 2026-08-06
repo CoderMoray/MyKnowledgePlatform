@@ -1305,10 +1305,9 @@ Alpine.data("docComponent", () => ({
 
     /** 行格式图标（参考飞书：悬停行首显示行类型） */
     _formatIcon(fmt) {
+      // Hn 通用（H1-H9，飞书同款；schema 支持到 H4）
+      if (/^h[1-9]$/.test(fmt)) return "<b style='font-size:10px'>" + fmt.toUpperCase() + "</b>";
       switch (fmt) {
-        case "h1": return "<b style='font-size:11px'>H1</b>";
-        case "h2": return "<b style='font-size:11px'>H2</b>";
-        case "h3": return "<b style='font-size:11px'>H3</b>";
         case "bullet": return "•";
         case "ordered": return "1.";
         case "quote": return "❝";

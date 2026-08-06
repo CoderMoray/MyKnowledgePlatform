@@ -80,6 +80,28 @@
 - [ ] `caching-scenarios-visual.html` 更新（清单见下节）
 - [ ] `caching-design.md` 修订批次：T1 拆三层 + 顺序/断点重排、护栏（晋升从 KB 源重读）、事件驱动纪律（重排非每轮）、L2 按需 read、caps、§4"每变体 = 断点数条"、T2 行"动态检索结果"→"工具调用/预读结果"、规则①"满则放 T2"→"满则压最低分入 L1 / LRU 挤"
 
+---
+
+## 2026-08-06 会话
+
+### 本会话主线
+
+评估外部工具 **headroom**（LLM 上下文压缩层，chopratejas/headroom，本地实测版 0.33.0）是否作为缓存方案的补充。结论：**契合、暂不实施，作为补充方案记录**（详见 `caching-design.md` §14）。
+
+### 评估结论要点
+
+1. **定位**：headroom 是本地运行的上下文压缩层（压缩不调 LLM、数据不出域），不是存储/知识管理工具 → 与 MyKnowledge 平台本体定位不同，属 harness/工具层补充。
+2. **与缓存设计同构**：其 CacheAligner（冻结稳定前缀、只压 live zone）与本文 T0–T3 + 断点设计理念一致；其本地压缩器可替代 §7 中"用一次模型调用做摘要"的 L1/L2 压缩环节（零模型成本）。
+3. **MCP 集成可行且是官方主打场景**：headroom 提供 `compress_tool_result()` / `HeadroomMCPCompressor` / `MCPToolProfile`，专为压缩 MCP 工具输出设计。本项目读类工具（nav__get_document 等）为纯字符串返回，注入点干净。
+4. **推荐集成形态（若实施）**：读类工具加 `compressed=False` 参数 + 新增 retrieve 工具（CCR 兜底）→ 由 AI 自行决定压缩/取回；list/find 高压缩、get_document 低阈值；修改前必须 retrieve 原文。
+5. **关键风险**：① M 系列 Mac 压缩率 bug（issue #2742，需先实测）；② headroom-ai 依赖重（onnxruntime + litellm + 首次下载 ~400MB 模型），只能做 optional extra；③ 生产压缩率中位数仅 ~4.8%，需真实 KB + 中文 markdown A/B 验证；④ headroom 依赖 litellm 需验证与网关共存兼容性。
+
+### 待办 / 下回继续
+
+- [ ] headroom 实测（M 系列真实压缩率 + 中文 markdown 精度 + 常驻内存），数据到手后再决定是否提升为实施项
+- [ ] 若实施：按 §14.4 集成形态落地，并同步补 `tests/` 与 `docs/FRONTEND.md`
+- [ ] 沿用上文 2026-08-03 会话的待办（T2 frozen_core、评分权重、模拟器等）
+
 ### caching-scenarios-visual.html 更新清单（未执行，待设计定稿后重写）
 
 | 位置 | 现状 | 需更新为 |
