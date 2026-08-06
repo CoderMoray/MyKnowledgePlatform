@@ -4,6 +4,9 @@
    ========================================================================== */
 
 document.addEventListener("alpine:init", () => {
+// 目录折叠状态：模块级闭包（不存 Alpine data——proxy set 触发 flush 会重建纯 JS 渲染的目录 DOM）
+let _tocCollapsedSet = {};
+
   Alpine.store("app", {
     /* ── 视图状态 ──────────────────────────────────────────────────────── */
 
@@ -115,7 +118,8 @@ document.addEventListener("alpine:init", () => {
     /** 侧边栏是否打开 */
     sidebarOpen: true,
     // 文档目录（TOC）
-    tocItems: [],          // [{level, indent, text}]（indent 已按出现顺序缩进修正）
+    tocItems: [],          // [{level, indent, text, hasChildren}]（indent 已按出现顺序缩进修正）
+    // （目录折叠状态存模块级闭包 _tocCollapsedSet——避免 Alpine flush 重建纯 JS 目录 DOM）
     tocActiveIdx: -1,      // 当前可见标题索引（滚动跟随高亮）
     tocCollapsed: false,   // 目录区收起
     projectsCollapsed: localStorage.getItem("myknowledge-projects-collapsed") === "1", // 项目区收起
@@ -213,24 +217,149 @@ document.addEventListener("alpine:init", () => {
       const headings = pm ? pm.querySelectorAll("h1,h2,h3,h4,h5,h6,h7,h8,h9") : [];
       const levelMap = new Map();
       let counter = 0;
-      this.tocItems = Array.from(headings).map(h => {
+      const raw = Array.from(headings).map(h => {
         const level = parseInt(h.tagName.charAt(1), 10);
         if (!levelMap.has(level)) levelMap.set(level, counter++);
-        return {
-          level,
-          indent: levelMap.get(level),
-          text: h.textContent.trim() || "（空标题）",
-        };
+        return { level, indent: levelMap.get(level), text: h.textContent.trim() || "（空标题）" };
       });
+      this.tocItems = raw.map((it, i) => ({
+        ...it,
+        hasChildren: i + 1 < raw.length && raw[i + 1].level > it.level,
+      }));
       if (this.tocActiveIdx >= this.tocItems.length) this.tocActiveIdx = -1;
       if (this.tocItems.length === 0) this.tocActiveIdx = -1;
+      this._renderTocList();
+    },
+
+    /** 纯 JS 渲染目录列表（x-for 重建会覆盖折叠 DOM——与项目树同方案） */
+    _renderTocList() {
+      const list = document.getElementById("sidebar-toc-list");
+      if (!list) return;
+      const items = this.tocItems;
+      if (!items.length) {
+        list.innerHTML = '<div class="sidebar-toc__empty">本文档无标题</div>';
+        return;
+      }
+      list.innerHTML = items.map((it, idx) => {
+        const cls = [
+          "sidebar-toc__item",
+          idx === this.tocActiveIdx ? "sidebar-toc__item--active" : "",
+          it.indent === 0 ? "sidebar-toc__item--top" : "",
+        ].filter(Boolean).join(" ");
+        return (
+          '<div class="' + cls + '" data-toc-idx="' + idx + '" title="' + escapeHtml(it.text) + '"' +
+          ' style="padding-left:' + (it.indent * 16 + 6) + 'px">' +
+          '<button class="sidebar-toc__chev-btn" data-toc-toggle="' + idx + '"' +
+          ' style="visibility:' + (it.hasChildren ? "visible" : "hidden") + '"' +
+          ' title="' + (it.hasChildren ? "展开/收起子标题" : "") + '">' +
+          '<svg class="sidebar-toc__chevron' + (_tocCollapsedSet[idx] ? "" : " is-open") + '"' +
+          ' viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor"' +
+          ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 4 10 8 6 12"/></svg>' +
+          "</button>" +
+          '<span class="sidebar-toc__item-text" data-toc-jump="' + idx + '">' + escapeHtml(it.text) + "</span>" +
+          "</div>"
+        );
+      }).join("");
+      list.querySelectorAll("[data-toc-jump]").forEach(el => {
+        el.addEventListener("click", () => this.tocJump(Number(el.dataset.tocJump)));
+      });
+      list.querySelectorAll("[data-toc-toggle]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.toggleTocCollapse(Number(el.dataset.tocToggle));
+        });
+      });
+      // 应用已收起的折叠状态（编辑刷新重建后恢复）
+      this._applyTocCollapsed();
+    },
+
+    /** 应用 tocCollapsedSet：隐藏所有收起标题的子树（DOM 稳定——纯 JS 渲染） */
+    _applyTocCollapsed() {
+      const itemEls = Array.from(document.querySelectorAll("#sidebar-toc-list .sidebar-toc__item"));
+      Object.keys(_tocCollapsedSet).forEach(k => {
+        const j = Number(k);
+        if (!_tocCollapsedSet[j]) return;
+        const jlvl = this.tocItems[j].level;
+        for (let i = j + 1; i < this.tocItems.length && this.tocItems[i].level > jlvl; i++) {
+          const el = itemEls[i];
+          if (el) el.style.display = "none";
+        }
+      });
+    },
+
+    /** 更新目录项 active 高亮 class */
+    _updateTocActiveClass(idx) {
+      document.querySelectorAll("#sidebar-toc-list .sidebar-toc__item").forEach(el => {
+        el.classList.toggle("sidebar-toc__item--active", Number(el.dataset.tocIdx) === idx);
+      });
     },
 
     /** 点击目录项 → 滚动到对应标题（+ 立即高亮） */
+    tocJump(idx) {
+      const pm = document.querySelector(".ProseMirror");
+      if (!pm) return;
+      const headings = pm.querySelectorAll("h1,h2,h3,h4,h5,h6,h7,h8,h9");
+      const el = headings[idx];
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      this.tocActiveIdx = idx;
+      this._updateTocActiveClass(idx);
+    },
     /** 项目区展开/收起（localStorage 持久化） */
     toggleProjects() {
       this.projectsCollapsed = !this.projectsCollapsed;
       localStorage.setItem("myknowledge-projects-collapsed", this.projectsCollapsed ? "1" : "0");
+    },
+
+    /** 目录项是否被某收起的祖先覆盖（隐藏） */
+    isTocHidden(idx) {
+      const items = this.tocItems;
+      if (!items || idx >= items.length) return false;
+      let cur = items[idx].level;
+      for (let j = idx - 1; j >= 0; j--) {
+        if (items[j].level >= cur) continue;        // 不是祖先
+        if (this.tocCollapsedSet[j]) return true;   // 祖先收起 → 隐藏
+        cur = items[j].level;                       // 上溯到更浅层级继续找
+      }
+      return false;
+    },
+
+    /** 切换某标题子级的展开/收起（纯 DOM 操作——x-for 内 x-show 响应式不可靠，与项目树同方案） */
+    toggleTocCollapse(idx) {
+      const items = this.tocItems;
+      if (!items || idx >= items.length) return;
+      const lvl = items[idx].level;
+      const itemEls = Array.from(document.querySelectorAll(".sidebar-toc__item"));
+      // 直接子树范围：idx+1 起，到第一个 level <= lvl 为止
+      const subs = [];
+      for (let i = idx + 1; i < items.length && items[i].level > lvl; i++) subs.push(i);
+      if (!subs.length) return;
+      const cur = !!_tocCollapsedSet[idx];
+      _tocCollapsedSet = { ..._tocCollapsedSet, [idx]: !cur };
+      const nowCollapsed = !cur;
+      // chevron 旋转状态
+      const chev = itemEls[idx] && itemEls[idx].querySelector(".sidebar-toc__chevron");
+      if (chev) chev.classList.toggle("is-open", !nowCollapsed);
+      if (nowCollapsed) {
+        subs.forEach(si => { const el = itemEls[si]; if (el) el.style.display = "none"; });
+      } else {
+        // 展开：先恢复子树显示，再重新应用子树内仍收起的标题
+        subs.forEach(si => { const el = itemEls[si]; if (el) el.style.display = ""; });
+        Object.keys(_tocCollapsedSet).forEach(k => {
+          const j = Number(k);
+          if (j <= idx || !_tocCollapsedSet[j]) return;
+          const jlvl = items[j].level;
+          for (let i = j + 1; i < items.length && items[i].level > jlvl; i++) {
+            const el = itemEls[i];
+            if (el) el.style.display = "none";
+          }
+        });
+      }
+    },
+
+    /** 重置目录折叠（进入文档时全部展开；x-for 重建时 DOM 自然全显示） */
+    resetTocCollapse() {
+      _tocCollapsedSet = {};
     },
 
     tocJump(idx) {
@@ -258,7 +387,10 @@ document.addEventListener("alpine:init", () => {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible.length) {
           const idx = Array.from(headings).indexOf(visible[0].target);
-          if (idx >= 0) self.tocActiveIdx = idx;
+          if (idx >= 0) {
+            self.tocActiveIdx = idx;
+            self._updateTocActiveClass(idx);
+          }
         }
       }, { root: null, rootMargin: "0px 0px -5% 0px" });
       headings.forEach(h => this._tocIO.observe(h));

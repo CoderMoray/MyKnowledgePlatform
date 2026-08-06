@@ -105,6 +105,11 @@ Alpine.data("docComponent", () => ({
         // 目录刷新 + 滚动跟随（等渲染完成后提取标题）
         queueMicrotask(() => {
           if (!store.document || !store.currentPath) return;
+          // 仅文档真正切换时重置折叠（全部展开）；同文档 effect 重跑保留折叠状态
+          if (this._tocDocPath !== store.currentPath) {
+            store.resetTocCollapse();
+            this._tocDocPath = store.currentPath;
+          }
           store.updateToc();
           store._bindTocScroll();
         });

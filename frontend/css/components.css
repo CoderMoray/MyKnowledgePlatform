@@ -1517,3 +1517,30 @@
 .sidebar-item--active {
   background: var(--accent-subtle);
 }
+
+/* ── 目录项折叠箭头 ───────────────────────────────────────────────────── */
+.sidebar-toc__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sidebar-toc__chev-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 1px 2px;
+  margin-left: -4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+}
+.sidebar-toc__chev-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.sidebar-toc__item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
