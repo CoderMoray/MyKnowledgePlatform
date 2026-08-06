@@ -1186,9 +1186,13 @@ Alpine.data("docComponent", () => ({
           const hit = ed.view.posAtCoords({ left: e.clientX, top: e.clientY });
           const pos = hit ? hit.pos : null; // posAtCoords 返回 {pos, inside}
           const block = findBlock(pos);
-          // 仅空行显示 + 按钮（飞书行为）
-          if (!block || !block.empty) { btn.classList.remove("is-visible"); currentBlock = null; return; }
+          // 空行显示 +；有内容的行显示行格式图标（飞书行为：悬停行首显示行类型）
+          if (!block) { btn.classList.remove("is-visible"); currentBlock = null; return; }
           currentBlock = block.start;
+          // 图标：空行 = +；有内容 = 行格式图标（段落 ≡ / 标题 H1 / 列表 • 等）
+          btn.innerHTML = block.empty
+            ? "+"
+            : this._formatIcon(this._getLineFormat(ed, block.start));
           const coords = ed.view.coordsAtPos(block.start);
           // 呼吸感间距 + 响应式钳制（基于实测：ProseMirror padding=0，行首紧贴编辑区起点，
           // 所以左边界必须取 sidebar 右缘而非编辑区起点，否则按钮被钳到行首上方覆盖输入区）：
@@ -1278,6 +1282,43 @@ Alpine.data("docComponent", () => ({
         });
         list.appendChild(div);
       });
+    },
+
+    /** 行格式检测：从块位置向上解析（列表项上溯到 bulletList/orderedList，标题读 level） */
+    _getLineFormat(ed, pos) {
+      try {
+        const resolved = ed.state.doc.resolve(pos);
+        for (let d = resolved.depth; d >= 0; d--) {
+          const node = resolved.node(d);
+          const t = node.type.name;
+          if (t === "heading") return "h" + (node.attrs.level || 1);
+          if (t === "bulletList") return "bullet";
+          if (t === "orderedList") return "ordered";
+          if (t === "todoList" || t === "taskList") return "todo";
+          if (t === "blockquote") return "quote";
+          if (t === "codeBlock") return "code";
+          if (t === "table") return "table";
+          if (t === "horizontalRule") return "hr";
+        }
+      } catch (_) { /* resolve 失败回退段落 */ }
+      return "paragraph";
+    },
+
+    /** 行格式图标（参考飞书：悬停行首显示行类型） */
+    _formatIcon(fmt) {
+      switch (fmt) {
+        case "h1": return "<b style='font-size:11px'>H1</b>";
+        case "h2": return "<b style='font-size:11px'>H2</b>";
+        case "h3": return "<b style='font-size:11px'>H3</b>";
+        case "bullet": return "•";
+        case "ordered": return "1.";
+        case "todo": return "☑";
+        case "quote": return "❝";
+        case "code": return "{ }";
+        case "table": return "⊞";
+        case "hr": return "—";
+        default: return "≡";
+      }
     },
 
     _closePlusMenu() {
