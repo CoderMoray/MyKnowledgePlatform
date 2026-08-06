@@ -110,7 +110,8 @@ Alpine.data("docComponent", () => ({
         });
       });
 
-      this.titleValue = store.document?.title || "";
+      // 空标题文档（H1 为空）→ 标题输入框兜底文件名（避免退出编辑误报"标题不能为空"）
+      this.titleValue = store.document?.title || fileName(store.currentPath || "");
       this.summaryValue = store.document?.summary || "";
     },
 
@@ -640,7 +641,7 @@ Alpine.data("docComponent", () => ({
       if (!html || html === "<p></p>" || html.trim() === "") {
         _editorInstance.setEditable(false);
         this._hideEditDecorations();
-        if (stillOnDoc) store.setView("view", path);
+        if (stillOnDoc && window.location.hash.startsWith("#doc/")) store.setView("view", path);
         this._editingPath = null;
         return;
       }
@@ -677,7 +678,8 @@ Alpine.data("docComponent", () => ({
       _editorInstance.setEditable(false);
       this._hideEditDecorations();
       this._editingPath = null;
-      if (stillOnDoc) {
+      // 仅在 hash 仍在本文档时切回 view（用户已点返回离开 → 保持目标视图，hash 与视图一致）
+      if (stillOnDoc && window.location.hash.startsWith("#doc/")) {
         store.setView("view", finalPath);
       }
     },
@@ -1615,9 +1617,10 @@ Alpine.data("docComponent", () => ({
       const newPath = MykRename.buildNewPath(oldPath, newName);
       store.currentPath = newPath;
       if (store.document) store.document.title = newTitle;
-      // 路由跟随新路径（hash 更新；当前视图无需重载，内容已在编辑器）
+      // 路由跟随新路径（仅仍在文档视图时；用户已导航离开（如点了返回）则不覆盖其目标 hash）
       const hash = "doc/" + encodeURIComponent(newPath);
-      if (window.location.hash !== "#" + hash) {
+      if ((store.currentView === "view" || store.currentView === "edit") &&
+          window.location.hash !== "#" + hash) {
         history.replaceState(null, "", "#" + hash);
       }
       showToast("已重命名为 " + newTitle, "success");
