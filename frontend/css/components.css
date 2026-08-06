@@ -1288,14 +1288,14 @@
 
 /* ── 侧栏文档目录（TOC） ──────────────────────────────────────────────── */
 .sidebar-toc {
-  padding: 4px 8px 8px;
+  padding: 4px 0 8px;      /* 去左右 padding：label/chevron 与项目行对齐 */
   border-top: 1px solid var(--border-subtle);
   overflow: hidden;
 }
 .sidebar-toc__header {
   display: flex;
   align-items: center;
-  padding: 2px 4px;
+  padding: 2px 0;          /* 无左右 padding：label 左缘 = 项目 label，chevron 右缘 = 项目 chevron */
   gap: 2px;
 }
 .sidebar-toc__label {
@@ -1338,7 +1338,7 @@
 .sidebar-toc__item {
   font-size: 12px;
   color: var(--text-secondary);
-  padding: 3px 6px;
+  padding: 3px 6px 3px 4px;
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
