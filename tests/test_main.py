@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -661,3 +662,74 @@ class TestApiRenameDocument:
         readme = storage.read_content("projects/P/readme.md")
         assert "renamed.md" in readme
         assert "doc.md" not in readme
+
+
+# ══════════════════════════════════════════════════════════════
+#  _frontend_dir — static asset resolution (desktop packaging)
+# ══════════════════════════════════════════════════════════════
+
+
+class TestFrontendDir:
+    """Unit tests for _frontend_dir() resolution order."""
+
+    def test_env_var_wins(self, monkeypatch, tmp_path):
+        from backend.main import _frontend_dir
+        fe = tmp_path / "fe"
+        monkeypatch.setenv("MYKNOWLEDGE_FRONTEND_DIR", str(fe))
+        assert _frontend_dir() == fe.resolve()
+
+    def test_meipass_when_no_env(self, monkeypatch, tmp_path):
+        from backend.main import _frontend_dir
+        monkeypatch.delenv("MYKNOWLEDGE_FRONTEND_DIR", raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+        assert _frontend_dir() == (tmp_path / "frontend").resolve()
+
+    def test_cwd_fallback(self, monkeypatch):
+        from backend.main import _frontend_dir
+        monkeypatch.delenv("MYKNOWLEDGE_FRONTEND_DIR", raising=False)
+        monkeypatch.delattr(sys, "_MEIPASS", raising=False)
+        assert _frontend_dir() == (Path.cwd() / "frontend").resolve()
+
+
+# ══════════════════════════════════════════════════════════════
+#  desktop_server — Electron backend entry point
+# ══════════════════════════════════════════════════════════════
+
+
+class TestDesktopServer:
+    """Entry-point tests: arg parsing + uvicorn invocation (no network)."""
+
+    def test_invokes_uvicorn_with_port_and_root(self, monkeypatch, tmp_path):
+        import os
+
+        from backend import desktop_server as ds
+
+        captured: dict = {}
+
+        def fake_run(app, **kwargs):
+            captured["app"] = app
+            captured.update(kwargs)
+
+        monkeypatch.setattr(ds.uvicorn, "run", fake_run)
+
+        old_root = os.environ.get("MYKNOWLEDGE_ROOT")
+        try:
+            assert ds.main(["--port", "0", "--root", str(tmp_path)]) == 0
+        finally:
+            if old_root is None:
+                os.environ.pop("MYKNOWLEDGE_ROOT", None)
+            else:
+                os.environ["MYKNOWLEDGE_ROOT"] = old_root
+
+        from backend.main import app as main_app
+
+        assert captured["host"] == "127.0.0.1"
+        assert captured["port"] == 0
+        assert captured["app"] is main_app
+
+    def test_help_exits_zero(self, capsys):
+        import pytest
+        from backend import desktop_server as ds
+        with pytest.raises(SystemExit) as exc:
+            ds.main(["--help"])
+        assert exc.value.code == 0

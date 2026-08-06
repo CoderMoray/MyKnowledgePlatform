@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=b1adcc8b61" />
+  <link rel="stylesheet" href="css/components.css?v=c6e6e3ce21" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -216,13 +216,20 @@
              x-cloak>
           <div class="sidebar-toc__header">
             <span class="sidebar-toc__drag" draggable="true"
-                  title="拖动可与项目区交换位置">⋮⋮</span>
-            <span class="sidebar-section__label">目录</span>
+                  title="拖动此手柄到项目区可交换位置">☰</span>
+            <span class="sidebar-section__label sidebar-toc__label">目录</span>
             <button class="sidebar-toc__toggle"
                     @click="$store.app.tocCollapsed = !$store.app.tocCollapsed"
-                    x-text="$store.app.tocCollapsed ? '▸' : '▾'"></button>
+                    :title="$store.app.tocCollapsed ? '展开目录' : '收起目录'">
+              <svg class="sidebar-toc__chevron" :class="{ 'is-open': !$store.app.tocCollapsed }"
+                   viewBox="0 0 16 16" width="12" height="12" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 4 10 8 6 12"/>
+              </svg>
+            </button>
           </div>
-          <div class="sidebar-toc__list" x-show="!$store.app.tocCollapsed">
+          <div class="sidebar-toc__list"
+               :class="{ 'is-collapsed': $store.app.tocCollapsed }">
             <template x-for="(item, idx) in $store.app.tocItems" :key="idx">
               <div class="sidebar-toc__item"
                    :style="'padding-left:' + (item.indent * 16 + 10) + 'px'"

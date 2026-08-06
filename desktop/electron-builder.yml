@@ -1,0 +1,32 @@
+# MyKnowledge 桌面壳 — electron-builder 配置
+# 产出：MyKnowledge-0.6.0-arm64.dmg / .zip（Apple Silicon）
+#       MyKnowledge-0.6.0-x64.dmg / .zip（Intel）
+
+appId: com.myknowledge.desktop
+productName: MyKnowledge
+directories:
+  output: dist
+  buildResources: assets
+files:
+  - main.js
+  - preload.js
+  - package.json
+# 后端二进制打进 app 的 Resources/（main.js 从 process.resourcesPath 定位）
+extraResources:
+  - from: ../dist-backend/myknowledge-backend
+    to: myknowledge-backend
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  # 自定义图标：将 1024x1024 PNG 放入 assets/icon.icns（用 scripts/make-icon.sh 生成）
+  # icon: assets/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+dmg:
+  title: MyKnowledge ${version}
+  artifactName: MyKnowledge-${version}-${arch}.${ext}
+zip:
+  artifactName: MyKnowledge-${version}-${arch}.zip
+npmRebuild: false

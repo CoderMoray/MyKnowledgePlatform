@@ -11,7 +11,7 @@ access is possible.
 
 from __future__ import annotations
 
-import asyncio, os, time, json
+import asyncio, os, sys, time, json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -1082,7 +1082,24 @@ def api_trash_empty():
     return {"status": "emptied", "purged": n}
 
 
-_FRONTEND_DIR = (Path.cwd() / "frontend").resolve()
+def _frontend_dir() -> Path:
+    """Locate the frontend static assets.
+
+    Resolution order:
+      1. ``MYKNOWLEDGE_FRONTEND_DIR`` env var — Electron shell / tests override
+      2. PyInstaller bundle dir (``sys._MEIPASS/frontend``) — shipped inside
+         the desktop backend binary
+      3. ``./frontend`` relative to cwd — source checkout (``myknowledge serve``)
+    """
+    env_dir = os.environ.get("MYKNOWLEDGE_FRONTEND_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    if getattr(sys, "_MEIPASS", None):
+        return (Path(sys._MEIPASS) / "frontend").resolve()
+    return (Path.cwd() / "frontend").resolve()
+
+
+_FRONTEND_DIR = _frontend_dir()
 if _FRONTEND_DIR.is_dir():
     @app.get("/")
     def _serve_index():
