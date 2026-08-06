@@ -137,7 +137,27 @@ class TestUpdateDocument:
             "summary": "new summary",
         }))
         meta, _ = storage.read_document("common-knowledge/d.md")
+
         assert meta["summary"] == "new summary"
+
+    def test_update_updates_updated_keeps_created(self, app, storage: Storage) -> None:
+        """AI update must refresh `updated` but keep `created` unchanged."""
+        from datetime import date
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/d.md",
+            "content": "# Old",
+        }))
+        before, _ = storage.read_document("common-knowledge/d.md")
+        created = before.get("created")
+        assert created, "创建时应有 created 字段"
+
+        asyncio.run(app.call_tool("write__update_document", {
+            "path": "common-knowledge/d.md",
+            "content": "# New",
+        }))
+        after, _ = storage.read_document("common-knowledge/d.md")
+        assert after["updated"] == date.today().isoformat()
+        assert after["created"] == created  # created 永不改变
 
 
 class TestUpdateProjectMeta:

@@ -1057,6 +1057,10 @@ def create_mcp_app(storage: Storage,
         else:
             new_meta.pop("summary", None)
         _attach_identity(new_meta, is_new=False)
+        # 字段语义：created 创建（不变）、updated 最后修改、maintainer 最后维护者。
+        # AI 正式写入路径更新 updated（与 write__update_project_meta 一致）。
+        # 注意：storage.write_document 仅当 updated 缺失时才注入，故需显式覆盖旧值。
+        new_meta["updated"] = __import__("datetime").date.today().isoformat()
 
         written = storage.write_document(path, new_meta, new_body,
                                          auto_id=False)
