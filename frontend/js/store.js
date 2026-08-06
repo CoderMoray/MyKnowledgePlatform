@@ -200,6 +200,8 @@ document.addEventListener("alpine:init", () => {
       }
       // 路由变化 → 刷新树内高亮（文档行/子项目行当前项）
       if (typeof this._refreshTreeHighlight === "function") this._refreshTreeHighlight();
+      // 路由变化 → 自动展开到当前项所在层级（从 doc-card / 外部链接进入时）
+      if (typeof this._autoExpandForCurrentPath === "function") this._autoExpandForCurrentPath();
     },
 
     /**
@@ -335,6 +337,37 @@ document.addEventListener("alpine:init", () => {
     /** 顶层项目是否为当前路径的树结构直接父级（仅文本高亮，无背景） */
     isProjectParentActive(path) {
       return this._treeParentPath(this.currentPath) === path;
+    },
+
+    /** 自动展开 sidebar 树到当前路径所在层级（含项目区收起时）；异步逐级懒加载 */
+    async _autoExpandForCurrentPath() {
+      const path = this.currentPath;
+      if (!path || !path.startsWith("projects/")) return;
+      // 提取祖先链：顶层项目 + 各级子项目（按 /projects/ 段）
+      const parts = path.split("/");
+      const chain = [];
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i] === "projects" && i + 1 < parts.length) {
+          chain.push(parts.slice(0, i + 2).join("/"));
+        }
+      }
+      if (!chain.length) return;
+      // 项目区整体收起 → 自动展开
+      if (this.projectsCollapsed) {
+        this.projectsCollapsed = false;
+        try { localStorage.setItem("myknowledge-projects-collapsed", "0"); } catch (_) {}
+      }
+      // 逐级展开（当前项是项目页本身时，最后一级不展开）
+      for (let idx = 0; idx < chain.length; idx++) {
+        const p = chain[idx];
+        const isLast = idx === chain.length - 1;
+        if (isLast && p === path && this.currentView === "project") break; // 项目页本身
+        if (!this.projectExpanded[p]) {
+          await this.toggleProjectExpand(p);
+        }
+      }
+      // 展开完成后刷新高亮（当前项 + 直接父级）
+      this._refreshTreeHighlight();
     },
 
     /** 刷新树内高亮：当前项（text+bg）与直接父级（仅文本） */
