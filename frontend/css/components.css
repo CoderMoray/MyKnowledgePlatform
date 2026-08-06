@@ -1402,7 +1402,7 @@
   color: var(--text-tertiary);
   cursor: pointer;
   padding: 2px 4px;
-  margin-left: -8px;  /* 对齐 section header 的 chevron（sidebar-item 有 4px 内边距）*/
+  margin-left: -4px;  /* 项目行/树行 chevron 保留缩进（不强制与 section 对齐）*/
   border-radius: 4px;
   display: flex;
   align-items: center;
