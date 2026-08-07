@@ -88,8 +88,10 @@ Alpine.data("docComponent", () => ({
         // 仅非编辑态同步：编辑态保护用户正在输入的内容（保存时 htmlContent 快照也会触发本 effect，
         // 若同步会把刚输入的标题覆盖回文件名，导致重命名判断失效）。
         if (store.currentView !== "edit") {
-          this.summaryValue = store.document?.summary || "";
-          this.titleValue = store.document?.title || fileName(store.currentPath || "");
+          // dirty 时不覆盖：用户正在编辑标题/摘要（切文档瞬间 effect 重跑会用旧 document 重置输入值，
+          // 导致 _maybeRename 读到被重置的标题 → 合法 rename 丢失）
+          if (!this._summaryDirty) this.summaryValue = store.document?.summary || "";
+          if (!this._titleDirty) this.titleValue = store.document?.title || fileName(store.currentPath || "");
         }
         if (!_editorInstance) {
           this._ensureEditorForView(); // 内部有 _editorInstance 防重
@@ -208,6 +210,8 @@ Alpine.data("docComponent", () => ({
       if (fullMd) {
         try {
           await store.saveDocumentSilent(path, this._buildSaveBody());
+          // 导航保存也处理用户改标题（rename 文件；不改已切换的前端状态）
+          await this._maybeRename(path, this._editTitle, false);
         } catch (e) {
           // 409 冲突：弹可视化 diff（保持编辑态，不打断导航兜底）
           if (this._handleSaveError(e)) return;
@@ -680,7 +684,7 @@ Alpine.data("docComponent", () => ({
       if (!html || html === "<p></p>" || html.trim() === "") {
         _editorInstance.setEditable(false);
         this._hideEditDecorations();
-        if (stillOnDoc && window.location.hash.startsWith("#doc/")) store.setView("view", path);
+        if (stillOnDoc && this._hashPathIs(path)) store.setView("view", path);
         this._editingPath = null;
         return;
       }
@@ -699,17 +703,10 @@ Alpine.data("docComponent", () => ({
           // 仅当仍在编辑本文档时重命名：用户导航切换文档触发的保存（stillOnDoc=false）
           // 时 titleValue 已被 effect 同步成新文档标题、store.document 也已切换——
           // 若继续比较会把旧文档误重命名成新文档标题（原路径消失且非垃圾箱操作）。
-          // 仅用户真正编辑过标题才重命名（切文档造成的 titleValue 污染不算）
-          if (stillOnDoc && this._titleDirty) {
-            const currentTitle = MykRename.currentTitle(store.document, path);
-            const newTitle = (this.titleValue || "").trim();
-            const titleErr = MykRename.titleError(newTitle);
-            if (titleErr) {
-              // 非法标题：内容已保存，提示但跳过重命名
-              showToast(titleErr + "，未重命名", "warning");
-            } else if (MykRename.shouldRename(currentTitle, newTitle)) {
-              finalPath = await this._renameCurrentDocument(path, newTitle);
-            }
+          // 仅用户真正编辑过标题才重命名（切文档造成的 titleValue 污染不算）；基准用编辑快照。
+          // updateStore 取决于 hash 是否仍是本文档（导航切走时只 rename 文件，不改已切换的前端状态）
+          if (stillOnDoc) {
+            finalPath = await this._maybeRename(path, this._editTitle, this._hashPathIs(path));
           }
         } catch (e) {
           // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
@@ -723,10 +720,17 @@ Alpine.data("docComponent", () => ({
       _editorInstance.setEditable(false);
       this._hideEditDecorations();
       this._editingPath = null;
-      // 仅在 hash 仍在本文档时切回 view（用户已点返回离开 → 保持目标视图，hash 与视图一致）
-      if (stillOnDoc && window.location.hash.startsWith("#doc/")) {
+      // 仅在 hash 仍是本文档时切回 view（编辑态切文档时 hash 已变 → 不能把 currentPath 拉回旧文档）
+      if (stillOnDoc && this._hashPathIs(path)) {
         store.setView("view", finalPath);
       }
+    },
+
+    /** hash 的 doc 路径是否等于指定 path（编辑态切文档后 hash 指向新文档，不能再 setView 回旧文档） */
+    _hashPathIs(path) {
+      const m = (window.location.hash || "").match(/#doc\/(.+)/);
+      if (!m) return false;
+      try { return decodeURIComponent(m[1]) === path; } catch (_) { return false; }
     },
 
     /** 隐藏编辑态装饰（浮动条/斜杠菜单/锁遮罩） */
@@ -1653,20 +1657,31 @@ Alpine.data("docComponent", () => ({
 
     /** 执行一次保存：内容未变跳过；失败 → IndexedDB 草稿兜底 + 横幅 */
     /** 统一构造保存 body（content + summary + 乐观锁指纹 expected_version） */
-    /** 重命名当前文档（标题变化时）：文件 mv + 引用更新（后端），当前会话跟随新路径 */
-    async _renameCurrentDocument(oldPath, newTitle) {
-      const store = Alpine.store("app");
+    /** 标题变化 → 重命名（文件 mv + 后端引用联动）。
+     *  @param baseTitle 基准标题（编辑快照 _editTitle——切文档后 store.document 已切换不能用）
+     *  @param updateStore 正常退出编辑时 true（更新 currentPath/document/hash）；
+     *                    导航离开的保存时 false（只 rename 文件，不改已切换的前端状态）
+     */
+    async _maybeRename(oldPath, baseTitle, updateStore) {
+      if (!this._titleDirty) return oldPath; // 用户没改过标题（切文档造成的 titleValue 污染不算）
+      const newTitle = (this.titleValue || "").trim();
+      const titleErr = MykRename.titleError(newTitle);
+      if (titleErr) {
+        showToast(titleErr + "，未重命名", "warning");
+        return oldPath;
+      }
+      if (!MykRename.shouldRename(baseTitle, newTitle)) return oldPath;
       const newName = MykRename.buildNewName(newTitle);
       await api.renameDocument(oldPath, newName);
-      // 新路径 = 原目录 + 新文件名
       const newPath = MykRename.buildNewPath(oldPath, newName);
-      store.currentPath = newPath;
-      if (store.document) store.document.title = newTitle;
-      // 路由跟随新路径（仅仍在文档视图时；用户已导航离开（如点了返回）则不覆盖其目标 hash）
-      const hash = "doc/" + encodeURIComponent(newPath);
-      if ((store.currentView === "view" || store.currentView === "edit") &&
-          window.location.hash !== "#" + hash) {
-        history.replaceState(null, "", "#" + hash);
+      if (updateStore) {
+        const store = Alpine.store("app");
+        store.currentPath = newPath;
+        if (store.document) store.document.title = newTitle;
+        // 路由跟随新路径：仅 hash 仍指向旧文档时更新（导航离开后 hash 指向新文档，不能覆盖）
+        if (this._hashPathIs(oldPath)) {
+          history.replaceState(null, "", "#doc/" + encodeURIComponent(newPath));
+        }
       }
       showToast("已重命名为 " + newTitle, "success");
       return newPath;
