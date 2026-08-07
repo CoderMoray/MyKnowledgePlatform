@@ -1677,7 +1677,14 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       // 无论是否仍停留在本文档，侧栏树都要刷新：
       // 导航离开（updateStore=false）时后端文件已改名，树缓存还是旧名 → UI 与 toast 矛盾
-      store.refreshProjectTree(store._treeParentPath(oldPath));
+      const parentProject = store._treeParentPath(oldPath);
+      store.refreshProjectTree(parentProject);
+      // 项目页正显示该文档所在项目 → 文档列表（卡片）也刷新：
+      // 点击项目行时 loadProjectDocuments 可能先于 rename 到达后端 → 列表是旧名，
+      // 若停留在项目页则一直显示旧名（用户误以为修改没保存）
+      if (store.currentView === "project" && store.currentPath === parentProject) {
+        store.loadProjectDocuments(parentProject);
+      }
       if (updateStore) {
         store.currentPath = newPath;
         if (store.document) store.document.title = newTitle;
