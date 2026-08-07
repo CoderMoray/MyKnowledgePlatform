@@ -840,8 +840,12 @@ let _tocCollapsedSet = {};
     async saveDocument(path, body) {
       try {
         const data = await api.updateDocument(path, body);
-        this.document = { ...this.document, ...data };
-        this.isDirty = false;
+        // 仅当仍停留在保存的文档时合并（编辑态切文档竞态：保存旧文档的响应返回时
+        // document 已切换成新文档——无条件合并会把旧文档 content/version 污染进新文档）
+        if (this.currentPath === path) {
+          this.document = { ...this.document, ...data };
+          this.isDirty = false;
+        }
         if (!data.unchanged) showToast("文档已保存", "success");
         return data;
       } catch (err) {

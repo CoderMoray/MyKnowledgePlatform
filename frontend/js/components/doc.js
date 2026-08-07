@@ -701,8 +701,10 @@ Alpine.data("docComponent", () => ({
           try {
             await store.saveDocument(path, this._buildSaveBody());
             // 保存成功后同步 htmlContent = 编辑器 DOM 快照：
-            // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）
-            if (_editorInstance && _editorInstance.view) {
+            // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）。
+            // 仅当仍停留在本文档时快照：编辑态切文档竞态下（GET 新文档先返回、PUT 旧文档后返回）
+            // 无条件快照会把 htmlContent 覆盖回旧文档 → 新文档编辑器显示旧内容残留
+            if (store.currentPath === path && _editorInstance && _editorInstance.view) {
               store.htmlContent = _editorInstance.view.dom.innerHTML;
             }
             // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）。
