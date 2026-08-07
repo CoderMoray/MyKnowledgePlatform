@@ -48,9 +48,31 @@ let _tocCollapsedSet = {};
 
     /** 系统三态状态（全局统一） */
     get systemStatus() {
-      if (this.isLocked) return { dotClass: "status-dot--danger", label: "AI 编辑中" };
+      if (this.isLocked) {
+        const agent = (this.lockInfo && this.lockInfo.agent) || "";
+        const remain = this.lockRemaining;
+        const holder = agent ? `（持有者 ${agent}）` : "";
+        // 注意文案语义：剩余时间是"锁最长剩余"（硬超时），不是 AI 预计结束时间
+        const rest = remain != null ? ` · 锁最长剩余 ${remain} 分钟` : "";
+        return { dotClass: "status-dot--danger", label: `AI${holder}正在操作${rest}` };
+      }
       if (this.currentView === "edit") return { dotClass: "status-dot--warning", label: "用户编辑中" };
       return this.mcpStatusInfo;
+    },
+
+    /** 锁最长剩余分钟数（新后端 expires_ts = epoch 秒；旧后端仅有 expires_at 本地 ISO，兼容兜底） */
+    get lockRemaining() {
+      const info = this.lockInfo || {};
+      let secs;
+      if (info.expires_ts) {
+        secs = info.expires_ts - Date.now() / 1000;
+      } else if (info.expires_at) {
+        secs = new Date(info.expires_at).getTime() / 1000 - Date.now() / 1000;
+      } else {
+        return null;
+      }
+      if (secs <= 0) return 0;
+      return Math.ceil(secs / 60);
     },
 
     /** MCP 状态对应的颜色和文字 */
@@ -950,6 +972,15 @@ let _tocCollapsedSet = {};
       } catch {
         // 锁状态获取失败不阻塞操作
       }
+      // 锁定时加快轮询（剩余时间更跟手、解锁后更快恢复可编辑）；非锁定时低频
+      this._startLockPolling();
+    },
+
+    /** 启动锁轮询（按 isLocked 动态调整间隔，防重复定时器） */
+    _startLockPolling() {
+      if (this._lockTimer) clearInterval(this._lockTimer);
+      const interval = this.isLocked ? 5000 : 15000;
+      this._lockTimer = setInterval(() => this.checkLock(), interval);
     },
 
     /** 检查 AI MCP 连接状态 */
@@ -1023,13 +1054,11 @@ let _tocCollapsedSet = {};
       const slowStep = () => 30 + Math.random() * 30;      // 30~60
 
       S.set(10);
-      await S.step(this.checkLock(),  30, isHome ? homeStep() : fastStep());
+      // 启动锁轮询（checkLock 内部按 isLocked 动态调整间隔：锁定 5s / 正常 15s）
+      await S.step(this.checkLock(), 30, isHome ? homeStep() : fastStep());
       await S.step(this.loadProjects(), 55, isHome ? homeStep() : fastStep());
       await S.step(this.loadIdentity(), 75, isHome ? homeStep() : fastStep());
       await S.step(this.loadVersion(),  90, isHome ? homeStep() : slowStep());
-
-      // 启动锁轮询
-      setInterval(() => this.checkLock(), 15000);
 
       // 启动 AI 状态轮询
       this.checkMcpStatus();

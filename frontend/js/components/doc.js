@@ -496,7 +496,12 @@ Alpine.data("docComponent", () => ({
         if (el) return;
         el = document.createElement("div");
         el.id = "editor-lock-overlay";
-        el.innerHTML = '<div class="editor-lock-text">AI 编辑中，用户编辑功能暂时锁定。</div>';
+        const store = Alpine.store("app");
+        const agent = (store.lockInfo && store.lockInfo.agent) || "";
+        const remain = store.lockRemaining;
+        const holder = agent ? `（持有者 ${agent}）` : "";
+        const rest = remain != null ? `，锁最长剩余 ${remain} 分钟` : "";
+        el.innerHTML = '<div class="editor-lock-text">AI' + holder + '正在操作，用户编辑功能暂时锁定' + rest + '。</div>';
         document.getElementById("content-panel").appendChild(el);
         requestAnimationFrame(() => el.classList.add("editor-lock--active"));
       } else if (state === "unlocked" && el) {
