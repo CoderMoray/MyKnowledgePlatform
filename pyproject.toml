@@ -29,3 +29,8 @@ myknowledge = "backend.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.pytest.ini_options]
+# 排除构建产物：PyInstaller 打包目录（dist-backend/、build/）与桌面壳
+# （desktop/node_modules 等）不应被 pytest 收集
+norecursedirs = ["dist-backend", "build", "desktop"]
