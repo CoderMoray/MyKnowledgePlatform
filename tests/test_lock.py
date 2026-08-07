@@ -57,8 +57,26 @@ class TestLockContent:
         acquire_lock(storage)
         content = _lock_file(tmp_kb_root).read_text(encoding="utf-8")
         parts = content.split(":")
-        assert len(parts) == 2
+        assert len(parts) >= 2  # {pid}:{ts}(:{agent} 可选)
         assert parts[0].isdigit()  # PID
         assert parts[1].isdigit()  # timestamp
         now = int(time.time())
         assert abs(now - int(parts[1])) < 5  # within 5 seconds
+
+
+class TestSanitizeAgent:
+    def test_keeps_valid_chars(self) -> None:
+        from backend.mcp_server import _sanitize_agent
+        assert _sanitize_agent("codebuddy:task-123") == "codebuddy:task-123"
+        assert _sanitize_agent("ai/agent@1") == "ai/agent@1"
+
+    def test_drops_invalid_chars(self) -> None:
+        from backend.mcp_server import _sanitize_agent
+        # 空格、中文等不在白名单 → 去掉
+        assert _sanitize_agent("a/b c@d") == "a/bc@d"
+
+    def test_empty_and_truncate(self) -> None:
+        from backend.mcp_server import _sanitize_agent
+        assert _sanitize_agent("") == ""
+        assert _sanitize_agent(None) == ""
+        assert _sanitize_agent("x" * 100) == "x" * 64

@@ -33,32 +33,116 @@ def _lock_file(kb_root: Path) -> Path:
     return kb_root / ".lock"
 
 
-_LOCK_TIMEOUT = 300  # 5 minutes
+def _lock_timeout() -> int:
+    """Lock lifetime in seconds (default 300 = 5 min).
 
-
-def acquire_lock(storage: Storage) -> bool:
-    """Try to acquire the AI session lock.
-
-    Returns ``True`` if the lock was acquired (or the old lock expired).
-    Returns ``False`` if another process holds a valid lock.
+    Overridable via ``MYKNOWLEDGE_LOCK_TIMEOUT`` env (min 30s).
+    Read dynamically so a long-running server picks up config changes.
     """
+    import os
+    try:
+        return max(30, int(os.environ.get("MYKNOWLEDGE_LOCK_TIMEOUT", "300")))
+    except (TypeError, ValueError):
+        return 300
+
+
+def _read_lock(kb_root: Path) -> dict | None:
+    """Parse ``.lock`` content ``{pid}:{ts}:{agent}``; None if absent/corrupt."""
+    lock = _lock_file(kb_root)
+    if not lock.exists():
+        return None
+    try:
+        # maxsplit=2：agent 契约允许冒号（如 codebuddy:task-123），
+        # 无上限 split 会把 agent 拆成多段。取前两段为 pid/ts，余下整段为 agent。
+        pid, ts, *rest = lock.read_text(encoding="utf-8").split(":", 2)
+        return {"pid": int(pid), "ts": int(ts), "agent": rest[0] if rest else ""}
+    except (ValueError, OSError):
+        return None
+
+
+def _write_lock(kb_root: Path, agent: str = "") -> None:
     import os, time
-    lock = _lock_file(storage.kb_root)
-    if lock.exists():
-        try:
-            ts = int(lock.read_text(encoding="utf-8").split(":")[1])
-            if time.time() - ts < _LOCK_TIMEOUT:
-                return False  # held by another process
-        except (ValueError, IndexError, OSError):
-            pass  # corrupt or unreadable — reclaim
-    lock.write_text(f"{os.getpid()}:{int(time.time())}", encoding="utf-8")
-    return True
+    _lock_file(kb_root).write_text(
+        f"{os.getpid()}:{int(time.time())}:{agent}", encoding="utf-8")
 
 
-def release_lock(storage: Storage) -> None:
-    """Release the AI session lock (no-op if absent)."""
-    lock = _lock_file(storage.kb_root)
-    lock.unlink(missing_ok=True)
+def _sanitize_agent(agent: str) -> str:
+    """Enforce the ``agent`` identifier contract: ≤64 chars, safe charset.
+
+    Keeps ``A-Za-z0-9`` and ``- _ : . @ /``; anything else is dropped.
+    Empty → anonymous.
+    """
+    if not agent:
+        return ""
+    clean = "".join(c for c in str(agent) if c.isalnum() or c in "-_:.@/")
+    return clean[:64]
+
+
+def acquire_lock(storage: Storage, *, wait: bool = False,
+                 timeout: int = 30, agent: str = "") -> bool:
+    """Try to acquire the AI session write lock.
+
+    Returns ``True`` if acquired (or an expired/stale lock was reclaimed).
+    Returns ``False`` if another process holds a valid lock and *wait*
+    is False, or the *wait* window expired.
+    """
+    import time
+    kb = storage.kb_root
+    deadline = time.time() + timeout
+    while True:
+        info = _read_lock(kb)
+        if info is None or (time.time() - info["ts"] >= _lock_timeout()):
+            _write_lock(kb, agent)
+            return True
+        if not wait or time.time() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
+def release_lock(storage: Storage, *, agent: str = "") -> None:
+    """Release the AI session lock.
+
+    Only releases when the lock belongs to this process (pid match) —
+    another process/instance's lock is left untouched.
+    """
+    import os
+    kb = storage.kb_root
+    info = _read_lock(kb)
+    if info is None or info["pid"] != os.getpid():
+        return
+    _lock_file(kb).unlink(missing_ok=True)
+
+
+def lock_owner(storage: Storage) -> str:
+    """Human-readable lock owner (agent id) for error messages; '' if none."""
+    info = _read_lock(storage.kb_root)
+    return info["agent"] if info else ""
+
+
+def _lock_enter(storage: Storage) -> bool:
+    """Enter a write section: acquire or re-enter the session lock.
+
+    Returns ``True`` if the caller acquired the lock and MUST release it
+    on exit (via ``release_lock``); ``False`` if the lock was already held
+    by this same process (e.g. manual ``maint__acquire_lock``), in which
+    case the caller must NOT release it — the outer holder owns it.
+
+    Raises ``RuntimeError`` if another process holds a valid lock.
+    """
+    import os
+    if acquire_lock(storage):
+        return True
+    info = _read_lock(storage.kb_root)
+    if info is not None and info["pid"] == os.getpid():
+        # 重入：本进程写会话活跃 → 续期锁时间戳（防长会话被误判过期强占）
+        _write_lock(storage.kb_root, info.get("agent", ""))
+        return False  # re-entrant — our own (manual) lock
+    holder = f"（持有者: {info['agent']}）" if info and info["agent"] else ""
+    raise RuntimeError(
+        "错误：另一个 AI 会话正在操作知识库，当前为只读模式。\n"
+        f"写锁由另一进程持有{holder}（5 分钟超时自动释放）。\n"
+        "请稍后重试，或调 maint__acquire_lock(wait=True) 排队等待。"
+    )
 
 
 def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
@@ -72,18 +156,7 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
 
     kb_root = storage.kb_root
 
-    acquire_lock(storage)  # ensure lock held for this write
-    # ── Lock check ──────────────────────────────
-    if not _lock_file(kb_root).exists():
-        raise RuntimeError(
-            "错误：写锁不存在。\n\n"
-            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
-            "请按以下步骤修正：\n"
-            "  1. maint__acquire_lock\n"
-            "  2. maint__read_diff（处理待提交的变更）\n"
-            "  3. 确认变更后继续\n\n"
-            "完成这三步后再重新调用本工具。"
-        )
+    should_release = _lock_enter(storage)
 
     old_dir = kb_root / old_rel
     if not old_dir.is_dir():
@@ -178,7 +251,8 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     except Exception:
         pass  # git 未初始化时跳过 commit
 
-    release_lock(storage)
+    if should_release:
+        release_lock(storage)
     return f"✓ 已重命名: {new_name}"
 
 
@@ -189,7 +263,7 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
     """
     import shutil, re
 
-    acquire_lock(storage)  # ensure lock held for this write
+    should_release = _lock_enter(storage)
     try:
         old_path = storage.kb_root / old_rel
         if not old_path.is_file():
@@ -256,7 +330,8 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
 
         return f"✓ 已重命名: {old_rel.split('/')[-1]} → {new_name}"
     finally:
-        release_lock(storage)
+        if should_release:
+            release_lock(storage)
 
 
 def delete_project(storage: Storage, project_rel: str) -> str:
@@ -276,18 +351,7 @@ def delete_project(storage: Storage, project_rel: str) -> str:
 
     kb_root = storage.kb_root
 
-    acquire_lock(storage)  # ensure lock held for this write
-    # ── Lock check ──────────────────────────────
-    if not _lock_file(kb_root).exists():
-        raise RuntimeError(
-            "错误：写锁不存在。\n\n"
-            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
-            "请按以下步骤修正：\n"
-            "  1. maint__acquire_lock\n"
-            "  2. maint__read_diff（处理待提交的变更）\n"
-            "  3. 确认变更后继续\n\n"
-            "完成这三步后再重新调用本工具。"
-        )
+    should_release = _lock_enter(storage)
 
     old_dir = kb_root / project_rel
     if not old_dir.is_dir():
@@ -347,7 +411,8 @@ def delete_project(storage: Storage, project_rel: str) -> str:
     except Exception:
         pass
 
-    release_lock(storage)
+    if should_release:
+        release_lock(storage)
     return f"✓ 已移入垃圾箱: {project_rel} → {trash_rel}（30 天内可恢复）"
 
 
@@ -366,18 +431,7 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
 
     kb_root = storage.kb_root
 
-    acquire_lock(storage)  # ensure lock held for this write
-    # ── Lock check ──────────────────────────────
-    if not _lock_file(kb_root).exists():
-        raise RuntimeError(
-            "错误：写锁不存在。\n\n"
-            "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
-            "请按以下步骤修正：\n"
-            "  1. maint__acquire_lock\n"
-            "  2. maint__read_diff（处理待提交的变更）\n"
-            "  3. 确认变更后继续\n\n"
-            "完成这三步后再重新调用本工具。"
-        )
+    should_release = _lock_enter(storage)
 
     old_dir = kb_root / project_rel
     if not old_dir.is_dir():
@@ -490,7 +544,8 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     except Exception:
         pass
 
-    release_lock(storage)
+    if should_release:
+        release_lock(storage)
     return f"✓ 已移动: {project_rel} → {new_rel}"
 
 
@@ -912,30 +967,21 @@ def create_mcp_app(storage: Storage,
         """Rebuild indices and commit. Auto-acquires lock on entry, releases on exit."""
         if gen is None:
             return
-        acquire_lock(storage)  # ensure lock held for this write
-        if not _lock_file(storage.kb_root).exists():
-            raise RuntimeError(
-                "错误：写锁不存在。\n\n"
-                "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
-                "请按以下步骤修正：\n"
-                "  1. maint__acquire_lock\n"
-                "  2. maint__read_diff（处理待提交的变更）\n"
-                "  3. 确认变更后继续\n\n"
-                "完成这三步后再重新调用本工具。"
-            )
-        gen.rebuild(parent_rel)               # type: ignore[union-attr]
-        gen.rebuild_project_status()          # type: ignore[union-attr]
-        _git_commit(storage.kb_root, msg)
+        should_release = _lock_enter(storage)
+        try:
+            gen.rebuild(parent_rel)               # type: ignore[union-attr]
+            gen.rebuild_project_status()          # type: ignore[union-attr]
+            _git_commit(storage.kb_root, msg)
 
-        # ── Auto-archive: non-active projects move to archive/ ──
-        if parent_rel.startswith("projects/") and gen is not None:
-            _auto_archive(parent_rel, storage, gen)
+            # ── Auto-archive: non-active projects move to archive/ ──
+            if parent_rel.startswith("projects/") and gen is not None:
+                _auto_archive(parent_rel, storage, gen)
 
-        from backend.events import broadcast as _evt
-        _evt(storage.kb_root)
-
-        # ── Auto-release lock after every write operation ──
-        release_lock(storage)
+            from backend.events import broadcast as _evt
+            _evt(storage.kb_root)
+        finally:
+            if should_release:
+                release_lock(storage)
 
     @mcp.tool()
     def write__create_document(path: str, content: str,
@@ -1086,17 +1132,7 @@ def create_mcp_app(storage: Storage,
         """
         if project_rel:
             _validate_path(project_rel, kind="dir", storage=storage)
-        acquire_lock(storage)  # ensure lock held for this write
-        if not _lock_file(storage.kb_root).exists():
-            raise RuntimeError(
-                "错误：写锁不存在。\n\n"
-                "你的工作流顺序有误 — 必须先完成维护流程才能执行写操作。\n\n"
-                "请按以下步骤修正：\n"
-                "  1. maint__acquire_lock\n"
-                "  2. maint__read_diff（处理待提交的变更）\n"
-                "  3. 确认变更后继续\n\n"
-                "完成这三步后再重新调用本工具。"
-            )
+        should_release = _lock_enter(storage)
         readme_path = f"{project_rel}/readme.md" if project_rel else "readme.md"
         old_meta, old_body = storage.read_document(readme_path)
 
@@ -1127,7 +1163,8 @@ def create_mcp_app(storage: Storage,
             gen.rebuild_project_status()                     # type: ignore[union-attr]
             _git_commit(storage.kb_root, f"meta: {project_rel}")
 
-        release_lock(storage)
+        if should_release:
+            release_lock(storage)
         return new_meta.get("id", "")
 
     @mcp.tool()
@@ -1149,14 +1186,15 @@ def create_mcp_app(storage: Storage,
         if not full.exists():
             return f"⚠ 文件不存在: {path}"
 
-        acquire_lock(storage)
+        should_release = _lock_enter(storage)
         try:
             trash_rel = move_doc_to_trash(storage, path)
             parent_rel = _parent_rel(path)
             _write_through(parent_rel, f"delete(trash): {path}")
             return f"✓ 已移入垃圾箱: {path} → {trash_rel}（30 天内可恢复）"
         finally:
-            release_lock(storage)
+            if should_release:
+                release_lock(storage)
 
     @mcp.tool()
     def write__rename_project(project_rel: str, new_name: str) -> str:
@@ -1573,15 +1611,32 @@ def create_mcp_app(storage: Storage,
         return "".join(parts)
 
     @mcp.tool()
-    def maint__acquire_lock() -> str:
+    def maint__acquire_lock(agent: str = "", wait: bool = False,
+                            timeout: int = 30) -> str:
         """Acquire the AI session write lock.
 
-        Only one process can hold the lock at a time (5 min timeout).
+        Only one session can hold the lock at a time (5 min timeout).
         Call this before making any write operations.
-        Returns a confirmation string.
+
+        Args:
+            agent:   Optional session identifier shown to other sessions in
+                     lock-busy messages and on the Web UI lock banner.
+                     Contract: ≤64 chars, charset ``A-Za-z0-9 - _ : . @ /``,
+                     e.g. ``"codebuddy:task-123"``. Auto-sanitized;
+                     empty = anonymous.
+            wait:    If True, poll until the lock is free (or *timeout*).
+            timeout: Max seconds to wait when *wait* is True (default 30).
+        Returns:
+            A confirmation string.
         """
-        ok = acquire_lock(storage)
-        return "LOCK ACQUIRED" if ok else "LOCK BUSY (another process holds it)"
+        ok = acquire_lock(storage, wait=wait, timeout=timeout,
+                          agent=_sanitize_agent(agent))
+        if ok:
+            return f"LOCK ACQUIRED (agent={_sanitize_agent(agent) or 'default'})"
+        holder = lock_owner(storage)
+        if holder:
+            return f"LOCK BUSY (held by {holder})"
+        return "LOCK BUSY (another process holds it)"
 
     @mcp.tool()
     def maint__release_lock() -> str:

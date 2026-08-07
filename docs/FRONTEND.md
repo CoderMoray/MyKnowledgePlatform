@@ -130,7 +130,14 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | PUT | `/api/project/{path}` | `{name?, summary?, status?}` | 改项目元信息 |
 
 > 写入接口可能返回 **423 Locked**。返回 423 表示 AI 正在操作知识库，
-> Web UI 应进入只读模式，提示用户「AI 正在同步」。
+> Web UI 应进入只读模式，提示用户「AI 正在同步」。若持有锁的会话设置了
+> `agent` 标识，423 的 `detail` 会附带「（持有者: xxx）」。
+>
+> **`GET /api/lock`** 返回当前锁状态：`{locked, pid, agent, since_ts, expires_ts, since, expires_at, expired}`。
+> - `since_ts` / `expires_ts`：**epoch 秒**，跨时区安全，前端 `new Date(since_ts*1000)` 直接可用。
+> - `since` / `expires_at`：人类可读 ISO 8601（含本地时区偏移，如 `2026-08-07T20:19:45+08:00`）。
+> - `expires_at` 语义 = 锁的**硬超时上限**（获取时刻 + 5 分钟），**不是 AI 预计完成时间**——AI 可能提前释放。前端展示建议用「AI 正在操作 · 锁最长剩余 X 分钟」。
+> - `agent`：持有锁会话的标识（契约见 MCP 工具 `maint__acquire_lock` 描述），未设置则为空串。
 
 ### 乐观锁（PUT /api/document）
 

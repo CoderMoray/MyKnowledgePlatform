@@ -306,6 +306,43 @@ class TestApiDeleteProject:
         assert target[0]["ref_status"] == "in_trash"
 
 
+class TestApiLock:
+    """Test GET /api/lock — epoch-seconds + tz-aware ISO + agent field."""
+
+    def test_lock_fields(self, client, tmp_kb_root: Path,
+                         monkeypatch) -> None:
+        import os, time
+        monkeypatch.setattr("backend.main.resolve_root", lambda: tmp_kb_root)
+        (tmp_kb_root / ".lock").write_text(
+            f"{os.getpid()}:{int(time.time())}:archiver", encoding="utf-8")
+
+        data = client.get("/api/lock").json()
+        assert data["locked"] is True
+        assert data["agent"] == "archiver"
+        assert isinstance(data["since_ts"], int)
+        assert isinstance(data["expires_ts"], int)
+        assert data["expires_ts"] - data["since_ts"] == 300  # 5 分钟超时
+        # ISO 带时区偏移（跨时区安全），不是裸本地时间
+        assert "+" in data["expires_at"] or data["expires_at"].endswith("Z")
+
+    def test_lock_unlocked(self, client, tmp_kb_root: Path,
+                           monkeypatch) -> None:
+        monkeypatch.setattr("backend.main.resolve_root", lambda: tmp_kb_root)
+        data = client.get("/api/lock").json()
+        assert data["locked"] is False
+
+    def test_agent_with_colon(self, client, tmp_kb_root: Path,
+                              monkeypatch) -> None:
+        """Agent containing ':' (e.g. codebuddy:task-999) must be returned whole."""
+        import os, time
+        monkeypatch.setattr("backend.main.resolve_root", lambda: tmp_kb_root)
+        (tmp_kb_root / ".lock").write_text(
+            f"{os.getpid()}:{int(time.time())}:codebuddy:task-999",
+            encoding="utf-8")
+        data = client.get("/api/lock").json()
+        assert data["agent"] == "codebuddy:task-999"
+
+
 class TestApiSearch:
     """Test GET /api/search — full-KB ranked document search."""
 

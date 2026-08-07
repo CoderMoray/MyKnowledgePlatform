@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import resolve_root
 from backend.events import poll_version
-from backend.mcp_server import _lock_file, _LOCK_TIMEOUT
+from backend.mcp_server import _lock_file, _lock_timeout
 from backend.readme_generator import ReadmeGenerator
 from backend.storage import Storage
 
@@ -113,12 +113,14 @@ def _check_write_allowed():
     if not lock.exists():
         return
     try:
-        ts = int(lock.read_text(encoding="utf-8").split(":")[1])
-        if time.time() - ts < _LOCK_TIMEOUT:
-            raise HTTPException(
-                423,
-                "AI 正在操作知识库，当前为只读模式。请稍后再试。",
-            )
+        pid, ts_str, *rest = lock.read_text(encoding="utf-8").split(":", 2)
+        ts = int(ts_str)
+        if time.time() - ts < _lock_timeout():
+            holder = rest[0] if rest else ""
+            detail = "AI 正在操作知识库，当前为只读模式。请稍后再试。"
+            if holder:
+                detail += f"（持有者: {holder}）"
+            raise HTTPException(423, detail)
     except (ValueError, IndexError, OSError):
         pass  # corrupt lock — ignore
 
@@ -819,6 +821,12 @@ def api_mcp():
 # ══════════════════════════════════════════════════════════════
 
 
+def _iso_local(ts: float) -> str:
+    """Format epoch seconds as local-timezone ISO 8601, e.g. ``2026-08-07T20:19:45+08:00``."""
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(ts, timezone.utc).astimezone().isoformat()
+
+
 @app.get("/api/lock")
 def api_lock():
     """Return current lock status as JSON."""
@@ -828,17 +836,20 @@ def api_lock():
 
     try:
         content = lock.read_text(encoding="utf-8")
-        pid, ts_str = content.strip().split(":")
+        pid, ts_str, *rest = content.strip().split(":", 2)
         ts = int(ts_str)
-        since = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(ts))
-        expires_ts = ts + _LOCK_TIMEOUT
-        expires_at = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(expires_ts))
+        expires_ts = ts + _lock_timeout()
         expired = time.time() > expires_ts
         return {
             "locked": not expired,
             "pid": int(pid),
-            "since": since,
-            "expires_at": expires_at,
+            "agent": rest[0] if rest else "",
+            # epoch 秒 — 跨时区安全，前端 new Date(since_ts*1000) 直接可用
+            "since_ts": ts,
+            "expires_ts": expires_ts,
+            # 人类可读：带本地时区偏移的 ISO 8601
+            "since": _iso_local(ts),
+            "expires_at": _iso_local(expires_ts),
             "expired": expired,
         }
     except (ValueError, IndexError, OSError):
