@@ -52,11 +52,12 @@ Alpine.data("docComponent", () => ({
     editorReady: false,
     titleValue: "",
     summaryValue: "",
-    titleValue: "",
-    summaryValue: "",
     saving: false,
     refPreview: null,
     refLoading: false,
+    /** 退出编辑保存防重入标志：exitEdit 置位 → _saveAndDestroy/自动保存跳过，
+     *  避免"点击导航"时 capture 的 exitEdit 与 Alpine effect 兜底并发双保存（第二个 409） */
+    _exitSaving: false,
 
     init() {
       const store = Alpine.store("app");
@@ -201,6 +202,8 @@ Alpine.data("docComponent", () => ({
     /** 离开编辑态兜底：保存当前编辑内容并隐藏装饰（不销毁编辑器，单 DOM 复用） */
     async _saveAndDestroy() {
       if (!_editorInstance) return;
+      // exitEdit 正在保存（点击导航时 capture 阶段先触发）→ 由它负责，避免并发双保存（第二个 409）
+      if (this._exitSaving) return;
       // exitEdit 正常退出已保存（_editingPath 已清空）→ 这里跳过，避免重复保存
       if (!this._editingPath) return;
       const store = Alpine.store("app");
@@ -213,9 +216,10 @@ Alpine.data("docComponent", () => ({
           // 导航保存也处理用户改标题（rename 文件；不改已切换的前端状态）
           await this._maybeRename(path, this._editTitle, false);
         } catch (e) {
-          // 409 冲突：弹可视化 diff（保持编辑态，不打断导航兜底）
-          if (this._handleSaveError(e)) return;
-          /* 其他失败不打断导航，自动保存/草稿兜底 */
+          // 409：真冲突（弹 diff）保持编辑态等用户决策；全等误报（并发保存竞态）静默继续
+          const handled = this._handleSaveError(e);
+          if (handled && this._conflictActive) return;
+          /* 其他失败（含全等 409 误报）不打断导航，自动保存/草稿兜底 */
         }
       }
       _editorInstance.setEditable(false);
@@ -674,55 +678,62 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       if (store.currentView !== "edit" || !_editorInstance) return;
       if (store.isLocked) return; // AI 锁定时禁止退出编辑
+      if (this._exitSaving) return; // 防重入（导航场景 capture 先触发，effect 兜底已检查该标志）
+      this._exitSaving = true;
+      try {
+        // 保存用进入编辑时记录的路径；导航已离开本文档时不重载、不切 view
+        const path = this._editingPath || store.currentPath;
+        const stillOnDoc = store.currentPath === path;
 
-      // 保存用进入编辑时记录的路径；导航已离开本文档时不重载、不切 view
-      const path = this._editingPath || store.currentPath;
-      const stillOnDoc = store.currentPath === path;
+        // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
+        const html = _editorInstance.view ? _editorInstance.view.dom.innerHTML : _editorInstance.getHTML();
+        if (!html || html === "<p></p>" || html.trim() === "") {
+          _editorInstance.setEditable(false);
+          this._hideEditDecorations();
+          if (stillOnDoc && this._hashPathIs(path)) store.setView("view", path);
+          this._editingPath = null;
+          return;
+        }
 
-      // 从编辑器 DOM 直接取 HTML（getHTML 会丢掉 tableWrapper）
-      const html = _editorInstance.view ? _editorInstance.view.dom.innerHTML : _editorInstance.getHTML();
-      if (!html || html === "<p></p>" || html.trim() === "") {
+        let finalPath = path; // rename 后路径可能变化，setView 用新路径
+        const fullMd = this._editorToMarkdown();
+        if (fullMd) {
+          try {
+            await store.saveDocument(path, this._buildSaveBody());
+            // 保存成功后同步 htmlContent = 编辑器 DOM 快照：
+            // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）
+            if (_editorInstance && _editorInstance.view) {
+              store.htmlContent = _editorInstance.view.dom.innerHTML;
+            }
+            // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）。
+            // 仅当仍在编辑本文档时重命名：用户导航切换文档触发的保存（stillOnDoc=false）
+            // 时 titleValue 已被 effect 同步成新文档标题、store.document 也已切换——
+            // 若继续比较会把旧文档误重命名成新文档标题（原路径消失且非垃圾箱操作）。
+            // 仅用户真正编辑过标题才重命名（切文档造成的 titleValue 污染不算）；基准用编辑快照。
+            // updateStore 取决于 hash 是否仍是本文档（导航切走时只 rename 文件，不改已切换的前端状态）
+            if (stillOnDoc) {
+              finalPath = await this._maybeRename(path, this._editTitle, this._hashPathIs(path));
+            }
+          } catch (e) {
+            // 409：真冲突（弹 diff）保持编辑态等用户决策；全等误报（并发保存竞态）则静默继续收尾，
+            // 避免"自动保存先赢 → 退出保存 409 全等 → rename 被跳过"的 rename 丢失
+            const handled = this._handleSaveError(e);
+            if (handled && this._conflictActive) return;
+            // 其他失败（含 rename 失败）：toast，不打断退出（内容已保存）
+            if (e && e.status !== 409) showToast(e.message || "保存失败", "error");
+          }
+        }
+
+        // 单 DOM：不销毁编辑器，切只读 + 隐藏编辑装饰；内容就是最新，无需重载
         _editorInstance.setEditable(false);
         this._hideEditDecorations();
-        if (stillOnDoc && this._hashPathIs(path)) store.setView("view", path);
         this._editingPath = null;
-        return;
-      }
-
-      let finalPath = path; // rename 后路径可能变化，setView 用新路径
-      const fullMd = this._editorToMarkdown();
-      if (fullMd) {
-        try {
-          await store.saveDocument(path, this._buildSaveBody());
-          // 保存成功后同步 htmlContent = 编辑器 DOM 快照：
-          // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）
-          if (_editorInstance && _editorInstance.view) {
-            store.htmlContent = _editorInstance.view.dom.innerHTML;
-          }
-          // 标题变化 → 重命名文件（先保存内容成功后再 rename；引用链接自动更新）。
-          // 仅当仍在编辑本文档时重命名：用户导航切换文档触发的保存（stillOnDoc=false）
-          // 时 titleValue 已被 effect 同步成新文档标题、store.document 也已切换——
-          // 若继续比较会把旧文档误重命名成新文档标题（原路径消失且非垃圾箱操作）。
-          // 仅用户真正编辑过标题才重命名（切文档造成的 titleValue 污染不算）；基准用编辑快照。
-          // updateStore 取决于 hash 是否仍是本文档（导航切走时只 rename 文件，不改已切换的前端状态）
-          if (stillOnDoc) {
-            finalPath = await this._maybeRename(path, this._editTitle, this._hashPathIs(path));
-          }
-        } catch (e) {
-          // 409 冲突：弹可视化 diff，保持编辑态（不切 view、不丢弃内容）
-          if (this._handleSaveError(e)) return;
-          // 其他失败（含 rename 失败）：toast，不打断退出（内容已保存）
-          if (e && e.status !== 409) showToast(e.message || "保存失败", "error");
+        // 仅在 hash 仍是本文档时切回 view（编辑态切文档时 hash 已变 → 不能把 currentPath 拉回旧文档）
+        if (stillOnDoc && this._hashPathIs(path)) {
+          store.setView("view", finalPath);
         }
-      }
-
-      // 单 DOM：不销毁编辑器，切只读 + 隐藏编辑装饰；内容就是最新，无需重载
-      _editorInstance.setEditable(false);
-      this._hideEditDecorations();
-      this._editingPath = null;
-      // 仅在 hash 仍是本文档时切回 view（编辑态切文档时 hash 已变 → 不能把 currentPath 拉回旧文档）
-      if (stillOnDoc && this._hashPathIs(path)) {
-        store.setView("view", finalPath);
+      } finally {
+        this._exitSaving = false;
       }
     },
 
@@ -1860,6 +1871,7 @@ Alpine.data("docComponent", () => ({
       const store = Alpine.store("app");
       if (store.isLocked || store.currentView !== "edit" || !_editorInstance) return;
       if (this._conflictActive) return; // 冲突未解决前暂停自动保存
+      if (this._exitSaving) return; // 正在退出编辑保存（exitEdit）→ 由它负责，避免并发 409
       const md = this._editorToMarkdown();
       if (!md) return;
       // 内容未变 → 不重复调 API（后端 unchanged 是兜底，前端先自己比对）
