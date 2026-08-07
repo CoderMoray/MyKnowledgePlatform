@@ -48,16 +48,19 @@ let _tocCollapsedSet = {};
 
     /** 系统三态状态（全局统一） */
     get systemStatus() {
-      if (this.isLocked) {
-        const agent = (this.lockInfo && this.lockInfo.agent) || "";
-        const remain = this.lockRemaining;
-        const holder = agent ? `（持有者 ${agent}）` : "";
-        // 注意文案语义：剩余时间是"锁最长剩余"（硬超时），不是 AI 预计结束时间
-        const rest = remain != null ? ` · 锁最长剩余 ${remain} 分钟` : "";
-        return { dotClass: "status-dot--danger", label: `AI${holder}正在操作${rest}` };
-      }
+      if (this.isLocked) return { dotClass: "status-dot--danger", label: "AI 编辑中" };
       if (this.currentView === "edit") return { dotClass: "status-dot--warning", label: "用户编辑中" };
       return this.mcpStatusInfo;
+    },
+
+    /** 锁状态 tooltip：谁在编辑 + 锁最长剩余（client 名首字母大写）；非锁定时空串 */
+    get lockStatusTip() {
+      if (!this.isLocked) return "";
+      const agent = (this.lockInfo && this.lockInfo.agent) || "";
+      const remain = this.lockRemaining;
+      const who = agent ? agent.charAt(0).toUpperCase() + agent.slice(1) : "AI";
+      const rest = remain != null ? `，预计最长剩余 ${remain} 分钟` : "";
+      return `${who} 正在编辑知识中${rest}`;
     },
 
     /** 锁最长剩余分钟数（新后端 expires_ts = epoch 秒；旧后端仅有 expires_at 本地 ISO，兼容兜底） */

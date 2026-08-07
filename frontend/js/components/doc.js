@@ -499,9 +499,9 @@ Alpine.data("docComponent", () => ({
         const store = Alpine.store("app");
         const agent = (store.lockInfo && store.lockInfo.agent) || "";
         const remain = store.lockRemaining;
-        const holder = agent ? `（持有者 ${agent}）` : "";
-        const rest = remain != null ? `，锁最长剩余 ${remain} 分钟` : "";
-        el.innerHTML = '<div class="editor-lock-text">AI' + holder + '正在操作，用户编辑功能暂时锁定' + rest + '。</div>';
+        const holder = agent ? `（${agent.charAt(0).toUpperCase()}${agent.slice(1)}）` : "";
+        const rest = remain != null ? `，预计最长剩余 ${remain} 分钟` : "";
+        el.innerHTML = '<div class="editor-lock-text">AI' + holder + '正在编辑知识中，用户编辑功能暂时锁定' + rest + '。</div>';
         document.getElementById("content-panel").appendChild(el);
         requestAnimationFrame(() => el.classList.add("editor-lock--active"));
       } else if (state === "unlocked" && el) {
