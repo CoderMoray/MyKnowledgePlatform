@@ -762,6 +762,10 @@ let _tocCollapsedSet = {};
      */
     async loadDocument(path) {
       if (!path) return; // 路径为空（如导航中）直接跳过，避免 500
+      // 防重：同一文档并发加载去重（router 导航与 doc 组件 init 兜底会双触发，
+      // 前者在途时 document 仍为空 → 兜底条件成立 → 一次导航发 2 轮完整请求）
+      if (this._loadingDocPath === path) return;
+      this._loadingDocPath = path;
       this.error = null;
       try {
         // 双 API：getDocument 取纯净内容+meta，getDocumentWithRefs 只取 refs
@@ -810,6 +814,9 @@ let _tocCollapsedSet = {};
           err && err.status === 404 && err.message === "deleted"
             ? { deleted_at: (dd && dd.deleted_at) || "" }
             : null;
+      } finally {
+        // 仅当没有更新请求覆盖时才清除标记（快速连续切文档：A 在途时切 B → 标记是 B）
+        if (this._loadingDocPath === path) this._loadingDocPath = null;
       }
     },
 
@@ -846,6 +853,9 @@ let _tocCollapsedSet = {};
           this.document = { ...this.document, ...data };
           this.isDirty = false;
         }
+        // 记录本端保存（SSE 2s 轮询会推送"文档已更新"→ 前端借此跳过对本端刚保存文档的重载）
+        this._localSavedPath = path;
+        this._localSavedAt = Date.now();
         if (!data.unchanged) showToast("文档已保存", "success");
         return data;
       } catch (err) {
@@ -873,6 +883,9 @@ let _tocCollapsedSet = {};
         this.document = { ...this.document, ...data };
       }
       this.isDirty = false;
+      // 记录本端保存（SSE 2s 轮询会推送"文档已更新"→ 前端借此跳过对本端刚保存文档的重载）
+      this._localSavedPath = path;
+      this._localSavedAt = Date.now();
       return data;
     },
 
@@ -987,6 +1000,11 @@ let _tocCollapsedSet = {};
      * 初始化应用
      */
     async init() {
+      // 幂等守卫：Alpine 会（部分版本）对 store 的 init 方法自动调用一次，
+      // 而 index.html 的 x-init 又显式调用一次 → 双 hashchange 监听 + 双 SSE 订阅
+      // → 一次导航/保存触发两轮文档加载（重复加载高频 bug 的根因之一）
+      if (this._inited) return;
+      this._inited = true;
       const S = window._mykSplash;
       S.init(performance.now());
 
@@ -1020,12 +1038,19 @@ let _tocCollapsedSet = {};
       // 订阅 SSE 实时更新
       api.subscribeEvents(() => {
         const view = this.currentView;
+        // 本端保存触发的 SSE（后端 2s 轮询 version，事件不带文档路径）：
+        // 3s 内本端保存过即视为本次事件的源头 → 跳过重载（内容已在编辑器/缓存为最新），
+        // 否则每次保存都把当前文档完整重载一遍（浪费 + 竞态窗口）。
+        // 注：单用户本地应用，此窗口内远端变更可能被跳过一次（下次 version 变化会再同步）。
+        const selfSaved =
+          (view === "view" || view === "edit") &&
+          Date.now() - (this._localSavedAt || 0) < 3000;
         if (view === "dashboard") this.loadDashboard();
         else if (view === "project" && this.currentPath) this.loadProjectDocuments(this.currentPath);
         // 仅阅读态重载（实时同步）；编辑态不重载——保护正在编辑的内容，
         // 改为派发事件，由 docComponent 主动检查版本 → 冲突立即弹 diff（不等保存）
-        else if (view === "view" && this.currentPath) this.loadDocument(this.currentPath);
-        else if (view === "edit" && this.currentPath) window.dispatchEvent(new CustomEvent("myk:doc-modified"));
+        else if (view === "view" && this.currentPath && !selfSaved) this.loadDocument(this.currentPath);
+        else if (view === "edit" && this.currentPath && !selfSaved) window.dispatchEvent(new CustomEvent("myk:doc-modified"));
       });
 
       // 处理初始 hash

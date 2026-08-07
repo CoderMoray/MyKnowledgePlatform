@@ -64,6 +64,31 @@
 ⑨ toast 检查：符合预期（已保存/已改名/错误，无异常弹窗）
 ```
 
+## 2.1 重复加载检测（每个场景必查，2026-08-07 新增）
+
+> 背景：本项目"某资源被多次加载"是高频 bug 类型——一次导航/保存应只触发
+> **1 轮**文档加载（doc+refs+meta 各 1 次），实测历史上有 2-4 轮（router 双触发、
+> store init() 双执行导致双 hashchange 监听/双 SSE 订阅、本端保存触发 SSE 重载、
+> 组件 init 兜底并发）。每个场景都要断言加载次数。
+
+**工具**：`tests/frontend/api_tracker.py` 的 `ApiTracker`（Playwright 共用）
+
+```python
+from api_tracker import ApiTracker
+tracker = ApiTracker(page)                    # 绑定后自动记录 /api/ 请求
+tracker.reset()                               # 动作前清零
+...执行动作（编辑→切换）...
+tracker.assert_document_loads(doc_path, max_loads=1, label="切到 C")  # 主加载 ≤1
+tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 ≤1
+# 一轮加载 = GET doc + GET doc/refs + GET doc/meta（各 1，可分别断言）
+```
+
+**规则**：
+- 一次导航：目标文档主加载 ≤1 次（`doc`/`refs`/`meta` 各 ≤1）
+- 一次保存：`PUT /api/document/*` ≤1 次（防双保存）
+- 本端保存后 3s 内不得出现 SSE 触发的重载波（后端 2s 轮询 version）
+- 阈值放宽的场景必须注明原因（如远端多客户端同步测试）
+
 ## 3. 场景矩阵（交叉生成，按优先级分三批）
 
 ### 批 1：核心场景（必须全过）
