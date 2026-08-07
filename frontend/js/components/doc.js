@@ -1674,8 +1674,11 @@ Alpine.data("docComponent", () => ({
       const newName = MykRename.buildNewName(newTitle);
       await api.renameDocument(oldPath, newName);
       const newPath = MykRename.buildNewPath(oldPath, newName);
+      const store = Alpine.store("app");
+      // 无论是否仍停留在本文档，侧栏树都要刷新：
+      // 导航离开（updateStore=false）时后端文件已改名，树缓存还是旧名 → UI 与 toast 矛盾
+      store.refreshProjectTree(store._treeParentPath(oldPath));
       if (updateStore) {
-        const store = Alpine.store("app");
         store.currentPath = newPath;
         if (store.document) store.document.title = newTitle;
         // 路由跟随新路径：仅 hash 仍指向旧文档时更新（导航离开后 hash 指向新文档，不能覆盖）
@@ -1683,7 +1686,9 @@ Alpine.data("docComponent", () => ({
           history.replaceState(null, "", "#doc/" + encodeURIComponent(newPath));
         }
       }
-      showToast("已重命名为 " + newTitle, "success");
+      // toast 带源/目标文档名：导航触发的保存发生在切换后（视觉上在 B 页弹出），
+      // 指明操作对象避免用户困惑"哪个文档被改名了"
+      showToast("「" + baseTitle + "」已重命名为「" + newTitle + "」", "success");
       return newPath;
     },
 

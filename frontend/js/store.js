@@ -572,6 +572,20 @@ let _tocCollapsedSet = {};
       };
     },
 
+    /** 重载并重渲染某顶层项目的侧栏树（重命名/删除/新建文档后调用）。
+     *  树未展开或无缓存时静默跳过——下次展开自然加载新数据。
+     *  重渲染会重建高亮（_renderProjectTree 按 currentPath 计算 active），无需额外处理。 */
+    async refreshProjectTree(projectPath) {
+      if (!projectPath) return;
+      const container = this._treeContainer(projectPath);
+      if (!container || !this.projectTree[projectPath]) return;
+      try {
+        this.projectTree[projectPath] = await this._loadProjectTree(projectPath);
+        this._renderProjectTree(container, projectPath);
+        this._refreshTreeHighlight();
+      } catch (_) { /* 静默：下次展开自动重载 */ }
+    },
+
     _treeContainer(path) {
       return document.querySelector('[data-tree-path="' + CSS.escape(path) + '"]');
     },
