@@ -229,6 +229,45 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 # ══════════════════════════════════════════════════════════════
+#  rebuild — 手动兜底重建 readme
+# ══════════════════════════════════════════════════════════════
+
+
+def cmd_rebuild(args: argparse.Namespace) -> int:
+    """Manually rebuild the readme index for a project layer (or root).
+
+    Fallback when automatic write-through rebuild did not happen (e.g. manual
+    file edits, early-version KBs).  Re-scans directory content and regenerates
+    the layer's readme; ``path`` empty rebuilds root + project-status.
+    """
+    kb_root = resolve_root(args.root)
+    if not kb_root.is_dir():
+        print(f"✗ 知识库不存在: {kb_root}", file=sys.stderr)
+        return 1
+
+    project_rel = (getattr(args, "path", "") or "").strip()
+    storage = Storage(kb_root=kb_root)
+
+    if project_rel:
+        from backend.mcp_server import _validate_path
+        try:
+            _validate_path(project_rel, kind="dir", storage=storage)
+        except ValueError as exc:
+            print(f"✗ {exc}", file=sys.stderr)
+            return 1
+
+    from backend.readme_generator import ReadmeGenerator
+    template = kb_root / "_templates" / "readme.md"
+    gen = ReadmeGenerator(storage=storage, template_path=template)
+
+    gen.rebuild(project_rel)
+    if not project_rel:
+        gen.rebuild_project_status()
+    print(f"✓ 已重建: {project_rel or 'root'}")
+    return 0
+
+
+# ══════════════════════════════════════════════════════════════
 #  serve (FastAPI Web UI)
 # ══════════════════════════════════════════════════════════════
 
@@ -587,16 +626,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("mcp-config", help="输出 MCP 配置 JSON，供 AI client 使用")
     p.set_defaults(func=cmd_mcp_config)
 
-    # rebuild — placeholder
-    for name, help_text in [
-        ("rebuild", "重建指定路径的 readme"),
-    ]:
-        p = sub.add_parser(name, help=help_text)
-        _add_common_args(p)
-        p.add_argument("path", nargs="?", default="",
-                       help="操作目标路径")
-        p.set_defaults(func=lambda _: (
-            print(f"尚未实现: {name}", file=sys.stderr)))
+    # rebuild — 手动兜底重建指定路径的 readme（空=根，或 projects/项目名）
+    p = sub.add_parser("rebuild", help="重建指定路径的 readme（空=根或项目层）")
+    _add_common_args(p)
+    p.add_argument("path", nargs="?", default="",
+                   help="目标路径：空=根，或 projects/项目名")
+    p.set_defaults(func=cmd_rebuild)
 
     return parser
 
