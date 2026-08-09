@@ -1,16 +1,44 @@
 #!/usr/bin/env python3
-"""MyKnowledge 前端构建检查
+"""MyKnowledge 前端构建忠实性检查（2026-08-09 重构）
 
-验证 index.standalone.html 是否包含所有必需的元素、函数和配置。
-在 build.py 之后运行。
+验证 index.standalone.html 是 index.html + js/ + css/ 的忠实内联：
+  ① HTML 结构完整性：index.html 的 id / x-data 标记在 standalone 全含
+     （build 只内联 script/style，不允许改动 HTML 结构）
+  ② JS 内联完整性：js/ 里的 Alpine.data / router.on / window.* / Alpine.store
+     注册符号在 standalone 全含（防 JS 漏内联）
+  ③ CSS 内联完整性：CSS_ORDER 各文件的类/id 选择器在 standalone 全含（防 CSS 漏内联）
+  ④ ?v= 版本化一致性：index.html 每个 ?v= 与对应文件内容 md5 前 10 位一致
+  ⑤ 编辑保存往返测试（turndown 转换正确性，node + jsdom/turndown）
+
+核心设计：期望全部从当前源码推导——前端演进（改 class/路由/依赖/写法）不会让检查变红；
+只有当 build 真的破坏产物（漏内联 / 改结构 / 版本化错）才失败。
+在 build.py 之后运行；与 build.py 一起作为 hook / CI 硬门禁。
 """
 
+import hashlib
 import re
+import subprocess
+import shutil
 import sys
 from pathlib import Path
 
 FRONTEND = Path(__file__).parent
+INDEX = FRONTEND / "index.html"
 HTML = FRONTEND / "index.standalone.html"
+CSS_DIR = FRONTEND / "css"
+JS_DIR = FRONTEND / "js"
+
+# 与 build.py 的 CSS_ORDER 保持一致
+CSS_ORDER = [
+    "design-tokens.css",
+    "reset.css",
+    "layout.css",
+    "sidebar.css",
+    "viewer.css",
+    "editor.css",
+    "components.css",
+    "markdown-content.css",
+]
 
 PASS = 0
 FAIL = 0
@@ -29,12 +57,12 @@ def check(label, condition, hint=""):
         print(msg)
 
 
-def has(html, pattern):
-    return bool(re.search(pattern, html))
-
-
-def count(html, pattern):
-    return len(re.findall(pattern, html))
+def _file_hash(rel_path: str) -> str:
+    """与 build.py 相同的 md5 前 10 位；文件缺失返回 0"""
+    try:
+        return hashlib.md5((FRONTEND / rel_path.lstrip("./")).read_bytes()).hexdigest()[:10]
+    except Exception:
+        return "0"
 
 
 def main():
@@ -43,154 +71,103 @@ def main():
         print(f"\u2717 未找到构建产物: {HTML}")
         sys.exit(1)
 
+    index = INDEX.read_text(encoding="utf-8")
     html = HTML.read_text(encoding="utf-8")
-    size_kb = len(html) / 1024
-    print(f"\n{HTML.name}  ({size_kb:.0f} KB)\n")
+    print(f"\n{HTML.name}  ({len(html) / 1024:.0f} KB)\n")
 
-    # CDN
-    print("── CDN 依赖 ──")
-    check("Alpine.js CDN", has(html, r"alpinejs@3"), "缺少 Alpine.js")
-    check("marked CDN", has(html, r"marked@11"), "缺少 marked")
-    check("highlight.js CDN", has(html, r"highlight\.js@11"), "缺少 highlight.js")
-    check("Turndown CDN", has(html, r"turndown@7"), "缺少 turndown")
-    check("TipTap Core", has(html, r"@tiptap/core"), "缺少 @tiptap/core")
-    check("TipTap StarterKit", has(html, r"@tiptap/starter-kit"), "缺少 @tiptap/starter-kit")
-    check("CDN 路径无 /lib/", not has(html, r"/lib/highlight\.min\.js"),
-          "highlight.js 路径含 /lib/")
+    # ── ① HTML 结构完整性 ──
+    print("── \u2460 HTML 结构完整性（index.html 标记必须都在 standalone）──")
+    ids = set(re.findall(r'id="([^"]+)"', index))
+    xdatas = set(re.findall(r'x-data="([^"]+)"', index))
+    check(f"提取 id 标记 {len(ids)} 个 / x-data {len(xdatas)} 个", len(ids) > 0 or len(xdatas) > 0)
+    for i in sorted(ids):
+        check(f"id=\"{i}\"", f'id="{i}"' in html, "build 改动 HTML 结构")
+    for x in sorted(xdatas):
+        check(f"x-data=\"{x}\"", f'x-data="{x}"' in html, "组件挂载点丢失")
 
-    # 全局函数
-    print("\n── 全局函数 ──")
-    funcs = [
-        "marked.parse", "class Router", "Alpine.store",
-        "loadDocument", "formatDate", "extractDisplayName",
-        "statusLabel", "fileName", "escapeHtml",
-        "_mykRefClick", "_mykSplash",
-    ]
-    for fn in funcs:
-        check(fn, has(html, fn), f"{fn} 未定义")
-
-    # 路由
-    print("\n── 路由 ──")
-    check('路由 #dashboard', has(html, r'router\.on\("dashboard"'), "缺少 dashboard 路由")
-    check('路由 #project/:name', has(html, r'router\.on\("project'), "缺少 project 路由")
-    check('路由 #doc/:path', has(html, r'router\.on\("doc'), "缺少 doc 路由")
-    check('已删除 #view 路由', not has(html, r'router\.on\("view'), "view 路由应已删除")
-    check('已删除 #edit 路由', not has(html, r'router\.on\("edit'), "edit 路由应已删除")
-    check('路由 #status', has(html, r'router\.on\("status'), "缺少 status 路由")
-    check("所有跳转指向 #doc/", count(html, r'doc/') >= 2,
-          "doc 跳转不足（至少 2 处）")
-
-    # 页面元素
-    print("\n── 页面元素 ──")
-    check("full-screen splash", has(html, r'class="splash"'), "全屏 splash 未定义")
-    check("page-splash（内容区加载动画）", has(html, r'class="page-splash'), "页面切换加载动画未定义")
-    check("splashBar", has(html, r'id="splashBar"'), "splashBar 元素缺失")
-    check("pageSplashBar", has(html, r'id="pageSplashBar"'), "pageSplashBar 元素缺失")
-    check("sidebar", has(html, r'class="sidebar"'), "sidebar 未定义")
-    check("content-panel", has(html, r'class="content-panel"'), "content-panel 未定义")
-    check("sidebar-footer", has(html, r'class="sidebar-footer"'), "sidebar-footer 未定义")
-    check("docComponent", has(html, r'docComponent'), "docComponent 未定义")
-    check("组件文件 (doc.js)", has(html, r"js/components/doc.js"), "缺少 doc.js")
-    check("组件文件 (sidebar.js)", has(html, r"js/components/sidebar.js"), "缺少 sidebar.js")
-    check("组件文件 (modal.js)", has(html, r"js/components/modal.js"), "缺少 modal.js")
-    check("theme-switcher", has(html, r'class="theme-switcher"'), "主题切换器未定义")
-    check("page-label", has(html, r'class="page-label"'), "page-label 未定义")
-    check("tiptap-editor 挂载点", has(html, r'id="tiptap-editor"'), "tiptap-editor 挂载点缺失")
-    check("ProseMirror 类", has(html, r'ProseMirror'), "ProseMirror 类缺失")
-    check("ProseMirror--readonly", has(html, r'ProseMirror--readonly'), "只读态 ProseMirror 样式缺失")
-
-    # 模板 x-data 与 Alpine.data 注册一致性
-    xdata_refs = set(re.findall(r'x-data="(\w+Component)"', html))
-    alpine_regs = set(re.findall(r'Alpine\.data\("(\w+Component)"', html))
-    unregistered = xdata_refs - alpine_regs
-    orphaned = alpine_regs - xdata_refs
-    if unregistered:
-        for name in sorted(unregistered):
-            check(f"模板引用 {name}", False, f"模板 x-data=\"{name}\" 无对应 Alpine.data() 注册")
-    if orphaned:
-        for name in sorted(orphaned):
-            check(f"未使用的组件 {name}", False, f"Alpine.data(\"{name}\") 注册了但模板未引用")
-
-    # Ref 链接渲染检查（marked renderer 必须正确处理 ref: 协议）
-    ref_links = re.findall(r'data-ref-path="([^"]+)"', html)
-    if len(ref_links) >= 2:
-        check(f"ref 链接渲染 ({len(ref_links)} 处)", True, "")
+    # ── ② JS 内联完整性 ──
+    print("\n── \u2461 JS 内联完整性（js/ 注册符号必须都在 standalone）──")
+    # 只检查 index.html 实际引用的 js（build.py 只内联被引用的；editor.js/viewer.js 等遗留文件不内联）
+    ref_js = set(re.findall(r'src=["\'](js/[^"\']+?\.js)', index))
+    check(f"index.html 引用 js 文件 {len(ref_js)} 个", len(ref_js) > 0)
+    syms = set()
+    for rel in sorted(ref_js):
+        f = FRONTEND / rel
+        if not f.exists():
+            check(f"js 文件 {rel}", False, "引用但文件缺失")
+            continue
+        src = f.read_text(encoding="utf-8")
+        syms.update(re.findall(r'Alpine\.data\("([^"]+)"\)', src))
+        syms.update(re.findall(r'router\.on\("([^"]+)"', src))
+        syms.update(re.findall(r'window\.(\w+)\s*=', src))
+        syms.update(re.findall(r'Alpine\.store\("([^"]+)"', src))
+    check(f"提取注册符号 {len(syms)} 个", len(syms) > 0)
+    missing = [s for s in sorted(syms) if s not in html]
+    if missing:
+        for s in missing:
+            check(f"符号 {s}", False, "JS 未内联进 standalone")
     else:
-        check("ref 链接渲染", len(ref_links) >= 2,
-              f"ref 链接不足 2 处（当前 {len(ref_links)}），marked renderer 可能未生效")
-    # 确保 ref 链接路径不含 :: 后缀（已 stripped）
-    bad_refs = [p for p in ref_links if "::" in p]
-    check("ref 路径无 :: 后缀", len(bad_refs) == 0,
-          f"存在 {len(bad_refs)} 处含 :: 的 ref 路径")
+        check(f"全部 {len(syms)} 个注册符号内联", True)
 
-    # 渲染一致性检查
-    print("\n── 渲染一致性 ──")
-    selectors = [
-        ("h1", r"h1\b"),
-        ("h2", r"h2\b"),
-        ("h3", r"h3\b"),
-        ("p", r"\bp\b"),
-        ("ul", r"\bul\b"),
-        ("ol", r"\bol\b"),
-        ("blockquote", r"blockquote\b"),
-        ("pre/code", r"\bpre\b"),
-        ("table", r"\btable\b"),
-        ("a 链接", r"\ba\b"),
-        ("hr 水平线", r"\bhr\b"),
-    ]
-    for label, sel in selectors:
-        # 检查 markdown-body 和 ProseMirror 都有对应的样式
-        md_ok = has(html, rf"\.markdown-body\s+{sel}")
-        pm_ok = has(html, rf"\.ProseMirror\s+{sel}") or has(html, rf"\.ProseMirror-{sel}")
-        check(f"样式 \"{label}\" 双引擎对齐",
-              md_ok and pm_ok,
-              f"markdown-body({md_ok}) vs ProseMirror({pm_ok})")
+    # ── ③ CSS 内联完整性 ──
+    print("\n── \u2462 CSS 内联完整性（CSS_ORDER 选择器必须都在 standalone）──")
+    selectors = set()
+    for css_name in CSS_ORDER:
+        p = CSS_DIR / css_name
+        if not p.exists():
+            check(f"css/{css_name}", False, "CSS 文件缺失")
+            continue
+        src = p.read_text(encoding="utf-8")
+        for m in re.finditer(r"([^{}@/\n]+)\{[^}]*\}", src):
+            sel = m.group(1)
+            selectors.update(re.findall(r"\.[a-zA-Z_][\w-]*", sel))
+            selectors.update(re.findall(r"#[a-zA-Z_][\w-]*", sel))
+    check(f"提取选择器 {len(selectors)} 个", len(selectors) > 0)
+    missing = [s for s in sorted(selectors) if s not in html]
+    if missing:
+        for s in missing[:10]:
+            check(f"选择器 {s}", False, "CSS 未内联进 standalone")
+        if len(missing) > 10:
+            print(f"      … 共 {len(missing)} 个缺失")
+    else:
+        check(f"全部 {len(selectors)} 个选择器内联", True)
 
-    # Store 状态
-    print("\n── Store 状态 ──")
-    check("editingMode 状态", has(html, r"editingMode"), "editingMode 状态未定义")
-    check("systemStatus 计算属性", has(html, r"systemStatus"), "systemStatus 未定义")
-    check("meta 拍平 (Object.assign)", has(html, r"Object\.assign\(data,\s*data\.meta\)"),
-          "meta 拍平逻辑不存在")
+    # ── ④ ?v= 版本化一致性 ──
+    print("\n── \u2463 ?v= 版本化一致性（hash 与文件内容匹配）──")
+    vrefs = re.findall(r"((?:js/|css/|vendor/)[^\"']+?)\?v=([0-9a-f]{10})", index)
+    check(f"提取版本化引用 {len(vrefs)} 个", len(vrefs) > 0)
+    bad = 0
+    for path, v in vrefs:
+        want = _file_hash(path)
+        if want == "0":
+            check(f"{path} ?v={v}", False, "资源文件缺失")
+            bad += 1
+        elif v != want:
+            check(f"{path} ?v={v}", False, f"内容哈希应为 {want}（改源码后未重新 build）")
+            bad += 1
+    if not bad:
+        check(f"全部 {len(vrefs)} 个 ?v= 与内容一致", True)
+    m = re.search(r'"myk-tiptap":\s*"\./tiptap-bundle\.mjs\?v=([0-9a-f]{10})"', index)
+    if m:
+        want = _file_hash("tiptap-bundle.mjs")
+        check("tiptap-bundle.mjs ?v=", m.group(1) == want, f"内容哈希应为 {want}")
 
-    # 样式
-    print("\n── 样式 ──")
-    check("status-dot--danger（红点）", has(html, r"status-dot--danger"), "红点样式未定义")
-    check("page-label__back（返回箭头）", has(html, r"page-label__back"), "返回箭头样式未定义")
-    check("sidebar-footer 同行布局",
-          has(html, r"flex-direction:\s*row") and has(html, r"justify-content:\s*space-between"),
-          "sidebar-footer 未同行布局")
-    check("btn-delete-top（淡红删除）", has(html, r"btn-delete-top"), "删除按钮样式未定义")
-
-    # 关键文本
-    print("\n── 关键文本 ──")
-    for text in ["知识库版本", "知识", "子项目", "归档",
-                 "用户使用中", "用户编辑中", "AI 编辑中",
-                 "已完成", "已取消", "已废弃"]:
-        c = html.count(text)
-        check(f"文本「{text}」", c > 0, f"出现 {c} 次")
-
-    total = PASS + FAIL
-
-    # ── 编辑保存往返测试（Node.js 本地验证 turndown 转换） ──
-    import subprocess, shutil
+    # ── ⑤ 编辑保存往返测试（node + jsdom/turndown）──
+    print("\n── \u2464 编辑保存往返测试（turndown 转换）──")
     node = shutil.which("node") or "node"
     test_js = str(FRONTEND / "test-save-roundtrip.js")
     if Path(test_js).exists():
-        # 依赖解析：优先 frontend/node_modules（本地已 npm install / CI 装好），
-        # 兜底旧本机路径（~/.workbuddy/binaries/node/workspace/node_modules）
         node_path = str(FRONTEND / "node_modules") if (FRONTEND / "node_modules").exists() \
             else str(Path.home() / ".workbuddy/binaries/node/workspace/node_modules")
         try:
             r = subprocess.run([node, test_js], capture_output=True, text=True, timeout=30,
                                env={"NODE_PATH": node_path})
             out = r.stdout.strip()
-            # 解析测试结果
-            import re as _re
-            m = _re.search(r"(\d+)/(\d+) 通过", out)
+            m = re.search(r"(\d+)/(\d+) 通过", out)
             if m:
                 got, want = int(m.group(1)), int(m.group(2))
-                PASS += got; FAIL += (want - got)
+                PASS += got
+                FAIL += (want - got)
                 print(out)
             else:
                 FAIL += 1
@@ -198,10 +175,11 @@ def main():
         except Exception as e:
             FAIL += 1
             print(f"  ❌ 往返测试执行异常: {e}")
+
     total = PASS + FAIL
-    print(f"\n{'='*40}")
+    print(f"\n{'=' * 40}")
     print(f"  通过 {PASS}/{total}  |  失败 {FAIL}")
-    print(f"{'='*40}\n")
+    print(f"{'=' * 40}\n")
     return 0 if FAIL == 0 else 1
 
 

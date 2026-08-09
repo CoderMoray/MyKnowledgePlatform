@@ -104,23 +104,23 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 - 脚本：`.githooks/pre-commit`（进 git，随仓库共享）
 - 启用（一次性，本地配置不进 git）：`git config core.hooksPath .githooks`
 - 行为：暂存区包含 `frontend/(js|css|vendor)/*`、`frontend/index.html`、`frontend/tiptap-bundle.mjs`
-  → 自动跑 `frontend/build.py`（内联生成 standalone + 更新 `?v=` + node --check 语法校验），
-  失败**中止提交**；通过后把 build 写回的 `?v=` 更新 `git add frontend/index.html` 随提交入库。
+  → 自动跑 `frontend/build.py` + `check_build.py`，任一失败**中止提交**；通过后把 build 写回的
+  `?v=` 更新 `git add frontend/index.html` 随提交入库。
 - 非前端 commit（后端/测试/文档）→ 直接放行，零开销。
 - 跳过（不建议）：`git commit --no-verify`
 
 **L2 — CI 兜底**：
 
-- `.github/workflows/frontend-build.yml`：push main / PR 时跑 `build.py`（保证源码永远可构建）
-- `.github/workflows/publish.yml`：PyPI 发布前同样跑 build——防止过期的 standalone 被打进包分发
+- `.github/workflows/frontend-build.yml`：push main / PR 时跑 `build.py` + `check_build.py`
+  （需 `npm install` 装 jsdom/turndown 供 roundtrip 测试）
+- `.github/workflows/publish.yml`：PyPI 发布前同样跑 build + check——防止过期的 standalone 被打进包分发
 
-**构建命令**（手动）：`cd frontend && python3 build.py`
+**构建命令**（手动）：`cd frontend && python3 build.py && python3 check_build.py`
 
-**⚠ check_build.py 待修（2026-08-09 发现 24 项过期断言）**：其静态检查停留在早期构建时点，
-未跟随前端演进——CDN 依赖（项目已迁本地 vendor/）、"view/edit 路由应已删除"（edit 路由
-1f8b15b 已回归）、`Object.assign` meta 拍平（已改展开运算符）、CSS 双引擎选择器、page-splash/
-ProseMirror--readonly 等元素。当前**不作为硬门禁**（hook/CI 只跑 build.py）；修复后应重新
-纳入 hook + CI。待修清单见上轮 check_build 输出的 24 项 ✗。
+**check_build.py（2026-08-09 重构为"构建忠实性检查"）**：不再硬编码历史特征断言，
+期望全部从当前源码推导——① HTML 结构完整性（index.html 的 id/x-data 全含）② JS 内联完整性
+（被引用的 js/ 注册符号全含）③ CSS 内联完整性（CSS_ORDER 选择器全含）④ `?v=` 与文件内容
+md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变红，只有 build 真破坏产物才失败。
 
 ---
 

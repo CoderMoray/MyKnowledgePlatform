@@ -30,9 +30,15 @@ jobs:
 
       # 前端守门：发布前必须能构建出有效 standalone（后端静态服务加载它），
       # 防止过期的 index.standalone.html 被打进 PyPI 包分发
-      - name: Frontend build
+      - name: Install frontend deps (jsdom/turndown for roundtrip test)
         working-directory: frontend
-        run: python3 build.py
+        run: npm install --no-audit --no-fund
+
+      - name: Frontend build + check
+        working-directory: frontend
+        run: |
+          python3 build.py
+          python3 check_build.py
 
       - name: Install build tools
         run: pip install build

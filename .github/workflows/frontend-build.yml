@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build standalone
+    name: Build & Validate standalone
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +17,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Set up Node (for build.py node --check)
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Install frontend deps (jsdom/turndown for roundtrip test)
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
 
       - name: Build standalone (build.py)
         working-directory: frontend
         run: python3 build.py
 
-      # 注：check_build.py 的静态断言停留在早期构建时点（CDN→本地 vendor 等未同步），
-      # 24 项过期失败，暂不作为 CI 门禁（修复待办见 docs/DEV.md）
+      - name: Validate build (check_build.py — 构建忠实性检查)
+        working-directory: frontend
+        run: python3 check_build.py
