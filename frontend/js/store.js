@@ -875,7 +875,13 @@ let _tocCollapsedSet = {};
         // 仅当仍停留在保存的文档时合并（编辑态切文档竞态：保存旧文档的响应返回时
         // document 已切换成新文档——无条件合并会把旧文档 content/version 污染进新文档）
         if (this.currentPath === path) {
-          this.document = { ...this.document, ...data };
+          // 后端 PUT 返回不含 summary（只有 status/id/unchanged/version）→ 用 body.summary 补上，
+          // 否则原地保存（不切走）后 document.summary 保持旧值 → view 态摘要显示回滚
+          this.document = {
+            ...this.document,
+            ...data,
+            summary: body.summary || this.document?.summary || "",
+          };
           this.isDirty = false;
         }
         // 记录本端保存（SSE 2s 轮询会推送"文档已更新"→ 前端借此跳过对本端刚保存文档的重载）
@@ -905,7 +911,12 @@ let _tocCollapsedSet = {};
       // 仅当仍停留在保存的文档时合并（编辑态切文档竞态：保存旧文档的响应返回时
       // document 已切换成新文档——合并会把旧文档 content 污染进新文档）
       if (this.currentPath === path) {
-        this.document = { ...this.document, ...data };
+        // 后端 PUT 返回不含 summary → 用 body.summary 补上（防原地保存后摘要显示回滚）
+        this.document = {
+          ...this.document,
+          ...data,
+          summary: body.summary || this.document?.summary || "",
+        };
       }
       this.isDirty = false;
       // 记录本端保存（SSE 2s 轮询会推送"文档已更新"→ 前端借此跳过对本端刚保存文档的重载）
