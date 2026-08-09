@@ -223,9 +223,22 @@ Alpine.data("modalComponent", () => ({
         } catch (_) { /* 无子项目容器 */ }
       }
       await walk("projects");
+      // 并发拉各项目 readme 摘要（供下拉项第二行展示；失败静默为空）
+      const summaries = await Promise.all(allPaths.map(async (p) => {
+        try {
+          const d = await api.getDocument(`${p}/readme.md`);
+          return (d && d.summary) || "";
+        } catch (_) { return ""; }
+      }));
+      // 根 readme（公共知识）摘要
+      let rootSummary = "";
+      try {
+        const d = await api.getDocument("readme.md");
+        rootSummary = (d && d.summary) || "";
+      } catch (_) { /* 根 readme 缺失则用默认文案 */ }
       _projectCandidates = [
-        { label: "公共知识", hierarchy: "所有项目", value: "common-knowledge" },
-        ...allPaths.map((p) => makeParentCandidate(`${p}/common-knowledge`)),
+        { label: "公共知识", hierarchy: "所有项目", summary: rootSummary || "所有项目", value: "common-knowledge", q: "" },
+        ...allPaths.map((p, i) => makeParentCandidate(`${p}/common-knowledge`, summaries[i])),
       ];
     },
 
@@ -275,6 +288,8 @@ Alpine.data("modalComponent", () => ({
             // path 空 = 根 readme（公共知识归属）
             value: r.path ? `${r.path}/common-knowledge` : "common-knowledge",
             hierarchy: r.path ? makeParentHierarchy(r.path) : "所有项目",
+            summary: r.summary || "",
+            q, // 高亮词（浏览模式为空 → 不高亮）
           }));
           this.parentOpen = true;
           this.parentIdx = -1;
@@ -292,6 +307,26 @@ Alpine.data("modalComponent", () => ({
         this._browseCount += 5;
         this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
       }
+    },
+
+    /** 匹配高亮：文本中命中 q 的子串包上主题色 span（大小写不敏感，HTML 转义防注入） */
+    highlightMatch(text, q) {
+      const t = String(text || "");
+      if (!q) return escapeHtml(t);
+      const lower = t.toLowerCase();
+      const ql = q.toLowerCase();
+      let out = "";
+      let i = 0;
+      let idx = lower.indexOf(ql);
+      if (idx === -1) return escapeHtml(t);
+      while (idx !== -1) {
+        out += escapeHtml(t.slice(i, idx));
+        out += `<span class="parent-picker__match">${escapeHtml(t.slice(idx, idx + q.length))}</span>`;
+        i = idx + q.length;
+        idx = lower.indexOf(ql, i);
+      }
+      out += escapeHtml(t.slice(i));
+      return out;
     },
 
     /** 选中候选：填显示名 + 完整路径 + 层级，收起下拉 */
@@ -352,17 +387,19 @@ function makeParentHierarchy(projectPath) {
   return chain.length > 1 ? chain.join(" / ") : "主要项目";
 }
 
-/** 从完整目标目录构造候选：{ label: 目标项目名, hierarchy: 层级, value }
+/** 从完整目标目录构造候选：{ label: 目标项目名, hierarchy: 层级, summary, value, q }
  *  projects/A/B/common-knowledge → label=B, hierarchy="A / B"
  *  projects/X/common-knowledge   → label=X, hierarchy="主要项目"（表层项目）
  *  common-knowledge              → label=公共知识, hierarchy="" */
-function makeParentCandidate(value) {
+function makeParentCandidate(value, summary = "") {
   const m = value.match(/^(?:projects|archive)\/(.+)\/common-knowledge$/);
-  if (!m) return { label: "公共知识", hierarchy: "所有项目", value };
+  if (!m) return { label: "公共知识", hierarchy: "所有项目", summary, value, q: "" };
   const chain = m[1].split("/");
   return {
     label: chain[chain.length - 1],
     hierarchy: makeParentHierarchy(m[1]),
+    summary,
     value,
+    q: "",
   };
 }

@@ -639,7 +639,8 @@
 }
 
 .parent-picker__list.is-open {
-  max-height: 264px;
+  /* 高度 = 约 4 个两行候选（每项约 52px）→ 5 个候选必然溢出 → 可滚动到底加载更多 */
+  max-height: 210px;
   opacity: 1;
   overflow-y: auto;
 }
@@ -670,13 +671,19 @@
   text-overflow: ellipsis;
 }
 
-/* 层级路径：选项下方一整行小字（主题色） */
+/* 项目摘要：选项下方一整行小字（弱化色） */
 .parent-picker__path {
   font-size: var(--text-xs);
-  color: var(--accent, var(--text-primary, inherit));
+  color: var(--text-muted, rgba(0, 0, 0, 0.5));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 匹配高亮：输入内容命中名称/摘要的字符用主题色 */
+.parent-picker__match {
+  color: var(--accent, inherit);
+  font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
