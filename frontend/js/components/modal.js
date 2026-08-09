@@ -13,6 +13,8 @@ Alpine.data("modalComponent", () => ({
     parentIdx: -1,          // 键盘导航高亮索引
     _parentSearchTimer: null,
     _parentSearchSeq: 0,
+    _browseAll: [],         // 空输入浏览：全量本地候选
+    _browseCount: 0,        // 已加载数量（滚动每次 +8）
     renameValue: "",
     creating: false,
     identityNickname: "",
@@ -218,7 +220,6 @@ Alpine.data("modalComponent", () => ({
         } catch (_) { /* 无子项目容器 */ }
       }
       await walk("projects");
-      await walk("archive");
       _projectCandidates = [
         { label: "公共知识", hierarchy: "", value: "common-knowledge" },
         ...allPaths.map((p) => makeParentCandidate(`${p}/common-knowledge`)),
@@ -226,11 +227,13 @@ Alpine.data("modalComponent", () => ({
     },
 
     /** 输入匹配：非空 → 后端项目级搜索（标题/摘要/正文，kind=projects，300ms debounce）；
-     *  空输入 → 本地项目树前 8（浏览）。参考 ref link-popover 的搜索交互（seq 丢弃过期响应） */
+     *  空输入 → 本地项目树分页浏览（每次 8，滚动到底加载更多）。参考 ref 的搜索交互 */
     onParentInput() {
       const q = (this.newDocParentName || "").trim();
       if (!q) {
-        this.parentSuggestions = (_projectCandidates || []).slice(0, 8);
+        this._browseAll = _projectCandidates || [];
+        this._browseCount = 8;
+        this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
         this.parentOpen = true;
         this.parentIdx = -1;
         return;
@@ -251,6 +254,18 @@ Alpine.data("modalComponent", () => ({
           this.parentIdx = -1;
         } catch (_) { /* 搜索失败静默 */ }
       }, 300);
+    },
+
+    /** 空输入浏览模式：下拉滚动到底 → 再加载 8 个 */
+    onParentScroll(e) {
+      if (!this.parentOpen || !this._browseAll || !this._browseAll.length) return;
+      const el = e && e.target;
+      if (!el) return;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
+        if (this._browseCount >= this._browseAll.length) return;
+        this._browseCount += 8;
+        this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
+      }
     },
 
     /** 选中候选：填显示名 + 完整路径 + 层级，收起下拉 */

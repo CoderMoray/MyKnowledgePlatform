@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=0e26b7dd12"></script>
+  <script src="js/components/modal.js?v=27730f41ec"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1090,7 +1090,8 @@
                  @blur="parentOpen = false" />
           <div class="parent-picker__hierarchy-hint" x-show="parentHierarchy" x-cloak
                x-text="parentHierarchy"></div>
-          <div class="parent-picker__list" x-show="parentOpen" x-cloak>
+          <div class="parent-picker__list" x-show="parentOpen" x-cloak
+               @scroll="onParentScroll($event)">
             <template x-for="(c, i) in parentSuggestions" :key="c.value">
               <div class="parent-picker__item"
                    :class="{ 'is-active': i === parentIdx }"

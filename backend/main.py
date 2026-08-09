@@ -1081,15 +1081,19 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
         return score, hit_title, hit_summary, hit_body
 
     if kind == "projects":
-        # 项目级搜索：各层级项目的 readme.md（排除根 readme）
+        # 项目级搜索：projects/ 下各层级项目的 readme.md（项目名=readme 父目录）。
+        # 不含顶层 archive/（废弃归档项目不参与新建归属）与根 readme。
         for md in storage.kb_root.rglob("*.md"):
             if md.name != "readme.md":
                 continue
             rel = md.relative_to(storage.kb_root).as_posix()
             parts = rel.split("/")
-            if len(parts) < 2 or parts[0] not in ("projects", "archive"):
+            if len(parts) < 2 or parts[0] != "projects":
                 continue
             if any(p.startswith(".") for p in parts) or any(p in hidden for p in parts):
+                continue
+            # 归档子目录（projects/X/archive/…）的项目不参与新建归属
+            if "archive" in parts[:-1]:
                 continue
             try:
                 meta, body = storage.read_document(rel)
