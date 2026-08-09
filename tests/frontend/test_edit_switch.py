@@ -308,3 +308,27 @@ class TestNewDocParent:
         page.wait_for_timeout(500)
         assert not requests, f"点击（内容未变）不应触发搜索: {requests}"
         assert page.locator(".parent-picker__item").count() >= 5, "点击应打开浏览候选"
+
+    def test_no_match_shows_placeholder(self, static_server, test_docs, page):
+        """输入无匹配 → 显示'未找到匹配项目'占位（不是空壳下拉）；有匹配/浏览时占位隐藏"""
+        self._open_picker(page, static_server)
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(300)
+        empty = page.locator(".parent-picker__empty")
+        # 无匹配 → 占位可见
+        inp.fill("zzz不存在的项目")
+        page.wait_for_timeout(1000)
+        assert page.locator(".parent-picker__item").count() == 0, "无匹配不应有候选"
+        assert empty.is_visible(), "无匹配应显示占位提示"
+        assert "未找到匹配项目" in empty.inner_text()
+        # 有匹配 → 占位隐藏
+        inp.fill("Training")
+        page.wait_for_timeout(1000)
+        assert page.locator(".parent-picker__item").count() >= 1, "有匹配应有候选"
+        assert not empty.is_visible(), "有匹配时占位应隐藏"
+        # 删空回浏览 → 占位隐藏
+        inp.fill("")
+        page.wait_for_timeout(400)
+        assert page.locator(".parent-picker__item").count() >= 5, "删空应回浏览候选"
+        assert not empty.is_visible(), "浏览模式占位应隐藏"

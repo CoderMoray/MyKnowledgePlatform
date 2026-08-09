@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=29ae5067c0" />
+  <link rel="stylesheet" href="css/components.css?v=12b00115aa" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -1102,6 +1102,10 @@
                 <div class="parent-picker__path" x-html="highlightMatch(c.summary, c.q)"></div>
               </div>
             </template>
+            <!-- 搜索无匹配：占位提示（避免空壳下拉，有明确反馈） -->
+            <div class="parent-picker__empty" x-show="parentOpen && !parentSuggestions.length" x-cloak>
+              未找到匹配项目
+            </div>
           </div>
         </div>
         <label class="modal__label">文档名称</label>
