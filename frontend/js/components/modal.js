@@ -211,12 +211,16 @@ Alpine.data("modalComponent", () => ({
         }
       }
       // 子项目容器：项目路径 + "/projects"，items = 子项目列表
+      // 防御：过滤容器保留名（archive/common-knowledge/projects/readme.md）——
+      // 后端校验禁止项目用这些名字，但历史数据/迁移可能残留（如 Training/projects 混入）
+      const RESERVED = new Set(["archive", "common-knowledge", "projects", "readme.md"]);
       async function walkChildren(projectPath) {
         try {
           const d = await api.list(`${projectPath}/projects`);
           const children = (d && d.items) || [];
           for (const child of children) {
             if (!child.is_dir || /^\./.test(child.name || "")) continue;
+            if (RESERVED.has(child.name)) continue; // 容器目录不是子项目
             allPaths.push(child.path);
             await walkChildren(child.path);
           }
