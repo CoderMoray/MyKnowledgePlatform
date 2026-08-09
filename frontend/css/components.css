@@ -613,10 +613,11 @@
   z-index: 30;
   max-height: 220px;
   overflow-y: auto;
-  background: var(--surface-elevated, var(--surface-1));
-  border: var(--input-border);
-  border-radius: var(--input-radius);
-  box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.12));
+  /* 实色背景（--surface 是半透明，--surface-elevated/--surface-1 不存在 → 曾导致透明） */
+  background: var(--bg-primary, var(--surface));
+  border: 1px solid var(--border-subtle, var(--input-border));
+  border-radius: 10px;
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
 }
 
 .parent-picker__item {
@@ -627,21 +628,25 @@
   padding: 8px 12px;
   cursor: pointer;
   font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
 }
 
+.parent-picker__item:last-child { border-bottom: none; }
+
 .parent-picker__item:hover {
-  background: var(--surface-hover, rgba(0,0,0,0.05));
+  background: var(--accent-subtle, rgba(0, 0, 0, 0.06));
 }
 
 .parent-picker__label {
-  color: var(--text-primary);
+  color: var(--text-primary, inherit);
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.parent-picker__path {
-  color: var(--text-muted);
+.parent-picker__hierarchy {
+  color: var(--text-muted, rgba(0, 0, 0, 0.4));
   font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;

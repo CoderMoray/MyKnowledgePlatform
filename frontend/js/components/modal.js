@@ -156,17 +156,16 @@ Alpine.data("modalComponent", () => ({
       });
     },
 
-    /** 归属候选：根 + 顶层项目 + 当前项目页的子项目（value = 完整目标目录） */
+    /** 归属候选：根 + 顶层项目 + 当前项目页的子项目
+     *  每项 { label: 目标项目名, hierarchy: 层级小字, value: 完整目标目录 } */
     parentCandidates() {
       const store = Alpine.store("app");
-      const cands = [{ label: "根目录", value: "common-knowledge" }];
+      const cands = [{ label: "公共知识", hierarchy: "", value: "common-knowledge" }];
       (store.projects || []).forEach((p) => {
-        const name = p.name || String(p.path || "").split("/").pop() || "";
-        if (p.path) cands.push({ label: name, value: `${p.path}/common-knowledge` });
+        if (p.path) cands.push(makeParentCandidate(`${p.path}/common-knowledge`));
       });
       (store.projectSubprojects || []).forEach((s) => {
-        const name = s.name || String(s.path || "").split("/").pop() || "";
-        if (s.path) cands.push({ label: `${name}（子项目）`, value: `${s.path}/common-knowledge` });
+        if (s.path) cands.push(makeParentCandidate(`${s.path}/common-knowledge`));
       });
       return cands;
     },
@@ -206,4 +205,19 @@ function normalizeDocParentPath(p) {
     return `${p.replace(/\/+$/, "")}/common-knowledge`;
   }
   return p;
+}
+
+/** 从完整目标目录构造候选：{ label: 目标项目名, hierarchy: 层级, value }
+ *  projects/A/B/common-knowledge → label=B, hierarchy="A / B"
+ *  projects/X/common-knowledge   → label=X, hierarchy="主要项目"（表层项目）
+ *  common-knowledge              → label=公共知识, hierarchy="" */
+function makeParentCandidate(value) {
+  const m = value.match(/^(?:projects|archive)\/(.+)\/common-knowledge$/);
+  if (!m) return { label: "公共知识", hierarchy: "", value };
+  const chain = m[1].split("/");
+  return {
+    label: chain[chain.length - 1],
+    hierarchy: chain.length > 1 ? chain.join(" / ") : "主要项目",
+    value,
+  };
 }
