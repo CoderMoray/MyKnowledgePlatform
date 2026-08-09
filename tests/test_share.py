@@ -172,6 +172,47 @@ class TestImportShare:
         msg = import_share(storage_with_project, pkg_path)
         assert "本地有但导入包中无" in msg
 
+    @staticmethod
+    def _malicious_pkg(name: str) -> bytes:
+        """Build a decryptable .mkpkg whose manifest claims *name*."""
+        import io, json, struct, tarfile
+        from backend.share import _derive_key, _encrypt
+        manifest = {
+            "name": name,
+            "project_id": "x" * 40,
+            "exported_at": "2026-01-01",
+            "author_nickname": "Evil",
+            "author_email_hash": "h" * 12,
+        }
+        key = _derive_key(manifest)
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            info = tarfile.TarInfo(f"{name}/readme.md")
+            data = b"# evil"
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+        encrypted = _encrypt(buf.getvalue(), key)
+        manifest_bytes = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+        return struct.pack(">I", len(manifest_bytes)) + manifest_bytes + encrypted
+
+    def test_import_rejects_malicious_project_name(
+            self, tmp_kb_root: Path) -> None:
+        """包内项目名是不可信输入：穿越/空名/含斜杠在解包前即被拒绝。"""
+        kb = tmp_kb_root / "kb"
+        kb.mkdir()
+        storage = Storage(kb_root=kb)
+        for bad in ["../evil", "", "P/common-knowledge"]:
+            pkg = tmp_kb_root / "evil.mkpkg"
+            pkg.write_bytes(self._malicious_pkg(bad))
+            with pytest.raises(ValueError, match="拒绝导入"):
+                import_share(storage, str(pkg))
+
+    def test_publish_rejects_bad_project_rel(self, storage: Storage,
+                                             tmp_kb_root: Path) -> None:
+        from backend.share import publish
+        with pytest.raises(ValueError):
+            publish(storage, "common-knowledge/xx")
+
     def test_publish_with_context(self, storage_with_project: Storage,
                                    tmp_kb_root: Path) -> None:
         """publish --with-context includes external refs in _refs/."""

@@ -175,6 +175,16 @@ def restore(storage, trash_rel: str) -> str:
     if not original_path:
         raise ValueError(f"垃圾箱条目缺少 original_path: {trash_rel}")
 
+    # 历史数据防护：original_path 是删除时记录的，可能来自旧版本/非法输入。
+    # 恢复前重新过完整路径校验，防止恢复到 readme/孤儿/非法层级。
+    from backend.mcp_server import _validate_path
+    is_doc = trash_rel.startswith(f"{DOCS}/")
+    try:
+        _validate_path(original_path, kind="file" if is_doc else "dir")
+    except ValueError as exc:
+        raise ValueError(
+            f"垃圾箱条目 original_path 不合法，拒绝恢复: {original_path}\n{exc}") from exc
+
     if trash_rel.startswith(f"{DOCS}/"):
         # Dependency: containing project must not be in trash
         parent = _parent_project_in_trash(storage, original_path)

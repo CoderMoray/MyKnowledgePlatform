@@ -160,6 +160,50 @@ class TestUpdateDocument:
         assert after["created"] == created  # created 永不改变
 
 
+class TestMoveRenameGuards:
+    """迁移/重命名的路径校验防护（穿越/插入层级/覆盖系统文件/非法目标）。"""
+
+    @staticmethod
+    def _mk(storage: Storage) -> None:
+        storage.write_document("common-knowledge/a.md", {"summary": "s"}, "# a")
+        for name in ("P", "Q"):
+            p = storage.kb_root / "projects" / name
+            (p / "common-knowledge").mkdir(parents=True, exist_ok=True)
+            (p / "readme.md").write_text(
+                f"---\nid: {name}\nname: {name}\nsummary: {name}\n---\n# {name}",
+                encoding="utf-8")
+
+    def test_rename_document_rejects_bad_name(self, storage: Storage) -> None:
+        from backend.mcp_server import rename_document
+        self._mk(storage)
+        for bad in ["../evil.md", "a/b.md", "readme.md", ""]:
+            with pytest.raises(ValueError):
+                rename_document(storage, "common-knowledge/a.md", bad)
+
+    def test_rename_project_rejects_bad_name(self, storage: Storage) -> None:
+        from backend.mcp_server import rename_project
+        self._mk(storage)
+        for bad in ["../x", "a/b", "common-knowledge", "projects", "archive"]:
+            with pytest.raises(ValueError):
+                rename_project(storage, "projects/P", bad)
+
+    def test_move_project_rejects_bad_target(self, storage: Storage) -> None:
+        from backend.mcp_server import move_project
+        self._mk(storage)
+        for target in ["common-knowledge", "projects/P/common-knowledge"]:
+            with pytest.raises(ValueError):
+                move_project(storage, "projects/P", target)
+
+    def test_legal_rename_and_move_pass(self, storage: Storage) -> None:
+        from backend.mcp_server import rename_document, rename_project, move_project
+        self._mk(storage)
+        rename_document(storage, "common-knowledge/a.md", "b.md")
+        rename_project(storage, "projects/P", "P2")
+        move_project(storage, "projects/P2", "projects/Q")  # P2 移入 Q 下
+        assert (storage.kb_root / "common-knowledge" / "b.md").exists()
+        assert (storage.kb_root / "projects" / "Q" / "projects" / "P2").exists()
+
+
 class TestValidatePathReadme:
     """readme.md 是系统管理的层索引，不能作为知识文档路径。"""
 

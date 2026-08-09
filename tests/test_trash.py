@@ -201,6 +201,39 @@ class TestRestore:
 # ══════════════════════════════════════════════════════════════
 
 
+class TestRestoreGuards:
+    """恢复路径防护：original_path 是历史数据，恢复前必须重新校验。"""
+
+    def test_restore_rejects_invalid_original_path(self, storage: Storage,
+                                                  tmp_kb_root: Path):
+        """历史脏数据（readme/非法层级）不得恢复到非法位置。"""
+        from backend.trash import restore
+        tdir = tmp_kb_root / "trash" / "documents"
+        tdir.mkdir(parents=True, exist_ok=True)
+        (tdir / "bad.md").write_text(
+            "---\nid: bad\nsummary: s\ntype: knowledge\n"
+            "original_path: projects/P/readme.md\ndeleted_at: 2026-01-01\n---\n# x",
+            encoding="utf-8")
+        with pytest.raises(ValueError, match="不合法"):
+            restore(storage, "trash/documents/bad.md")
+
+    def test_restore_rejects_orphan_doc_path(self, storage: Storage,
+                                             tmp_kb_root: Path):
+        """original_path 是 projects 层孤儿文档位置 → 拒绝。"""
+        from backend.trash import restore
+        tdir = tmp_kb_root / "trash" / "documents"
+        tdir.mkdir(parents=True, exist_ok=True)
+        (tdir / "bad2.md").write_text(
+            "---\nid: bad2\nsummary: s\ntype: knowledge\n"
+            "original_path: projects/P.md\ndeleted_at: 2026-01-01\n---\n# x",
+            encoding="utf-8")
+        with pytest.raises(ValueError):
+            restore(storage, "trash/documents/bad2.md")
+
+
+# ══════════════════════════════════════════════════════════════
+
+
 class TestGC:
     def test_g1_purges_older_than_30_days(self, storage: Storage, tmp_kb_root: Path):
         from backend.trash import move_doc_to_trash, gc_trash

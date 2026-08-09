@@ -180,9 +180,15 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
             )
 
     # ── 2. Compute new path ──────────────────────────────
+    _check_rename_name(new_name)
+    if new_name in ("common-knowledge", "projects", "archive"):
+        raise ValueError(
+            f"项目名不能是系统保留目录名「{new_name}」，"
+            "它会与文档目录/项目容器冲突。")
     parts = old_rel.split("/")
     parts[-1] = new_name
     new_rel = "/".join(parts)
+    _validate_path(new_rel, kind="dir")  # 新路径整体套用全部规则
     new_dir = kb_root / new_rel
     if new_dir.exists():
         raise FileExistsError(f"目标路径已存在: {new_rel}")
@@ -270,7 +276,9 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
             raise FileNotFoundError(f"文件不存在: {old_rel}")
 
         # Compute new path (same directory, new name)
+        _check_rename_name(new_name)
         new_rel = str(Path(old_rel).parent / new_name)
+        _validate_path(new_rel, kind="file")  # 新路径整体套用全部规则
         new_path = storage.kb_root / new_rel
         if new_path.exists():
             raise FileExistsError(f"目标文件已存在: {new_rel}")
@@ -441,12 +449,16 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     # Determine target: if moving to root level (""), "projects", or "archive",
     # place directly under that; otherwise place under the target's projects/.
     target_stripped = target_parent_rel.rstrip("/")
+    if target_stripped not in ("", "projects", "archive"):
+        # 目标是另一个项目（或其层级）——必须是合法项目路径
+        _validate_path(target_stripped, kind="dir")
     if target_stripped == "":
         new_rel = f"projects/{project_name}"  # root level
     elif target_stripped in ("projects", "archive"):
         new_rel = f"{target_stripped}/{project_name}"
     else:
         new_rel = f"{target_stripped}/projects/{project_name}"
+    _validate_path(new_rel, kind="dir")  # 目标路径整体套用全部规则
     new_dir = kb_root / new_rel
     if new_dir.exists():
         raise FileExistsError(f"目标路径已存在: {new_rel}")
@@ -617,6 +629,31 @@ def _check_path_bounds(path: str) -> str | None:
                 f"请缩短文件名或目录名。"
             )
     return None
+
+
+def _check_rename_name(new_name: str) -> None:
+    """Validate a rename target name before building the new path.
+
+    Guards: single segment (no separators), no ``..``, not the system
+    ``readme.md``, within NAME_MAX bytes.  The full new path is then
+    validated separately by ``_validate_path``.
+    """
+    if not new_name:
+        raise ValueError("新名称不能为空。")
+    if "/" in new_name or "\\" in new_name:
+        raise ValueError(
+            f"新名称「{new_name}」不合法：只能是单个文件名/项目名，"
+            "不能包含路径分隔符「/」或「\\」。\n\n"
+            "正确示例：write__rename_document(path=\"common-knowledge/旧名.md\", "
+            "new_name=\"新名.md\")")
+    if ".." in new_name.split("/"):
+        raise ValueError("新名称不能包含「..」（路径穿越）。")
+    if new_name == "readme.md":
+        raise ValueError(
+            "readme.md 是系统索引/项目元信息文件，不能作为重命名目标。")
+    err = _check_path_bounds(f"x/{new_name}")
+    if err:
+        raise ValueError(err)
 
 
 def _check_project_tree(path: str, is_dir: bool = False) -> str | None:

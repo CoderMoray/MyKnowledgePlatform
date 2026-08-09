@@ -266,6 +266,8 @@ def publish(storage, project_rel: str,
     Returns the absolute path to the generated package.
     """
     kb_root = storage.kb_root
+    from backend.mcp_server import _validate_path
+    _validate_path(project_rel, kind="dir")  # 只读导出也要合法项目路径
     manifest = _build_manifest(storage, project_rel)
     key = _derive_key(manifest)
 
@@ -356,6 +358,19 @@ def import_share(storage, pkg_path: str,
     manifest = json.loads(manifest_bytes)
     encrypted = raw[4 + manifest_len:]
 
+    # 信任边界：包内 project name 是不可信输入（可被任何人构造）。
+    # 在解密/解压之前校验目标路径，防穿越出 KB / 非法层级 / 空名覆盖 projects 根。
+    project_name = manifest.get("name", "")
+    from backend.mcp_server import _validate_path
+    if not project_name or "/" in project_name or "\\" in project_name:
+        raise ValueError(
+            f"分享包中的项目名不合法，拒绝导入: {project_name!r}（应为单个项目名）")
+    try:
+        _validate_path(f"projects/{project_name}", kind="dir")
+    except ValueError as exc:
+        raise ValueError(
+            f"分享包中的项目名不合法，拒绝导入: {project_name!r}\n{exc}") from exc
+
     # Key from manifest itself — no external email needed
     key = _derive_key(manifest)
 
@@ -376,10 +391,11 @@ def import_share(storage, pkg_path: str,
         with tarfile.open(fileobj=io.BytesIO(decrypted), mode="r:gz") as tar:
             tar.extractall(path=str(tmp_dir))
 
-        # Determine source and target paths
+        # Determine source and target paths（project_name 已在解包前校验）
         src = tmp_dir / manifest["name"]
         project_name = manifest["name"]
         author_nick = manifest.get("author_nickname", "分享者")
+
         dest = storage.kb_root / "projects" / project_name
 
         if not dest.exists():
