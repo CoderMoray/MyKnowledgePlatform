@@ -469,6 +469,18 @@ class TestApiSearch:
         assert client.get("/api/search").json()["total"] == 0
         assert client.get("/api/search", params={"q": " "}).json()["total"] == 0
 
+    def test_search_excludes_dotfiles(self, client, tmp_kb_root: Path):
+        """dot 文件（.hidden.md）与隐藏目录不得进入搜索结果。"""
+        storage = Storage(kb_root=tmp_kb_root)
+        _create_test_doc(storage, "common-knowledge/visible.md", "含 dot 关键词正文")
+        (tmp_kb_root / "common-knowledge" / ".hidden.md").write_text(
+            "# 含 dot 关键词正文", encoding="utf-8")
+
+        data = client.get("/api/search", params={"q": "dot 关键词"}).json()
+        paths = [x["path"] for x in data["results"]]
+        assert "common-knowledge/visible.md" in paths
+        assert not any(".hidden" in p for p in paths)
+
 
 class TestApiUpdateDocument:
     """Test PUT /api/document/{path} — update and no-op behavior."""

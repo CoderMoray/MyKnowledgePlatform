@@ -1052,11 +1052,13 @@ def api_search(q: str = "", limit: int = 20):
         raise HTTPException(400, "关键词过长（≤200）")
     q_lower = q.lower()
 
-    hidden = {".git", "__pycache__", "_templates", "trash", "_refs",
-              "publish", ".events", ".lock"}
+    hidden = {"_templates", "trash", "_refs", "publish"}
     hits: list[dict] = []
     for md in storage.kb_root.rglob("*.md"):
         rel_parts = md.relative_to(storage.kb_root).parts
+        # dot 文件/目录（.DS_Store/.hidden.md/.git 等）与 __pycache__ 一律排除
+        if any(p.startswith(".") for p in rel_parts) or "__pycache__" in rel_parts:
+            continue
         if any(p in hidden for p in rel_parts):
             continue
         if md.name == "readme.md":

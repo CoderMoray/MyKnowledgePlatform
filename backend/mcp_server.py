@@ -208,7 +208,7 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     ref_pattern = re.compile(r'(ref:)' + re.escape(old_prefix))
 
     for md_file in kb_root.rglob("*.md"):
-        if ".git" in md_file.parts:
+        if any(p.startswith(".") for p in md_file.parts):
             continue
         text = md_file.read_text(encoding="utf-8")
         if old_prefix in text:
@@ -293,7 +293,7 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
         pattern = re.compile(r'(ref:)' + old_escaped + r'(?=[\): ]|$)')
 
         for md_file in storage.kb_root.rglob("*.md"):
-            if ".git" in md_file.parts:
+            if any(p.startswith(".") for p in md_file.parts):
                 continue
             text = md_file.read_text(encoding="utf-8")
             if old_rel in text:
@@ -493,7 +493,7 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     ref_pattern = re.compile(r'(ref:)' + re.escape(old_prefix))
 
     for md_file in kb_root.rglob("*.md"):
-        if ".git" in md_file.parts:
+        if any(p.startswith(".") for p in md_file.parts):
             continue
         text = md_file.read_text(encoding="utf-8")
         if old_prefix in text:
@@ -1560,7 +1560,8 @@ def create_mcp_app(storage: Storage,
 
         normal, in_trash, dead = [], [], []
         for md_file in scan_files:
-            if ".git" in md_file.parts or "/trash/" in str(md_file):
+            if any(p.startswith(".") for p in md_file.parts) \
+                    or "/trash/" in str(md_file):
                 continue
             text = md_file.read_text(encoding="utf-8")
             for m in _re.finditer(r'ref:([^)\s]+)', text):
