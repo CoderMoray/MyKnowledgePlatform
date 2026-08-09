@@ -219,13 +219,13 @@ class Storage:
         def _recurse(full: Path, depth: int) -> list[DirEntry]:
             if not full.is_dir():
                 return []
-            hidden = {".git", "__pycache__", ".events", ".lock"}
             top_level_hidden = {"_templates", "publish", "config.yaml",
                                 "agent-commit.txt", "trash"}
 
             items: list[DirEntry] = []
             for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
-                if child.name in hidden:
+                # Dot-files（.DS_Store/.git/.events 等）与 __pycache__ 一律隐藏
+                if child.name.startswith(".") or child.name == "__pycache__":
                     continue
                 if rel_path in ("", ".") and child.name in top_level_hidden:
                     continue
@@ -253,13 +253,13 @@ class Storage:
         if not full.is_dir():
             return []
 
-        hidden = {".git", "__pycache__", ".events", ".lock"}
         top_level_hidden = {"_templates", "publish", "config.yaml",
                             "agent-commit.txt", "trash"}
 
         entries: list[DirEntry] = []
         for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
-            if child.name in hidden:
+            # Dot-files（.DS_Store/.git/.events 等）与 __pycache__ 一律隐藏
+            if child.name.startswith(".") or child.name == "__pycache__":
                 continue
             if rel_path in ("", ".") and child.name in top_level_hidden:
                 continue

@@ -136,6 +136,16 @@ class TestStorageListChildren:
         assert ".git" not in names
         assert "visible.md" in names
 
+    def test_hides_ds_store_and_pycache(self, storage: Storage,
+                                        tmp_kb_root: Path) -> None:
+        """macOS .DS_Store 与 __pycache__ 不得出现在文件树里。"""
+        (tmp_kb_root / "common-knowledge").mkdir()
+        (tmp_kb_root / "common-knowledge" / ".DS_Store").write_bytes(b"\x00")
+        (tmp_kb_root / "common-knowledge" / "a.md").write_text("# a")
+        (tmp_kb_root / "common-knowledge" / "__pycache__").mkdir()
+        names = [e.name for e in storage.list_children("common-knowledge")]
+        assert names == ["a.md"]
+
 
 class TestStorageGetEntries:
     def test_get_doc_entries(self, storage: Storage, tmp_kb_root: Path) -> None:
