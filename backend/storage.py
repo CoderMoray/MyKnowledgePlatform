@@ -224,8 +224,10 @@ class Storage:
 
             items: list[DirEntry] = []
             for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
-                # Dot-files（.DS_Store/.git/.events 等）与 __pycache__ 一律隐藏
-                if child.name.startswith(".") or child.name == "__pycache__":
+                # Dot-files（.DS_Store/.git/.events 等）、__pycache__ 与 .pyc 一律隐藏
+                if (child.name.startswith(".")
+                        or child.name == "__pycache__"
+                        or child.name.endswith(".pyc")):
                     continue
                 if rel_path in ("", ".") and child.name in top_level_hidden:
                     continue
@@ -258,8 +260,10 @@ class Storage:
 
         entries: list[DirEntry] = []
         for child in sorted(full.iterdir(), key=lambda p: (not p.is_dir(), p.name)):
-            # Dot-files（.DS_Store/.git/.events 等）与 __pycache__ 一律隐藏
-            if child.name.startswith(".") or child.name == "__pycache__":
+            # Dot-files（.DS_Store/.git/.events 等）、__pycache__ 与 .pyc 一律隐藏
+            if (child.name.startswith(".")
+                    or child.name == "__pycache__"
+                    or child.name.endswith(".pyc")):
                 continue
             if rel_path in ("", ".") and child.name in top_level_hidden:
                 continue

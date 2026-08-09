@@ -146,6 +146,15 @@ class TestStorageListChildren:
         names = [e.name for e in storage.list_children("common-knowledge")]
         assert names == ["a.md"]
 
+    def test_hides_old_style_pyc(self, storage: Storage,
+                                 tmp_kb_root: Path) -> None:
+        """源码旁直接放的 .pyc（旧式布局）也不得出现在文件树里。"""
+        (tmp_kb_root / "common-knowledge").mkdir()
+        (tmp_kb_root / "common-knowledge" / "module.pyc").write_bytes(b"x")
+        (tmp_kb_root / "common-knowledge" / "a.md").write_text("# a")
+        names = [e.name for e in storage.list_children("common-knowledge")]
+        assert names == ["a.md"]
+
 
 class TestStorageGetEntries:
     def test_get_doc_entries(self, storage: Storage, tmp_kb_root: Path) -> None:
