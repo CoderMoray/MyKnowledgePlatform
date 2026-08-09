@@ -363,8 +363,19 @@ def import_share(storage, pkg_path: str,
     if len(raw) < 4:
         raise ValueError("文件损坏")
     manifest_len = struct.unpack(">I", raw[:4])[0]
+    if manifest_len <= 0 or manifest_len > 2 * 1024 * 1024:
+        raise ValueError("分享包 manifest 长度异常，拒绝导入")
     manifest_bytes = raw[4:4 + manifest_len]
-    manifest = json.loads(manifest_bytes)
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("分享包 manifest 不是合法 JSON，拒绝导入") from exc
+    # 结构校验：manifest 必须是对象，且含解钥必需字段
+    if not isinstance(manifest, dict):
+        raise ValueError("分享包 manifest 格式错误：应为对象")
+    for field in ("project_id", "name", "exported_at"):
+        if not manifest.get(field):
+            raise ValueError(f"分享包 manifest 缺少必需字段: {field}")
     encrypted = raw[4 + manifest_len:]
 
     # 信任边界：包内 project name 是不可信输入（可被任何人构造）。
@@ -398,6 +409,19 @@ def import_share(storage, pkg_path: str,
     try:
         import io
         with tarfile.open(fileobj=io.BytesIO(decrypted), mode="r:gz") as tar:
+            # 信任边界：包内成员是攻击者完全可控的。解压前显式校验：
+            #  1) 拒绝 symlink/硬链接/设备等特殊文件——防止后续 read/copy 跟随链接
+            #     读取 KB 外文件（信息泄露）
+            #  2) 显式拒绝 `..` 穿越与绝对路径——不依赖 tarfile 库版本行为
+            for member in tar.getmembers():
+                if not (member.isfile() or member.isdir()):
+                    raise ValueError(
+                        f"分享包内含不支持的成员类型（符号链接/设备等），拒绝导入: "
+                        f"{member.name}")
+                norm = member.name.replace("\\", "/")
+                if not norm or norm.startswith("/") or ".." in norm.split("/"):
+                    raise ValueError(
+                        f"分享包内含非法路径，拒绝导入: {member.name}")
             tar.extractall(path=str(tmp_dir))
 
         # Determine source and target paths（project_name 已在解包前校验）

@@ -202,11 +202,17 @@ class TestImportShare:
         kb = tmp_kb_root / "kb"
         kb.mkdir()
         storage = Storage(kb_root=kb)
-        for bad in ["../evil", "", "P/common-knowledge"]:
+        # 含斜杠/穿越 → project_name 校验拒绝
+        for bad in ["../evil", "P/common-knowledge"]:
             pkg = tmp_kb_root / "evil.mkpkg"
             pkg.write_bytes(self._malicious_pkg(bad))
             with pytest.raises(ValueError, match="拒绝导入"):
                 import_share(storage, str(pkg))
+        # 空名 → manifest 结构校验拒绝（缺 name 字段）
+        pkg = tmp_kb_root / "evil.mkpkg"
+        pkg.write_bytes(self._malicious_pkg(""))
+        with pytest.raises(ValueError, match="缺少必需字段"):
+            import_share(storage, str(pkg))
 
     def test_publish_rejects_bad_project_rel(self, storage: Storage,
                                              tmp_kb_root: Path) -> None:
@@ -236,6 +242,78 @@ class TestImportShare:
             "# a\n\n[合法](ref:common-knowledge/术语表.md)")
         refs = _find_external_refs(storage.kb_root, "projects/TestProject")
         assert "common-knowledge/术语表.md" in refs
+
+    def test_import_rejects_symlink_member(self, tmp_kb_root: Path) -> None:
+        """包内含 symlink 成员 → 解压前拒绝，防止跟随链接读取 KB 外文件。"""
+        import io, json, struct, tarfile
+        from backend.share import _derive_key, _encrypt, import_share
+        kb = tmp_kb_root / "kb"
+        kb.mkdir()
+        storage = Storage(kb_root=kb)
+        manifest = {"name": "P", "project_id": "x" * 40,
+                    "exported_at": "2026-01-01", "author_nickname": "E",
+                    "author_email_hash": "h" * 12}
+        key = _derive_key(manifest)
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            di = tarfile.TarInfo("P/common-knowledge")
+            di.type = tarfile.DIRTYPE
+            tar.addfile(di)
+            li = tarfile.TarInfo("P/common-knowledge/x.md")
+            li.type = tarfile.SYMTYPE
+            li.linkname = "../../../../secret.md"
+            tar.addfile(li)
+        enc = _encrypt(buf.getvalue(), key)
+        mb = json.dumps(manifest).encode("utf-8")
+        pkg = tmp_kb_root / "evil.mkpkg"
+        pkg.write_bytes(struct.pack(">I", len(mb)) + mb + enc)
+        with pytest.raises(ValueError, match="不支持的成员类型"):
+            import_share(storage, str(pkg))
+
+    def test_import_rejects_traversal_member(self, tmp_kb_root: Path) -> None:
+        """包内成员路径含 .. → 解压前拒绝。"""
+        import io, json, struct, tarfile
+        from backend.share import _derive_key, _encrypt, import_share
+        kb = tmp_kb_root / "kb"
+        kb.mkdir()
+        storage = Storage(kb_root=kb)
+        manifest = {"name": "P", "project_id": "x" * 40,
+                    "exported_at": "2026-01-01", "author_nickname": "E",
+                    "author_email_hash": "h" * 12}
+        key = _derive_key(manifest)
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            body = b"# evil"
+            info = tarfile.TarInfo("P/../evil.md")
+            info.size = len(body)
+            tar.addfile(info, io.BytesIO(body))
+        enc = _encrypt(buf.getvalue(), key)
+        mb = json.dumps(manifest).encode("utf-8")
+        pkg = tmp_kb_root / "evil.mkpkg"
+        pkg.write_bytes(struct.pack(">I", len(mb)) + mb + enc)
+        with pytest.raises(ValueError, match="非法路径"):
+            import_share(storage, str(pkg))
+
+    def test_import_rejects_bad_manifest(self, tmp_kb_root: Path) -> None:
+        """manifest 缺字段/非对象/长度异常 → 拒绝。"""
+        import json, struct
+        from backend.share import import_share
+        kb = tmp_kb_root / "kb"
+        kb.mkdir()
+        storage = Storage(kb_root=kb)
+
+        # 缺 exported_at（解钥必需）
+        bad = {"name": "P", "project_id": "x" * 40}
+        mb = json.dumps(bad).encode("utf-8")
+        pkg = tmp_kb_root / "bad.mkpkg"
+        pkg.write_bytes(struct.pack(">I", len(mb)) + mb + b"x")
+        with pytest.raises(ValueError, match="缺少必需字段"):
+            import_share(storage, str(pkg))
+
+        # manifest 长度异常（0）
+        pkg.write_bytes(struct.pack(">I", 0))
+        with pytest.raises(ValueError, match="长度异常"):
+            import_share(storage, str(pkg))
 
     def test_import_sanitizes_author_nick(self, tmp_kb_root: Path) -> None:
         """冲突文件名的昵称部分必须清洗路径分隔符，防层级污染。"""
