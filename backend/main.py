@@ -1081,19 +1081,28 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
         return score, hit_title, hit_summary, hit_body
 
     if kind == "projects":
-        # 项目级搜索：projects/ 下各层级项目的 readme.md（项目名=readme 父目录）。
-        # 不含顶层 archive/（废弃归档项目不参与新建归属）与根 readme。
+        # 项目级搜索：匹配项目 readme。合法项目路径有严格结构——
+        #   projects/A/readme.md                    （顶层项目）
+        #   projects/A/projects/B/readme.md         （子项目）
+        #   projects/A/projects/B/projects/C/readme.md（子子项目）
+        # 即 parts[0]=='projects'，此后「项目名/projects」交替，倒数第二段是项目名；
+        # 因此 archive/、common-knowledge/ 等目录下的 readme 天然不匹配（结构校验），
+        # 根 readme.md 也不匹配。
         for md in storage.kb_root.rglob("*.md"):
             if md.name != "readme.md":
                 continue
             rel = md.relative_to(storage.kb_root).as_posix()
             parts = rel.split("/")
-            if len(parts) < 2 or parts[0] != "projects":
+            valid = (
+                len(parts) >= 3
+                and parts[0] == "projects"
+                and parts[-1] == "readme.md"
+                # 偶数位（0-based: 2,4,6…）必须是子项目容器 "projects"
+                and all(parts[j] == "projects" for j in range(2, len(parts) - 1, 2))
+            )
+            if not valid:
                 continue
             if any(p.startswith(".") for p in parts) or any(p in hidden for p in parts):
-                continue
-            # 归档子目录（projects/X/archive/…）的项目不参与新建归属
-            if "archive" in parts[:-1]:
                 continue
             try:
                 meta, body = storage.read_document(rel)

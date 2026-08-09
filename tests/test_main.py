@@ -482,13 +482,21 @@ class TestApiSearch:
         assert not any(".hidden" in p for p in paths)
 
     def test_search_kind_projects(self, client, tmp_kb_root: Path):
-        """kind=projects 只返回项目 readme 命中；根 readme 与 common-knowledge 文档不参与。"""
+        """kind=projects 只返回结构合法的项目 readme（projects/A(/projects/B)*/readme.md）；
+        根 readme / archive / common-knowledge 下的 readme 不参与。"""
         storage = Storage(kb_root=tmp_kb_root)
         storage.write_readme("projects/养老项目", {"name": "养老项目", "summary": "养老金专项研究"},
                              "# 养老项目\n\n项目正文含养老金调研计划")
         storage.write_readme("projects/养老项目/projects/子项目A",
                              {"name": "子项目A", "summary": "子级摘要"},
                              "# 子项目A\n\n子项目正文")
+        # 非项目结构：archive / common-knowledge 下的 readme 不应作为项目返回
+        storage.write_readme("projects/养老项目/archive/归档项目",
+                             {"name": "归档项目", "summary": "归档摘要"},
+                             "# 归档项目\n\n归档正文")
+        (tmp_kb_root / "projects/养老项目/common-knowledge/readme.md").parent.mkdir(parents=True, exist_ok=True)
+        (tmp_kb_root / "projects/养老项目/common-knowledge/readme.md").write_text(
+            "# 层索引\n\n养老金", encoding="utf-8")
         # 根 readme（全局索引，不应作为项目返回）
         (tmp_kb_root / "readme.md").write_text("# 养老金全局索引", encoding="utf-8")
         # common-knowledge 文档命中（kind=projects 不应返回）
@@ -501,6 +509,7 @@ class TestApiSearch:
         assert "projects/养老项目" in paths
         assert not any(p.startswith("common-knowledge") for p in paths)
         assert not any("readme.md" in p for p in paths)
+        assert not any("archive" in p for p in paths), f"归档项目不应参与: {paths}"
 
         # kind=all 仍排除 readme（文档搜索语义不变）
         r2 = client.get("/api/search", params={"q": "养老金"})
