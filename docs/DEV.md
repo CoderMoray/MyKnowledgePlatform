@@ -40,6 +40,11 @@
   - v0.5 改进：**写操作自动加解锁**，每个 `write__*` 工具执行前后自动 acquire/release
   - 不再需要手动调 `maint__acquire_lock` / `maint__release_lock` 包裹写操作
   - 只读流程结束后仍可手动调 `release_lock` 更新 checkpoint
+  - **死锁自动检测（2026-08-09 新增）**：锁的持有进程已死（崩溃/`serve --reload` 杀进程/异常退出导致 `finally` 未释放）→
+    - `acquire_lock` 视为死锁**立即强占**（不等 5 分钟超时）
+    - `_check_write_allowed`（423 判定）不拦死锁 → 前端不显示锁
+    - `GET /api/lock` 报 `locked:false, deadlock:true`（前端可用 `deadlock` 字段提示）
+    - `maint__release_lock` 诚实反馈：无锁/他人 BUSY/死锁顺手清理
 
 ### Step 6 — CLI 入口 ✅
 

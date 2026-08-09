@@ -21,8 +21,16 @@ class TestAcquireLock:
     def test_acquire_when_locked_by_other(self, tmp_kb_root: Path) -> None:
         storage = Storage(kb_root=tmp_kb_root)
         lock = _lock_file(tmp_kb_root)
-        lock.write_text("99999:9999999999")  # far future
+        # 存活进程（父进程）+ far future → 有效他人锁，不可强占
+        lock.write_text(f"{os.getppid()}:9999999999")
         assert acquire_lock(storage) is False
+
+    def test_acquire_reclaims_dead_pid(self, tmp_kb_root: Path) -> None:
+        """锁的持有 pid 已死 → 视为死锁，立即强占（无需等超时）。"""
+        storage = Storage(kb_root=tmp_kb_root)
+        lock = _lock_file(tmp_kb_root)
+        lock.write_text("999999:9999999999")  # dead pid + far future
+        assert acquire_lock(storage) is True
 
     def test_acquire_after_expiry(self, tmp_kb_root: Path) -> None:
         storage = Storage(kb_root=tmp_kb_root)

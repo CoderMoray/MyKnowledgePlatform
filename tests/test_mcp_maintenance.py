@@ -110,19 +110,51 @@ class TestLock:
 
     def test_cross_process_blocked(self, storage: Storage,
                                    tmp_kb_root: Path) -> None:
-        """A valid lock from another pid must block a write section."""
+        """A valid lock from another live pid must block a write section."""
         from backend.mcp_server import _lock_enter
-        import time
-        self._write_lock(tmp_kb_root, pid=999999, ts=int(time.time()))
+        import os, time
+        other = os.getppid()  # 真实存在的进程（父进程），模拟"他人有效锁"
+        self._write_lock(tmp_kb_root, pid=other, ts=int(time.time()))
         with pytest.raises(RuntimeError):
             _lock_enter(storage)
 
+    def test_dead_lock_is_reclaimed(self, storage: Storage,
+                                    tmp_kb_root: Path) -> None:
+        """锁的持有进程已死（死锁）→ acquire 立即强占，无需等超时。"""
+        from backend.mcp_server import acquire_lock, _read_lock
+        import time
+        self._write_lock(tmp_kb_root, pid=999999, ts=int(time.time()),
+                         agent="ghost")
+        assert acquire_lock(storage, wait=False) is True  # 死 pid → 强占
+        info = _read_lock(tmp_kb_root)
+        assert info is not None
+        assert info["pid"] != 999999  # 新锁归本进程
+
+    def test_release_reports_honestly(self, app_with_git, storage: Storage,
+                                      tmp_kb_root: Path) -> None:
+        """maint__release_lock 诚实反馈:无锁/他人锁/死锁清理。"""
+        import os, time
+        # 无锁
+        (tmp_kb_root / ".lock").unlink(missing_ok=True)
+        r = asyncio.run(app_with_git.call_tool("maint__release_lock", {}))
+        assert "NOT HELD" in str(r)
+        # 他人有效锁（父进程存活）→ BUSY
+        self._write_lock(tmp_kb_root, pid=os.getppid(), ts=int(time.time()))
+        r = asyncio.run(app_with_git.call_tool("maint__release_lock", {}))
+        assert "BUSY" in str(r)
+        assert (tmp_kb_root / ".lock").exists()  # 他人锁没被删
+        # 死锁（不存在的 pid）→ 顺手清理
+        self._write_lock(tmp_kb_root, pid=999998, ts=int(time.time()))
+        r = asyncio.run(app_with_git.call_tool("maint__release_lock", {}))
+        assert "死锁清理" in str(r)
+        assert not (tmp_kb_root / ".lock").exists()
+
     def test_release_keeps_other_pid_lock(self, storage: Storage,
                                           tmp_kb_root: Path) -> None:
-        """release_lock must NOT delete a lock owned by another pid."""
+        """release_lock must NOT delete a lock owned by another live pid."""
         from backend.mcp_server import release_lock
-        import time
-        self._write_lock(tmp_kb_root, pid=999999, ts=int(time.time()))
+        import os, time
+        self._write_lock(tmp_kb_root, pid=os.getppid(), ts=int(time.time()))
         release_lock(storage)
         assert (tmp_kb_root / ".lock").exists()
 
@@ -151,9 +183,9 @@ class TestLock:
 
     def test_busy_reports_holder(self, app_with_git, storage: Storage,
                                  tmp_kb_root: Path) -> None:
-        """Another pid's lock → LOCK BUSY names the holder."""
-        import time
-        self._write_lock(tmp_kb_root, pid=999999, ts=int(time.time()),
+        """Another live pid's lock → LOCK BUSY names the holder."""
+        import os, time
+        self._write_lock(tmp_kb_root, pid=os.getppid(), ts=int(time.time()),
                          agent="rival")
         result = asyncio.run(app_with_git.call_tool("maint__acquire_lock", {}))
         text = _tool_text(result)
@@ -164,8 +196,8 @@ class TestLock:
                                               tmp_kb_root: Path) -> None:
         """wait=True polls: times out against a live foreign lock, then succeeds."""
         from backend.mcp_server import acquire_lock, release_lock
-        import time
-        self._write_lock(tmp_kb_root, pid=999999, ts=int(time.time()))
+        import os, time
+        self._write_lock(tmp_kb_root, pid=os.getppid(), ts=int(time.time()))
         assert acquire_lock(storage, wait=True, timeout=1) is False
         (tmp_kb_root / ".lock").unlink(missing_ok=True)  # foreign lock frees
         assert acquire_lock(storage, wait=True, timeout=5) is True

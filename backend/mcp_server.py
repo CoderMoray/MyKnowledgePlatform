@@ -78,6 +78,24 @@ def _sanitize_agent(agent: str) -> str:
     return clean[:64]
 
 
+def _pid_alive(pid: int) -> bool:
+    """Check whether *pid* refers to a live process on this host.
+
+    ``os.kill(pid, 0)`` sends no signal but raises if the pid is dead.
+    ``PermissionError`` (exists but owned by another user) counts as alive.
+    """
+    import os
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, OSError):
+        return False
+    except PermissionError:
+        return True
+
+
 def acquire_lock(storage: Storage, *, wait: bool = False,
                  timeout: int = 30, agent: str = "") -> bool:
     """Try to acquire the AI session write lock.
@@ -91,7 +109,10 @@ def acquire_lock(storage: Storage, *, wait: bool = False,
     deadline = time.time() + timeout
     while True:
         info = _read_lock(kb)
-        if info is None or (time.time() - info["ts"] >= _lock_timeout()):
+        # 可强占条件：无锁 / 锁超时 / 锁的持有进程已死（死锁自动检测，
+        # 解决 serve --reload 杀进程或异常退出导致 finally 未释放的锁残留）
+        if info is None or (time.time() - info["ts"] >= _lock_timeout()) \
+                or not _pid_alive(info["pid"]):
             _write_lock(kb, agent)
             return True
         if not wait or time.time() >= deadline:
@@ -1865,6 +1886,19 @@ def create_mcp_app(storage: Storage,
             gm.write_checkpoint(head, cp_file)
         except Exception:
             pass  # non-fatal
+        import os
+        info = _read_lock(storage.kb_root)
+        if info is None:
+            return "LOCK NOT HELD（无锁）"
+        if not _pid_alive(info["pid"]) and info["pid"] != os.getpid():
+            # 死锁（持有进程已死）——本次 release 顺手清理
+            _lock_file(storage.kb_root).unlink(missing_ok=True)
+            return f"LOCK RELEASED（死锁清理，原持有 pid={info['pid']} 已不存在）"
+        if info["pid"] != os.getpid():
+            return (
+                f"LOCK BUSY（锁由 pid={info['pid']} 持有，非本会话，不能释放）\n"
+                f"持有者: {info.get('agent') or '未知'}；如确认是死锁可调 maint__acquire_lock(wait=True) 等待过期或强占"
+            )
         release_lock(storage)
         return "LOCK RELEASED"
 

@@ -420,6 +420,21 @@ class TestApiLock:
         data = client.get("/api/lock").json()
         assert data["locked"] is False
 
+    def test_deadlock_not_locked(self, client, tmp_kb_root: Path,
+                                 monkeypatch) -> None:
+        """死锁（持有进程已死）→ /api/lock 报未锁、写接口不 423。"""
+        import time
+        monkeypatch.setattr("backend.main.resolve_root", lambda: tmp_kb_root)
+        (tmp_kb_root / ".lock").write_text(
+            f"999999:{int(time.time())}:ghost", encoding="utf-8")
+        data = client.get("/api/lock").json()
+        assert data["locked"] is False
+        assert data["deadlock"] is True
+        # 写接口不因死锁返回 423
+        r = client.post("/api/document/common-knowledge/x.md",
+                        json={"content": "b", "summary": "s"})
+        assert r.status_code != 423
+
     def test_agent_with_colon(self, client, tmp_kb_root: Path,
                               monkeypatch) -> None:
         """Agent containing ':' (e.g. codebuddy:task-999) must be returned whole."""
