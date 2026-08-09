@@ -1086,8 +1086,8 @@
           <input class="modal__input" type="text"
                  x-model="newDocParentName"
                  placeholder="输入项目名称匹配，或从下拉选择"
+                 @click="onParentInput()"
                  @input="onParentInput()"
-                 @focus="onParentInput()"
                  @keydown="onParentKeydown($event)"
                  @blur="parentOpen = false" />
           <div class="parent-picker__list" :class="{ 'is-open': parentOpen }"
