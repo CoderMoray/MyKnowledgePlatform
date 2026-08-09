@@ -11,6 +11,7 @@
 运行：PYTHONPATH=. python -m pytest tests/frontend/test_edit_switch.py -v
 前置：后端 8080 运行（.myknowledge_test 测试库）；测试文档自动创建/清理。
 """
+import time
 import urllib.parse
 
 import pytest
@@ -405,3 +406,100 @@ class TestNewDocParent:
         page.wait_for_timeout(400)
         assert page.locator(".parent-picker__item").count() >= 5, "删空应回浏览候选"
         assert not empty.is_visible(), "浏览模式占位应隐藏"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 创建后跳转编辑态（1f8b15b 三 bug 固化）——"两个必须补的空白"之一
+# ① router 直达 #edit/ 并触发 enterEdit（编辑态真正打开，不靠点击）
+# ② 标题/摘要输入框正确填充（修复'创建后摘要空'）
+# ③ sidebar 刷新出现新文档行（修复'创建后侧栏无新文档'）
+# ═══════════════════════════════════════════════════════════════════════
+def _cleanup_new_doc(path):
+    """删除创建测试的文档（DELETE + 清空垃圾箱）"""
+    try:
+        from conftest import api
+        api("DELETE", f"/api/document/{urllib.parse.quote(path, safe='/')}")
+        api("POST", "/api/trash/empty")
+    except Exception:
+        pass
+
+
+class TestNewDocCreate:
+    """新建文档 → 创建后跳转编辑态（创建流程端到端，用户要求'不靠肉眼'）"""
+
+    def _open_new_modal(self, page, static_server):
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        page.locator(".sidebar-new-btn").click()
+        page.wait_for_selector("input[x-model='newDocName']", timeout=5000)
+        page.wait_for_timeout(1200)  # 等 _ensureProjectTree + readme 摘要拉取
+
+    def _fill_and_create(self, page, name, summary, parent_label):
+        page.fill("input[x-model='newDocName']", name)
+        page.fill("input[x-model='newDocSummary']", summary)
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(300)
+        inp.fill(parent_label)
+        page.wait_for_timeout(1000)  # 等 kind=projects 搜索返回候选
+        item = page.locator(".parent-picker__item", has_text=parent_label)
+        assert item.count() >= 1, f"归属候选应匹配 {parent_label!r}"
+        item.first.click()
+        page.wait_for_timeout(300)
+        page.get_by_role("button", name="创建文档").click()
+        page.wait_for_selector(".viewer__title-input", timeout=10000)  # 等进入编辑态
+        page.wait_for_timeout(1500)  # 等侧栏树自动展开/刷新
+
+    def test_create_training_enters_edit_with_values(self, static_server, backend_running, page):
+        """归属=Training：创建后直达编辑态、标题/摘要填充、sidebar 出现新文档"""
+        name = f"test-create-{int(time.time() * 1000)}"
+        summary = f"AUTO-创建摘要-{int(time.time())}"
+        parent = "Training 人员培训"
+        path = f"projects/{parent}/common-knowledge/{name}.md"
+        try:
+            self._open_new_modal(page, static_server)
+            self._fill_and_create(page, name, summary, parent)
+            # ① hash 直达 #edit/（router 直达，非点击进入）
+            cur = urllib.parse.unquote(page.evaluate("location.hash"))
+            assert cur.startswith("#edit/"), f"创建后应跳转 #edit/: {cur[:80]}"
+            # ① 编辑态真正打开：enterEdit 生效（标题输入框可见）
+            title_inp = page.locator(".viewer__title-input")
+            assert title_inp.count() and title_inp.is_visible(), "创建后应进入编辑态（标题输入框可见）"
+            # ② 标题/摘要输入框正确填充（不是空——修复点）
+            assert title_inp.input_value().strip() == name, f"标题输入框: {title_inp.input_value()!r}"
+            summ_inp = page.locator(".viewer__summary-input")
+            assert summ_inp.input_value().strip() == summary, f"摘要输入框: {summ_inp.input_value()!r}"
+            # ③ sidebar 树出现新文档行（修复点）
+            row = page.locator(f'.sidebar-tree__item[data-doc-path="{path}"]')
+            assert row.count() >= 1, "sidebar 未出现新文档行（refreshProjectTree/自动展开失效）"
+            # API 对比：后端存在 + 摘要正确
+            st, d = backend_doc(path)
+            assert st == 200, f"后端应有新文档: {path}"
+            assert (d or {}).get("summary") == summary, f"后端摘要: {(d or {}).get('summary')!r}"
+        finally:
+            _cleanup_new_doc(path)
+
+    def test_create_default_parent_root(self, static_server, backend_running, page):
+        """默认归属'公共知识'（根 readme）→ 创建到根 common-knowledge，直达编辑态"""
+        name = f"test-create-root-{int(time.time() * 1000)}"
+        summary = "AUTO-根摘要"
+        path = f"common-knowledge/{name}.md"
+        try:
+            self._open_new_modal(page, static_server)
+            # 不动归属输入（默认"公共知识" → value=common-knowledge）
+            page.fill("input[x-model='newDocName']", name)
+            page.fill("input[x-model='newDocSummary']", summary)
+            page.get_by_role("button", name="创建文档").click()
+            page.wait_for_selector(".viewer__title-input", timeout=10000)
+            page.wait_for_timeout(1000)
+            cur = urllib.parse.unquote(page.evaluate("location.hash"))
+            assert cur.startswith("#edit/"), f"应跳转 #edit/: {cur[:80]}"
+            title_inp = page.locator(".viewer__title-input")
+            assert title_inp.count() and title_inp.is_visible(), "默认归属创建后应进入编辑态"
+            assert title_inp.input_value().strip() == name
+            summ_inp = page.locator(".viewer__summary-input")
+            assert summ_inp.input_value().strip() == summary, f"摘要输入框: {summ_inp.input_value()!r}"
+            st, d = backend_doc(path)
+            assert st == 200, f"根 common-knowledge 应有新文档: {path}"
+        finally:
+            _cleanup_new_doc(path)
