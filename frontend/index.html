@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=a0e548593b" />
+  <link rel="stylesheet" href="css/components.css?v=d5496d7290" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=9026203707"></script>
+  <script src="js/components/modal.js?v=48d154e585"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1097,8 +1097,8 @@
                    :class="{ 'is-active': i === parentIdx }"
                    @mousedown.prevent="selectParent(c)"
                    @mouseenter="parentIdx = i">
-                <span class="parent-picker__label" x-text="c.label"></span>
-                <span class="parent-picker__hierarchy" x-text="c.hierarchy"></span>
+                <div class="parent-picker__label" x-text="c.label"></div>
+                <div class="parent-picker__path" x-text="c.hierarchy"></div>
               </div>
             </template>
           </div>

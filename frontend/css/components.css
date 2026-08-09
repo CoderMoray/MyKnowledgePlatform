@@ -646,12 +646,11 @@
 
 .parent-picker__item {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 7px 12px;
   cursor: pointer;
-  font-size: var(--text-sm);
   border-bottom: 1px solid var(--border-subtle, rgba(0, 0, 0, 0.06));
 }
 
@@ -665,18 +664,19 @@
 .parent-picker__label {
   color: var(--text-primary, inherit);
   font-weight: 600;
+  font-size: var(--text-sm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.parent-picker__hierarchy {
-  color: var(--text-muted, rgba(0, 0, 0, 0.4));
+/* 层级路径：选项下方一整行小字（主题色） */
+.parent-picker__path {
   font-size: var(--text-xs);
+  color: var(--accent, var(--text-primary, inherit));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 55%;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

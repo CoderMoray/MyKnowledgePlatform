@@ -185,7 +185,10 @@ Alpine.data("modalComponent", () => ({
       this.newDocParent = hit ? hit.value : target;
       this.newDocParentName = hit ? hit.label : "公共知识";
       this.parentHierarchy = hit ? hit.hierarchy : "所有项目";
-      this.parentSuggestions = _projectCandidates.slice(0, 8);
+      this.parentSuggestions = _projectCandidates.slice(0, 5);
+      this._browseAll = _projectCandidates || [];
+      this._browseCount = 5;
+      this._parentLastLen = this.newDocParentName.length; // 基准：打开时的长度（新增才搜索）
       this.parentIdx = -1;
       this.parentOpen = false;
     },
@@ -226,18 +229,40 @@ Alpine.data("modalComponent", () => ({
       ];
     },
 
-    /** 输入匹配：非空 → 后端项目级搜索（标题/摘要/正文，kind=projects，300ms debounce）；
-     *  空输入 → 本地项目树分页浏览（每次 8，滚动到底加载更多）。参考 ref 的搜索交互 */
+    /** 点击归属输入框：打开下拉；有内容但未新增文字 → 不搜索（保持当前候选/浏览） */
+    onParentClick() {
+      if (!this.parentSuggestions.length) this._refreshBrowse();
+      this.parentOpen = true;
+      this.parentIdx = -1;
+    },
+
+    /** 输入事件：只有"新增文字"才触发搜索；删除/光标移动不搜索；空输入 → 本地浏览 */
     onParentInput() {
-      const q = (this.newDocParentName || "").trim();
-      if (!q) {
-        this._browseAll = _projectCandidates || [];
-        this._browseCount = 5;
-        this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
-        this.parentOpen = true;
-        this.parentIdx = -1;
-        return;
+      const raw = this.newDocParentName || "";
+      const len = raw.length;
+      if (len > this._parentLastLen) {
+        // 新增文字 → 后端项目级搜索（kind=projects，300ms debounce）
+        this._parentLastLen = len;
+        this._doParentSearch(raw.trim());
+      } else {
+        this._parentLastLen = len;
+        // 删除/无变化：不搜索；删到空 → 浏览模式
+        if (!raw.trim()) this._refreshBrowse();
       }
+      this.parentOpen = true;
+      this.parentIdx = -1;
+    },
+
+    /** 空输入浏览：本地项目树分页（每次 5，滚动到底加载更多） */
+    _refreshBrowse() {
+      this._browseAll = _projectCandidates || [];
+      this._browseCount = 5;
+      this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
+    },
+
+    /** 后端项目级搜索（参考 ref：debounce + seq 过期丢弃） */
+    _doParentSearch(q) {
+      if (!q) { this._refreshBrowse(); return; }
       clearTimeout(this._parentSearchTimer);
       const seq = ++this._parentSearchSeq;
       this._parentSearchTimer = setTimeout(async () => {
