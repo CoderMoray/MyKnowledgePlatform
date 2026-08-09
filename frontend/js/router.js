@@ -130,7 +130,12 @@ function setupRouter() {
   router.on("edit/:path", (params) => {
     const path = decodeURIComponent(params.path);
     store.setView("edit", path);
-    store.loadDocument(path);
+    // 直达编辑态（如新建后跳转）不经过点击 → 文档加载完成后派发事件，
+    // doc 组件补 enterEdit 初始化（标题/摘要输入框值、编辑器可编辑态）；
+    // enterEdit 幂等，重复调用安全。loadDocument 完成后再派发保证 document 就绪
+    store.loadDocument(path).then(() => {
+      window.dispatchEvent(new CustomEvent("myk:enter-edit-direct"));
+    });
   });
 
   // #new

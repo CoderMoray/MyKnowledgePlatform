@@ -67,6 +67,14 @@ Alpine.data("docComponent", () => ({
       // 编辑态收到 SSE 文档变更（别处保存）→ 主动检查版本，冲突立即弹 diff（不等保存、不覆盖内容）
       window.addEventListener("myk:doc-modified", () => this._checkExternalModification());
 
+      // 直达编辑态（router #edit/ 跳转，如新建文档后）→ 补 enterEdit 初始化：
+      // 标题/摘要输入框值 + 编辑器可编辑态（点击进入走 onDocClick→enterEdit，此处补 router 直达）
+      window.addEventListener("myk:enter-edit-direct", () => {
+        if (store.currentView !== "edit") return;
+        // 等 loadDocument 完成（enterEdit 内部有 htmlContent 空时先加载的兜底）
+        this.enterEdit();
+      });
+
       if (!store.document && path) {
         store.loadDocument(path);
       }

@@ -62,6 +62,8 @@ Alpine.data("modalComponent", () => ({
 
         showToast("文档已创建", "success");
         store.closeModal();
+        // 刷新目标项目侧栏树（树未展开/无缓存时静默，下次展开自然加载）
+        store.refreshProjectTree(projectName(parentPath)).catch(() => {});
         // 创建后跳转到新文档（编辑态）
         window.location.hash = `edit/${hashEncode(fullPath)}`;
       } catch (err) {
