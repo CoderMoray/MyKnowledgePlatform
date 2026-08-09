@@ -299,12 +299,16 @@ Alpine.data("modalComponent", () => ({
     /** 输入事件（触发 = 用户打字；点击 select 不触发 input，走 onParentClick）：
      *  任何 input 都搜索（新增/删除/替换/重输同内容，用户要求"文本变动都触发"）；
      *  删空 → 本地浏览。300ms debounce + seq 丢弃过期响应（同 ref 搜索）。
-     *  输入即清空层级提示（未选中状态，避免残留上次选择的层级内容） */
+     *  输入时 hint 显示"检索中..."（占位文本，保持布局稳定不跳动） */
     onParentInput() {
       const raw = this.newDocParentName || "";
-      this.parentHierarchy = ""; // 输入 = 未选中，清掉上次选择残留
-      if (raw.trim()) this._doParentSearch(raw.trim());
-      else this._refreshBrowse();
+      if (raw.trim()) {
+        this.parentHierarchy = "检索中..."; // 占位：正在搜索，保持 hint 区域高度
+        this._doParentSearch(raw.trim());
+      } else {
+        this.parentHierarchy = "选择归属项目"; // 浏览模式占位
+        this._refreshBrowse();
+      }
       this.parentOpen = true;
       this.parentIdx = -1;
     },
@@ -325,8 +329,13 @@ Alpine.data("modalComponent", () => ({
         try {
           const data = await api.searchDocuments(q, 20, "projects");
           if (seq !== this._parentSearchSeq) return; // 过期响应丢弃
+          const results = (data && data.results) || [];
+          // hint 从"检索中..."更新为结果数（保持区域高度，布局不跳动）
+          this.parentHierarchy = results.length
+            ? `找到 ${results.length} 个匹配项目`
+            : "未找到匹配项目";
           // 后端项目级结果 {path: 项目目录或空(根readme), title, summary} → 候选格式
-          this.parentSuggestions = ((data && data.results) || []).map((r) => ({
+          this.parentSuggestions = results.map((r) => ({
             label: r.title || String(r.path || "").split("/").pop() || "公共知识",
             // path 空 = 根 readme（公共知识归属）
             value: r.path ? `${r.path}/common-knowledge` : "common-knowledge",
