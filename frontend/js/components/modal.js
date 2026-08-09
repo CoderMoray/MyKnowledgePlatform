@@ -244,10 +244,11 @@ Alpine.data("modalComponent", () => ({
         try {
           const data = await api.searchDocuments(q, 20, "projects");
           if (seq !== this._parentSearchSeq) return; // 过期响应丢弃
-          // 后端项目级结果 {path: 项目目录, title, summary} → 候选格式
+          // 后端项目级结果 {path: 项目目录或空(根readme), title, summary} → 候选格式
           this.parentSuggestions = ((data && data.results) || []).map((r) => ({
-            label: r.title || String(r.path || "").split("/").pop() || "",
-            value: `${r.path}/common-knowledge`,
+            label: r.title || String(r.path || "").split("/").pop() || "公共知识",
+            // path 空 = 根 readme（公共知识归属）
+            value: r.path ? `${r.path}/common-knowledge` : "common-knowledge",
             hierarchy: makeParentHierarchy(r.path),
           }));
           this.parentOpen = true;

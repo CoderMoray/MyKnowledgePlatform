@@ -1121,6 +1121,24 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
                 "snippet": _make_snippet(body, q_lower) if hit_body else "",
                 "score": score,
             })
+        # 最表层（根）readme.md —— 代表"公共知识"根归属（path 为空串）
+        root_md = storage.kb_root / "readme.md"
+        if root_md.exists():
+            try:
+                meta, body = storage.read_document("readme.md")
+                title = meta.get("title") or "公共知识"
+                score, hit_title, hit_summary, hit_body = _score(
+                    title, meta.get("summary", ""), body)
+                if score:
+                    hits.append({
+                        "path": "",
+                        "title": title,
+                        "summary": meta.get("summary", ""),
+                        "snippet": _make_snippet(body, q_lower) if hit_body else "",
+                        "score": score,
+                    })
+            except Exception:
+                pass
     else:
         for md in storage.kb_root.rglob("*.md"):
             rel_parts = md.relative_to(storage.kb_root).parts

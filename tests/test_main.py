@@ -497,7 +497,7 @@ class TestApiSearch:
         (tmp_kb_root / "projects/养老项目/common-knowledge/readme.md").parent.mkdir(parents=True, exist_ok=True)
         (tmp_kb_root / "projects/养老项目/common-knowledge/readme.md").write_text(
             "# 层索引\n\n养老金", encoding="utf-8")
-        # 根 readme（全局索引，不应作为项目返回）
+        # 根 readme（最表层，代表"公共知识"归属）——命中时以 path="" 返回
         (tmp_kb_root / "readme.md").write_text("# 养老金全局索引", encoding="utf-8")
         # common-knowledge 文档命中（kind=projects 不应返回）
         _create_test_doc(storage, "common-knowledge/养老金方案.md", "养老金正文")
@@ -507,6 +507,7 @@ class TestApiSearch:
         data = r.json()
         paths = [x["path"] for x in data["results"]]
         assert "projects/养老项目" in paths
+        assert "" in paths, "根 readme（公共知识）应参与并返回 path=空"
         assert not any(p.startswith("common-knowledge") for p in paths)
         assert not any("readme.md" in p for p in paths)
         assert not any("archive" in p for p in paths), f"归档项目不应参与: {paths}"
