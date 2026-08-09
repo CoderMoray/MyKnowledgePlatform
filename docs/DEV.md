@@ -94,6 +94,34 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 - 17 个测试文件，189 个测试通过，3 个前端 smoke 测试因 CDN 环境待修复
 - 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager
 
+### 前端构建守门（2026-08-09 引入）
+
+**背景**：后端静态服务（`backend/main.py`）加载的是 `frontend/index.standalone.html`（单文件内联版），
+而它被 `.gitignore` 忽略、无版本追溯；曾出现"改前端源码但没人 build → 分发版本落后"。
+
+**L1 — pre-commit hook（本地自动守门）**：
+
+- 脚本：`.githooks/pre-commit`（进 git，随仓库共享）
+- 启用（一次性，本地配置不进 git）：`git config core.hooksPath .githooks`
+- 行为：暂存区包含 `frontend/(js|css|vendor)/*`、`frontend/index.html`、`frontend/tiptap-bundle.mjs`
+  → 自动跑 `frontend/build.py`（内联生成 standalone + 更新 `?v=` + node --check 语法校验），
+  失败**中止提交**；通过后把 build 写回的 `?v=` 更新 `git add frontend/index.html` 随提交入库。
+- 非前端 commit（后端/测试/文档）→ 直接放行，零开销。
+- 跳过（不建议）：`git commit --no-verify`
+
+**L2 — CI 兜底**：
+
+- `.github/workflows/frontend-build.yml`：push main / PR 时跑 `build.py`（保证源码永远可构建）
+- `.github/workflows/publish.yml`：PyPI 发布前同样跑 build——防止过期的 standalone 被打进包分发
+
+**构建命令**（手动）：`cd frontend && python3 build.py`
+
+**⚠ check_build.py 待修（2026-08-09 发现 24 项过期断言）**：其静态检查停留在早期构建时点，
+未跟随前端演进——CDN 依赖（项目已迁本地 vendor/）、"view/edit 路由应已删除"（edit 路由
+1f8b15b 已回归）、`Object.assign` meta 拍平（已改展开运算符）、CSS 双引擎选择器、page-splash/
+ProseMirror--readonly 等元素。当前**不作为硬门禁**（hook/CI 只跑 build.py）；修复后应重新
+纳入 hook + CI。待修清单见上轮 check_build 输出的 24 项 ✗。
+
 ---
 
 ## 待办 — 当前优先级

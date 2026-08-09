@@ -1,0 +1,30 @@
+name: Frontend Build Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build standalone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node (for build.py node --check)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build standalone (build.py)
+        working-directory: frontend
+        run: python3 build.py
+
+      # 注：check_build.py 的静态断言停留在早期构建时点（CDN→本地 vendor 等未同步），
+      # 24 项过期失败，暂不作为 CI 门禁（修复待办见 docs/DEV.md）

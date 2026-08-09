@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# MyKnowledge 前端构建守门（L1）
+#
+# 暂存区包含前端运行时代码（js/css/vendor/index.html/tiptap-bundle.mjs）
+# → 自动运行 build.py（内联生成 standalone + 更新 ?v= + node --check 语法校验）；
+#   失败则中止提交。非前端 commit（后端/测试/文档）→ 直接放行，零开销。
+#
+# 注：check_build.py 的静态断言停留在早期构建时点（CDN→本地 vendor、edit 路由回归
+# 等未同步），24 项过期失败，暂不作为硬门禁（修复待办见 docs/DEV.md）。
+#
+# 启用（一次性，本地配置不进 git）：
+#   git config core.hooksPath .githooks
+# 详见 docs/DEV.md「前端构建守门」。
+#
+# 说明：build.py 会把 ?v= 内容哈希写回 index.html——这里 git add 它，
+# 确保"源码改动 → ?v= 同步 → 进提交"（standalone 被 .gitignore 忽略，不进 git）。
+
+set -u
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+changed=$(git diff --cached --name-only | grep -E '^frontend/(js/|css/|vendor/|index\.html|tiptap-bundle\.mjs)' || true)
+
+if [ -z "$changed" ]; then
+  exit 0
+fi
+
+echo "→ 检测到前端源码变更："
+echo "$changed" | sed 's/^/    /'
+echo "→ 自动运行前端构建（build.py，含 node --check 语法校验）..."
+
+if ! (cd "$ROOT/frontend" && python3 build.py); then
+  echo "✗ build.py 失败，提交已中止（可用 git commit --no-verify 跳过，但不建议）" >&2
+  exit 1
+fi
+
+git add frontend/index.html
+echo "✓ 前端构建通过，index.html 的 ?v= 已随提交更新"

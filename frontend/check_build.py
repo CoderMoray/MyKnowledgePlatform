@@ -177,9 +177,13 @@ def main():
     node = shutil.which("node") or "node"
     test_js = str(FRONTEND / "test-save-roundtrip.js")
     if Path(test_js).exists():
+        # 依赖解析：优先 frontend/node_modules（本地已 npm install / CI 装好），
+        # 兜底旧本机路径（~/.workbuddy/binaries/node/workspace/node_modules）
+        node_path = str(FRONTEND / "node_modules") if (FRONTEND / "node_modules").exists() \
+            else str(Path.home() / ".workbuddy/binaries/node/workspace/node_modules")
         try:
             r = subprocess.run([node, test_js], capture_output=True, text=True, timeout=30,
-                               env={"NODE_PATH": str(Path.home() / ".workbuddy/binaries/node/workspace/node_modules")})
+                               env={"NODE_PATH": node_path})
             out = r.stdout.strip()
             # 解析测试结果
             import re as _re

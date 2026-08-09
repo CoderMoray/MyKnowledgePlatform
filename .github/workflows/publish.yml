@@ -23,6 +23,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 前端守门：发布前必须能构建出有效 standalone（后端静态服务加载它），
+      # 防止过期的 index.standalone.html 被打进 PyPI 包分发
+      - name: Frontend build
+        working-directory: frontend
+        run: python3 build.py
+
       - name: Install build tools
         run: pip install build
 
