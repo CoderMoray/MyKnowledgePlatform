@@ -184,7 +184,7 @@ Alpine.data("modalComponent", () => ({
       const hit = _projectCandidates.find((c) => c.value === target);
       this.newDocParent = hit ? hit.value : target;
       this.newDocParentName = hit ? hit.label : "公共知识";
-      this.parentHierarchy = hit ? hit.hierarchy : "";
+      this.parentHierarchy = hit ? hit.hierarchy : "所有项目";
       this.parentSuggestions = _projectCandidates.slice(0, 8);
       this.parentIdx = -1;
       this.parentOpen = false;
@@ -221,7 +221,7 @@ Alpine.data("modalComponent", () => ({
       }
       await walk("projects");
       _projectCandidates = [
-        { label: "公共知识", hierarchy: "", value: "common-knowledge" },
+        { label: "公共知识", hierarchy: "所有项目", value: "common-knowledge" },
         ...allPaths.map((p) => makeParentCandidate(`${p}/common-knowledge`)),
       ];
     },
@@ -232,7 +232,7 @@ Alpine.data("modalComponent", () => ({
       const q = (this.newDocParentName || "").trim();
       if (!q) {
         this._browseAll = _projectCandidates || [];
-        this._browseCount = 8;
+        this._browseCount = 5;
         this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
         this.parentOpen = true;
         this.parentIdx = -1;
@@ -249,7 +249,7 @@ Alpine.data("modalComponent", () => ({
             label: r.title || String(r.path || "").split("/").pop() || "公共知识",
             // path 空 = 根 readme（公共知识归属）
             value: r.path ? `${r.path}/common-knowledge` : "common-knowledge",
-            hierarchy: makeParentHierarchy(r.path),
+            hierarchy: r.path ? makeParentHierarchy(r.path) : "所有项目",
           }));
           this.parentOpen = true;
           this.parentIdx = -1;
@@ -264,7 +264,7 @@ Alpine.data("modalComponent", () => ({
       if (!el) return;
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
         if (this._browseCount >= this._browseAll.length) return;
-        this._browseCount += 8;
+        this._browseCount += 5;
         this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
       }
     },
@@ -333,7 +333,7 @@ function makeParentHierarchy(projectPath) {
  *  common-knowledge              → label=公共知识, hierarchy="" */
 function makeParentCandidate(value) {
   const m = value.match(/^(?:projects|archive)\/(.+)\/common-knowledge$/);
-  if (!m) return { label: "公共知识", hierarchy: "", value };
+  if (!m) return { label: "公共知识", hierarchy: "所有项目", value };
   const chain = m[1].split("/");
   return {
     label: chain[chain.length - 1],

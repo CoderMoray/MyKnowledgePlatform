@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=9d2cd677e5" />
+  <link rel="stylesheet" href="css/components.css?v=06476ec42b" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=fb8020e901"></script>
+  <script src="js/components/modal.js?v=9026203707"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1090,7 +1090,7 @@
                  @focus="onParentInput()"
                  @keydown="onParentKeydown($event)"
                  @blur="parentOpen = false" />
-          <div class="parent-picker__list" x-show="parentOpen" x-cloak
+          <div class="parent-picker__list" :class="{ 'is-open': parentOpen }"
                @scroll="onParentScroll($event)">
             <template x-for="(c, i) in parentSuggestions" :key="c.value">
               <div class="parent-picker__item"
@@ -1106,12 +1106,12 @@
         <label class="modal__label">文档名称</label>
         <input class="modal__input" type="text"
                x-model="newDocName"
-               placeholder="文档名称（如：项目方案）"
+               placeholder="如：项目方案"
                @keyup.enter="createDocument()" />
         <label class="modal__label">摘要 <span class="modal__label-required">（必填）</span></label>
         <input class="modal__input" type="text"
                x-model="newDocSummary"
-               placeholder="摘要（必填）" />
+               placeholder="摘要内容" />
         <div class="modal__actions">
           <button class="btn" @click="$store.app.closeModal()">取消</button>
           <button class="btn btn--primary"

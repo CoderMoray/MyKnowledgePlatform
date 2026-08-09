@@ -627,13 +627,22 @@
   left: 0;
   right: 0;
   z-index: 30;
-  max-height: 220px;
-  overflow-y: auto;
+  /* 展开动画：max-height + opacity 过渡（同 doc-card hover 面板手法），非突变 */
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
   /* 实色背景（--surface 是半透明，--surface-elevated/--surface-1 不存在 → 曾导致透明） */
   background: var(--bg-primary, var(--surface));
   border: 1px solid var(--border-subtle, var(--input-border));
   border-radius: 10px;
   box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+.parent-picker__list.is-open {
+  max-height: 264px;
+  opacity: 1;
+  overflow-y: auto;
 }
 
 .parent-picker__item {
