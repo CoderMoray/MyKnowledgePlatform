@@ -13,6 +13,7 @@ Alpine.data("modalComponent", () => ({
     parentIdx: -1,          // 键盘导航高亮索引
     _parentSearchTimer: null,
     _parentSearchSeq: 0,
+    _parentHintRestore: null, // hover 前 hint 状态（离开下拉时恢复）
     _browseAll: [],         // 空输入浏览：全量本地候选
     _browseCount: 0,        // 已加载数量（滚动每次 +8）
     renameValue: "",
@@ -387,7 +388,27 @@ Alpine.data("modalComponent", () => ({
       this.newDocParentName = item.label;
       this.newDocParent = item.value;
       this.parentHierarchy = item.hierarchy;
+      this._parentHintRestore = null; // 选中即确定，清掉 hover 恢复标记
       this.parentOpen = false;
+      this.parentIdx = -1;
+    },
+
+    /** hover/键盘高亮候选：hint 显示该候选的层级（主要项目/父/子）；
+     *  首次进入记录 hover 前的 hint（离开时恢复，避免覆盖搜索/浏览状态文本） */
+    onParentHover(item, i) {
+      if (this._parentHintRestore === null) {
+        this._parentHintRestore = this.parentHierarchy; // 记录进入前的状态
+      }
+      this.parentIdx = i;
+      if (item && item.hierarchy) this.parentHierarchy = item.hierarchy;
+    },
+
+    /** 离开下拉：恢复 hover 前的 hint（搜索"找到 N 个"/浏览"选择归属项目"） */
+    onParentLeave() {
+      if (this._parentHintRestore !== null) {
+        this.parentHierarchy = this._parentHintRestore;
+        this._parentHintRestore = null;
+      }
       this.parentIdx = -1;
     },
 
@@ -397,10 +418,12 @@ Alpine.data("modalComponent", () => ({
       if (!this.parentOpen || !items.length) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        this.parentIdx = (this.parentIdx + 1) % items.length;
+        const next = (this.parentIdx + 1) % items.length;
+        this.onParentHover(items[next], next);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        this.parentIdx = (this.parentIdx - 1 + items.length) % items.length;
+        const prev = (this.parentIdx - 1 + items.length) % items.length;
+        this.onParentHover(items[prev], prev);
       } else if (e.key === "Enter") {
         if (this.parentIdx >= 0 && this.parentIdx < items.length) {
           e.preventDefault();
@@ -408,7 +431,7 @@ Alpine.data("modalComponent", () => ({
         }
       } else if (e.key === "Escape") {
         this.parentOpen = false;
-        this.parentIdx = -1;
+        this.onParentLeave();
       }
     },
   }))

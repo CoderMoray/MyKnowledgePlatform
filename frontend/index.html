@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=7732441495"></script>
+  <script src="js/components/modal.js?v=17f42b7ee4"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1093,12 +1093,13 @@
                  @blur="parentOpen = false" />
           <!-- 外层：高度由 JS 两段式动画控制（候选数变化也平滑）；内层：滚动容器（超高 210px 可滚） -->
           <div class="parent-picker__list" x-ref="parentList" :class="{ 'is-open': parentOpen }">
-            <div class="parent-picker__scroll" @scroll="onParentScroll($event)">
+            <div class="parent-picker__scroll" @scroll="onParentScroll($event)"
+                 @mouseleave="onParentLeave()">
               <template x-for="(c, i) in parentSuggestions" :key="c.value">
                 <div class="parent-picker__item"
                      :class="{ 'is-active': i === parentIdx }"
                      @mousedown.prevent="selectParent(c)"
-                     @mouseenter="parentIdx = i">
+                     @mouseenter="onParentHover(c, i)">
                   <div class="parent-picker__label" x-html="highlightMatch(c.label, c.q)"></div>
                   <div class="parent-picker__path" x-html="highlightMatch(c.summary, c.q)"></div>
                 </div>
