@@ -173,6 +173,38 @@ Alpine.data("modalComponent", () => ({
           this._initNewDocParent();
         }
       });
+      // 高度柔和动画：候选/展开状态变化时，先定格当前高度再过渡到目标高度
+      // （候选数变化 5↔1 时下拉高度平滑缩放，而非突变；0.3s 匹配 CSS transition）
+      this.$watch("parentSuggestions", () => {
+        if (this.parentOpen) requestAnimationFrame(() => this._animateListHeight());
+      });
+      this.$watch("parentOpen", (val) => {
+        requestAnimationFrame(() => this._animateListHeight());
+      });
+    },
+
+    /** 两段式高度动画：定格当前高度 → 下一帧（DOM 更新完成）读目标高度并过渡。
+     *  候选数变化（5↔1）或展开/收起时高度平滑缩放，0.3s 匹配 CSS transition。
+     *  注意：外层 overflow:hidden → 其 scrollHeight 下限=clientHeight（读不到真实内容），
+     *  必须读内层 .parent-picker__scroll 的内容高度（≤210px 滚动上限） */
+    _animateListHeight() {
+      const el = this.$refs.parentList;
+      if (!el) return;
+      const current = el.getBoundingClientRect().height;
+      el.style.transition = "none";            // 1. 关过渡，定格
+      el.style.height = current + "px";
+      requestAnimationFrame(() => {            // 2. 下一帧：DOM 已更新，读真实目标
+        const inner = el.querySelector(".parent-picker__scroll");
+        const contentH = inner ? inner.scrollHeight : el.scrollHeight;
+        const target = this.parentOpen ? Math.min(contentH, 210) : 0;
+        if (Math.abs(target - el.getBoundingClientRect().height) < 1) {
+          el.style.transition = "";
+          el.style.height = target + "px";     // 无变化也落定
+          return;
+        }
+        el.style.transition = "";              // 3. 恢复 CSS 过渡（0.3s ease）
+        el.style.height = target + "px";       // 4. 过渡到目标
+      });
     },
 
     /** 打开新建弹窗：加载全量项目树 → 默认归属 = 当前上下文目录 → 预填候选 */
@@ -185,11 +217,20 @@ Alpine.data("modalComponent", () => ({
       this.newDocParent = hit ? hit.value : target;
       this.newDocParentName = hit ? hit.label : "公共知识";
       this.parentHierarchy = hit ? hit.hierarchy : "所有项目";
-      this.parentSuggestions = _projectCandidates.slice(0, 5);
       this._browseAll = _projectCandidates || [];
       this._browseCount = 5;
+      this.parentSuggestions = this._browseSuggestions();
       this.parentIdx = -1;
       this.parentOpen = false;
+    },
+
+    /** 浏览候选：全量项目列表按分页切片，候选 q = 当前输入值（默认归属高亮，与搜索模式一致） */
+    _browseSuggestions() {
+      const q = this.newDocParentName || "";
+      return (this._browseAll || []).slice(0, this._browseCount).map((c) => ({
+        ...c,
+        q, // 高亮词 = 当前输入框内容（浏览模式也高亮默认归属；搜索模式由后端结果带 q）
+      }));
     },
 
     /** 递归加载全量项目树（顶层 + 所有层级子项目），缓存到模块级 */
@@ -266,11 +307,11 @@ Alpine.data("modalComponent", () => ({
       this.parentIdx = -1;
     },
 
-    /** 空输入浏览：本地项目树分页（每次 5，滚动到底加载更多） */
+    /** 空输入浏览：本地项目树分页（每次 5，滚动到底加载更多）；候选高亮词 = 当前输入值 */
     _refreshBrowse() {
       this._browseAll = _projectCandidates || [];
       this._browseCount = 5;
-      this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
+      this.parentSuggestions = this._browseSuggestions();
     },
 
     /** 后端项目级搜索（参考 ref：debounce + seq 过期丢弃） */
@@ -305,7 +346,7 @@ Alpine.data("modalComponent", () => ({
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
         if (this._browseCount >= this._browseAll.length) return;
         this._browseCount += 5;
-        this.parentSuggestions = this._browseAll.slice(0, this._browseCount);
+        this.parentSuggestions = this._browseSuggestions();
       }
     },
 

@@ -626,12 +626,12 @@
   left: 0;
   right: 0;
   z-index: 30;
-  /* 展开/收起动画：max-height + opacity 过渡（同 doc-card hover 面板手法）。
-     opacity 时长略长于 max-height → 收起时先淡出再折叠，柔和不突兀 */
-  max-height: 0;
+  /* 高度由 JS 两段式动画控制（候选数变化 5↔1 也平滑过渡）；
+     opacity 略长 → 收起时先淡出再折叠。默认 height:0 收起 */
+  height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.4s ease;
+  transition: height 0.3s ease, opacity 0.4s ease;
   /* 实色背景（--surface 是半透明，--surface-elevated/--surface-1 不存在 → 曾导致透明） */
   background: var(--bg-primary, var(--surface));
   border: 1px solid var(--border-subtle, var(--input-border));
@@ -640,9 +640,13 @@
 }
 
 .parent-picker__list.is-open {
-  /* 高度 = 约 4 个两行候选（每项约 52px）→ 5 个候选必然溢出 → 可滚动到底加载更多 */
-  max-height: 210px;
   opacity: 1;
+}
+
+/* 内层滚动容器：超高 210px 可滚动（5 个两行候选溢出 → 触发滚动加载） */
+.parent-picker__scroll {
+  min-height: 0;
+  max-height: 210px;
   overflow-y: auto;
 }
 

@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=12b00115aa" />
+  <link rel="stylesheet" href="css/components.css?v=4a4d26ac05" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=c3a14d2016"></script>
+  <script src="js/components/modal.js?v=7732441495"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1091,20 +1091,22 @@
                  @input="onParentInput()"
                  @keydown="onParentKeydown($event)"
                  @blur="parentOpen = false" />
-          <div class="parent-picker__list" :class="{ 'is-open': parentOpen }"
-               @scroll="onParentScroll($event)">
-            <template x-for="(c, i) in parentSuggestions" :key="c.value">
-              <div class="parent-picker__item"
-                   :class="{ 'is-active': i === parentIdx }"
-                   @mousedown.prevent="selectParent(c)"
-                   @mouseenter="parentIdx = i">
-                <div class="parent-picker__label" x-html="highlightMatch(c.label, c.q)"></div>
-                <div class="parent-picker__path" x-html="highlightMatch(c.summary, c.q)"></div>
+          <!-- 外层：高度由 JS 两段式动画控制（候选数变化也平滑）；内层：滚动容器（超高 210px 可滚） -->
+          <div class="parent-picker__list" x-ref="parentList" :class="{ 'is-open': parentOpen }">
+            <div class="parent-picker__scroll" @scroll="onParentScroll($event)">
+              <template x-for="(c, i) in parentSuggestions" :key="c.value">
+                <div class="parent-picker__item"
+                     :class="{ 'is-active': i === parentIdx }"
+                     @mousedown.prevent="selectParent(c)"
+                     @mouseenter="parentIdx = i">
+                  <div class="parent-picker__label" x-html="highlightMatch(c.label, c.q)"></div>
+                  <div class="parent-picker__path" x-html="highlightMatch(c.summary, c.q)"></div>
+                </div>
+              </template>
+              <!-- 搜索无匹配：占位提示（避免空壳下拉，有明确反馈） -->
+              <div class="parent-picker__empty" x-show="parentOpen && !parentSuggestions.length" x-cloak>
+                未找到匹配项目
               </div>
-            </template>
-            <!-- 搜索无匹配：占位提示（避免空壳下拉，有明确反馈） -->
-            <div class="parent-picker__empty" x-show="parentOpen && !parentSuggestions.length" x-cloak>
-              未找到匹配项目
             </div>
           </div>
         </div>
