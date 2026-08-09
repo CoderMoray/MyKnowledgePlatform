@@ -320,6 +320,41 @@ class TestNewDocParent:
         page.wait_for_timeout(600)
         assert page.locator(".parent-picker__item").count() >= 5, "删空应回浏览候选"
 
+    def test_no_duplicate_loads_on_reopen(self, static_server, test_docs, page):
+        """多次开关弹窗不重复加载项目树（缓存守卫）；快速输入合并搜索请求（debounce 防重）"""
+        reqs = []
+        page.on("request", lambda r: reqs.append(r.url) if "/api/" in r.url and r.method == "GET" else None)
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        page.locator(".sidebar-new-btn").click()
+        page.wait_for_selector("input[x-model='newDocName']", timeout=5000)
+        page.wait_for_timeout(1800)  # 等项目树 + readme 摘要拉取
+        n1_list = len([u for u in reqs if "/list/" in u])
+        n1_readme = len([u for u in reqs if "readme" in u])
+        # 关闭再打开：缓存应生效（0 新 list/readme 请求）
+        page.evaluate('Alpine.store("app").closeModal()')
+        page.wait_for_timeout(400)
+        page.locator(".sidebar-new-btn").click()
+        page.wait_for_selector("input[x-model='newDocName']", timeout=5000)
+        page.wait_for_timeout(1200)
+        n2_list = len([u for u in reqs if "/list/" in u])
+        n2_readme = len([u for u in reqs if "readme" in u])
+        assert n2_list == n1_list, f"二次打开不应重新加载项目树: list {n1_list}→{n2_list}"
+        assert n2_readme == n1_readme, f"二次打开不应重拉 readme 摘要: {n1_readme}→{n2_readme}"
+        # 快速逐字输入：debounce 合并成 1 个搜索请求（只发最终词）
+        search_urls = [u for u in reqs if "/api/search" in u]
+        reqs.clear()
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(200)
+        for ch in "MyKnowledge":
+            inp.type(ch, delay=50)  # 50ms < 300ms debounce
+        page.wait_for_timeout(1500)
+        search_now = [u for u in reqs if "/api/search" in u]
+        assert len(search_now) == 1, f"快速输入应合并为 1 个搜索请求，实际 {len(search_now)}: {search_now}"
+        final_q = urllib.parse.unquote(search_now[0].split("q=")[1].split("&")[0])
+        assert final_q == "MyKnowledge", f"应只发最终词 MyKnowledge，实际 q={final_q}"
+
     def test_special_chars_no_injection(self, static_server, test_docs, page):
         """特殊字符搜索词无 XSS/正则注入（转义渲染 + 无弹窗 + 无 JS 错误）"""
         self._open_picker(page, static_server)
