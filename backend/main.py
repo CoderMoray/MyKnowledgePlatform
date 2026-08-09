@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import resolve_root
 from backend.events import poll_version
-from backend.mcp_server import _lock_file, _lock_timeout, _pid_alive
+from backend.mcp_server import _lock_file, _lock_timeout, _pid_alive, _read_lock
 from backend.readme_generator import ReadmeGenerator
 from backend.storage import Storage
 
@@ -109,21 +109,16 @@ def get_storage() -> tuple[Storage, ReadmeGenerator]:
 def _check_write_allowed():
     """Raise 423 if another process holds a valid write lock."""
     from fastapi import HTTPException
-    lock = _lock_file(resolve_root())
-    if not lock.exists():
-        return
-    try:
-        pid, ts_str, *rest = lock.read_text(encoding="utf-8").split(":", 2)
-        ts = int(ts_str)
-        # 锁的持有进程已死（死锁）→ 视为无锁，不拦（与 acquire_lock 的死锁检测一致）
-        if time.time() - ts < _lock_timeout() and _pid_alive(int(pid)):
-            holder = rest[0] if rest else ""
-            detail = "AI 正在操作知识库，当前为只读模式。请稍后再试。"
-            if holder:
-                detail += f"（持有者: {holder}）"
-            raise HTTPException(423, detail)
-    except (ValueError, IndexError, OSError):
-        pass  # corrupt lock — ignore
+    info = _read_lock(resolve_root())
+    if info is None:
+        return  # 无锁 / 空锁（已释放）→ 放行
+    # 锁的持有进程已死（死锁）→ 视为无锁，不拦（与 acquire_lock 的死锁检测一致）
+    if time.time() - info["ts"] < _lock_timeout() and _pid_alive(info["pid"]):
+        holder = info.get("agent", "")
+        detail = "AI 正在操作知识库，当前为只读模式。请稍后再试。"
+        if holder:
+            detail += f"（持有者: {holder}）"
+        raise HTTPException(423, detail)
 
 
 def _guard_doc_write_path(path: str) -> None:
@@ -870,38 +865,28 @@ def _iso_local(ts: float) -> str:
 @app.get("/api/lock")
 def api_lock():
     """Return current lock status as JSON."""
-    lock = _lock_file(resolve_root())
-    if not lock.exists():
-        return {"locked": False}
-
-    try:
-        content = lock.read_text(encoding="utf-8")
-        if not content.strip():
-            # 释放态 = 空内容锁文件（release 清空而非删除）→ 未锁
-            return {"locked": False, "pid": None, "agent": "",
-                    "since_ts": None, "expires_ts": None,
-                    "since": None, "expires_at": None,
-                    "expired": False, "deadlock": False}
-        pid, ts_str, *rest = content.strip().split(":", 2)
-        ts = int(ts_str)
-        expires_ts = ts + _lock_timeout()
-        expired = time.time() > expires_ts
-        dead = not _pid_alive(int(pid))  # 死锁：持有进程已死 → 视为未锁
-        return {
-            "locked": not expired and not dead,
-            "pid": int(pid),
-            "agent": rest[0] if rest else "",
-            # epoch 秒 — 跨时区安全，前端 new Date(since_ts*1000) 直接可用
-            "since_ts": ts,
-            "expires_ts": expires_ts,
-            # 人类可读：带本地时区偏移的 ISO 8601
-            "since": _iso_local(ts),
-            "expires_at": _iso_local(expires_ts),
-            "expired": expired,
-            "deadlock": dead,
-        }
-    except (ValueError, IndexError, OSError):
-        return {"locked": False, "corrupt": True}
+    info = _read_lock(resolve_root())
+    if info is None:
+        # 无锁 / 空锁（已释放）/ 损坏 → 未锁
+        return {"locked": False, "corrupt": False}
+    ts = info["ts"]
+    expires_ts = ts + _lock_timeout()
+    expired = time.time() > expires_ts
+    dead = not _pid_alive(info["pid"])  # 死锁：持有进程已死 → 视为未锁
+    return {
+        "locked": not expired and not dead,
+        "pid": info["pid"],
+        "agent": info.get("agent", ""),
+        # epoch 秒 — 跨时区安全，前端 new Date(since_ts*1000) 直接可用
+        "since_ts": ts,
+        "expires_ts": expires_ts,
+        # 人类可读：带本地时区偏移的 ISO 8601
+        "since": _iso_local(ts),
+        "expires_at": _iso_local(expires_ts),
+        "expired": expired,
+        "deadlock": dead,
+        "corrupt": False,
+    }
 
 
 @app.post("/api/check")
