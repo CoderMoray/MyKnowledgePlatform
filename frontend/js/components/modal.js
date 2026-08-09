@@ -1,11 +1,16 @@
 document.addEventListener("alpine:init", () => {
+// 全量项目候选缓存（_ensureProjectTree 递归加载一次）：{label, hierarchy, value}
+let _projectCandidates = null;
 Alpine.data("modalComponent", () => ({
     newDocName: "",
     newDocSummary: "",
-    /** 新建文档归属目录（可编辑，默认当前上下文；输入匹配项目/子项目下拉） */
+    /** 新建文档归属：内部完整路径（创建用）+ 显示项目名 + 层级描述 */
     newDocParent: "",
+    newDocParentName: "",
+    parentHierarchy: "",
     parentSuggestions: [],
     parentOpen: false,
+    parentIdx: -1,          // 键盘导航高亮索引
     renameValue: "",
     creating: false,
     identityNickname: "",
@@ -36,8 +41,12 @@ Alpine.data("modalComponent", () => ({
 
       this.creating = true;
       try {
-        // 归属 = 用户可编辑的 newDocParent（默认当前上下文目录）；normalize 兜底
-        const parentPath = normalizeDocParentPath(this.newDocParent || "");
+        // 归属 = 用户选/输入的归属（显示名 + 完整路径分离）；解析成最终目录
+        const parentPath = this._resolveDocParent();
+        if (!parentPath) {
+          showToast("未找到匹配的项目目录，请从下拉中选择", "warning");
+          return;
+        }
         const fullPath = `${parentPath}/${name}.md`;
 
         await api.createDocument(fullPath, {
@@ -59,6 +68,16 @@ Alpine.data("modalComponent", () => ({
       } finally {
         this.creating = false;
       }
+    },
+
+    /** 解析最终归属目录：显示名与已选路径一致 → 用之；不一致（手改未选）→ 按名称匹配候选 */
+    _resolveDocParent() {
+      const name = (this.newDocParentName || "").trim();
+      const cands = _projectCandidates || [];
+      const cur = cands.find((c) => c.value === this.newDocParent);
+      if (cur && cur.label === name) return this.newDocParent;
+      const hit = cands.find((c) => c.label === name);
+      return hit ? hit.value : "";
     },
 
     async confirmDelete() {
@@ -147,44 +166,104 @@ Alpine.data("modalComponent", () => ({
           this.identityNickname = store.nickname || "";
           this.identityEmail = store.email || "";
         } else if (val === "new-doc") {
-          // 默认归属 = 当前上下文的目录（文档所在目录 / 项目 common-knowledge / 根）
-          this.newDocParent = normalizeDocParentPath(
-            (store.modalData && store.modalData.parentPath) || store.currentPath || "");
-          this.parentSuggestions = this.parentCandidates().slice(0, 8);
-          this.parentOpen = false;
+          this._initNewDocParent();
         }
       });
     },
 
-    /** 归属候选：根 + 顶层项目 + 当前项目页的子项目
-     *  每项 { label: 目标项目名, hierarchy: 层级小字, value: 完整目标目录 } */
-    parentCandidates() {
+    /** 打开新建弹窗：加载全量项目树 → 默认归属 = 当前上下文目录 → 预填候选 */
+    async _initNewDocParent() {
       const store = Alpine.store("app");
-      const cands = [{ label: "公共知识", hierarchy: "", value: "common-knowledge" }];
-      (store.projects || []).forEach((p) => {
-        if (p.path) cands.push(makeParentCandidate(`${p.path}/common-knowledge`));
-      });
-      (store.projectSubprojects || []).forEach((s) => {
-        if (s.path) cands.push(makeParentCandidate(`${s.path}/common-knowledge`));
-      });
-      return cands;
+      await this._ensureProjectTree();
+      const target = normalizeDocParentPath(
+        (store.modalData && store.modalData.parentPath) || store.currentPath || "");
+      const hit = _projectCandidates.find((c) => c.value === target);
+      this.newDocParent = hit ? hit.value : target;
+      this.newDocParentName = hit ? hit.label : "公共知识";
+      this.parentHierarchy = hit ? hit.hierarchy : "";
+      this.parentSuggestions = _projectCandidates.slice(0, 8);
+      this.parentIdx = -1;
+      this.parentOpen = false;
     },
 
-    /** 输入时按名称/路径过滤候选，展示下拉 */
+    /** 递归加载全量项目树（顶层 + 所有层级子项目），缓存到模块级 */
+    async _ensureProjectTree() {
+      if (_projectCandidates) return;
+      const allPaths = [];
+      // dir = "projects" / "archive"（项目根容器），items = 项目列表（项目本身）
+      async function walk(dir) {
+        let items = [];
+        try {
+          const data = await api.list(dir);
+          items = (data && data.items) || [];
+        } catch (_) { return; }
+        for (const proj of items) {
+          if (!proj.is_dir || /^\./.test(proj.name || "")) continue; // 跳过 .DS_Store 等
+          allPaths.push(proj.path);
+          await walkChildren(proj.path); // 递归：项目/projects/子项目/…
+        }
+      }
+      // 子项目容器：项目路径 + "/projects"，items = 子项目列表
+      async function walkChildren(projectPath) {
+        try {
+          const d = await api.list(`${projectPath}/projects`);
+          const children = (d && d.items) || [];
+          for (const child of children) {
+            if (!child.is_dir || /^\./.test(child.name || "")) continue;
+            allPaths.push(child.path);
+            await walkChildren(child.path);
+          }
+        } catch (_) { /* 无子项目容器 */ }
+      }
+      await walk("projects");
+      await walk("archive");
+      _projectCandidates = [
+        { label: "公共知识", hierarchy: "", value: "common-knowledge" },
+        ...allPaths.map((p) => makeParentCandidate(`${p}/common-knowledge`)),
+      ];
+    },
+
+    /** 输入匹配（label/完整路径 contains），全量候选 */
     onParentInput() {
-      const q = (this.newDocParent || "").trim().toLowerCase();
-      const all = this.parentCandidates();
+      const q = (this.newDocParentName || "").trim().toLowerCase();
+      const all = _projectCandidates || [];
       this.parentSuggestions = q
         ? all.filter((c) =>
             c.label.toLowerCase().includes(q) || c.value.toLowerCase().includes(q))
         : all.slice(0, 8);
       this.parentOpen = true;
+      this.parentIdx = -1;
     },
 
-    /** 选中下拉候选 → 填回输入框并收起下拉 */
-    selectParent(value) {
-      this.newDocParent = value;
+    /** 选中候选：填显示名 + 完整路径 + 层级，收起下拉 */
+    selectParent(item) {
+      if (!item) return;
+      this.newDocParentName = item.label;
+      this.newDocParent = item.value;
+      this.parentHierarchy = item.hierarchy;
       this.parentOpen = false;
+      this.parentIdx = -1;
+    },
+
+    /** 键盘导航：↑↓ 高亮，Enter 选中 */
+    onParentKeydown(e) {
+      const items = this.parentSuggestions;
+      if (!this.parentOpen || !items.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        this.parentIdx = (this.parentIdx + 1) % items.length;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        this.parentIdx = (this.parentIdx - 1 + items.length) % items.length;
+      } else if (e.key === "Enter") {
+        if (this.parentIdx >= 0 && this.parentIdx < items.length) {
+          e.preventDefault();
+          this.selectParent(items[this.parentIdx]);
+        }
+      } else if (e.key === "Escape") {
+        this.parentOpen = false;
+        this.parentIdx = -1;
+      }
     },
   }))
 });
