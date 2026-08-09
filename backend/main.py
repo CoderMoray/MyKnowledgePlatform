@@ -876,6 +876,12 @@ def api_lock():
 
     try:
         content = lock.read_text(encoding="utf-8")
+        if not content.strip():
+            # 释放态 = 空内容锁文件（release 清空而非删除）→ 未锁
+            return {"locked": False, "pid": None, "agent": "",
+                    "since_ts": None, "expires_ts": None,
+                    "since": None, "expires_at": None,
+                    "expired": False, "deadlock": False}
         pid, ts_str, *rest = content.strip().split(":", 2)
         ts = int(ts_str)
         expires_ts = ts + _lock_timeout()

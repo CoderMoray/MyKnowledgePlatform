@@ -52,7 +52,8 @@ class TestReleaseLock:
         storage = Storage(kb_root=tmp_kb_root)
         assert acquire_lock(storage) is True
         release_lock(storage)
-        assert not _lock_file(tmp_kb_root).exists()
+        # 释放 = 清空内容（不删文件），_read_lock 视为无锁
+        assert _lock_file(tmp_kb_root).read_text(encoding="utf-8") == ""
 
     def test_release_when_no_lock(self, tmp_kb_root: Path) -> None:
         storage = Storage(kb_root=tmp_kb_root)

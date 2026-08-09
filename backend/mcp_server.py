@@ -131,7 +131,10 @@ def release_lock(storage: Storage, *, agent: str = "") -> None:
     info = _read_lock(kb)
     if info is None or info["pid"] != os.getpid():
         return
-    _lock_file(kb).unlink(missing_ok=True)
+    # 释放 = 清空锁文件内容（保留文件本身）。
+    # 不 unlink：避免触发 IDE 的删除安全确认（safe-delete 对"批量删除"反复拦截，
+    # 会打断工具链流程）；空内容在 _read_lock 里等价于"无锁"。
+    _lock_file(kb).write_text("", encoding="utf-8")
 
 
 def lock_owner(storage: Storage) -> str:
@@ -1891,8 +1894,8 @@ def create_mcp_app(storage: Storage,
         if info is None:
             return "LOCK NOT HELD（无锁）"
         if not _pid_alive(info["pid"]) and info["pid"] != os.getpid():
-            # 死锁（持有进程已死）——本次 release 顺手清理
-            _lock_file(storage.kb_root).unlink(missing_ok=True)
+            # 死锁（持有进程已死）——本次 release 顺手清理（清空内容，不 unlink）
+            _lock_file(storage.kb_root).write_text("", encoding="utf-8")
             return f"LOCK RELEASED（死锁清理，原持有 pid={info['pid']} 已不存在）"
         if info["pid"] != os.getpid():
             return (

@@ -143,11 +143,11 @@ class TestLock:
         r = asyncio.run(app_with_git.call_tool("maint__release_lock", {}))
         assert "BUSY" in str(r)
         assert (tmp_kb_root / ".lock").exists()  # 他人锁没被删
-        # 死锁（不存在的 pid）→ 顺手清理
+        # 死锁（不存在的 pid）→ 顺手清理（清空内容）
         self._write_lock(tmp_kb_root, pid=999998, ts=int(time.time()))
         r = asyncio.run(app_with_git.call_tool("maint__release_lock", {}))
         assert "死锁清理" in str(r)
-        assert not (tmp_kb_root / ".lock").exists()
+        assert (tmp_kb_root / ".lock").read_text(encoding="utf-8") == ""
 
     def test_release_keeps_other_pid_lock(self, storage: Storage,
                                           tmp_kb_root: Path) -> None:
@@ -162,12 +162,12 @@ class TestLock:
                                 tmp_kb_root: Path) -> None:
         """Lock held by this process is re-entrant: no error, no release."""
         from backend.mcp_server import (acquire_lock, release_lock,
-                                        _lock_enter)
+                                        _lock_enter, _read_lock)
         assert acquire_lock(storage) is True
         assert _lock_enter(storage) is False  # re-entered — caller must NOT release
-        assert (tmp_kb_root / ".lock").exists()  # outer holder still owns it
+        assert _read_lock(tmp_kb_root) is not None  # outer holder still owns it
         release_lock(storage)
-        assert not (tmp_kb_root / ".lock").exists()
+        assert _read_lock(tmp_kb_root) is None  # released（空内容 = 无锁）
 
     def test_agent_tag_and_acquire_tool(self, app_with_git, storage: Storage,
                                         tmp_kb_root: Path) -> None:

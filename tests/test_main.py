@@ -815,7 +815,7 @@ class TestApiRenameDocument:
         # original unchanged
         assert (tmp_kb_root / "common-knowledge" / "a.md").is_file()
         # lock released even on error
-        assert not _lock_file(tmp_kb_root).exists()
+        assert _lock_file(tmp_kb_root).read_text(encoding="utf-8") == ""
 
     def test_rename_nonexistent_400(self, client, tmp_kb_root: Path):
         resp = self._rename(client, "common-knowledge/nope.md", "new.md")
@@ -828,7 +828,7 @@ class TestApiRenameDocument:
         resp = self._rename(client, "common-knowledge/lock.md", "renamed.md")
         assert resp.status_code == 200
         # Lock MUST be released (frontend gets stuck read-only if left)
-        assert not _lock_file(tmp_kb_root).exists()
+        assert _lock_file(tmp_kb_root).read_text(encoding="utf-8") == ""
 
     def test_lock_released_on_failure(self, client, tmp_kb_root: Path):
         """Lock released even when rename fails (finally guarantees it)."""
@@ -837,7 +837,7 @@ class TestApiRenameDocument:
         self._make(storage, "common-knowledge/taken.md")
         resp = self._rename(client, "common-knowledge/fail.md", "taken.md")
         assert resp.status_code == 400
-        assert not _lock_file(tmp_kb_root).exists()
+        assert _lock_file(tmp_kb_root).read_text(encoding="utf-8") == ""
 
     def test_special_char_paths(self, client, tmp_kb_root: Path):
         """Chinese / spaces / parentheses in filenames."""
