@@ -481,6 +481,55 @@ class TestApiSearch:
         assert "common-knowledge/visible.md" in paths
         assert not any(".hidden" in p for p in paths)
 
+    def test_search_kind_projects(self, client, tmp_kb_root: Path):
+        """kind=projects 只返回项目 readme 命中；根 readme 与 common-knowledge 文档不参与。"""
+        storage = Storage(kb_root=tmp_kb_root)
+        storage.write_readme("projects/养老项目", {"name": "养老项目", "summary": "养老金专项研究"},
+                             "# 养老项目\n\n项目正文含养老金调研计划")
+        storage.write_readme("projects/养老项目/projects/子项目A",
+                             {"name": "子项目A", "summary": "子级摘要"},
+                             "# 子项目A\n\n子项目正文")
+        # 根 readme（全局索引，不应作为项目返回）
+        (tmp_kb_root / "readme.md").write_text("# 养老金全局索引", encoding="utf-8")
+        # common-knowledge 文档命中（kind=projects 不应返回）
+        _create_test_doc(storage, "common-knowledge/养老金方案.md", "养老金正文")
+
+        r = client.get("/api/search", params={"q": "养老金", "kind": "projects"})
+        assert r.status_code == 200
+        data = r.json()
+        paths = [x["path"] for x in data["results"]]
+        assert "projects/养老项目" in paths
+        assert not any(p.startswith("common-knowledge") for p in paths)
+        assert not any("readme.md" in p for p in paths)
+
+        # kind=all 仍排除 readme（文档搜索语义不变）
+        r2 = client.get("/api/search", params={"q": "养老金"})
+        paths2 = [x["path"] for x in r2.json()["results"]]
+        assert "common-knowledge/养老金方案.md" in paths2
+        assert not any("readme.md" in p for p in paths2)
+
+    def test_search_summary_ranking(self, client, tmp_kb_root: Path):
+        """摘要命中加入排序：title+summary+body > title+summary > summary > body。"""
+        storage = Storage(kb_root=tmp_kb_root)
+        storage.write_document("common-knowledge/Alpha.md", {"summary": "含养老金关键词摘要"},
+                               "正文含养老金", auto_id=True)      # 7 title? 不——title=Alpha 无"养老金"
+        storage.write_document("common-knowledge/养老金Beta.md", {"summary": "养老金专项"},
+                               "正文无关", auto_id=True)          # 6 title+summary
+        storage.write_document("common-knowledge/Gamma.md", {"summary": "养老金研究"},
+                               "正文无关", auto_id=True)          # 2 summary only
+        storage.write_document("common-knowledge/Delta.md", {"summary": "无关"},
+                               "正文提到养老金", auto_id=True)     # 1 body only
+
+        r = client.get("/api/search", params={"q": "养老金"})
+        paths = [x["path"] for x in r.json()["results"]]
+        # Alpha：title(无)+summary+body → 4；Beta：6；Gamma：2；Delta：1
+        assert paths == [
+            "common-knowledge/养老金Beta.md",  # 6 title+summary
+            "common-knowledge/Alpha.md",       # 4 summary+body
+            "common-knowledge/Gamma.md",       # 2 summary only
+            "common-knowledge/Delta.md",       # 1 body only
+        ]
+
 
 class TestApiUpdateDocument:
     """Test PUT /api/document/{path} — update and no-op behavior."""

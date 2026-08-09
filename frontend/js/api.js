@@ -173,9 +173,10 @@ const api = {
     });
   },
 
-  /* ── 搜索 API（编辑态引用搜索） ────────────────────────────────────── */
-  async searchDocuments(q, limit = 20) {
-    return apiRequest(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  /* ── 搜索 API（编辑态引用搜索 / 归属项目选择） ─────────────────────── */
+  async searchDocuments(q, limit = 20, kind = "all") {
+    // kind: all=文档搜索（标题/摘要/正文组合权重排序）/ projects=项目级搜索（只匹配项目 readme）
+    return apiRequest(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}&kind=${encodeURIComponent(kind)}`);
   },
 
   /* ── 垃圾箱 API ─────────────────────────────────────────────────────── */

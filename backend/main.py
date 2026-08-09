@@ -1036,13 +1036,21 @@ def _make_snippet(body: str, q_lower: str, radius: int = 40) -> str:
 
 
 @app.get("/api/search")
-def api_search(q: str = "", limit: int = 20):
-    """Full-KB document search (ranked by title/body hits).
+def api_search(q: str = "", limit: int = 20, kind: str = "all"):
+    """Full-KB search.
 
     Returns ``{"results": [{path, title, summary, snippet}], "total": N}``.
-    Ranking: title+body > title-only > body-only; ties break by path.
-    readme.md (layer indexes), trash/, _templates/, _refs/, publish/
-    are excluded.
+
+    ``kind``:
+      - ``all`` (default): document search.  Title/summary/body hit
+        combinations are ranked:
+        title+summary+body > title+summary > title+body > summary+body
+        > title > summary > body.  readme.md (layer indexes), trash/,
+        _templates/, _refs/, publish/ are excluded.
+      - ``projects``: project-level search.  Matches each project's
+        ``readme.md`` (project name / summary / body) and returns the
+        *project directory* as ``path`` — never matches documents under
+        ``common-knowledge``.  Root ``readme.md`` is excluded.
     """
     storage, _ = get_storage()
     q = (q or "").strip()
@@ -1054,33 +1062,79 @@ def api_search(q: str = "", limit: int = 20):
 
     hidden = {"_templates", "trash", "_refs", "publish"}
     hits: list[dict] = []
-    for md in storage.kb_root.rglob("*.md"):
-        rel_parts = md.relative_to(storage.kb_root).parts
-        # dot 文件/目录（.DS_Store/.hidden.md/.git 等）与 __pycache__ 一律排除
-        if any(p.startswith(".") for p in rel_parts) or "__pycache__" in rel_parts:
-            continue
-        if any(p in hidden for p in rel_parts):
-            continue
-        if md.name == "readme.md":
-            continue
-        rel = md.relative_to(storage.kb_root).as_posix()
-        try:
-            meta, body = storage.read_document(rel)
-        except Exception:
-            continue
-        title = md.stem  # filename without .md
+
+    def _score(title: str, summary: str, body: str) -> tuple[int, bool, bool, bool]:
         hit_title = q_lower in title.lower()
+        hit_summary = q_lower in (summary or "").lower()
         hit_body = q_lower in body.lower()
-        if not (hit_title or hit_body):
-            continue
-        score = 3 if (hit_title and hit_body) else (2 if hit_title else 1)
-        hits.append({
-            "path": rel,
-            "title": title,
-            "summary": meta.get("summary", ""),
-            "snippet": _make_snippet(body, q_lower) if hit_body else "",
-            "score": score,
-        })
+        if not (hit_title or hit_summary or hit_body):
+            return 0, False, False, False
+        score = (
+            7 if hit_title and hit_summary and hit_body else
+            6 if hit_title and hit_summary else
+            5 if hit_title and hit_body else
+            4 if hit_summary and hit_body else
+            3 if hit_title else
+            2 if hit_summary else
+            1
+        )
+        return score, hit_title, hit_summary, hit_body
+
+    if kind == "projects":
+        # 项目级搜索：各层级项目的 readme.md（排除根 readme）
+        for md in storage.kb_root.rglob("*.md"):
+            if md.name != "readme.md":
+                continue
+            rel = md.relative_to(storage.kb_root).as_posix()
+            parts = rel.split("/")
+            if len(parts) < 2 or parts[0] not in ("projects", "archive"):
+                continue
+            if any(p.startswith(".") for p in parts) or any(p in hidden for p in parts):
+                continue
+            try:
+                meta, body = storage.read_document(rel)
+            except Exception:
+                continue
+            title = parts[-2]  # 项目名 = readme 所在目录名
+            project_path = rel.rsplit("/readme.md", 1)[0]
+            score, hit_title, hit_summary, hit_body = _score(
+                title, meta.get("summary", ""), body)
+            if not score:
+                continue
+            hits.append({
+                "path": project_path,
+                "title": title,
+                "summary": meta.get("summary", ""),
+                "snippet": _make_snippet(body, q_lower) if hit_body else "",
+                "score": score,
+            })
+    else:
+        for md in storage.kb_root.rglob("*.md"):
+            rel_parts = md.relative_to(storage.kb_root).parts
+            # dot 文件/目录（.DS_Store/.hidden.md/.git 等）与 __pycache__ 一律排除
+            if any(p.startswith(".") for p in rel_parts) or "__pycache__" in rel_parts:
+                continue
+            if any(p in hidden for p in rel_parts):
+                continue
+            if md.name == "readme.md":
+                continue
+            rel = md.relative_to(storage.kb_root).as_posix()
+            try:
+                meta, body = storage.read_document(rel)
+            except Exception:
+                continue
+            title = md.stem  # filename without .md
+            score, hit_title, hit_summary, hit_body = _score(
+                title, meta.get("summary", ""), body)
+            if not score:
+                continue
+            hits.append({
+                "path": rel,
+                "title": title,
+                "summary": meta.get("summary", ""),
+                "snippet": _make_snippet(body, q_lower) if hit_body else "",
+                "score": score,
+            })
 
     hits.sort(key=lambda r: (-r["score"], r["path"]))
     total = len(hits)

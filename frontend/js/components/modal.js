@@ -11,6 +11,8 @@ Alpine.data("modalComponent", () => ({
     parentSuggestions: [],
     parentOpen: false,
     parentIdx: -1,          // 键盘导航高亮索引
+    _parentSearchTimer: null,
+    _parentSearchSeq: 0,
     renameValue: "",
     creating: false,
     identityNickname: "",
@@ -223,16 +225,32 @@ Alpine.data("modalComponent", () => ({
       ];
     },
 
-    /** 输入匹配（label/完整路径 contains），全量候选 */
+    /** 输入匹配：非空 → 后端项目级搜索（标题/摘要/正文，kind=projects，300ms debounce）；
+     *  空输入 → 本地项目树前 8（浏览）。参考 ref link-popover 的搜索交互（seq 丢弃过期响应） */
     onParentInput() {
-      const q = (this.newDocParentName || "").trim().toLowerCase();
-      const all = _projectCandidates || [];
-      this.parentSuggestions = q
-        ? all.filter((c) =>
-            c.label.toLowerCase().includes(q) || c.value.toLowerCase().includes(q))
-        : all.slice(0, 8);
-      this.parentOpen = true;
-      this.parentIdx = -1;
+      const q = (this.newDocParentName || "").trim();
+      if (!q) {
+        this.parentSuggestions = (_projectCandidates || []).slice(0, 8);
+        this.parentOpen = true;
+        this.parentIdx = -1;
+        return;
+      }
+      clearTimeout(this._parentSearchTimer);
+      const seq = ++this._parentSearchSeq;
+      this._parentSearchTimer = setTimeout(async () => {
+        try {
+          const data = await api.searchDocuments(q, 20, "projects");
+          if (seq !== this._parentSearchSeq) return; // 过期响应丢弃
+          // 后端项目级结果 {path: 项目目录, title, summary} → 候选格式
+          this.parentSuggestions = ((data && data.results) || []).map((r) => ({
+            label: r.title || String(r.path || "").split("/").pop() || "",
+            value: `${r.path}/common-knowledge`,
+            hierarchy: makeParentHierarchy(r.path),
+          }));
+          this.parentOpen = true;
+          this.parentIdx = -1;
+        } catch (_) { /* 搜索失败静默 */ }
+      }, 300);
     },
 
     /** 选中候选：填显示名 + 完整路径 + 层级，收起下拉 */
@@ -286,6 +304,13 @@ function normalizeDocParentPath(p) {
   return p;
 }
 
+/** 从项目路径（projects/A/B）解析层级小字：表层「主要项目」、多级「A / B」 */
+function makeParentHierarchy(projectPath) {
+  const chain = (projectPath || "").replace(/^(?:projects|archive)\//, "").split("/");
+  if (!chain[0]) return "";
+  return chain.length > 1 ? chain.join(" / ") : "主要项目";
+}
+
 /** 从完整目标目录构造候选：{ label: 目标项目名, hierarchy: 层级, value }
  *  projects/A/B/common-knowledge → label=B, hierarchy="A / B"
  *  projects/X/common-knowledge   → label=X, hierarchy="主要项目"（表层项目）
@@ -296,7 +321,7 @@ function makeParentCandidate(value) {
   const chain = m[1].split("/");
   return {
     label: chain[chain.length - 1],
-    hierarchy: chain.length > 1 ? chain.join(" / ") : "主要项目",
+    hierarchy: makeParentHierarchy(m[1]),
     value,
   };
 }
