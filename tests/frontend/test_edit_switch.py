@@ -282,14 +282,13 @@ class TestNewDocParent:
         # 点击（不搜索，打开浏览）→ 输入"公共知识"
         inp.click()
         page.wait_for_timeout(300)
-        n_before = page.locator(".parent-picker__item").count()
         inp.fill("公共知识")
         page.wait_for_timeout(1000)
         search_hits = [u for u in requests if urllib.parse.unquote(u).find("q=公共知识") >= 0]
         assert search_hits, f"输入'公共知识'应触发搜索请求，实际: {requests}"
         labels = self._candidate_labels(page)
         assert "公共知识" in labels, f"搜索结果应含公共知识: {labels}"
-        # 再输入"MyKnowledge"（长度变化 → 也触发）
+        # 再输入"MyKnowledge"（替换 → 也触发）
         requests.clear()
         inp.fill("MyKnowledge")
         page.wait_for_timeout(1000)
@@ -297,6 +296,45 @@ class TestNewDocParent:
         assert search_hits2, f"输入'MyKnowledge'应触发搜索请求，实际: {requests}"
         labels2 = self._candidate_labels(page)
         assert "MyKnowledge 项目知识管理平台" in labels2, f"搜索结果应含 MyKnowledge: {labels2}"
+
+    def test_delete_also_triggers_search(self, static_server, test_docs, page):
+        """删除文字也触发搜索（用户新需求：任何文本变动都该触发）"""
+        self._open_picker(page, static_server)
+        requests = []
+        page.on("request", lambda r: requests.append(r.url) if "/api/search" in r.url else None)
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(300)
+        # 先输入完整词触发一次搜索
+        inp.fill("MyKnowledge")
+        page.wait_for_timeout(1000)
+        n_before = len(requests)
+        # 删除一部分 → 应再次触发搜索
+        inp.fill("MyKnow")
+        page.wait_for_timeout(1000)
+        search_hits = [u for u in requests[n_before:] if urllib.parse.unquote(u).find("q=MyKnow") >= 0]
+        assert search_hits, f"删除文字应触发搜索（用户新需求），新增请求: {requests[n_before:]}"
+        # 删空 → 回浏览模式
+        requests.clear()
+        inp.fill("")
+        page.wait_for_timeout(600)
+        assert page.locator(".parent-picker__item").count() >= 5, "删空应回浏览候选"
+
+    def test_special_chars_no_injection(self, static_server, test_docs, page):
+        """特殊字符搜索词无 XSS/正则注入（转义渲染 + 无弹窗 + 无 JS 错误）"""
+        self._open_picker(page, static_server)
+        dialogs = []
+        page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(300)
+        for evil in ["[abc", "(x|y)", "*wild", "a\\b",
+                     "<script>alert(1)</script>", '&"><img src=x onerror=alert(2)>']:
+            inp.fill(evil)
+            page.wait_for_timeout(900)
+            assert not dialogs, f"XSS 被执行: {dialogs}"
+        # 最终无匹配 → 占位正常显示（说明搜索链路无 JS 崩溃）
+        assert page.locator(".parent-picker__empty").is_visible(), "特殊字符应无匹配并显示占位"
 
     def test_click_without_change_does_not_search(self, static_server, test_docs, page):
         """点击输入框（内容未变）不触发搜索，只打开浏览候选"""

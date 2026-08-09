@@ -188,7 +188,6 @@ Alpine.data("modalComponent", () => ({
       this.parentSuggestions = _projectCandidates.slice(0, 5);
       this._browseAll = _projectCandidates || [];
       this._browseCount = 5;
-      this._parentLastVal = this.newDocParentName; // 基准：打开时的值（内容变化才搜索）
       this.parentIdx = -1;
       this.parentOpen = false;
     },
@@ -256,22 +255,13 @@ Alpine.data("modalComponent", () => ({
       this.parentIdx = -1;
     },
 
-    /** 输入事件（触发 = 用户在打字；点击 select 不触发 input）：
-     *  - 纯删除（值缩短且为新值前缀）→ 不重搜（保持当前结果）；删到空 → 本地浏览
-     *  - 其余（新增/替换/重输同内容）→ 后端搜索（kind=projects，300ms debounce） */
+    /** 输入事件（触发 = 用户打字；点击 select 不触发 input，走 onParentClick）：
+     *  任何 input 都搜索（新增/删除/替换/重输同内容，用户要求"文本变动都触发"）；
+     *  删空 → 本地浏览。300ms debounce + seq 丢弃过期响应（同 ref 搜索）。 */
     onParentInput() {
       const raw = this.newDocParentName || "";
-      const prev = this._parentLastVal;
-      if (prev && prev.startsWith(raw) && raw.length < prev.length) {
-        // 纯删除：不重搜；删空 → 浏览
-        this._parentLastVal = raw;
-        if (!raw.trim()) this._refreshBrowse();
-      } else {
-        // input 事件 = 用户明确输入（即使内容与上次相同，如替换成同名）→ 搜索
-        this._parentLastVal = raw;
-        if (raw.trim()) this._doParentSearch(raw.trim());
-        else this._refreshBrowse();
-      }
+      if (raw.trim()) this._doParentSearch(raw.trim());
+      else this._refreshBrowse();
       this.parentOpen = true;
       this.parentIdx = -1;
     },
