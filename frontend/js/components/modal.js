@@ -298,9 +298,11 @@ Alpine.data("modalComponent", () => ({
 
     /** 输入事件（触发 = 用户打字；点击 select 不触发 input，走 onParentClick）：
      *  任何 input 都搜索（新增/删除/替换/重输同内容，用户要求"文本变动都触发"）；
-     *  删空 → 本地浏览。300ms debounce + seq 丢弃过期响应（同 ref 搜索）。 */
+     *  删空 → 本地浏览。300ms debounce + seq 丢弃过期响应（同 ref 搜索）。
+     *  输入即清空层级提示（未选中状态，避免残留上次选择的层级内容） */
     onParentInput() {
       const raw = this.newDocParentName || "";
+      this.parentHierarchy = ""; // 输入 = 未选中，清掉上次选择残留
       if (raw.trim()) this._doParentSearch(raw.trim());
       else this._refreshBrowse();
       this.parentOpen = true;
