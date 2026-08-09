@@ -619,7 +619,6 @@
   font-weight: 500;
   color: var(--accent, var(--text-primary, inherit));
 }
-}
 
 .parent-picker__list {
   position: absolute;
