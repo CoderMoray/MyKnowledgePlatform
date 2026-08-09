@@ -591,9 +591,16 @@
 /* 新建文档：归属位置选择器（输入匹配 + 下拉） */
 .modal__label {
   display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary, inherit);
+  margin-bottom: 6px;
+}
+
+.modal__label-required {
+  font-weight: 400;
   font-size: var(--text-xs);
-  color: var(--text-muted);
-  margin-bottom: 4px;
+  color: var(--color-danger, #d9534f);
 }
 
 .parent-picker {
@@ -605,11 +612,13 @@
   margin-bottom: 0;
 }
 
-/* 层级描述（输入框下方小字，如「主要项目」/「父 / 子 / 目标」） */
+/* 层级描述（输入框上方小字，主题色醒目，如「主要项目」/「父 / 子 / 目标」） */
 .parent-picker__hierarchy-hint {
-  margin-top: 4px;
+  margin-bottom: 6px;
   font-size: var(--text-xs);
-  color: var(--text-muted, rgba(0, 0, 0, 0.4));
+  font-weight: 500;
+  color: var(--accent, var(--text-primary, inherit));
+}
 }
 
 .parent-picker__list {

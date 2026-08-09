@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=2ae19f069c" />
+  <link rel="stylesheet" href="css/components.css?v=9d2cd677e5" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -1081,6 +1081,8 @@
         </p>
         <div class="parent-picker">
           <label class="modal__label">归属项目</label>
+          <div class="parent-picker__hierarchy-hint" x-show="parentHierarchy" x-cloak
+               x-text="parentHierarchy"></div>
           <input class="modal__input" type="text"
                  x-model="newDocParentName"
                  placeholder="输入项目名称匹配，或从下拉选择"
@@ -1088,8 +1090,6 @@
                  @focus="onParentInput()"
                  @keydown="onParentKeydown($event)"
                  @blur="parentOpen = false" />
-          <div class="parent-picker__hierarchy-hint" x-show="parentHierarchy" x-cloak
-               x-text="parentHierarchy"></div>
           <div class="parent-picker__list" x-show="parentOpen" x-cloak
                @scroll="onParentScroll($event)">
             <template x-for="(c, i) in parentSuggestions" :key="c.value">
@@ -1103,10 +1103,12 @@
             </template>
           </div>
         </div>
+        <label class="modal__label">文档名称</label>
         <input class="modal__input" type="text"
                x-model="newDocName"
                placeholder="文档名称（如：项目方案）"
                @keyup.enter="createDocument()" />
+        <label class="modal__label">摘要 <span class="modal__label-required">（必填）</span></label>
         <input class="modal__input" type="text"
                x-model="newDocSummary"
                placeholder="摘要（必填）" />
