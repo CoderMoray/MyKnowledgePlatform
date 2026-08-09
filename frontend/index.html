@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=59d75bbc3b" />
+  <link rel="stylesheet" href="css/components.css?v=d00d70e634" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=23615631c5"></script>
+  <script src="js/components/modal.js?v=34dd51db10"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1077,8 +1077,25 @@
       <div class="modal">
         <h2 class="modal__title">新建文档</h2>
         <p class="modal__description">
-          在 <strong x-text="$store.app.modalData?.parentPath || '根目录'"></strong> 下创建新文档
+          创建后跳转到新文档（编辑态）。归属目录可输入匹配项目，或从下拉选择。
         </p>
+        <div class="parent-picker">
+          <label class="modal__label">归属位置</label>
+          <input class="modal__input" type="text"
+                 x-model="newDocParent"
+                 placeholder="选择或输入项目目录，如 projects/项目名/common-knowledge"
+                 @input="onParentInput()"
+                 @focus="onParentInput()"
+                 @blur="parentOpen = false" />
+          <div class="parent-picker__list" x-show="parentOpen" x-cloak>
+            <template x-for="c in parentSuggestions" :key="c.value">
+              <div class="parent-picker__item" @mousedown.prevent="selectParent(c.value)">
+                <span class="parent-picker__label" x-text="c.label"></span>
+                <span class="parent-picker__path" x-text="c.value"></span>
+              </div>
+            </template>
+          </div>
+        </div>
         <input class="modal__input" type="text"
                x-model="newDocName"
                placeholder="文档名称（如：项目方案）"

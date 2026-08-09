@@ -2,6 +2,10 @@ document.addEventListener("alpine:init", () => {
 Alpine.data("modalComponent", () => ({
     newDocName: "",
     newDocSummary: "",
+    /** 新建文档归属目录（可编辑，默认当前上下文；输入匹配项目/子项目下拉） */
+    newDocParent: "",
+    parentSuggestions: [],
+    parentOpen: false,
     renameValue: "",
     creating: false,
     identityNickname: "",
@@ -32,10 +36,8 @@ Alpine.data("modalComponent", () => ({
 
       this.creating = true;
       try {
-        // parentPath 语义 = "目标目录"，而调用方传的是 currentPath（可能是文档/项目路径）：
-        // 统一规整——文档路径 → 所在目录；项目路径 → 其 common-knowledge；空 → 根 common-knowledge
-        const raw = store.modalData?.parentPath || "";
-        const parentPath = normalizeDocParentPath(raw);
+        // 归属 = 用户可编辑的 newDocParent（默认当前上下文目录）；normalize 兜底
+        const parentPath = normalizeDocParentPath(this.newDocParent || "");
         const fullPath = `${parentPath}/${name}.md`;
 
         await api.createDocument(fullPath, {
@@ -46,6 +48,7 @@ Alpine.data("modalComponent", () => ({
 
         showToast("文档已创建", "success");
         store.closeModal();
+        // 创建后跳转到新文档（编辑态）
         window.location.hash = `edit/${hashEncode(fullPath)}`;
       } catch (err) {
         if (err.isLocked) {
@@ -143,8 +146,46 @@ Alpine.data("modalComponent", () => ({
         if (val === "edit-identity") {
           this.identityNickname = store.nickname || "";
           this.identityEmail = store.email || "";
+        } else if (val === "new-doc") {
+          // 默认归属 = 当前上下文的目录（文档所在目录 / 项目 common-knowledge / 根）
+          this.newDocParent = normalizeDocParentPath(
+            (store.modalData && store.modalData.parentPath) || store.currentPath || "");
+          this.parentSuggestions = this.parentCandidates().slice(0, 8);
+          this.parentOpen = false;
         }
       });
+    },
+
+    /** 归属候选：根 + 顶层项目 + 当前项目页的子项目（value = 完整目标目录） */
+    parentCandidates() {
+      const store = Alpine.store("app");
+      const cands = [{ label: "根目录", value: "common-knowledge" }];
+      (store.projects || []).forEach((p) => {
+        const name = p.name || String(p.path || "").split("/").pop() || "";
+        if (p.path) cands.push({ label: name, value: `${p.path}/common-knowledge` });
+      });
+      (store.projectSubprojects || []).forEach((s) => {
+        const name = s.name || String(s.path || "").split("/").pop() || "";
+        if (s.path) cands.push({ label: `${name}（子项目）`, value: `${s.path}/common-knowledge` });
+      });
+      return cands;
+    },
+
+    /** 输入时按名称/路径过滤候选，展示下拉 */
+    onParentInput() {
+      const q = (this.newDocParent || "").trim().toLowerCase();
+      const all = this.parentCandidates();
+      this.parentSuggestions = q
+        ? all.filter((c) =>
+            c.label.toLowerCase().includes(q) || c.value.toLowerCase().includes(q))
+        : all.slice(0, 8);
+      this.parentOpen = true;
+    },
+
+    /** 选中下拉候选 → 填回输入框并收起下拉 */
+    selectParent(value) {
+      this.newDocParent = value;
+      this.parentOpen = false;
     },
   }))
 });
@@ -152,7 +193,7 @@ Alpine.data("modalComponent", () => ({
 /** 把"当前文档/项目路径"规整为"新建文档的目标目录"：
  *  文档路径 …/common-knowledge/A.md → …/common-knowledge（所在目录）
  *  项目路径 projects/X（或 archive/X）→ projects/X/common-knowledge
- *  目录（common-knowledge / projects/X/common-knowledge）→ 保持
+ *  已是完整目录（common-knowledge / …/common-knowledge）→ 保持（防重复追加）
  *  空 → common-knowledge（根） */
 function normalizeDocParentPath(p) {
   if (!p) return "common-knowledge";
@@ -160,6 +201,7 @@ function normalizeDocParentPath(p) {
     const i = p.lastIndexOf("/");
     return i > 0 ? p.slice(0, i) : "common-knowledge";
   }
+  if (p === "common-knowledge" || p.endsWith("/common-knowledge")) return p;
   if (p.startsWith("projects/") || p.startsWith("archive/")) {
     return `${p.replace(/\/+$/, "")}/common-knowledge`;
   }

@@ -588,6 +588,67 @@
   margin: 4px 0 0;
 }
 
+/* 新建文档：归属位置选择器（输入匹配 + 下拉） */
+.modal__label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.parent-picker {
+  position: relative;
+  margin-bottom: var(--space-4);
+}
+
+.parent-picker .modal__input {
+  margin-bottom: 0;
+}
+
+.parent-picker__list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface-elevated, var(--surface-1));
+  border: var(--input-border);
+  border-radius: var(--input-radius);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.12));
+}
+
+.parent-picker__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.parent-picker__item:hover {
+  background: var(--surface-hover, rgba(0,0,0,0.05));
+}
+
+.parent-picker__label {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.parent-picker__path {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    用户菜单
    ═══════════════════════════════════════════════════════════════════════════ */
