@@ -626,11 +626,12 @@
   left: 0;
   right: 0;
   z-index: 30;
-  /* 展开动画：max-height + opacity 过渡（同 doc-card hover 面板手法），非突变 */
+  /* 展开/收起动画：max-height + opacity 过渡（同 doc-card hover 面板手法）。
+     opacity 时长略长于 max-height → 收起时先淡出再折叠，柔和不突兀 */
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height 0.25s ease, opacity 0.2s ease;
+  transition: max-height 0.3s ease, opacity 0.4s ease;
   /* 实色背景（--surface 是半透明，--surface-elevated/--surface-1 不存在 → 曾导致透明） */
   background: var(--bg-primary, var(--surface));
   border: 1px solid var(--border-subtle, var(--input-border));

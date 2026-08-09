@@ -200,3 +200,111 @@ class TestFramework:
         """fixtures（后端/静态服务/浏览器/测试文档）就绪"""
         open_doc(page, static_server, DOC_MAIN)
         assert shown_title(page) == "test-edit-auto-main"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 新建文档：归属选择器（全量候选 + 无垃圾项 + 搜索触发）——逻辑检查，不靠肉眼
+# ═══════════════════════════════════════════════════════════════════════
+class TestNewDocParent:
+    """归属下拉：候选全量数、垃圾项过滤、滚动加载、搜索触发（用户强调'逻辑检查'）"""
+
+    EXPECTED_CANDIDATES = {
+        "公共知识",
+        "MyKnowledge 项目知识管理平台",
+        "产品分发与部署",
+        "前端设计与开发",
+        "后端设计与开发",
+        "Training 人员培训",
+        "AEP（销售能力评估）项目学习报告",
+    }
+    RESERVED_BAD = {"archive", "common-knowledge", "projects", "readme.md"}
+
+    def _open_picker(self, page, static_server):
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        page.locator(".sidebar-new-btn").click()
+        page.wait_for_selector("input[x-model='newDocName']", timeout=5000)
+        page.wait_for_timeout(1500)  # 等 _ensureProjectTree + readme 摘要拉取
+
+    def _scroll_picker_to_bottom(self, page):
+        """滚动下拉到底，触发分页加载（+5/次），返回当前候选数"""
+        page.locator("input[x-model='newDocParentName']").click()
+        page.wait_for_timeout(400)
+        lst = page.locator(".parent-picker__list")
+        lst.hover()
+        for _ in range(8):
+            page.mouse.wheel(0, 300)
+            page.wait_for_timeout(100)
+        return page.locator(".parent-picker__item").count()
+
+    def _candidate_labels(self, page):
+        return [
+            page.locator(".parent-picker__item").nth(i).locator(".parent-picker__label").inner_text().strip()
+            for i in range(page.locator(".parent-picker__item").count())
+        ]
+
+    def test_candidates_full_set_no_garbage(self, static_server, test_docs, page):
+        """滚动到底后候选 = 7 个项目（公共知识+6），无 archive/common-knowledge/projects 垃圾项"""
+        self._open_picker(page, static_server)
+        n = self._scroll_picker_to_bottom(page)
+        labels = set(self._candidate_labels(page))
+        assert n >= len(self.EXPECTED_CANDIDATES), f"候选应 ≥7，实际 {n}: {labels}"
+        assert labels == self.EXPECTED_CANDIDATES, (
+            f"候选集合不匹配\n  期望: {self.EXPECTED_CANDIDATES}\n  实际: {labels}")
+        bad = labels & self.RESERVED_BAD
+        assert not bad, f"候选含保留名垃圾项: {bad}"
+
+    def test_candidate_summary_displayed(self, static_server, test_docs, page):
+        """下拉项第二行显示项目摘要（非空），公共知识显示根 readme 摘要"""
+        self._open_picker(page, static_server)
+        page.locator("input[x-model='newDocParentName']").click()
+        page.wait_for_timeout(500)
+        n = page.locator(".parent-picker__item").count()
+        assert n >= 5, f"点击打开应有浏览候选，实际 {n}"
+        # 至少部分候选有摘要（readme summary）
+        summaries = [
+            page.locator(".parent-picker__item").nth(i).locator(".parent-picker__path").inner_text().strip()
+            for i in range(n)
+        ]
+        non_empty = [s for s in summaries if s]
+        assert non_empty, f"所有候选摘要都为空: {summaries}"
+        # 公共知识候选（第一项）摘要 = 根 readme 摘要
+        assert summaries[0], f"公共知识候选摘要应为根 readme 摘要: {summaries[0]!r}"
+
+    def test_search_triggers_on_type(self, static_server, test_docs, page):
+        """输入文字触发 kind=projects 搜索并更新候选（用户场景：输入'公共知识'/'MyKnowledge'）"""
+        self._open_picker(page, static_server)
+        requests = []
+        page.on("request", lambda r: requests.append(r.url) if "/api/search" in r.url else None)
+        # 用户场景：默认归属是"公共知识"（长度 4），输入同长度"公共知识"也应触发搜索
+        inp = page.locator("input[x-model='newDocParentName']")
+        assert inp.input_value() == "公共知识", f"默认归属应为公共知识: {inp.input_value()!r}"
+        # 点击（不搜索，打开浏览）→ 输入"公共知识"
+        inp.click()
+        page.wait_for_timeout(300)
+        n_before = page.locator(".parent-picker__item").count()
+        inp.fill("公共知识")
+        page.wait_for_timeout(1000)
+        search_hits = [u for u in requests if urllib.parse.unquote(u).find("q=公共知识") >= 0]
+        assert search_hits, f"输入'公共知识'应触发搜索请求，实际: {requests}"
+        labels = self._candidate_labels(page)
+        assert "公共知识" in labels, f"搜索结果应含公共知识: {labels}"
+        # 再输入"MyKnowledge"（长度变化 → 也触发）
+        requests.clear()
+        inp.fill("MyKnowledge")
+        page.wait_for_timeout(1000)
+        search_hits2 = [u for u in requests if urllib.parse.unquote(u).find("q=MyKnowledge") >= 0]
+        assert search_hits2, f"输入'MyKnowledge'应触发搜索请求，实际: {requests}"
+        labels2 = self._candidate_labels(page)
+        assert "MyKnowledge 项目知识管理平台" in labels2, f"搜索结果应含 MyKnowledge: {labels2}"
+
+    def test_click_without_change_does_not_search(self, static_server, test_docs, page):
+        """点击输入框（内容未变）不触发搜索，只打开浏览候选"""
+        self._open_picker(page, static_server)
+        requests = []
+        page.on("request", lambda r: requests.append(r.url) if "/api/search" in r.url else None)
+        inp = page.locator("input[x-model='newDocParentName']")
+        inp.click()
+        page.wait_for_timeout(500)
+        assert not requests, f"点击（内容未变）不应触发搜索: {requests}"
+        assert page.locator(".parent-picker__item").count() >= 5, "点击应打开浏览候选"

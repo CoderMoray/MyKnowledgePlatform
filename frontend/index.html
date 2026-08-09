@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=a036c8dcb9" />
+  <link rel="stylesheet" href="css/components.css?v=29ae5067c0" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=068f317d54"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=d2bfe5191e"></script>
+  <script src="js/components/modal.js?v=c3a14d2016"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1085,8 +1085,9 @@
                x-text="parentHierarchy"></div>
           <input class="modal__input" type="text"
                  x-model="newDocParentName"
+                 x-ref="parentInput"
                  placeholder="输入项目名称匹配，或从下拉选择"
-                 @click="onParentInput()"
+                 @click="onParentClick()"
                  @input="onParentInput()"
                  @keydown="onParentKeydown($event)"
                  @blur="parentOpen = false" />

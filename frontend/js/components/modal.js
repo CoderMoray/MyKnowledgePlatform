@@ -188,7 +188,7 @@ Alpine.data("modalComponent", () => ({
       this.parentSuggestions = _projectCandidates.slice(0, 5);
       this._browseAll = _projectCandidates || [];
       this._browseCount = 5;
-      this._parentLastLen = this.newDocParentName.length; // 基准：打开时的长度（新增才搜索）
+      this._parentLastVal = this.newDocParentName; // 基准：打开时的值（内容变化才搜索）
       this.parentIdx = -1;
       this.parentOpen = false;
     },
@@ -246,25 +246,31 @@ Alpine.data("modalComponent", () => ({
       ];
     },
 
-    /** 点击归属输入框：打开下拉；有内容但未新增文字 → 不搜索（保持当前候选/浏览） */
+    /** 点击归属输入框：全选当前值（用户输入即替换，避免追加成"默认值+新输入"搜不到）
+     *  + 打开下拉；内容未变化 → 不搜索（保持当前候选/浏览） */
     onParentClick() {
+      const inp = this.$refs.parentInput;
+      if (inp) inp.select();
       if (!this.parentSuggestions.length) this._refreshBrowse();
       this.parentOpen = true;
       this.parentIdx = -1;
     },
 
-    /** 输入事件：只有"新增文字"才触发搜索；删除/光标移动不搜索；空输入 → 本地浏览 */
+    /** 输入事件（触发 = 用户在打字；点击 select 不触发 input）：
+     *  - 纯删除（值缩短且为新值前缀）→ 不重搜（保持当前结果）；删到空 → 本地浏览
+     *  - 其余（新增/替换/重输同内容）→ 后端搜索（kind=projects，300ms debounce） */
     onParentInput() {
       const raw = this.newDocParentName || "";
-      const len = raw.length;
-      if (len > this._parentLastLen) {
-        // 新增文字 → 后端项目级搜索（kind=projects，300ms debounce）
-        this._parentLastLen = len;
-        this._doParentSearch(raw.trim());
-      } else {
-        this._parentLastLen = len;
-        // 删除/无变化：不搜索；删到空 → 浏览模式
+      const prev = this._parentLastVal;
+      if (prev && prev.startsWith(raw) && raw.length < prev.length) {
+        // 纯删除：不重搜；删空 → 浏览
+        this._parentLastVal = raw;
         if (!raw.trim()) this._refreshBrowse();
+      } else {
+        // input 事件 = 用户明确输入（即使内容与上次相同，如替换成同名）→ 搜索
+        this._parentLastVal = raw;
+        if (raw.trim()) this._doParentSearch(raw.trim());
+        else this._refreshBrowse();
       }
       this.parentOpen = true;
       this.parentIdx = -1;
