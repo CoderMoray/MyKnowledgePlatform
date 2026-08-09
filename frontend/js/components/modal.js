@@ -412,18 +412,30 @@ Alpine.data("modalComponent", () => ({
       this.parentIdx = -1;
     },
 
-    /** 键盘导航：↑↓ 高亮，Enter 选中 */
+    /** 键盘导航：↑↓ 高亮（自动滚动跟随 + 浏览模式到底先加载更多再循环），Enter 选中 */
     onParentKeydown(e) {
       const items = this.parentSuggestions;
       if (!this.parentOpen || !items.length) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        const next = (this.parentIdx + 1) % items.length;
-        this.onParentHover(items[next], next);
+        let next = this.parentIdx + 1;
+        const canLoadMore = next >= items.length
+          && this._browseAll && this._browseCount < this._browseAll.length;
+        if (canLoadMore) {
+          // 浏览模式分页：到达已加载末尾且还有更多 → 先加载更多，next 指向新窗口下一项
+          this._browseCount = Math.min(this._browseCount + 5, this._browseAll.length);
+          this.parentSuggestions = this._browseSuggestions();
+        } else {
+          next = next % this.parentSuggestions.length; // 越界 → 循环回第一项
+        }
+        this.onParentHover(this.parentSuggestions[next], next);
+        this._scrollActiveIntoView();
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        const prev = (this.parentIdx - 1 + items.length) % items.length;
-        this.onParentHover(items[prev], prev);
+        // ↑ 在当前已加载窗口内循环；回退加载仅发生在 ↓ 到底时（分页只从头部扩展）
+        const prev = (this.parentIdx - 1 + this.parentSuggestions.length) % this.parentSuggestions.length;
+        this.onParentHover(this.parentSuggestions[prev], prev);
+        this._scrollActiveIntoView();
       } else if (e.key === "Enter") {
         if (this.parentIdx >= 0 && this.parentIdx < items.length) {
           e.preventDefault();
@@ -432,6 +444,28 @@ Alpine.data("modalComponent", () => ({
       } else if (e.key === "Escape") {
         this.parentOpen = false;
         this.onParentLeave();
+      }
+    },
+
+    /** 键盘高亮项滚入可视区（下拉自动跟随；scrollIntoView nearest 部分可见时不滚，
+     *  手动精确滚动：超出底部滚到可见、超出顶部滚回可见。
+     *  用 parentIdx 直接取项（不依赖 .is-active class——Alpine 响应式 class 更新是异步的，
+     *  键盘事件同步调用时 class 可能未应用） */
+    _scrollActiveIntoView() {
+      const el = this.$refs.parentList;
+      if (!el) return;
+      const sc = el.querySelector(".parent-picker__scroll");
+      if (!sc) return;
+      const active = el.querySelectorAll(".parent-picker__item")[this.parentIdx];
+      if (!active) return;
+      const aTop = active.offsetTop;
+      const aBottom = aTop + active.offsetHeight;
+      const cTop = sc.scrollTop;
+      const cBottom = cTop + sc.clientHeight;
+      if (aBottom > cBottom) {
+        sc.scrollTop = aBottom - sc.clientHeight; // 向下滚到项底部可见
+      } else if (aTop < cTop) {
+        sc.scrollTop = aTop; // 向上滚到项顶部可见
       }
     },
   }))
