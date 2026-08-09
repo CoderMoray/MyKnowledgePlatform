@@ -449,12 +449,25 @@ window.MykRename = {
     return !!(nt && nt !== currentTitle);
   },
 
-  /** 标题合法性：非空、不含路径分隔符、不含非法文件名字符 */
+  /** 标题合法性：非空、不含路径分隔符、不含非法文件名字符、不超过文件名长度上限 */
   titleError(title) {
     const t = (title || "").trim();
     if (!t) return "标题不能为空";
     if (t.includes("/") || t.includes("\\")) return "标题不能包含路径分隔符";
     if (/[:*?"<>|]/.test(t)) return "标题不能包含 : * ? \" < > | 字符";
+    // 文件系统单文件名上限 255 字节（POSIX NAME_MAX，UTF-8 中文一个字 3 字节），
+    // 与后端 _NAME_MAX 一致。文件名 = 标题 + ".md"（3 字节）→ 标题本身最多 252 字节 ≈ 84 汉字。
+    const newName = t.endsWith(".md") ? t : t + ".md";
+    const bytes = _utf8Bytes(newName);
+    if (bytes > 255) {
+      return "标题过长：最多 84 个汉字（文件名含 .md 后缀共 255 字节上限）";
+    }
     return "";
   },
 };
+
+/** UTF-8 字节数（中文 3 字节/字、emoji 4 字节；TextEncoder 缺失时用 encodeURIComponent 兜底） */
+function _utf8Bytes(s) {
+  if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(s).length;
+  return unescape(encodeURIComponent(s)).length;
+}

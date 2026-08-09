@@ -46,5 +46,18 @@ t('含 / → 报错', R.titleError("a/b") !== "");
 t('含非法字符 :*?"<>| → 报错', R.titleError('a:b') !== "" && R.titleError('a|b') !== "" && R.titleError('a<b') !== "");
 t('正常中文+空格 → 合法', R.titleError("我的 文档 v2") === "");
 
+console.log("── titleError 长度（文件名含 .md 共 255 字节；中文 3 字节/字 → 标题最多 84 汉字） ──");
+const han84 = "汉".repeat(84);   // 84×3 = 252 字节 + ".md" 3 = 255 ✓
+const han85 = "汉".repeat(85);   // 255 + 3 = 258 ✗
+const ascii252 = "a".repeat(252); // 252 + 3 = 255 ✓（边界合法）
+const ascii253 = "a".repeat(253); // 253 + 3 = 256 ✗
+t('84 个汉字 → 合法（252+3=255）', R.titleError(han84) === "");
+t('85 个汉字 → 过长（255+3=258）', R.titleError(han85).includes("过长"));
+t('252 个英文字符 → 合法（252+3=255 边界）', R.titleError(ascii252) === "");
+t('253 个英文字符 → 过长（253+3=256）', R.titleError(ascii253).includes("过长"));
+t('报错文案给出汉字上限', R.titleError(han85).includes("84") && R.titleError(han85).includes("汉字"));
+t('混合中英文超限 → 过长', R.titleError("汉".repeat(50) + "a".repeat(110)).includes("过长")); // 150+110+3=263
+t('混合中英文不超限 → 合法', R.titleError("汉".repeat(30) + "a".repeat(100)) === ""); // 90+100+3=193
+
 console.log(`\n结果: ${pass} 通过, ${fail} 失败 / ${pass + fail}`);
 process.exit(fail ? 1 : 0);
