@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=4a4d26ac05" />
+  <link rel="stylesheet" href="css/components.css?v=2f330daf68" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -1115,7 +1115,7 @@
                x-model="newDocName"
                placeholder="如：项目方案"
                @keyup.enter="createDocument()" />
-        <label class="modal__label">摘要 <span class="modal__label-required">（必填）</span></label>
+        <label class="modal__label">摘要</label>
         <input class="modal__input" type="text"
                x-model="newDocSummary"
                placeholder="摘要内容" />
@@ -1123,7 +1123,7 @@
           <button class="btn" @click="$store.app.closeModal()">取消</button>
           <button class="btn btn--primary"
                   @click="createDocument()"
-                  :disabled="creating || !newDocName.trim() || !newDocSummary.trim() || $store.app.isLocked">
+                  :disabled="creating || !newDocParentName.trim() || !newDocName.trim() || !newDocSummary.trim() || $store.app.isLocked">
             <span x-show="creating">创建中...</span>
             <span x-show="!creating">创建文档</span>
           </button>

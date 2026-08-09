@@ -597,12 +597,6 @@
   margin-bottom: 6px;
 }
 
-.modal__label-required {
-  font-weight: 400;
-  font-size: var(--text-xs);
-  color: var(--color-danger, #d9534f);
-}
-
 .parent-picker {
   position: relative;
   margin-bottom: var(--space-4);
