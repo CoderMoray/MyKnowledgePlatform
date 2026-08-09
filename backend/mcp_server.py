@@ -631,6 +631,31 @@ def _check_path_bounds(path: str) -> str | None:
     return None
 
 
+def _validate_read_path(path: str) -> None:
+    """Read-path validation — intentionally looser than write validation.
+
+    Reading must allow system files (``readme.md``, ``trash/``, project
+    dirs, ``_refs/``), so we do NOT enforce whitelist prefixes / tree
+    structure here.  We still block the dangerous cases that would read
+    outside the KB (information leak):
+
+      * absolute paths (``/etc/hosts``) — via leading ``/`` or ``\\``
+      * ``..`` traversal (``../secret.md``)
+      * path-bounds violations (per-segment length / segment count)
+
+    Empty path = root layer, allowed for read.
+    """
+    if not path:
+        return
+    if path.startswith("/") or path.startswith("\\"):
+        raise ValueError("路径不能是绝对路径（只能读取知识库内文件）")
+    if ".." in path.split("/"):
+        raise ValueError("路径不能包含「..」（只能读取知识库内文件）")
+    err = _check_path_bounds(path)
+    if err:
+        raise ValueError(err)
+
+
 def _check_rename_name(new_name: str) -> None:
     """Validate a rename target name before building the new path.
 
@@ -680,7 +705,7 @@ def _check_project_tree(path: str, is_dir: bool = False) -> str | None:
         nxt = parts[i + 1] if i + 1 < len(parts) else None
         if nxt is None:
             # 走到末尾且未经过 common-knowledge/ → 文件若落在这里就是孤儿文档
-            if seg.endswith(".md"):
+            if seg.endswith(".md") and seg != "readme.md":
                 layer = path.split("/")[0]
                 return (
                     f"「{seg}」是文档文件，但它直接位于「{layer}/」层。\n"
@@ -691,6 +716,10 @@ def _check_project_tree(path: str, is_dir: bool = False) -> str | None:
                     f"  3. 列出项目：nav__list_dir(project_rel=\"projects\")"
                 )
             break  # ends on a project name (dir: the project itself)
+        if nxt == "readme.md":
+            # readme.md 是系统索引/项目元信息，合法存在，不参与结构校验
+            # （file 分支由 readme 规则单独拦截）
+            break
         if nxt not in ("common-knowledge", "projects", "archive"):
             return (
                 f"「{seg}」是项目名，其下一级只能是 common-knowledge/、projects/ 或 archive/，"
@@ -1019,6 +1048,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Full markdown content of the readme (frontmatter + body).
         """
+        _validate_read_path(project_rel)
         path = f"{project_rel}/readme.md" if project_rel else "readme.md"
         return storage.read_content(path)
 
@@ -1034,6 +1064,7 @@ def create_mcp_app(storage: Storage,
             Formatted table (type, name, last modified, and relative path
             when recursive is enabled).
         """
+        _validate_read_path(project_rel)
         if recursive:
             entries = storage.list_children_recursive(project_rel)
         else:
@@ -1063,6 +1094,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             A human-readable existence verdict including type (文件/目录).
         """
+        _validate_read_path(path)
         target = storage.kb_root / path
         if target.exists():
             kind = "文件" if target.is_file() else "目录"
@@ -1094,6 +1126,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Formatted table of matching items, or a "无匹配" message.
         """
+        _validate_read_path(scope)
         results = storage.find_by_name(keyword, scope)
         if not results:
             return (
@@ -1120,6 +1153,7 @@ def create_mcp_app(storage: Storage,
         Returns:
             Full markdown content (frontmatter + body).
         """
+        _validate_read_path(path)
         return storage.read_content(path)
 
     # ══════════════════════════════════════════════════════════
@@ -1511,6 +1545,10 @@ def create_mcp_app(storage: Storage,
         from backend.trash import ref_status
         import re as _re
 
+        try:
+            _validate_read_path(project_rel)
+        except ValueError:
+            return f"⚠ 非法路径: {project_rel}"
         scope = storage.kb_root
         if project_rel:
             scope = storage.kb_root / project_rel
@@ -1719,6 +1757,10 @@ def create_mcp_app(storage: Storage,
         for each, and appends a references section at the end.  One level
         deep only (no recursive follow-through).
         """
+        try:
+            _validate_read_path(path)
+        except ValueError:
+            return f"⚠ 非法路径: {path}"
 
         try:
             meta, body = storage.read_document(path)
@@ -1745,6 +1787,13 @@ def create_mcp_app(storage: Storage,
             for i, (rtype, ref_path, title) in enumerate(ref_list, 1):
                 if rtype == "external":
                     parts.append(f"[{i}] 🌐 {title}\n    {ref_path}\n")
+                    continue
+                # ref 目标来自文档正文（可能不可信）：非法路径按"不存在"处理，
+                # 防止穿越读取 KB 外文件（storage._abs 也会兜底拦截）
+                try:
+                    _validate_read_path(ref_path)
+                except ValueError:
+                    parts.append(f"[{i}] {ref_path} (⚠ 非法路径)\n")
                     continue
                 try:
                     ref_meta, ref_body = _resolve_ref(path, ref_path, storage)

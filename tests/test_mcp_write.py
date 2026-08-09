@@ -160,6 +160,42 @@ class TestUpdateDocument:
         assert after["created"] == created  # created 永不改变
 
 
+class TestReadPathGuards:
+    """读路径校验：绝对路径/穿越拒绝（信息泄露防护），合法读放行。"""
+
+    def test_nav_get_document_rejects_escape(self, app) -> None:
+        for bad, msg in [("/etc/hosts", "绝对路径"),
+                         ("../secret.md", "「..」")]:
+            with pytest.raises(Exception, match=msg):
+                asyncio.run(app.call_tool("nav__get_document", {"path": bad}))
+
+    def test_nav_list_dir_rejects_escape(self, app) -> None:
+        with pytest.raises(Exception, match="绝对路径"):
+            asyncio.run(app.call_tool(
+                "nav__list_dir", {"project_rel": "/etc"}))
+        with pytest.raises(Exception, match="「..」"):
+            asyncio.run(app.call_tool(
+                "nav__list_dir", {"project_rel": "../secret"}))
+
+    def test_nav_exists_rejects_escape(self, app) -> None:
+        with pytest.raises(Exception, match="绝对路径"):
+            asyncio.run(app.call_tool("nav__exists", {"path": "/etc/hosts"}))
+
+    def test_nav_legal_read_passes(self, app, storage: Storage) -> None:
+        storage.write_document("common-knowledge/a.md",
+                               {"summary": "s"}, "# a")
+        r = asyncio.run(app.call_tool(
+            "nav__get_document", {"path": "common-knowledge/a.md"}))
+        assert "# a" in str(r)
+
+    def test_storage_abs_rejects_escape(self, storage: Storage) -> None:
+        """底层防线：绕过入口校验直接走 Storage 也要被拦。"""
+        with pytest.raises(ValueError, match="越界"):
+            storage.read_content("/etc/hosts")
+        with pytest.raises(ValueError, match="越界"):
+            storage.read_content("../../secret.md")
+
+
 class TestMoveRenameGuards:
     """迁移/重命名的路径校验防护（穿越/插入层级/覆盖系统文件/非法目标）。"""
 

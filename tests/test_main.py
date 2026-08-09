@@ -363,6 +363,38 @@ class TestReadmeProtection:
         assert r.status_code == 400
 
 
+class TestReadGuard:
+    """REST 读端点：绝对路径/穿越路径必须 400（信息泄露防护）。"""
+
+    def test_get_document_rejects_absolute(self, client):
+        # /api/document//etc/hosts → path="/etc/hosts"
+        r = client.get("/api/document//etc/hosts")
+        assert r.status_code == 400
+
+    def test_get_document_meta_rejects_absolute(self, client):
+        r = client.get("/api/document//etc/hosts/meta")
+        assert r.status_code == 400
+
+    def test_get_document_refs_rejects_absolute(self, client):
+        r = client.get("/api/document//etc/hosts/refs")
+        assert r.status_code == 400
+
+    def test_readme_rejects_absolute(self, client):
+        r = client.get("/api/readme//etc/hosts")
+        assert r.status_code == 400
+
+    def test_list_rejects_traversal(self, client):
+        # %2e%2e 绕过 httpx URL 规范化，后端解码后含 .. → 拒绝
+        r = client.get("/api/list/%2e%2e/secret")
+        assert r.status_code == 400
+
+    def test_legal_reads_pass(self, client, tmp_kb_root: Path):
+        storage = Storage(kb_root=tmp_kb_root)
+        _create_test_doc(storage, "common-knowledge/a.md", "# a")
+        assert client.get("/api/document/common-knowledge/a.md").status_code == 200
+        assert client.get("/api/list/").status_code == 200
+
+
 class TestApiLock:
     """Test GET /api/lock — epoch-seconds + tz-aware ISO + agent field."""
 

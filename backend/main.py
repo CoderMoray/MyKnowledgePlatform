@@ -139,6 +139,21 @@ def _guard_doc_write_path(path: str) -> None:
         raise HTTPException(400, str(e))
 
 
+def _guard_read_path(path: str) -> None:
+    """Reject read paths that escape the KB (absolute / ``..`` traversal).
+
+    Read access is looser than write (system files like readme/trash are
+    readable), but absolute paths and traversal would read files outside
+    the KB — an information leak.  ``storage._abs`` also enforces
+    containment at the last mile.
+    """
+    from backend.mcp_server import _validate_read_path
+    try:
+        _validate_read_path(path)
+    except ValueError:
+        raise HTTPException(400, f"非法路径: {path}")
+
+
 # ── Document content validation ────────────────────────────
 
 
@@ -249,6 +264,7 @@ async def api_events():
 @app.get("/api/readme/{project_rel:path}", response_class=PlainTextResponse)
 def api_read_readme(project_rel: str = ""):
     """Get the routing index of a KB layer."""
+    _guard_read_path(project_rel)
     storage, _ = get_storage()
     try:
         return PlainTextResponse(storage.read_content(
@@ -261,6 +277,7 @@ def api_read_readme(project_rel: str = ""):
 @app.get("/api/list/{project_rel:path}")
 def api_list_dir(project_rel: str = ""):
     """List files and directories in a KB layer."""
+    _guard_read_path(project_rel)
     storage, _ = get_storage()
     entries = storage.list_children(project_rel)
     items = []
@@ -291,6 +308,7 @@ def api_list_dir(project_rel: str = ""):
 @app.get("/api/document/{path:path}/meta")
 def api_get_document_meta(path: str):
     """Get document frontmatter as JSON."""
+    _guard_read_path(path)
     storage, gen = get_storage()
     try:
         meta, body = storage.read_document(path)
@@ -341,6 +359,7 @@ def api_get_document_with_refs(path: str):
 
     Returns ``{content, refs: [{path, title, content}]}``.
     """
+    _guard_read_path(path)
     storage, _ = get_storage()
     from backend.mcp_server import _resolve_ref, _yaml_dump, _extract_section
     from backend.trash import ref_status
@@ -387,6 +406,7 @@ def api_get_document(path: str):
 
     ⚠ Must be registered AFTER /meta and /refs to avoid route conflict.
     """
+    _guard_read_path(path)
     storage, _ = get_storage()
     try:
         meta, body = storage.read_document(path)
@@ -606,6 +626,7 @@ class ProjectMetaPayload(BaseModel):
 @app.get("/api/project/{project_rel:path}")
 def api_get_project_meta(project_rel: str):
     """Get project metadata from its readme frontmatter."""
+    _guard_read_path(project_rel)
     storage, _ = get_storage()
     readme_path = f"{project_rel}/readme.md" if project_rel else "readme.md"
     try:

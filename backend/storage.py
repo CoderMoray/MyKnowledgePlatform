@@ -126,8 +126,19 @@ class Storage:
     # ── Path resolution ────────────────────────────────────────
 
     def _abs(self, rel: str) -> Path:
-        """KB-relative path → absolute filesystem path."""
-        return (self.kb_root / rel).resolve()
+        """KB-relative path → absolute filesystem path.
+
+        Last-mile defense: the resolved path MUST stay inside ``kb_root``.
+        Absolute paths (``/etc/hosts``) and ``..`` traversal both land
+        outside and are rejected here, so every read/write that goes
+        through Storage is contained regardless of caller validation.
+        """
+        base = self.kb_root.resolve()
+        full = (self.kb_root / rel).resolve()
+        if not full.is_relative_to(base):
+            raise ValueError(
+                f"路径越界，只能访问知识库内文件: {rel}")
+        return full
 
     def _rel(self, abs_path: Path) -> str:
         """Absolute path → KB-relative string."""
