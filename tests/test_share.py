@@ -71,7 +71,8 @@ class TestPublish:
 
     def test_nonexistent_project(self, storage: Storage,
                                  tmp_kb_root: Path) -> None:
-        with pytest.raises(FileNotFoundError):
+        # 路径校验层（storage 存在性检查）先于打包拒绝
+        with pytest.raises((ValueError, FileNotFoundError)):
             publish(storage, "projects/nope")
 
 
@@ -212,6 +213,60 @@ class TestImportShare:
         from backend.share import publish
         with pytest.raises(ValueError):
             publish(storage, "common-knowledge/xx")
+
+    def test_find_external_refs_ignores_traversal(self,
+                                                  storage: Storage) -> None:
+        """_find_external_refs 必须忽略穿越 ref，防止把 KB 外文件打进分享包。"""
+        from backend.share import _find_external_refs
+        storage.write_document(
+            "projects/TestProject/common-knowledge/a.md",
+            {"summary": "s"},
+            "# a\n\n[恶意](ref:../../../../etc/passwd)\n[恶意2](ref:../secret.md)")
+        refs = _find_external_refs(storage.kb_root, "projects/TestProject")
+        assert refs == {}
+
+    def test_find_external_refs_keeps_legal(self, storage: Storage) -> None:
+        """合法的 KB 内外部 ref 仍被收录为上下文。"""
+        from backend.share import _find_external_refs
+        storage.write_document("common-knowledge/术语表.md",
+                               {"summary": "t"}, "# 术语表")
+        storage.write_document(
+            "projects/TestProject/common-knowledge/a.md",
+            {"summary": "s"},
+            "# a\n\n[合法](ref:common-knowledge/术语表.md)")
+        refs = _find_external_refs(storage.kb_root, "projects/TestProject")
+        assert "common-knowledge/术语表.md" in refs
+
+    def test_import_sanitizes_author_nick(self, tmp_kb_root: Path) -> None:
+        """冲突文件名的昵称部分必须清洗路径分隔符，防层级污染。"""
+        import io, json, struct, tarfile
+        from backend.share import (_derive_key, _encrypt, import_share)
+        kb = tmp_kb_root / "kb"
+        kb.mkdir()
+        storage = Storage(kb_root=kb)
+        storage.write_document("projects/P/common-knowledge/a.md",
+                               {"summary": "s", "maintainer": "A"}, "# a")
+        # 包内同文件 maintainer=B（冲突），昵称含路径分隔符
+        manifest = {"name": "P", "project_id": "x" * 40,
+                    "exported_at": "2026-01-01",
+                    "author_nickname": "../EVIL", "author_email_hash": "h" * 12}
+        key = _derive_key(manifest)
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            body = b"---\nid: a\nsummary: s\nmaintainer: B\n---\n# changed"
+            info = tarfile.TarInfo("P/common-knowledge/a.md")
+            info.size = len(body)
+            tar.addfile(info, io.BytesIO(body))
+        enc = _encrypt(buf.getvalue(), key)
+        mb = json.dumps(manifest).encode("utf-8")
+        pkg = tmp_kb_root / "evil.mkpkg"
+        pkg.write_bytes(struct.pack(">I", len(mb)) + mb + enc)
+
+        report = import_share(storage, str(pkg))
+        # 冲突文件已生成（昵称 ../EVIL 清洗为 .._EVIL，路径分隔符不生效），无穿越
+        conflict = kb / "projects" / "P" / "common-knowledge" / "a（来自.._EVIL）.md"
+        assert conflict.exists()
+        assert not (kb.parent / "EVIL.md").exists()
 
     def test_publish_with_context(self, storage_with_project: Storage,
                                    tmp_kb_root: Path) -> None:

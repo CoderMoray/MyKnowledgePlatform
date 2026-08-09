@@ -241,6 +241,15 @@ def _find_external_refs(kb_root: Path, project_rel: str,
                     if ref_path in refs:
                         continue
 
+                    # 信任边界：ref 值来自文档正文，可能是不可信/恶意输入。
+                    # 校验为合法 KB 文档路径（拦 .. / 绝对路径 / readme / 结构 / 长度），
+                    # 防止把 KB 外文件打进分享包（信息泄露）。
+                    from backend.mcp_server import _validate_path
+                    try:
+                        _validate_path(ref_path, kind="file")
+                    except ValueError:
+                        continue  # 非法 ref → 不作为外部上下文打包
+
                     ref_abs = (kb_root / ref_path).resolve()
                     if not ref_abs.exists():
                         continue
@@ -267,7 +276,7 @@ def publish(storage, project_rel: str,
     """
     kb_root = storage.kb_root
     from backend.mcp_server import _validate_path
-    _validate_path(project_rel, kind="dir")  # 只读导出也要合法项目路径
+    _validate_path(project_rel, kind="dir", storage=storage)  # 只读导出也要合法项目路径
     manifest = _build_manifest(storage, project_rel)
     key = _derive_key(manifest)
 
@@ -394,7 +403,10 @@ def import_share(storage, pkg_path: str,
         # Determine source and target paths（project_name 已在解包前校验）
         src = tmp_dir / manifest["name"]
         project_name = manifest["name"]
-        author_nick = manifest.get("author_nickname", "分享者")
+        # 昵称来自不可信包清单：清洗路径分隔符，防止拼进冲突文件名造成穿越/层级污染
+        import re as _re
+        author_nick = _re.sub(r"[/\\]", "_",
+                              manifest.get("author_nickname", "分享者"))[:40] or "分享者"
 
         dest = storage.kb_root / "projects" / project_name
 
@@ -418,15 +430,20 @@ def import_share(storage, pkg_path: str,
         deleted: list[str] = []
 
         # Collect local .md paths (relative to project root)
+        # readme.md 是系统索引，不参与 merge（由 _post_import 重建）
         local_mds: set[Path] = set()
         if dest.is_dir():
             for p in dest.rglob("*.md"):
                 rel = p.relative_to(dest)
+                if rel.name == "readme.md":
+                    continue
                 local_mds.add(rel)
 
         # Walk imported files
         for imp_file in src.rglob("*.md"):
             rel = imp_file.relative_to(src)
+            if rel.name == "readme.md":
+                continue  # 系统索引：保留本地，由 _post_import 重建
             dst_file = dest / rel
             local_mds.discard(rel)  # remove from pending-delete set
 

@@ -942,6 +942,11 @@ def api_export(payload: ExportPayload):
     pkg_data: list[tuple[str, bytes]] = []  # (name, raw_bytes)
 
     for proj_rel in payload.projects:
+        from backend.mcp_server import _validate_path
+        try:
+            _validate_path(proj_rel, kind="dir", storage=storage)
+        except ValueError:
+            raise HTTPException(400, f"project not found: {proj_rel}")
         proj_path = kb_root / proj_rel
         if not proj_path.is_dir():
             raise HTTPException(400, f"project not found: {proj_rel}")
