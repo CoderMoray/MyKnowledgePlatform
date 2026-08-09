@@ -306,6 +306,63 @@ class TestApiDeleteProject:
         assert target[0]["ref_status"] == "in_trash"
 
 
+class TestReadmeProtection:
+    """readme.md 是系统索引/项目元信息，REST 文档写端点必须拒绝。"""
+
+    @staticmethod
+    def _mk_project_readme(tmp_kb_root: Path) -> None:
+        p = tmp_kb_root / "projects" / "P"
+        (p / "common-knowledge").mkdir(parents=True, exist_ok=True)
+        (p / "readme.md").write_text(
+            "---\nid: P\nname: P\nsummary: p\nstatus: active\n---\n\n# P",
+            encoding="utf-8",
+        )
+
+    def test_create_rejects_readme(self, client):
+        r = client.post("/api/document/projects/P/readme.md",
+                        json={"content": "x"})
+        assert r.status_code == 400
+        assert "readme" in r.json()["detail"]
+
+    def test_update_rejects_readme(self, client, tmp_kb_root: Path):
+        self._mk_project_readme(tmp_kb_root)
+        r = client.put("/api/document/projects/P/readme.md",
+                       json={"content": "y"})
+        assert r.status_code == 400
+        assert "readme" in r.json()["detail"]
+
+    def test_delete_rejects_readme(self, client, tmp_kb_root: Path):
+        self._mk_project_readme(tmp_kb_root)
+        r = client.delete("/api/document/projects/P/readme.md")
+        assert r.status_code == 400
+        assert "readme" in r.json()["detail"]
+
+    def test_rename_rejects_readme(self, client, tmp_kb_root: Path):
+        self._mk_project_readme(tmp_kb_root)
+        r = client.put("/api/document/rename",
+                       json={"path": "projects/P/readme.md",
+                             "new_name": "x.md"})
+        assert r.status_code == 400
+
+    def test_normal_doc_still_allowed(self, client):
+        r = client.post("/api/document/common-knowledge/ok.md",
+                        json={"content": "body", "summary": "ok"})
+        assert r.status_code == 201
+
+    def test_rejects_misplaced_subproject(self, client):
+        """projects/测试1/测试1.1/... — 子项目挂错层级，必须拒绝。"""
+        r = client.post(
+            "/api/document/projects/测试1/测试1.1/common-knowledge/x.md",
+            json={"content": "body", "summary": "ok"})
+        assert r.status_code == 400
+
+    def test_rejects_doc_under_project_root(self, client):
+        """projects/测试1/xxx.md — 文档直接挂项目下，必须拒绝。"""
+        r = client.post("/api/document/projects/测试1/xxx.md",
+                        json={"content": "body", "summary": "ok"})
+        assert r.status_code == 400
+
+
 class TestApiLock:
     """Test GET /api/lock — epoch-seconds + tz-aware ISO + agent field."""
 

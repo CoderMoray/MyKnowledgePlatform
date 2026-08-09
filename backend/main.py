@@ -125,6 +125,20 @@ def _check_write_allowed():
         pass  # corrupt lock — ignore
 
 
+def _guard_doc_write_path(path: str) -> None:
+    """Reject invalid document write paths before they reach storage.
+
+    Enforces the full MCP ``_validate_path`` rules for file paths:
+    whitelist prefixes, no readme.md (owned by the readme generator),
+    and correct project-tree layout (projects/P/common-knowledge/…).
+    """
+    from backend.mcp_server import _validate_path
+    try:
+        _validate_path(path, kind="file")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 # ── Document content validation ────────────────────────────
 
 
@@ -418,6 +432,7 @@ def _doc_version(content: str, summary: str = "") -> str:
 def api_create_document(path: str, payload: DocumentPayload):
     """Create a new knowledge document."""
     _check_write_allowed()
+    _guard_doc_write_path(path)
     storage, gen = get_storage()
     _check_doc(payload, storage)
     meta = {"type": payload.doc_type, "summary": payload.summary}
@@ -446,6 +461,7 @@ def api_rename_document(payload: DocRenamePayload):
     """
     from backend.mcp_server import rename_document as _rd
     _check_write_allowed()
+    _guard_doc_write_path(payload.path)
     storage, gen = get_storage()
     try:
         result = _rd(storage, payload.path, payload.new_name)
@@ -462,6 +478,7 @@ def api_update_document(path: str, payload: DocumentPayload):
     ``maintainer`` and ``updated`` are not touched.
     """
     _check_write_allowed()
+    _guard_doc_write_path(path)
     storage, gen = get_storage()
     try:
         old_meta, old_body = storage.read_document(path)
@@ -526,6 +543,7 @@ def api_update_document(path: str, payload: DocumentPayload):
 def api_delete_document(path: str):
     """Move a knowledge document into trash (recoverable, 30 days)."""
     _check_write_allowed()
+    _guard_doc_write_path(path)
     storage, gen = get_storage()
     full = storage.kb_root / path
     if not full.exists():

@@ -580,6 +580,110 @@ def _heartbeat(kb_root: Path, kind: str) -> None:
         pass
 
 
+# ── Path-bounds guards ────────────────────────────────────────
+# 设计依据（2026-08）：防御"无限长/无限深"的恶意或误输入，同时绝不误伤合法路径。
+#   _NAME_MAX     = 255 字节 —— POSIX NAME_MAX，主流文件系统（ext4/APFS/HFS+）
+#                           单文件名/目录名的真实硬上限（UTF-8 中文一个字 3 字节）。
+#   _MAX_SEGMENTS = 64   —— 经验值，约 32 层项目嵌套；真实结构仅 2-3 层
+#                           嵌套（顶层项目→子项目→子子项目），64 段远超任何真实使用。
+# 注意：不设"总长度"上限——完整文件路径的总长（kb_root + 相对路径）由操作系统
+#       PATH_MAX 兜底（落盘时返回 ENAMETOOLONG），且 PATH_MAX 平台不一
+#       （Linux 4096 / macOS 1024），后端不应模拟或拍死一个值。
+_NAME_MAX = 255
+_MAX_SEGMENTS = 64
+
+
+def _check_path_bounds(path: str) -> str | None:
+    """Guard against unboundedly long / deeply nested paths.
+
+    Enforces per-segment length (NAME_MAX) and segment count; total
+    length is intentionally left to the OS (PATH_MAX / ENAMETOOLONG).
+    """
+    if not path:
+        return None
+    segments = path.split("/")
+    if len(segments) > _MAX_SEGMENTS:
+        return (
+            f"路径段数超过上限（{_MAX_SEGMENTS} 段 ≈ {_MAX_SEGMENTS // 2} 层嵌套）。\n"
+            f"正常路径仅 2-10 段，如 projects/项目名/common-knowledge/文档.md。\n"
+            f"请检查是否误加了多层目录。"
+        )
+    for seg in segments:
+        if len(seg.encode("utf-8")) > _NAME_MAX:
+            preview = seg[:20]
+            return (
+                f"路径组件「{preview}…」超过 {_NAME_MAX} 字节。\n"
+                f"这是文件系统单文件名上限（POSIX NAME_MAX），更长的名字无法落盘。\n"
+                f"请缩短文件名或目录名。"
+            )
+    return None
+
+
+def _check_project_tree(path: str, is_dir: bool = False) -> str | None:
+    """Validate the directory layout under ``projects/`` / ``archive/``.
+
+    A project layer may only contain ``common-knowledge/``, ``projects/``
+    and ``archive/``.  Sub-projects must be nested under ``projects/``
+    (``projects/P/projects/C/...``); knowledge docs must live under
+    ``common-knowledge/``.  Anything else (e.g. ``projects/P/子项目`` or
+    ``projects/P/doc.md``) is an illegal placement.
+
+    ``is_dir``: for project paths (dir), ``common-knowledge/`` is a document
+    directory, not a project container — nothing may follow it
+    (``projects/P/common-knowledge/xxx`` is illegal).
+
+    Returns an error message, or ``None`` if the layout is valid.
+    """
+    if not (path.startswith("projects/") or path.startswith("archive/")):
+        return None
+    parts = path.split("/")
+    i = 1  # parts[0] is "projects"/"archive"; skip it
+    while i < len(parts):
+        seg = parts[i]
+        nxt = parts[i + 1] if i + 1 < len(parts) else None
+        if nxt is None:
+            # 走到末尾且未经过 common-knowledge/ → 文件若落在这里就是孤儿文档
+            if seg.endswith(".md"):
+                layer = path.split("/")[0]
+                return (
+                    f"「{seg}」是文档文件，但它直接位于「{layer}/」层。\n"
+                    f"知识文档必须放在 common-knowledge/ 下，否则不会被任何索引收录。\n\n"
+                    f"恢复方法：\n"
+                    f"  1. 根层文档：common-knowledge/{seg}\n"
+                    f"  2. 项目内文档：projects/项目名/common-knowledge/{seg}\n"
+                    f"  3. 列出项目：nav__list_dir(project_rel=\"projects\")"
+                )
+            break  # ends on a project name (dir: the project itself)
+        if nxt not in ("common-knowledge", "projects", "archive"):
+            return (
+                f"「{seg}」是项目名，其下一级只能是 common-knowledge/、projects/ 或 archive/，"
+                f"但出现了「{nxt}」。\n\n"
+                f"可能的原因：\n"
+                f"  • 子项目放错层级——子项目必须套在 projects/ 下："
+                f"projects/{seg}/projects/{nxt}\n"
+                f"  • 知识文档放错层级——文档必须放在 common-knowledge/ 下："
+                f"projects/{seg}/common-knowledge/xxx.md\n\n"
+                f"恢复方法：\n"
+                f"  1. 调 nav__list_dir(project_rel=\"projects\") 查看项目树\n"
+                f"  2. 按上述正确结构重试"
+            )
+        if nxt == "common-knowledge":
+            # 之后是文档文件区。file 路径：剩余的是文件名（由 .md 检查兜底）。
+            # dir 路径：common-knowledge 是文档目录不是项目容器，后面不允许再有内容。
+            if is_dir and i + 2 < len(parts):
+                return (
+                    f"common-knowledge/ 是文档目录，不是项目容器，"
+                    f"后面不能跟「{parts[i + 2]}」。\n\n"
+                    f"恢复方法：\n"
+                    f"  1. 若想创建子项目：projects/{seg}/projects/子项目名\n"
+                    f"  2. 若想创建知识文档：projects/{seg}/common-knowledge/文档名.md\n"
+                    f"  3. 若想操作项目本身：projects/{seg}"
+                )
+            break
+        i += 2  # nxt in (projects, archive) → next segment is a project name
+    return None
+
+
 def _validate_path(
     path: str,
     kind: str = "auto",
@@ -604,6 +708,11 @@ def _validate_path(
     The error message includes recovery instructions so AI agents can
     self-correct without human intervention.
     """
+    # ── Guard 0: path bounds (before any traversal/split work) ──
+    bounds_err = _check_path_bounds(path)
+    if bounds_err:
+        _raise_path_error(path, bounds_err)
+
     # ── Guard 1: path traversal ──────────────────────────────
     if ".." in path.split("/"):
         _raise_path_error(
@@ -654,6 +763,20 @@ def _validate_path(
                 f'  write__create_document(path="common-knowledge/术语表.md", ...)\n'
                 f'  write__create_document(path="projects/首页重构/common-knowledge/改版方案.md", ...)',
             )
+        # 结构错误更本质，优先于 readme 规则（readme.md 在错误层级时先报结构错）
+        tree_err = _check_project_tree(path, is_dir=False)
+        if tree_err:
+            _raise_path_error(path, tree_err)
+        if path.rsplit("/", 1)[-1] == "readme.md":
+            _raise_path_error(
+                path,
+                "readme.md 是项目的层索引/元信息文件，由系统自动生成维护，"
+                "不能作为知识文档创建、更新或删除。\n\n"
+                "恢复方法：\n"
+                "  1. 新建知识文档：write__create_document(path=\"projects/项目名/common-knowledge/文档名.md\")\n"
+                "  2. 修改项目元信息（名称/摘要/状态）：write__update_project_meta(project_rel=\"projects/项目名\")\n"
+                "  3. 重建项目索引：maint__rebuild_index(project_rel=\"projects/项目名\")",
+            )
 
     # ── Guard 4: dir-specific rules ─────────────────────────
     if is_dir:
@@ -682,6 +805,9 @@ def _validate_path(
                 f"  3. 用列出的项目名构造正确路径重试\n\n"
                 f"例如：maint__rebuild_index(project_rel=\"projects/首页重构\")",
             )
+        tree_err = _check_project_tree(path, is_dir=True)
+        if tree_err:
+            _raise_path_error(path, tree_err)
 
     # ── Guard 5: existence check ────────────────────────────
     if storage is not None:

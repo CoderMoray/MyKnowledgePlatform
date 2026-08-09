@@ -68,6 +68,22 @@
 - 在 `publish --with-context` 中集成外部引用扫描与打包
 - DESIGN.md `2.5.11` 节完整记录了语法和规则
 
+### 路径校验规则（`_validate_path`）✅
+
+所有 MCP/CLI 写路径经 `backend/mcp_server.py::_validate_path` 校验，错误信息带恢复指引，按序执行：
+
+- **Guard 0 长度闸门**（2026-08 新增，防"无限长/无限深"输入）：
+  - 单段 ≤ **255 字节** = POSIX `NAME_MAX`，主流文件系统（ext4/APFS/HFS+）单文件名/目录名的真实硬上限。注意是字节：UTF-8 中文 1 字 3 字节，255 字节 ≈ 85 个中文字。
+  - 段数 ≤ **64**（≈32 层项目嵌套）——经验值，真实结构仅 2-3 层嵌套，64 段远超任何真实使用，用于给树遍历上界。
+  - **不设总长度上限**：完整文件路径（kb_root + 相对路径）由操作系统 `PATH_MAX` 兜底（落盘返回 `ENAMETOOLONG`）。因 PATH_MAX 平台不一（Linux 4096 / macOS 1024），后端不应模拟或拍死一个值。
+- **Guard 1 路径穿越**：含 `..` 段拒绝
+- **Guard 2 绝对路径**：以 `/` 开头拒绝
+- **Guard 3 文档文件**：须 `.md` 结尾；前缀白名单（`common-knowledge/`、`projects/`、`archive/`）；**项目树结构校验**（项目层下只允许 `common-knowledge/`、`projects/`、`archive/`——`projects/P/xxx.md`、`projects/P/子项目/` 均拒绝，子项目必须套 `projects/`）；**`readme.md` 排除**（系统层索引/项目元信息，由 readme 生成器管理，文档工具不得创建/覆盖/删除）
+- **Guard 4 项目目录**：`projects`/`archive` 本身是系统目录非项目；须 `projects/` 或 `archive/` 开头；同样过项目树结构校验
+- **Guard 5 存在性**：传入 storage 时，file/dir 须真实存在
+
+REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400）。
+
 ### 测试
 
 - 17 个测试文件，189 个测试通过，3 个前端 smoke 测试因 CDN 环境待修复
