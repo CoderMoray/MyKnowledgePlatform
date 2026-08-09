@@ -17,10 +17,11 @@ import urllib.parse
 import pytest
 
 from edit_switch_helpers import (
-    DOC_MAIN, DOC_SAME, DOC_TARGET, NEW_TITLE, PROJ,
+    DOC_MAIN, DOC_SAME, DOC_SUB, DOC_TARGET, NEW_TITLE, PROJ, SUB_PROJ,
     active_tree_doc, apply_mod, assert_backend_content, assert_backend_summary,
-    attach_tracker, backend_doc, delay_route, enter_edit, exit_inplace,
-    navigate, open_doc, shown_body, shown_summary, shown_title, toasts,
+    attach_tracker, backend_doc, click_toc, delay_route, enter_edit, exit_inplace,
+    navigate, open_doc, shown_body, shown_summary, shown_title,
+    toggle_project_chevron, toasts,
 )
 
 MARKER = "AUTO-MARKER-2026"
@@ -503,3 +504,132 @@ class TestNewDocCreate:
             assert st == 200, f"根 common-knowledge 应有新文档: {path}"
         finally:
             _cleanup_new_doc(path)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 批 2：边界场景（S11-S20）——基建：子项目 fixture + TOC/chevron helper
+# ═══════════════════════════════════════════════════════════════════════
+class TestBatch2:
+    """批 2：边界场景。复用批 1 的 enter_edit/apply_mod/navigate 公共操作。"""
+
+    def test_s11_title_focus_switch_no_rename(self, static_server, test_docs, page):
+        """S11 E2+M0→T1：标题输入框聚焦时切换——输入框值=污染源，必须不 rename"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "title")              # E2（标题框聚焦，值未改）
+        apply_mod(page, "none")                # M0
+        navigate(page, "doc_same")             # T1
+        st, _ = backend_doc(DOC_MAIN)
+        assert st == 200, "标题框聚焦切走不应 rename（原路径应存在）"
+        assert shown_title(page) == "test-edit-auto-same"
+
+    def test_s12_summary_focus_switch_not_polluted(self, static_server, test_docs, page):
+        """S12 E3+M0→T1：摘要输入框聚焦时切换——summary 不被污染"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "summary")            # E3
+        apply_mod(page, "none")                # M0
+        navigate(page, "doc_same")             # T1
+        assert shown_summary(page) == "同项目摘要", f"摘要被污染: {shown_summary(page)!r}"
+        st, d = backend_doc(DOC_MAIN)
+        assert st == 200 and (d or {}).get("summary") == "主文档摘要"
+
+    def test_s13_subproject_page_highlight(self, static_server, subproject_docs, page):
+        """S13 E1+M0→T4：子项目页正常 + 高亮（子项目行 active）"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "none")
+        navigate(page, "subproject")           # T4
+        # 子项目页渲染：子项目文档卡片出现
+        cards = page.locator(".doc-card__title", has_text="test-edit-auto-sub")
+        assert cards.count() >= 1, "子项目页应显示子项目文档卡片"
+        # 高亮：子项目行 active-project（text+bg），顶层 Training 行非 active
+        sub_active = page.locator(f'[data-sub-path="{SUB_PROJ}"].sidebar-tree__item--active-project')
+        assert sub_active.count() == 1, f"子项目行应 active-project，实际 {sub_active.count()}"
+        train_item = page.locator(".sidebar-project").filter(
+            has=page.locator(".sidebar-item__name", has_text="Training 人员培训"))
+        assert train_item.locator(".sidebar-item--active").count() == 0, "顶层行不应 active"
+
+    def test_s14_trash_no_residue(self, static_server, test_docs, page):
+        """S14 E1+M0→T6：垃圾箱正常进入、A 已保存关编辑"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "none")
+        navigate(page, "trash")                # T6
+        assert page.evaluate("Alpine.store('app').currentView") == "trash"
+        assert page.locator(".sidebar-tree__item--active").count() == 0, "垃圾箱残留文档高亮"
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="S15 已知历史 bug：rename 后历史栈未更新——_maybeRename 的 replaceState 在"
+               "await 后判断 hash 已切走而跳过，back 回旧路径 #doc/旧名（后端 404），"
+               "bfcache 恢复旧 DOM 显示旧标题。完整修复需后端 rename 映射（old→new）支持，待排期。",
+    )
+    def test_s15_rename_then_back(self, static_server, test_docs, page):
+        """S15 E1+M2→T8：改标题后 back——rename 生效且路由/视图一致（历史 bug，当前 xfail）"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "title")               # M2 → rename（replaceState 改当前历史项为 #doc/新路径）
+        navigate(page, "doc_same")             # 切走（新历史项）
+        navigate(page, "back")                 # back → 回 rename 后的 A（历史项已被 replaceState 改写）
+        page.wait_for_timeout(1500)
+        title = shown_title(page)
+        assert title == NEW_TITLE, f"back 后应显示 rename 后文档（新标题），实际: {title!r}"
+        # 路由/视图一致：hash 指向新路径，后端新路径存在
+        cur = urllib.parse.unquote(page.evaluate("location.hash"))
+        assert NEW_TITLE in cur, f"hash 应指向 rename 后路径: {cur[:80]}"
+
+    def test_s16_body_title_combo(self, static_server, test_docs, page):
+        """S16 E1+M4→T1：改正文+标题——都保存 + rename"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body_title")          # M4
+        navigate(page, "doc_same")             # T1
+        new_path = f"{PROJ}/common-knowledge/{NEW_TITLE}.md"
+        st, d = backend_doc(new_path)
+        assert st == 200, "rename 后新路径应存在"
+        assert MARKER in (d or {}).get("content", ""), "正文修改应保存"
+        st_old, _ = backend_doc(DOC_MAIN)
+        assert st_old != 200, "旧路径应不存在"
+        assert shown_title(page) == "test-edit-auto-same"
+
+    def test_s17_url_switch_saves(self, static_server, test_docs, page):
+        """S17 E1+M1→T9：直接改 URL——A 保存、B 从外部链接加载正常"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body")
+        navigate(page, "url")                  # T9：hash 直接改到 DOC_SAME
+        assert_backend_content(DOC_MAIN, MARKER)
+        assert shown_title(page) == "test-edit-auto-same"
+
+    def test_s18_reenter_edit_loop(self, static_server, test_docs, page):
+        """S18 E1+M0→A(再进)：同文档重复进出编辑（edit→view→edit）不异常"""
+        open_doc(page, static_server, DOC_MAIN)
+        for i in range(3):
+            enter_edit(page, "body")
+            apply_mod(page, "none")
+            exit_inplace(page)
+        assert page.evaluate("Alpine.store('app').currentView") == "view", "最终应回 view 态"
+        assert shown_title(page) == "test-edit-auto-main"
+
+    def test_s19_toc_click_keeps_edit(self, static_server, test_docs, page):
+        """S19 编辑态点目录 TOC：同文档滚动跳转、不退出编辑、高亮不错乱"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        page.wait_for_selector("[data-toc-jump]", timeout=8000)
+        n_toc = page.locator("[data-toc-jump]").count()
+        assert n_toc >= 2, f"测试文档应有多级标题（H1/H2/H3），TOC 实际 {n_toc} 项"
+        click_toc(page, 1)                     # 点"二级标题甲"
+        assert page.locator(".viewer__title-input").is_visible(), "点 TOC 不应退出编辑"
+        assert page.evaluate("Alpine.store('app').currentView") == "edit"
+
+    def test_s20_chevron_keeps_edit(self, static_server, test_docs, page):
+        """S20 编辑态点项目树 chevron：展开/收起、编辑状态保持、展开后高亮恢复"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        was, now = toggle_project_chevron(page, "MyKnowledge 项目知识管理平台")
+        assert was != now, "chevron 应切换展开状态"
+        assert page.locator(".viewer__title-input").is_visible(), "点 chevron 不应退出编辑"
+        assert page.evaluate("Alpine.store('app').currentView") == "edit"
+        # 再展开 → 高亮恢复当前文档
+        was2, now2 = toggle_project_chevron(page, "MyKnowledge 项目知识管理平台")
+        assert now2 == was, "再次点击应回到原展开状态"
+        assert active_tree_doc(page) == DOC_MAIN, f"展开后高亮应恢复: {active_tree_doc(page)!r}"

@@ -9,12 +9,14 @@
 ```
 1. 后端本地 8080 运行中（.myknowledge_test 测试库），浏览器 headless Chrome
 2. fixtures（tests/frontend/conftest.py）：static_server / browser / test_docs（隔离创建清理）/ page（toast 捕获）
+   ⚠️ static_server 用 index.html（开发版，外部 js 实时加载）——index.standalone.html 被 .gitignore
+   忽略且无构建脚本（本地手工内联版），改前端源码不会同步，测试加载会拿到旧版 JS（S19/S20 曾误判）
 3. helper（edit_switch_helpers.py）：open_doc → enter_edit(入口) → apply_mod(修改) → navigate(切走)/exit_inplace(原地保存)
    → assert_*(保存/残留/rename/高亮/toast/加载次数)
 4. 防重断言（api_tracker.ApiTracker）：一次导航主加载 ≤1 轮（doc/refs/meta 各 ≤1）、一次保存 PUT ≤1
 5. 差异校验：API 对比（前端渲染 vs 后端 GET /api/document），不做 git diff 硬校验
-6. 竞态注入：page.route 延迟/伪造响应（delay_route / 409 mock）
-7. 测试文档：新建固定成对（test-edit-auto-*，跨项目），测试后清理
+6. 竞态注入：page.route 延迟/伪造响应（delay_route / 409 mock / 锁 mock）
+7. 测试文档：新建固定成对（test-edit-auto-*，跨项目）+ 子项目 fixture（测试子项目 readme 写文件），测试后清理
 ```
 
 ## 1. 三个维度
@@ -136,20 +138,32 @@ tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 �
 | test_create_training_enters_edit_with_values | 归属=Training：hash 直达 #edit/ + enterEdit 生效（标题框可见）+ 标题/摘要填充非空 + sidebar 出现新文档行 + 后端 API 对比 |
 | test_create_default_parent_root | 默认归属"公共知识"→ 根 common-knowledge 创建，直达编辑态 |
 
-### 批 2：边界场景 📋 待自动化（用现有方法直接实现）
+### 批 2：边界场景 ✅ 已自动化（test_edit_switch.py::TestBatch2，9 pass + 1 xfail）
 
-| # | 场景 | 自动化方式 | 需要的扩展 |
+| # | 场景 | 自动化用例 | 状态 |
 |---|---|---|---|
-| S11 | E2+M0→T1 | enter_edit("title") 已有 | 无 |
-| S12 | E3+M0→T1 | enter_edit("summary") 已有 | 无 |
-| S13 | E1+M0→T4 | 子项目页导航 | 子项目 fixture（projects/X/projects/Y 结构）+ navigate 扩展 |
-| S14 | E1+M0→T6 | navigate("trash") 已有 | 无 |
-| S15 | E1+M2→T8 | apply_mod("title")+navigate("back") 已有 | 无 |
-| S16 | E1+M4→T1 | apply_mod("body_title") 已有 | 无 |
-| S17 | E1+M1→T9 | navigate("url") 已有 | 无 |
-| S18 | E1+M0→A(再进) | 循环 enter_edit+exit_inplace | 无 |
-| S19 | 编辑态点目录 TOC | 点 .sidebar-toc__list a，断言不退出编辑 | TOC 定位/断言 helper |
-| S20 | 编辑态点项目树 chevron | 点 .sidebar-project__chevron，断言不退出编辑 | chevron 定位/断言 helper |
+| S11 | E2+M0→T1 | test_s11_title_focus_switch_no_rename | ✅ |
+| S12 | E3+M0→T1 | test_s12_summary_focus_switch_not_polluted | ✅ |
+| S13 | E1+M0→T4 | test_s13_subproject_page_highlight | ✅ |
+| S14 | E1+M0→T6 | test_s14_trash_no_residue | ✅ |
+| S15 | E1+M2→T8（改标题后 back） | test_s15_rename_then_back | ⚠️ xfail（已知 bug，见下） |
+| S16 | E1+M4→T1 | test_s16_body_title_combo | ✅ |
+| S17 | E1+M1→T9 | test_s17_url_switch_saves | ✅ |
+| S18 | E1+M0→A(再进) | test_s18_reenter_edit_loop | ✅ |
+| S19 | 编辑态点目录 TOC | test_s19_toc_click_keeps_edit | ✅（前端已修） |
+| S20 | 编辑态点项目树 chevron | test_s20_chevron_keeps_edit | ✅（前端已修） |
+
+**批 2 基建**（helper）：`navigate("subproject")`（树内 data-project-path）、`click_toc`、
+`toggle_project_chevron`；conftest 增子项目 fixture（测试子项目 + readme 写文件 + DOC_SUB）。
+
+**S19/S20 前端修复（2026-08-09）**：`onDocClick` 原来"点编辑器外一律退出编辑"，
+点 TOC/chevron（文档内辅助操作）也被误伤退出。修复：排除 `.sidebar-toc__list` /
+`.sidebar-project__chevron` / `.sidebar-tree__chevron` 内的点击不退出编辑。
+
+**S15 已知 bug（xfail 记录，待修复）**：改标题 rename 成功后，`_maybeRename` 的
+replaceState 在 await 后判断 hash 已切走而跳过 → 历史栈仍是旧路径 → back 回
+`#doc/旧名`（后端 404）+ bfcache 恢复旧 DOM 显示旧标题。完整修复需后端 rename
+映射（old→new 跳转）支持，前端待排期。测试标 `xfail(strict=True)`——修好后自动提示去掉标记。
 
 ### 批 3：异常/竞态场景 📋 待自动化
 
@@ -168,12 +182,13 @@ tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 �
 |---|---|---|
 | tests/frontend/test_edit_switch.py::TestBatch1 | 批 1（S1-S10 + S4b-e + 竞态注入） | ✅ 15/15 通过 |
 | tests/frontend/test_edit_switch.py::TestNewDocParent | 归属选择器 8 用例 | ✅ 8/8 通过 |
-| tests/frontend/test_edit_switch.py::TestNewDocCreate | 创建后跳转编辑态 2 用例 | ✅ |
+| tests/frontend/test_edit_switch.py::TestNewDocCreate | 创建后跳转编辑态 2 用例 | ✅ 2/2 通过 |
+| tests/frontend/test_edit_switch.py::TestBatch2 | 批 2（S11-S20） | ✅ 9 pass + 1 xfail（S15 已知 bug） |
 | tests/frontend/test_smoke.py（Playwright） | 静态渲染/路由/主题/垃圾箱视图 | ✅ |
 | tests/（后端 pytest） | 存储/锁/分享/垃圾箱/MCP 写入等 | ✅ |
 
 **结论**：测试方法已成熟（Playwright E2E + ApiTracker 防重 + API 对比 + helper 库），
-批 2/批 3 剩余 16 场景直接用同一套方法补自动化，不再走手测。
+批 1/批 2/归属/创建已全部自动化（36 用例：35 pass + 1 xfail），仅剩批 3（S21-S26）待写。
 
 ## 5. 执行计划（更新版）
 
@@ -181,10 +196,10 @@ tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 �
 ✅ 阶段 1：测试基建（conftest fixtures + helpers + ApiTracker）——已完成
 ✅ 阶段 2：批 1（S1-S10 + S4b-e + 竞态）固化为 Playwright 自动化——已完成，15/15
 ✅ 阶段 3：归属选择器（TestNewDocParent 8 用例）——已完成，8/8
-✅ 阶段 4：创建后跳转编辑态（TestNewDocCreate 2 用例）——已完成
-📋 阶段 5：批 2（S11-S20）+ 批 3（S21-S26）自动化——待做（S13/S24 建子项目 fixture，
-          S19/S20 加 TOC/chevron helper，S21 锁注入，S23 删除模态，S25 409 mock）
-📋 阶段 6：纳入全量回归（pytest tests/ -q）
+✅ 阶段 4：创建后跳转编辑态（TestNewDocCreate 2 用例）——已完成，2/2
+✅ 阶段 5：批 2（S11-S20）自动化——已完成，9 pass + 1 xfail（S15 已知 bug 待修）
+📋 阶段 6：批 3（S21-S26）自动化——待做（锁注入/409 mock/删除模态 helper 已建好）
+📋 阶段 7：纳入全量回归（pytest tests/ -q）+ S15 bug 修复
 ```
 
 ## 6. 已确认项

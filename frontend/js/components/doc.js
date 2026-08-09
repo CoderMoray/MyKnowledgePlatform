@@ -683,7 +683,17 @@ Alpine.data("docComponent", () => ({
         }
         return;
       }
-      if (!inEditor) this.exitEdit();
+      if (!inEditor) {
+        // 侧栏控件点击不算"编辑器外部"：TOC 跳转/项目 chevron 展开收起是文档内辅助操作，
+        // 不应打断编辑（2026-08-09 S19/S20 场景固化）
+        const t = e.target;
+        const onSidebarControl = t && t.closest && (
+          t.closest(".sidebar-toc__list") ||        // 目录跳转
+          t.closest(".sidebar-project__chevron") || // 顶层项目 chevron
+          t.closest(".sidebar-tree__chevron")       // 树内子项目 chevron
+        );
+        if (!onSidebarControl) this.exitEdit();
+      }
     },
 
     /** 点击外部 → 退出编辑并保存（单 DOM：只切只读，不销毁编辑器） */

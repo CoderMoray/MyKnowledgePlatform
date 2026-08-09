@@ -4,6 +4,7 @@
     open_doc → enter_edit(入口) → apply_mod(修改) → navigate(切走)/exit_inplace(原地保存)
     → assert_*(保存/残留/高亮/toast/加载次数)
 """
+import json
 import sys
 import time
 import urllib.parse
@@ -12,9 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 PROJ = "projects/MyKnowledge 项目知识管理平台"
+TRAIN = "projects/Training 人员培训"
+SUB_PROJ = f"{TRAIN}/projects/测试子项目"
 DOC_MAIN = f"{PROJ}/common-knowledge/test-edit-auto-main.md"
 DOC_SAME = f"{PROJ}/common-knowledge/test-edit-auto-same.md"
-DOC_TARGET = "projects/Training 人员培训/common-knowledge/test-edit-auto-target.md"
+DOC_TARGET = f"{TRAIN}/common-knowledge/test-edit-auto-target.md"
+DOC_SUB = f"{SUB_PROJ}/common-knowledge/test-edit-auto-sub.md"
 NEW_TITLE = "test-edit-auto-renamed"
 
 from conftest import backend_doc  # noqa: E402  (fixtures 同目录 conftest)
@@ -74,6 +78,16 @@ def navigate(page, target):
         row.click()
     elif target == "project":
         page.locator(".sidebar-item__name", has_text="MyKnowledge 项目知识管理平台").first.click()
+    elif target == "subproject":
+        # 子项目页：Training 树未展开 → 先展开顶层，再点树内子项目行（data-project-path）
+        sub_row = page.locator(f'[data-sub-path="{SUB_PROJ}"]')
+        if sub_row.count() == 0:
+            training = page.locator(".sidebar-project").filter(
+                has=page.locator(".sidebar-item__name", has_text="Training 人员培训"))
+            training.locator(".sidebar-project__chevron").first.click()
+            page.wait_for_selector(f'[data-sub-path="{SUB_PROJ}"]', timeout=8000)
+            sub_row = page.locator(f'[data-sub-path="{SUB_PROJ}"]')
+        sub_row.locator('.sidebar-tree__name[data-project-path]').first.click()
     elif target == "dashboard":
         page.evaluate("window.location.hash = 'dashboard'")
     elif target == "trash":
@@ -139,3 +153,74 @@ def delay_route(page, method, url_contains, seconds):
             time.sleep(seconds)
         route.continue_()
     page.route("**/api/**", handler)
+
+
+# ── 批 2/批 3 基建 helper（S13/S19/S20/S21/S23/S25 用）──────────────────
+
+def click_toc(page, idx):
+    """点侧栏目录第 idx 项（tocJump → scrollIntoView，不退出编辑态）"""
+    el = page.locator(f"[data-toc-jump='{idx}']").first
+    assert el.count(), f"TOC 第 {idx} 项不存在"
+    el.click()
+    page.wait_for_timeout(600)
+
+
+def toggle_project_chevron(page, proj_name):
+    """点项目行 chevron 展开/收起，返回 (操作前展开?, 操作后展开?)"""
+    proj = page.locator(".sidebar-project").filter(
+        has=page.locator(".sidebar-item__name", has_text=proj_name)).first
+    chevron = proj.locator(".sidebar-project__chevron").first
+    def _open():
+        cls = chevron.locator("svg").get_attribute("class") or ""
+        return "is-open" in cls
+    was = _open()
+    chevron.click()
+    page.wait_for_timeout(600)
+    return was, _open()
+
+
+def inject_lock(page, locked=True):
+    """S21：route mock /api/lock → 前端 checkLock 进入锁定态（不改真实锁文件）"""
+    body = {
+        "locked": locked,
+        "pid": 99999,
+        "agent": "test-agent",
+        "since_ts": 0, "expires_ts": 0,
+        "since": "2026-01-01T00:00:00+08:00",
+        "expires_at": "2026-01-01T00:00:00+08:00",
+        "expired": False,
+    }
+    page.route("**/api/lock", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(body)))
+    page.evaluate("Alpine.store('app').checkLock()")
+    page.wait_for_timeout(500)
+
+
+def release_lock(page):
+    """解除锁 mock，恢复真实 /api/lock 轮询结果"""
+    page.unroute("**/api/lock")
+    page.evaluate("Alpine.store('app').checkLock()")
+    page.wait_for_timeout(500)
+
+
+def mock_409(page, url_contains="document"):
+    """S25：拦截 PUT 保存返回 409（version 冲突）；其余请求放行"""
+    def handler(route):
+        req = route.request
+        if req.method.upper() == "PUT" and url_contains in req.url:
+            route.fulfill(status=409, content_type="application/json",
+                          body=json.dumps({"detail": "version conflict (test mock 409)"}))
+        else:
+            route.continue_()
+    page.route("**/api/**", handler)
+
+
+def delete_doc_from_edit(page, confirm=True):
+    """S23：编辑态点删除按钮 → 自动退出编辑保存 → 删除确认模态 → 确认/取消"""
+    btn = page.locator(".btn-delete", has_text="删除").first
+    assert btn.count(), "编辑态删除按钮不可见（应保留可见）"
+    btn.click()
+    page.wait_for_timeout(1000)          # 自动退出编辑（保存）
+    if confirm:
+        page.get_by_role("button", name="确认删除").click()
+        page.wait_for_timeout(2500)      # DELETE + toast + 倒计时跳转
