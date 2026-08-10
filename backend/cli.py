@@ -287,6 +287,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         host="127.0.0.1",
         port=args.port,
         reload=args.reload,
+        timeout_graceful_shutdown=5,
     )
     return 0
 

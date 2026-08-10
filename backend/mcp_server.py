@@ -740,6 +740,22 @@ def _check_project_tree(path: str, is_dir: bool = False) -> str | None:
                     f"  3. 列出项目：nav__list_dir(project_rel=\"projects\")"
                 )
             break  # ends on a project name (dir: the project itself)
+        # Guard 1: system container names must not appear as a project /
+        # container name at ANY project level — top-level or nested.
+        # (Rename is covered by _check_rename_name as well; Guard 1
+        # closes the same gap for create/write/move paths.)
+        # Naming a project ``archive`` / ``common-knowledge`` / ``projects``
+        # creates ambiguous paths that break frontend selectors, tree
+        # rendering and container scanning.
+        _RESERVED = frozenset({"archive", "common-knowledge", "projects"})
+        if seg in _RESERVED:
+            return (
+                f"「{seg}」是系统保留容器名，不能作为项目名使用。\n"
+                f"这会导致前端选择器、树形导航和容器扫描产生歧义。\n\n"
+                f"恢复方法："
+                f"请为项目取一个有意义的名称。\n"
+                f"列出当前结构：nav__list_dir(project_rel=\"projects\")"
+            )
         if nxt == "readme.md":
             # readme.md 是系统索引/项目元信息，合法存在，不参与结构校验
             # （file 分支由 readme 规则单独拦截）
@@ -990,6 +1006,9 @@ def _auto_archive(parent_rel: str, storage: Storage, gen: object) -> None:
     """Move non-active projects from ``projects/`` to ``archive/``."""
     if not parent_rel.startswith("projects/"):
         return
+    # 只归档顶层项目（projects/Name），跳过嵌套路径（容器目录或子项目）
+    if parent_rel.count("/") != 1:
+        return
     project_name = parent_rel.split("/")[-1]
     src = storage.kb_root / parent_rel
     dst = storage.kb_root / "archive" / project_name
@@ -1028,13 +1047,11 @@ def create_mcp_app(storage: Storage,
         """Rebuild indices after a restore / trash-empty operation."""
         if gen is None:
             return
-        from backend.mcp_server import _parent_rel
-        # Rebuild the parent of the restored item (if any)
-        parts = _original.rstrip("/").split("/")
-        if len(parts) > 1:
-            parent = "/".join(parts[:-1])
-            if parent and parent not in ("projects", "archive", "", "trash"):
-                gen.rebuild(parent)  # type: ignore[union-attr]
+        # 用 _parent_rel 算正确的父项目（考虑了 /common-knowledge/ 分隔）
+        # 不要朴素地 "/".join(parts[:-1])——那会把容器路径喂给 rebuild
+        parent = _parent_rel(_original)
+        if parent and parent not in ("projects", "archive"):
+            gen.rebuild(parent)  # type: ignore[union-attr]
         gen.rebuild("")  # type: ignore[union-attr]
         gen.rebuild_project_status()  # type: ignore[union-attr]
 
@@ -1701,7 +1718,7 @@ def create_mcp_app(storage: Storage,
 
     @mcp.tool()
     def maint__check_integrity() -> str:
-        """[maint] Run integrity check: GC + rebuild status.
+        """[maint] Run integrity check: GC archive + GC trash + rebuild status.
 
         Returns a summary report.
         """
@@ -1718,6 +1735,16 @@ def create_mcp_app(storage: Storage,
 
             gen_local.rebuild_project_status()
             report.append("项目状态已更新")
+
+        # GC trash — same as CLI check, must be at this level (storage not gen)
+        from backend.trash import gc_trash, list_trash
+        n = gc_trash(storage)
+        if n:
+            report.append(f"🗑️ 已清空 {n} 个超过 30 天的垃圾箱条目")
+        elif list_trash(storage):
+            report.append("垃圾箱无过期条目（30 天内保留）")
+        else:
+            report.append("垃圾箱为空")
 
         return "\n".join(report) if report else "检查完成，无变更。"
 

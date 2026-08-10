@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
 
     os.environ["MYKNOWLEDGE_ROOT"] = str(resolve_root(args.root))
 
-    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning", timeout_graceful_shutdown=5)
     return 0
 
 

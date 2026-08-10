@@ -134,10 +134,22 @@ function waitForBackend(url, timeoutMs = 30000) {
 }
 
 function stopBackend() {
-  if (backendProc) {
-    backendProc.kill();
-    backendProc = null;
-  }
+  if (!backendProc || backendProc.killed) return;
+
+  const proc = backendProc;
+  backendProc = null;
+
+  // 1. 优雅关闭：SIGTERM，uvicorn timeout_graceful_shutdown=5 会等待进行中的请求完成
+  proc.kill("SIGTERM");
+
+  // 2. 兜底：5.5s 后还没退出 → SIGKILL 强杀（5s 超时 + 500ms 缓冲）
+  const forceKill = setTimeout(() => {
+    if (!proc.killed) {
+      proc.kill("SIGKILL");
+    }
+  }, 5500);
+
+  proc.on("exit", () => clearTimeout(forceKill));
 }
 
 // ── 启动后端 ─────────────────────────────────────────────

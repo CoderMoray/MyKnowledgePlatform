@@ -152,11 +152,104 @@ class TestRebuildNoExistingReadme:
         assert meta.name == "MyNewKB"
 
     def test_first_build_project_inferred_name(self, gen: ReadmeGenerator,
-                                                storage: Storage,
-                                                tmp_kb_root: Path) -> None:
+                                                 storage: Storage,
+                                                 tmp_kb_root: Path) -> None:
         (tmp_kb_root / "projects" / "my-project").mkdir(parents=True)
         (tmp_kb_root / "projects" / "my-project" / "common-knowledge").mkdir()
         (tmp_kb_root / "projects" / "my-project" / "projects").mkdir()
         result = gen.rebuild("projects/my-project", parent="root")
         # name inferred from directory
         assert "my-project" in result or "# my-project" in result
+
+
+# ══════════════════════════════════════════════════════════════
+# 容器路径保护（防御深层次容器被误认为项目）
+# ══════════════════════════════════════════════════════════════
+
+class TestRebuildContainerPaths:
+    """rebuild() 收到容器路径时抛出 ValueError，提醒调用方路径错误。"""
+
+    def test_projects_container_raises(self, gen: ReadmeGenerator,
+                                        storage: Storage,
+                                        tmp_kb_root: Path) -> None:
+        """projects/X/projects 是子项目容器，不是项目层，应报错。"""
+        container = "projects/parent/projects"
+        with pytest.raises(ValueError, match="容器路径"):
+            gen.rebuild(container)
+        # 不应创建任何文件或子目录
+        assert not (tmp_kb_root / container / "readme.md").exists()
+
+    def test_common_knowledge_container_raises(self, gen: ReadmeGenerator,
+                                                  storage: Storage,
+                                                  tmp_kb_root: Path) -> None:
+        """projects/X/common-knowledge 是文档容器，不是项目层，应报错。"""
+        (tmp_kb_root / "projects" / "p" / "common-knowledge").mkdir(parents=True)
+        with pytest.raises(ValueError, match="容器路径"):
+            gen.rebuild("projects/p/common-knowledge")
+
+    def test_archive_container_raises(self, gen: ReadmeGenerator,
+                                       storage: Storage,
+                                       tmp_kb_root: Path) -> None:
+        """projects/X/archive 是归档容器，不是项目层，应报错。"""
+        (tmp_kb_root / "projects" / "p" / "archive").mkdir(parents=True)
+        with pytest.raises(ValueError, match="容器路径"):
+            gen.rebuild("projects/p/archive")
+
+    def test_deep_subproject_still_works(self, gen: ReadmeGenerator,
+                                          storage: Storage,
+                                          tmp_kb_root: Path) -> None:
+        """projects/X/projects/Y 是深层子项目，应正常重建。"""
+        _create_project(storage, tmp_kb_root, "", "MyKB", "root")
+        sub = "projects/parent/projects/child"
+        _create_project(storage, tmp_kb_root, sub, "Child", "a child project")
+        result = gen.rebuild(sub)
+        assert result != ""
+        assert "# Child" in result
+
+    def test_root_projects_raises(self, gen: ReadmeGenerator,
+                                    storage: Storage,
+                                    tmp_kb_root: Path) -> None:
+        """projects/ 是根级系统目录（不含项目名），应报错。"""
+        with pytest.raises(ValueError, match="容器路径"):
+            gen.rebuild("projects")
+
+    def test_deep_archive_project_works(self, gen: ReadmeGenerator,
+                                          storage: Storage,
+                                          tmp_kb_root: Path) -> None:
+        """archive/X/projects/Y 是归档下的嵌套子项目，应正常重建。"""
+        _create_project(storage, tmp_kb_root, "", "MyKB", "root")
+        sub = "archive/archived-prj/projects/nested"
+        _create_project(storage, tmp_kb_root, sub, "Nested", "nested archived")
+        result = gen.rebuild(sub)
+        assert result != ""
+        assert "# Nested" in result
+
+
+# ══════════════════════════════════════════════════════════════
+# summary 字段 fallback：YAML None → 空字符串
+# ══════════════════════════════════════════════════════════════
+
+class TestRebuildSummaryFallback:
+    """rebuild() 必须把 summary 归一化到字符串，防止 YAML None 污染模板。"""
+
+    def test_empty_summary_stays_empty_str(self, gen: ReadmeGenerator,
+                                            storage: Storage,
+                                            tmp_kb_root: Path) -> None:
+        """新建项目无 summary → 写回空字符串，不是 None。"""
+        _create_project(storage, tmp_kb_root, "", "MyKB", "")
+        _create_project(storage, tmp_kb_root,
+                        "projects/proj", "Proj", "")  # 空 summary
+        # 模拟 YAML ``summary: `` 被解析为 None 后重建
+        # 直接修改磁盘文件注入 None
+        readme_path = tmp_kb_root / "projects" / "proj" / "readme.md"
+        old = readme_path.read_text(encoding="utf-8")
+        # 替换 ``summary: ...`` → ``summary:``（YAML null）
+        import re
+        new_body = re.sub(r"summary:.*", "summary:", old)
+        readme_path.write_text(new_body, encoding="utf-8")
+
+        result = gen.rebuild("projects/proj")
+        assert result != ""
+        # 不应出现 ``summary: None`` 或 ``summary: null``
+        assert "summary: None" not in result
+        assert "summary: null" not in result

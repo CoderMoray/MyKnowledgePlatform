@@ -44,10 +44,22 @@ class ReadmeGenerator:
 
         Returns the generated markdown text (also written to disk).
         """
-        # projects/ 是根级系统目录，不是项目层 —— 禁止生成 projects/readme.md。
-        # 真正的项目层是 "projects/xxx"。调用方误传 "projects" 时直接跳过写入。
-        if project_rel == "projects":
-            return ""
+        # ── 容器目录检测：路径最后一段若是保留名，不是项目层，直接报错 ──
+        # projects/ 是根级系统目录，不是项目层。
+        # projects/项目名/projects 是子项目容器，也不是项目层。
+        # 只有类似 projects/项目名 或 archive/项目名 才是真正的项目层。
+        _reserved_dirs = {"common-knowledge", "projects", "archive"}
+        _last_seg = project_rel.rstrip("/").split("/")[-1] if project_rel else ""
+        if project_rel and _last_seg in _reserved_dirs:
+            raise ValueError(
+                f"rebuild() 收到容器路径: {project_rel!r}\n"
+                f"「{_last_seg}」是保留的容器目录名，不是项目层，无法在此生成 README。\n\n"
+                f"恢复方法：\n"
+                f"  若想重建项目 README：使用项目路径（如 projects/项目名 或 archive/项目名）\n"
+                f"  若想重建根 README：传空字符串 \"\"\n"
+                f"  若想操作子项目：projects/父项目/projects/子项目名"
+            )
+
         # ── Ensure project directory structure ───────────────
         # 白名单：只有 projects/xxx 或 archive/xxx 才视作项目层
         if project_rel and (project_rel.startswith("projects/")
@@ -67,6 +79,10 @@ class ReadmeGenerator:
             pass
 
         # Ensure defaults for empty values
+        # CAUTION: summary parsed from frontmatter can be None
+        # (YAML ``summary: `` → Python None). Always normalize to str.
+        if not summary:
+            summary = ""
         if not name:
             name = (project_rel.rstrip("/").split("/")[-1]
                     if project_rel and project_rel != ""
