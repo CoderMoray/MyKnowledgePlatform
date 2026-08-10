@@ -86,6 +86,11 @@ def move_doc_to_trash(storage, rel_path: str) -> str:
 
     # Remove original (now duplicated in trash)
     abs_src.unlink()
+
+    # Drop rename mappings pointing at this document (S15): a deleted doc
+    # must surface as "deleted", not redirect.  Best-effort — never blocks.
+    from backend.renames import remove_renames_for
+    remove_renames_for(storage, rel_path)
     return trash_rel
 
 

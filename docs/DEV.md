@@ -73,6 +73,16 @@
 - 在 `publish --with-context` 中集成外部引用扫描与打包
 - DESIGN.md `2.5.11` 节完整记录了语法和规则
 
+### Step 9 — rename 旧路径 404 重定向（S15）✅
+
+- `backend/renames.py` — 新增模块：rename 映射持久化（`<kb_root>/.renames.json`）
+- 存储：隐藏点文件（目录列表天然隐藏），经 `.git/info/exclude` 忽略（repo-local，不进版本库、不污染 git status）
+- `rename_document()` 成功后记录 `old → new`；链式 rename（A→B→C）写入时折叠为直接指向最终路径，查询时也跟随链（带防环）
+- 删除文档（`move_doc_to_trash`）时移除指向该文档的映射 → 已删除路径显示 deleted 而非跳转
+- `GET /api/document/{path}` 404 时查映射，命中且目标存在 → `{"detail": "renamed", "redirect_to": "<新路径>"}`；目标不存在退化为 not_found/deleted
+- MCP（`write__rename_document`）与 REST（`PUT /api/document/rename`）共用 `rename_document` 底层，映射两条路径均覆盖
+- 映射文件读写失败不阻塞 rename/delete 主流程（best-effort try/except 兜底）
+
 ### 路径校验规则（`_validate_path`）✅
 
 所有 MCP/CLI 写路径经 `backend/mcp_server.py::_validate_path` 校验，错误信息带恢复指引，按序执行：
@@ -91,8 +101,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 17 个测试文件，189 个测试通过，3 个前端 smoke 测试因 CDN 环境待修复
-- 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager
+- 302 个后端测试通过（含 S15 renames 20 个）
+- 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射
 
 ### 前端构建守门（2026-08-09 引入）
 

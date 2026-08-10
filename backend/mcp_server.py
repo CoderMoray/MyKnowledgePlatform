@@ -310,6 +310,11 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
         # Move
         shutil.move(str(old_path), str(new_path))
 
+        # Record old → new mapping so stale URLs/history can redirect (S15).
+        # Best-effort: a mapping failure never blocks the rename flow.
+        from backend.renames import record_rename
+        record_rename(storage, old_rel, new_rel)
+
         committed_files = {str(new_path)}
 
         # Replace ref: links (exact path match only)

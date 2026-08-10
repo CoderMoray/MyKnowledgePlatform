@@ -415,7 +415,12 @@ def api_get_document(path: str):
                               "maintainer", "created", "updated", "template")},
         }
     except FileNotFoundError:
-        # 404 区分"已删除(可恢复)"与"从未存在"（与其他端点一致）
+        # 404 区分：① 旧路径有 rename 映射且目标存在 → renamed（前端自动跳转）
+        #         ② 已删除(可恢复) → deleted  ③ 从未存在 → not_found
+        from backend.renames import resolve_rename
+        redirect = resolve_rename(storage, path)
+        if redirect:
+            raise HTTPException(404, {"detail": "renamed", "redirect_to": redirect})
         raise HTTPException(404, _deleted_detail(storage, path))
 
 

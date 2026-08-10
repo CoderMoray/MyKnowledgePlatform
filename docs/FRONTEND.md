@@ -107,11 +107,14 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 **`DELETE /api/project/{path}`** 同理，将整个项目移入 `trash/projects/`（非永久删除），返回 `{"status": "trashed", "trash_path": "..."}`。项目进垃圾箱后，引用其内部文档的 `ref_status` 会变为 `in_trash`（可恢复）。恢复约束：项目在垃圾箱时，其下文档的单独恢复会被拒绝，需先恢复项目。
 
-**`GET /api/document/{path}` 404 响应**区分两种情况：
+**`GET /api/document/{path}` 404 响应**区分三种情况：
+- 旧路径有 rename 映射且目标存在 → `{"detail": "renamed", "redirect_to": "<新路径>"}`（前端可 `location.replace` 到新路径重新加载）
 - 路径曾在 git 中被删除 → `{"detail": "deleted", "deleted_at": "<ISO 时间>"}`
 - 路径从未存在 → `{"detail": "not_found"}`
 
-前端可据此显示「文档在 X 被删除」vs「文档不存在」。
+前端可据此显示「文档已改名（自动跳转）」「文档在 X 被删除」「文档不存在」。
+
+> rename 映射由后端在 rename 时持久化（`<kb_root>/.renames.json`，不进 git），链式 rename（A→B→C）会折叠为直接指向最终路径；目标文档被删除后映射自动失效，退化为 deleted/not_found。
 
 ### 读取
 
