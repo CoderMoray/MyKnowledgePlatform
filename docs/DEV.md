@@ -122,6 +122,16 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 （被引用的 js/ 注册符号全含）③ CSS 内联完整性（CSS_ORDER 选择器全含）④ `?v=` 与文件内容
 md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变红，只有 build 真破坏产物才失败。
 
+**前端分发（2026-08-10 修复）**：
+
+- **源码 clone**：`index.standalone.html` 被 .gitignore 忽略不在 git 里 → 后端 serve 检测缺失时
+  **自动跑 `frontend/build.py`**（`_ensure_standalone`，带锁防并发）再响应；需要 python3 + node。
+- **PyPI 安装**：frontend 作为包（`frontend/__init__.py`）+ `pyproject.toml` package-data 携带
+  `index.standalone.html`/`index.html`/`js/`/`css/`/`vendor/`/`tiptap-bundle.mjs` 进 wheel；
+  后端 `_frontend_dir()` 优先定位安装包内 frontend（import frontend 包路径）。发布前 publish.yml
+  已先跑 build → wheel 自带最新 standalone。
+- **依赖锁定**：`mcp>=1.0.0,<2.0`（mcp 2.x 移除 `mcp.server.fastmcp`，1.29 仍兼容）。
+
 ---
 
 ## 待办 — 当前优先级

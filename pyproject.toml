@@ -8,8 +8,8 @@ version = "0.5.0"
 description = "Local-first 知识管理平台 — 纯 Markdown + Git + MCP，让 AI 取·存你的知识"
 requires-python = ">=3.10"
 dependencies = [
-    # MCP protocol
-    "mcp>=1.0.0",
+    # MCP protocol（<2.0：mcp 2.x 移除 mcp.server.fastmcp，2026-08-10 验证 1.29 仍兼容）
+    "mcp>=1.0.0,<2.0",
     # YAML frontmatter
     "pyyaml>=6.0",
     # Git operations
@@ -30,7 +30,20 @@ myknowledge = "backend.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 
+# 前端资源进 wheel：后端 serve 依赖 index.standalone.html（构建产物）+ vendor/（运行时加载）
+# + tiptap-bundle.mjs（importmap）；index.html/js/css 一并携带，便于安装后重建产物。
+[tool.setuptools.package-data]
+frontend = [
+    "index.standalone.html",
+    "index.html",
+    "tiptap-bundle.mjs",
+    "js/*.js",
+    "js/components/*.js",
+    "css/*.css",
+    "vendor/*",
+]
+
 [tool.pytest.ini_options]
 # 排除构建产物：PyInstaller 打包目录（dist-backend/、build/）与桌面壳
 # （desktop/node_modules 等）不应被 pytest 收集
-norecursedirs = ["dist-backend", "build", "desktop"]
+norecursedirs = ["dist-backend", "build", "desktop", "frontend"]

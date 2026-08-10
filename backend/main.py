@@ -11,7 +11,7 @@ access is possible.
 
 from __future__ import annotations
 
-import asyncio, os, sys, time, json
+import asyncio, os, subprocess, sys, threading, time, json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -1225,29 +1225,74 @@ def _frontend_dir() -> Path:
       1. ``MYKNOWLEDGE_FRONTEND_DIR`` env var — Electron shell / tests override
       2. PyInstaller bundle dir (``sys._MEIPASS/frontend``) — shipped inside
          the desktop backend binary
-      3. ``./frontend`` relative to cwd — source checkout (``myknowledge serve``)
+      3. ``frontend`` package (wheel 随包安装，含 index.standalone.html + vendor/；
+         源码开发时同样定位到仓库 frontend/) — PyPI 安装 + 源码两种场景统一
+      4. ``./frontend`` relative to cwd — 兼容旧行为兜底
     """
     env_dir = os.environ.get("MYKNOWLEDGE_FRONTEND_DIR")
     if env_dir:
         return Path(env_dir).expanduser().resolve()
     if getattr(sys, "_MEIPASS", None):
         return (Path(sys._MEIPASS) / "frontend").resolve()
+    # PyPI 安装 / 本地源码：frontend 是包（wheel 带 package-data 资源）→ 用包路径定位
+    try:
+        import frontend as _fe_pkg
+        pkg_dir = Path(_fe_pkg.__file__).parent.resolve()
+        if pkg_dir.is_dir():
+            return pkg_dir
+    except Exception:
+        pass
     return (Path.cwd() / "frontend").resolve()
 
 
 _FRONTEND_DIR = _frontend_dir()
+
+# clone 源码后 index.standalone.html 不在 git（被 .gitignore 忽略）→ 首次 serve 自动 build。
+# 锁防并发重复 build（多请求同时发现缺失时只 build 一次）。
+_standalone_build_lock = threading.Lock()
+
+
+def _ensure_standalone() -> tuple[bool, str]:
+    """standalone 缺失时自动运行 frontend/build.py（需 python3 + node，build.py 内置 node --check）。
+
+    返回 (成功?, 失败原因)。幂等：产物已存在 → 直接成功；并发用锁 + 双检。
+    """
+    idx = _FRONTEND_DIR / "index.standalone.html"
+    if idx.exists():
+        return True, ""
+    with _standalone_build_lock:
+        if idx.exists():  # 等待锁期间其他请求已完成 build
+            return True, ""
+        try:
+            r = subprocess.run(
+                [sys.executable, "build.py"],
+                cwd=_FRONTEND_DIR, capture_output=True, text=True, timeout=180,
+            )
+        except Exception as e:  # 超时/权限等
+            return False, f"build 执行异常: {e}"
+        if r.returncode == 0 and idx.exists():
+            return True, ""
+        tail = (r.stderr or r.stdout or "").strip()[-400:]
+        return False, tail or f"build 退出码 {r.returncode}"
+
+
 if _FRONTEND_DIR.is_dir():
     @app.get("/")
     def _serve_index():
         idx = _FRONTEND_DIR / "index.standalone.html"
-        if idx.exists():
-            # no-cache：保证每次刷新拿到最新构建产物（子资源已带 ?v= 版本号，URL 变化即破缓存）
-            return PlainTextResponse(
-                idx.read_text(encoding="utf-8"),
-                media_type="text/html",
-                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-            )
-        return PlainTextResponse("Frontend not built - run python3 frontend/build.py", status_code=500)
+        if not idx.exists():
+            ok, err = _ensure_standalone()
+            if not ok:
+                return PlainTextResponse(
+                    f"Frontend build failed (需要 python3 + node 执行 build.py): {err}",
+                    status_code=500,
+                )
+        # no-cache：保证每次刷新拿到最新构建产物（子资源已带 ?v= 版本号，URL 变化即破缓存）
+        return PlainTextResponse(
+            idx.read_text(encoding="utf-8"),
+            media_type="text/html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
 
 
