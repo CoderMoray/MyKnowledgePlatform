@@ -1360,6 +1360,12 @@ let _tocCollapsedSet = {};
       this.openModal("delete-doc", { path, name });
     },
 
+    /** 文档卡片右上角删除按钮（hover 出现）→ 复用 delete-doc 确认弹窗（与 top-header 交互一致） */
+    confirmDeleteCard(path) {
+      if (!path) return;
+      this.openModal("delete-doc", { path, name: fileName(path) });
+    },
+
     /** Headbar 面包屑（复刻 page-label 逻辑） */
     get headbarBreadcrumbs() {
       const crumbs = this.breadcrumbs || [];

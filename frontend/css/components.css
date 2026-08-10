@@ -142,6 +142,7 @@
 }
 
 .doc-card {
+  position: relative; /* 删除按钮/摘要延伸区定位锚点（2026-08-10 hover 交互） */
   min-height: 120px; /* 标题+摘要+底行，加载前后一致 */
   flex-direction: column;
   gap: var(--space-2);
@@ -160,6 +161,71 @@
   transform: translateY(-2px);
   box-shadow: var(--shadow-card-hover);
   background: rgba(255, 255, 255, 0.9);
+}
+
+/* ── 卡片 hover：右上角删除按钮（hover 出现）+ 摘要向下延伸 ──────────────
+ * 防坑：doc-grid 已有 align-items: start——卡片延伸变高不会拉伸同排其他卡片；
+ * 纯 CSS :hover（无 Alpine 响应式状态），避免 x-for 重求值。 */
+
+.doc-card__del {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 0.18s ease, transform 0.18s ease,
+              background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.doc-card__del svg {
+  width: 12px;
+  height: 12px;
+}
+
+.doc-card:hover .doc-card__del {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.doc-card__del:hover {
+  background: var(--color-danger-subtle);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.doc-card__ext {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.28s ease;
+}
+
+.doc-card:hover .doc-card__ext {
+  max-height: 110px;
+  opacity: 1;
+}
+
+.doc-card__ext p {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  line-height: 1.6;
+  margin: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ── 卡片图标 ──────────────────────────────────────────────────────────── */
@@ -190,6 +256,7 @@
   font-weight: 600;
   color: var(--text-primary);
   line-height: var(--leading-tight);
+  padding-right: 44px; /* 给右上角删除按钮留位（hover 出现） */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
