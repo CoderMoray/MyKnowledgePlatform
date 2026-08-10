@@ -1,6 +1,6 @@
 # MyKnowledge 桌面壳 — electron-builder 配置
-# 产出：MyKnowledge-0.6.0-arm64.dmg / .zip（Apple Silicon）
-#       MyKnowledge-0.6.0-x64.dmg / .zip（Intel）
+# 产出：MyKnowledge-0.7.0-arm64.dmg / .zip（Apple Silicon）
+#       MyKnowledge-0.7.0-x64.dmg / .zip（Intel）
 
 appId: com.myknowledge.desktop
 productName: MyKnowledge

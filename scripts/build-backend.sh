@@ -50,7 +50,24 @@ T1=$(date +%s)
   --collect-submodules multipart \
   --collect-submodules fastapi \
   --collect-submodules starlette \
-  --add-data "frontend:frontend" \
+  --add-data "frontend/index.standalone.html:frontend" \
+  --add-data "frontend/index.html:frontend" \
+  --add-data "frontend/js:frontend/js" \
+  --add-data "frontend/css:frontend/css" \
+  --add-data "frontend/vendor:frontend/vendor" \
+  --add-data "frontend/tiptap-bundle.mjs:frontend" \
+  --exclude-module matplotlib \
+  --exclude-module PIL \
+  --exclude-module lxml \
+  --exclude-module jedi \
+  --exclude-module numpy \
+  --exclude-module gevent \
+  --exclude-module pandas \
+  --exclude-module scipy \
+  --exclude-module IPython \
+  --exclude-module pytest \
+  --exclude-module tkinter \
+  --strip \
   --distpath "${OUT_DIR}" \
   --workpath build \
   --clean \
