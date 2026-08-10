@@ -558,20 +558,14 @@ class TestBatch2:
         assert page.evaluate("Alpine.store('app').currentView") == "trash"
         assert page.locator(".sidebar-tree__item--active").count() == 0, "垃圾箱残留文档高亮"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="S15 已知历史 bug：rename 后历史栈未更新——_maybeRename 的 replaceState 在"
-               "await 后判断 hash 已切走而跳过，back 回旧路径 #doc/旧名（后端 404），"
-               "bfcache 恢复旧 DOM 显示旧标题。完整修复需后端 rename 映射（old→new）支持，待排期。",
-    )
     def test_s15_rename_then_back(self, static_server, test_docs, page):
-        """S15 E1+M2→T8：改标题后 back——rename 生效且路由/视图一致（历史 bug，当前 xfail）"""
+        """S15 E1+M2→T8：改标题后 back——rename 生效且路由/视图一致（后端映射 88183ee 已修）"""
         open_doc(page, static_server, DOC_MAIN)
         enter_edit(page, "body")
-        apply_mod(page, "title")               # M2 → rename（replaceState 改当前历史项为 #doc/新路径）
+        apply_mod(page, "title")               # M2 → rename
         navigate(page, "doc_same")             # 切走（新历史项）
-        navigate(page, "back")                 # back → 回 rename 后的 A（历史项已被 replaceState 改写）
-        page.wait_for_timeout(1500)
+        navigate(page, "back")                 # back → 旧路径 404 → 后端映射 redirect_to → 前端自动跳新路径
+        page.wait_for_timeout(1800)            # 等跳转 + 加载新文档
         title = shown_title(page)
         assert title == NEW_TITLE, f"back 后应显示 rename 后文档（新标题），实际: {title!r}"
         # 路由/视图一致：hash 指向新路径，后端新路径存在

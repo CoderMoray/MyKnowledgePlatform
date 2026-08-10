@@ -827,6 +827,15 @@ let _tocCollapsedSet = {};
         // 检查是否有未同步的离线草稿（不阻塞加载）
         this.checkDraftBanner().catch(() => {});
       } catch (err) {
+        const dd = err && err.detail && err.detail.detail;
+        // rename 旧路径 404 → 自动跳转新路径（S15，优先于 deleted 处理）。
+        // 契约（后端 88183ee）：404 + {"detail":{"detail":"renamed","redirect_to":"<新路径>"}}。
+        // location.replace 不污染历史栈：用户 back 不会再次回到旧路径（防死循环）。
+        if (err && err.status === 404 && err.message === "renamed" && dd && dd.redirect_to) {
+          if (this._loadingDocPath === path) this._loadingDocPath = null; // 防重标记先清
+          location.replace("#doc/" + String(dd.redirect_to).replace(/\//g, "%2F"));
+          return;
+        }
         this.error = err.message || "加载文档失败";
         this.document = null;
         this.htmlContent = "";
@@ -834,7 +843,6 @@ let _tocCollapsedSet = {};
         this.documentMeta = null;
         // 404 区分：文档曾存在后被删除（可恢复）vs 从未存在
         // err.message 已由 apiRequest 解嵌套（"deleted"）；deleted_at 在 err.detail.detail 里
-        const dd = err && err.detail && err.detail.detail;
         this.deletedInfo =
           err && err.status === 404 && err.message === "deleted"
             ? { deleted_at: (dd && dd.deleted_at) || "" }

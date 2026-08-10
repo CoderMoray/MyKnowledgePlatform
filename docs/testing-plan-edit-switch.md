@@ -146,7 +146,7 @@ tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 �
 | S12 | E3+M0→T1 | test_s12_summary_focus_switch_not_polluted | ✅ |
 | S13 | E1+M0→T4 | test_s13_subproject_page_highlight | ✅ |
 | S14 | E1+M0→T6 | test_s14_trash_no_residue | ✅ |
-| S15 | E1+M2→T8（改标题后 back） | test_s15_rename_then_back | ⚠️ xfail（已知 bug，见下） |
+| S15 | E1+M2→T8（改标题后 back） | test_s15_rename_then_back | ✅（后端映射 88183ee 已修） |
 | S16 | E1+M4→T1 | test_s16_body_title_combo | ✅ |
 | S17 | E1+M1→T9 | test_s17_url_switch_saves | ✅ |
 | S18 | E1+M0→A(再进) | test_s18_reenter_edit_loop | ✅ |
@@ -160,10 +160,11 @@ tracker.assert_method_count("PUT", 1, path_contains="document")       # 保存 �
 点 TOC/chevron（文档内辅助操作）也被误伤退出。修复：排除 `.sidebar-toc__list` /
 `.sidebar-project__chevron` / `.sidebar-tree__chevron` 内的点击不退出编辑。
 
-**S15 已知 bug（xfail 记录，待修复）**：改标题 rename 成功后，`_maybeRename` 的
-replaceState 在 await 后判断 hash 已切走而跳过 → 历史栈仍是旧路径 → back 回
-`#doc/旧名`（后端 404）+ bfcache 恢复旧 DOM 显示旧标题。完整修复需后端 rename
-映射（old→new 跳转）支持，前端待排期。测试标 `xfail(strict=True)`——修好后自动提示去掉标记。
+**S15 已修复（2026-08-10，后端 88183ee + 前端联动）**：改标题 rename 后 back 到旧路径，
+后端（`GET /api/document/旧路径`）返回 404 + `{"detail":{"detail":"renamed","redirect_to":"新路径"}}`
+（rename 映射持久化、链式折叠、删除后失效）；前端 `store.js::loadDocument` catch 分支优先处理
+`renamed` → `location.replace("#doc/新路径")`（不污染历史栈，防死循环）→ 自动加载新文档。
+旧链接/收藏/手输旧路径同样自动纠正；deleted/not_found 分支不受影响。测试已从 xfail 转正。
 
 ### 批 3：异常/竞态场景 ✅ 已自动化（test_edit_switch.py::TestBatch3，6/6 通过）
 
@@ -194,13 +195,13 @@ autosave 的 1s 定时器可能先于锁生效触发保存，导致误报。
 | tests/frontend/test_edit_switch.py::TestBatch1 | 批 1（S1-S10 + S4b-e + 竞态注入） | ✅ 15/15 通过 |
 | tests/frontend/test_edit_switch.py::TestNewDocParent | 归属选择器 8 用例 | ✅ 8/8 通过 |
 | tests/frontend/test_edit_switch.py::TestNewDocCreate | 创建后跳转编辑态 2 用例 | ✅ 2/2 通过 |
-| tests/frontend/test_edit_switch.py::TestBatch2 | 批 2（S11-S20） | ✅ 9 pass + 1 xfail（S15 已知 bug） |
+| tests/frontend/test_edit_switch.py::TestBatch2 | 批 2（S11-S20） | ✅ 10/10 通过（S15 已修） |
 | tests/frontend/test_edit_switch.py::TestBatch3 | 批 3（S21-S26） | ✅ 6/6 通过 |
 | tests/frontend/test_smoke.py（Playwright） | 静态渲染/路由/主题/垃圾箱视图 | ✅ |
 | tests/（后端 pytest） | 存储/锁/分享/垃圾箱/MCP 写入等 | ✅ |
 
 **结论**：测试方法已成熟（Playwright E2E + ApiTracker 防重 + API 对比 + helper 库），
-批 1/批 2/批 3/归属/创建已全部自动化（42 用例：41 pass + 1 xfail S15）。
+批 1/批 2/批 3/归属/创建已全部自动化（42 用例：**42/42 全通过**，S15 已修复）。
 
 ## 5. 执行计划（更新版）
 
@@ -209,9 +210,9 @@ autosave 的 1s 定时器可能先于锁生效触发保存，导致误报。
 ✅ 阶段 2：批 1（S1-S10 + S4b-e + 竞态）固化为 Playwright 自动化——已完成，15/15
 ✅ 阶段 3：归属选择器（TestNewDocParent 8 用例）——已完成，8/8
 ✅ 阶段 4：创建后跳转编辑态（TestNewDocCreate 2 用例）——已完成，2/2
-✅ 阶段 5：批 2（S11-S20）自动化——已完成，9 pass + 1 xfail（S15 已知 bug 待修）
+✅ 阶段 5：批 2（S11-S20）自动化——已完成，10/10（S15 由后端 rename 映射 88183ee + 前端联动修复）
 ✅ 阶段 6：批 3（S21-S26）自动化——已完成，6/6（S21 触发的 _saveAndDestroy 锁守卫 bug 已修）
-📋 阶段 7：纳入全量回归（pytest tests/ -q）+ S15 bug 修复（需后端 rename 映射）
+📋 阶段 7：纳入全量回归（pytest tests/ -q）
 ```
 
 ## 6. 已确认项
