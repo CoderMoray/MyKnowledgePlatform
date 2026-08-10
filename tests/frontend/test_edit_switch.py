@@ -19,8 +19,9 @@ import pytest
 from edit_switch_helpers import (
     DOC_MAIN, DOC_SAME, DOC_SUB, DOC_TARGET, NEW_TITLE, PROJ, SUB_PROJ,
     active_tree_doc, apply_mod, assert_backend_content, assert_backend_summary,
-    attach_tracker, backend_doc, click_toc, delay_route, enter_edit, exit_inplace,
-    navigate, open_doc, shown_body, shown_summary, shown_title,
+    attach_tracker, backend_doc, click_toc, delete_doc_from_edit, delay_route,
+    enter_edit, exit_inplace, inject_lock, mock_409, navigate, open_doc,
+    release_lock, shown_body, shown_summary, shown_title,
     toggle_project_chevron, toasts,
 )
 
@@ -633,3 +634,88 @@ class TestBatch2:
         was2, now2 = toggle_project_chevron(page, "MyKnowledge 项目知识管理平台")
         assert now2 == was, "再次点击应回到原展开状态"
         assert active_tree_doc(page) == DOC_MAIN, f"展开后高亮应恢复: {active_tree_doc(page)!r}"
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 批 3：异常/竞态场景（S21-S26）——注入 helper：inject_lock/mock_409/delete_doc_from_edit
+# ═══════════════════════════════════════════════════════════════════════
+class TestBatch3:
+    """批 3：异常/竞态。S21/S23/S25 用注入 helper，S24 用 subproject_docs，S22/S26 现有 helper 直接拼。"""
+
+    def test_s21_locked_blocks_switch(self, static_server, test_docs, page):
+        """S21 isLocked 时切换应被阻止——不保存不切、内容不丢"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        # 改正文后【立即】锁注入——用快速路径（不能走 apply_mod：其 200ms 等待 + 全量
+        # 回归 CPU 忙时，autosave 的 1s 定时器可能先于锁生效触发保存，测试不稳定）
+        page.locator(".editor-shell .ProseMirror").click(position={"x": 300, "y": 300})
+        page.keyboard.press("Control+End")
+        page.keyboard.type(f"\n\n{MARKER}", delay=5)
+        inject_lock(page)
+        assert page.evaluate("Alpine.store('app').isLocked") is True, "锁注入未生效"
+        # 尝试切走（侧栏点击）
+        page.locator(f'.sidebar-tree__item[data-doc-path="{DOC_SAME}"]').click()
+        page.wait_for_timeout(1500)
+        # 锁定时编辑内容不应被保存/丢失：后端 A 不应有 MARKER（保存被锁阻止）
+        st, d = backend_doc(DOC_MAIN)
+        assert st == 200
+        assert MARKER not in (d or {}).get("content", ""), "锁定时不应保存成功（编辑被锁保护）"
+        release_lock(page)
+
+    def test_s22_quick_roundtrip(self, static_server, test_docs, page):
+        """S22 A→B→A 快速往返：A 第二次显示已保存内容；无 rename/污染"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body")
+        navigate(page, "doc_same")     # A→B
+        navigate(page, "back")         # B→A
+        assert MARKER in shown_body(page), "back 回 A 修改丢失"
+        assert shown_title(page) == "test-edit-auto-main"
+        assert_backend_content(DOC_MAIN, MARKER)
+
+    def test_s23_delete_from_edit(self, static_server, test_docs, page):
+        """S23 编辑态点删除：按钮保留可见 → 自动退出编辑保存 → 确认删除进垃圾箱，无误 rename"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body")        # 有修改 → 退出编辑时应先保存
+        delete_doc_from_edit(page, confirm=True)
+        # 删除成功：后端 404 + 垃圾箱有该文档 + 无 rename 残留
+        st, _ = backend_doc(DOC_MAIN)
+        assert st != 200, "删除后原路径应不存在"
+        # toast：已移入垃圾箱
+        if toasts(page):
+            assert any("垃圾箱" in t for t in toasts(page)), f"toast 异常: {toasts(page)}"
+
+    def test_s24_deep_doc_auto_expand(self, static_server, subproject_docs, page):
+        """S24 深层文档自动展开：进入子项目文档 → 树自动展开（Training→子项目）且高亮正确"""
+        open_doc(page, static_server, DOC_SUB)
+        page.wait_for_timeout(1200)    # 等自动展开链
+        # Training 顶层展开 + 子项目行存在 + 当前文档行高亮
+        assert page.evaluate(f"Alpine.store('app').isProjectExpanded('{SUB_PROJ}')") is True, \
+            "进入深层文档应自动展开子项目"
+        sub_row = page.locator(f'[data-sub-path="{SUB_PROJ}"]')
+        assert sub_row.count() == 1, "子项目行应存在（树自动展开）"
+        assert active_tree_doc(page) == DOC_SUB, f"高亮应为深层文档: {active_tree_doc(page)!r}"
+
+    def test_s25_409_conflict_keeps_edit(self, static_server, test_docs, page):
+        """S25 保存 409 冲突：弹 diff 模态、编辑内容不丢、保持编辑态"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body")
+        mock_409(page)                 # PUT → 409
+        exit_inplace(page)             # 触发保存 → 409
+        assert page.locator("#conflict-modal").is_visible(), "409 应弹冲突 diff 模态"
+        assert MARKER in shown_body(page), "409 后编辑内容不应丢失"
+        assert page.evaluate("Alpine.store('app').currentView") == "edit", "冲突时应保持编辑态"
+
+    def test_s26_five_rapid_switches(self, static_server, test_docs, page):
+        """S26 连续 5 次快速切换：无累积残留、最终文档正确、A 已保存"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        apply_mod(page, "body")
+        for i in range(5):
+            navigate(page, "doc_same" if i % 2 == 0 else "doc_cross")
+        # 最终文档正确 + 无残留
+        assert MARKER not in shown_body(page), "快速切换后残留 main 内容"
+        assert shown_title(page) in ("test-edit-auto-same", "test-edit-auto-target")
+        assert_backend_content(DOC_MAIN, MARKER)

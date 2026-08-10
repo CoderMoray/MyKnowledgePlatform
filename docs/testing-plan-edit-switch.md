@@ -165,16 +165,27 @@ replaceState 在 await 后判断 hash 已切走而跳过 → 历史栈仍是旧�
 `#doc/旧名`（后端 404）+ bfcache 恢复旧 DOM 显示旧标题。完整修复需后端 rename
 映射（old→new 跳转）支持，前端待排期。测试标 `xfail(strict=True)`——修好后自动提示去掉标记。
 
-### 批 3：异常/竞态场景 📋 待自动化
+### 批 3：异常/竞态场景 ✅ 已自动化（test_edit_switch.py::TestBatch3，6/6 通过）
 
-| # | 场景 | 自动化方式 | 需要的扩展 |
+| # | 场景 | 自动化用例 | 状态 |
 |---|---|---|---|
-| S21 | isLocked 时切换 | 写 .lock 文件（pid:expires_at）或 route mock /api/lock | 锁注入 helper |
-| S22 | A→B→A 快速往返 | 现有 helper 直接拼 | 无 |
-| S23 | 编辑态点删除按钮 | 点 .btn-delete（edit 态可见，index.html:392 已核实）→ 自动退出编辑保存 → delete-doc 模态确认 | 删除模态定位/确认 helper |
-| S24 | 编辑态 + 项目树自动展开 | 深层文档 fixture + 断言自动展开与高亮不冲突 | 与 S13 共享 fixture |
-| S25 | 保存 409 冲突时切换 | route mock PUT 返回 409（delay_route 变体） | 409 mock helper |
-| S26 | 连续 5 次快速切换 | 循环 navigate | 无 |
+| S21 | isLocked 时切换 | test_s21_locked_blocks_switch | ✅（前端已修，见下） |
+| S22 | A→B→A 快速往返 | test_s22_quick_roundtrip | ✅ |
+| S23 | 编辑态点删除按钮 | test_s23_delete_from_edit | ✅ |
+| S24 | 编辑态 + 项目树自动展开 | test_s24_deep_doc_auto_expand | ✅ |
+| S25 | 保存 409 冲突时切换 | test_s25_409_conflict_keeps_edit | ✅ |
+| S26 | 连续 5 次快速切换 | test_s26_five_rapid_switches | ✅ |
+
+**批 3 注入 helper**（edit_switch_helpers.py）：`inject_lock`/`release_lock`（route mock /api/lock +
+checkLock，S21）、`mock_409`（拦截 PUT 返回 409，S25）、`delete_doc_from_edit`（编辑态删除+模态确认，S23）。
+
+**S21 前端 bug 修复（2026-08-10，测试驱动发现）**：锁定语义 = AI 编辑中用户编辑被锁保护。
+原来 exitEdit/_autosave 都有 `isLocked` 守卫，但切走时 `Alpine.effect`（currentView 变化）触发
+`_saveAndDestroy` 兜底保存——**缺 isLocked 守卫** → 锁定时导航离开仍把用户编辑写入后端，
+覆盖 AI 正在编辑的内容。修复：`_saveAndDestroy` 顶部加 `if (store.isLocked) return`。
+
+**测试稳定性经验**：S21 用快速路径（改正文后立即锁注入）而非 apply_mod——全量回归 CPU 忙时
+autosave 的 1s 定时器可能先于锁生效触发保存，导致误报。
 
 ## 4. 现有测试覆盖（2026-08-09 现状）
 
@@ -184,11 +195,12 @@ replaceState 在 await 后判断 hash 已切走而跳过 → 历史栈仍是旧�
 | tests/frontend/test_edit_switch.py::TestNewDocParent | 归属选择器 8 用例 | ✅ 8/8 通过 |
 | tests/frontend/test_edit_switch.py::TestNewDocCreate | 创建后跳转编辑态 2 用例 | ✅ 2/2 通过 |
 | tests/frontend/test_edit_switch.py::TestBatch2 | 批 2（S11-S20） | ✅ 9 pass + 1 xfail（S15 已知 bug） |
+| tests/frontend/test_edit_switch.py::TestBatch3 | 批 3（S21-S26） | ✅ 6/6 通过 |
 | tests/frontend/test_smoke.py（Playwright） | 静态渲染/路由/主题/垃圾箱视图 | ✅ |
 | tests/（后端 pytest） | 存储/锁/分享/垃圾箱/MCP 写入等 | ✅ |
 
 **结论**：测试方法已成熟（Playwright E2E + ApiTracker 防重 + API 对比 + helper 库），
-批 1/批 2/归属/创建已全部自动化（36 用例：35 pass + 1 xfail），仅剩批 3（S21-S26）待写。
+批 1/批 2/批 3/归属/创建已全部自动化（42 用例：41 pass + 1 xfail S15）。
 
 ## 5. 执行计划（更新版）
 
@@ -198,8 +210,8 @@ replaceState 在 await 后判断 hash 已切走而跳过 → 历史栈仍是旧�
 ✅ 阶段 3：归属选择器（TestNewDocParent 8 用例）——已完成，8/8
 ✅ 阶段 4：创建后跳转编辑态（TestNewDocCreate 2 用例）——已完成，2/2
 ✅ 阶段 5：批 2（S11-S20）自动化——已完成，9 pass + 1 xfail（S15 已知 bug 待修）
-📋 阶段 6：批 3（S21-S26）自动化——待做（锁注入/409 mock/删除模态 helper 已建好）
-📋 阶段 7：纳入全量回归（pytest tests/ -q）+ S15 bug 修复
+✅ 阶段 6：批 3（S21-S26）自动化——已完成，6/6（S21 触发的 _saveAndDestroy 锁守卫 bug 已修）
+📋 阶段 7：纳入全量回归（pytest tests/ -q）+ S15 bug 修复（需后端 rename 映射）
 ```
 
 ## 6. 已确认项

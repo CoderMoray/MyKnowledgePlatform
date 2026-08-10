@@ -210,11 +210,14 @@ Alpine.data("docComponent", () => ({
     /** 离开编辑态兜底：保存当前编辑内容并隐藏装饰（不销毁编辑器，单 DOM 复用） */
     async _saveAndDestroy() {
       if (!_editorInstance) return;
+      // AI 锁定时禁止保存用户编辑（与 exitEdit/_autosave 守卫一致）——否则切走会
+      // 把用户未完成的编辑写入后端，覆盖 AI 正在编辑的内容（2026-08-10 S21 场景固化）
+      const store = Alpine.store("app");
+      if (store.isLocked) return;
       // exitEdit 正在保存（点击导航时 capture 阶段先触发）→ 由它负责，避免并发双保存（第二个 409）
       if (this._exitSaving) return;
       // exitEdit 正常退出已保存（_editingPath 已清空）→ 这里跳过，避免重复保存
       if (!this._editingPath) return;
-      const store = Alpine.store("app");
       const path = this._editingPath || store.currentPath;
       let finalPath = path; // rename 后路径可能变化，setView 用新路径
       const fullMd = this._editorToMarkdown();
