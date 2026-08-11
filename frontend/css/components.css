@@ -244,6 +244,13 @@
   white-space: pre-line; /* 保留 textContent 里的换行（预览保持段落/列表分行） */
 }
 
+.doc-card__preview__body a.ref-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .doc-card__preview__refs {
   margin-top: var(--space-2);
   font-size: var(--text-2xs);

@@ -201,22 +201,49 @@ async function openDocPreview(cardEl, path) {
     const md = (data && data.content) || "";
     const body = document.createElement("div");
     body.className = "doc-card__preview__body";
-    // marked 渲染 → textContent 提取纯文本（解析准确：表格/代码块/嵌套列表都正确处理，
-    // 优于手写正则剥符号）。只用 textContent（不插 HTML）→ 无 XSS；先剥离 frontmatter
-    // （marked 不会自动跳过 YAML 头）+ script/style 噪音。
+    // marked 渲染 → DOM 重建：普通内容取纯文本（保留换行），ref: 链接保留为可点击链接
+    // （预览里点引用直接打开引用文档）。只重建文本节点 + ref-link → 无 XSS；先剥 frontmatter。
     const mdBody = md.replace(/^---[\s\S]*?---\s*/m, "");
     const tmp = document.createElement("div");
     tmp.innerHTML = renderMarkdown(mdBody);
     tmp.querySelectorAll("script, style").forEach((el) => el.remove());
-    // 保留分行：块级元素后补换行再取文本（marked 输出的块级标签在 textContent 里会被挤成一行）
-    tmp.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,tr,div").forEach((el) => {
-      el.appendChild(document.createTextNode("\n"));
-    });
-    const text = (tmp.textContent || "")
-      .replace(/[ \t]+/g, " ")       // 行内多空格压成单空格（保留换行）
-      .replace(/\n{3,}/g, "\n\n")    // 连续空行收敛
-      .trim();
-    body.textContent = (text || "（无正文）").slice(0, 200);
+    let used = 0;
+    const MAX = 200;
+    const pushText = (t) => {
+      if (!t || used >= MAX) return;
+      const need = MAX - used;
+      body.appendChild(document.createTextNode(t.length > need ? t.slice(0, need) : t));
+      used += Math.min(t.length, need);
+    };
+    const walk = (node) => {
+      if (used >= MAX) return;
+      if (node.nodeType === Node.TEXT_NODE) { pushText(node.textContent); return; }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      if (node.matches("script, style")) return;
+      if (node.matches("a.ref-link")) {
+        const text = (node.textContent || "").slice(0, Math.max(0, MAX - used));
+        if (!text) return;
+        const a = document.createElement("a");
+        a.className = "ref-link";
+        a.setAttribute("data-ref-path", node.getAttribute("data-ref-path") || "");
+        a.setAttribute("data-ref-section", node.getAttribute("data-ref-section") || "");
+        a.textContent = text;
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation(); // 不触发卡片自身 goToDocument
+          const p = a.getAttribute("data-ref-path");
+          if (p) window.location.hash = "doc/" + String(p).replace(/\//g, "%2F");
+        });
+        body.appendChild(a);
+        used += text.length;
+        return;
+      }
+      node.childNodes.forEach(walk);
+      // 块级元素后补换行（保留段落/列表分行）
+      if (node.matches("h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,tr,div")) pushText("\n");
+    };
+    walk(tmp);
+    if (!body.textContent.trim()) body.textContent = "（无正文）";
     inner.textContent = "";
     inner.appendChild(body);
     const refs = (data && data.refs) || [];
