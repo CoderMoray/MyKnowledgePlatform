@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=0416fddb3f" />
+  <link rel="stylesheet" href="css/components.css?v=580b7b035d" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -572,7 +572,7 @@
                     <span class="doc-card__tag" x-show="doc.author" x-text="doc.author"></span>
                   </div>
                 </div>
-                <div class="doc-card__ext"><p x-text="doc.summary || '暂无摘要'"></p></div>
+                <div class="doc-card__ext"><div class="doc-card__ext__inner"><p x-text="doc.summary || '暂无摘要'"></p></div></div>
               </div>
             </template>
           </div>
@@ -724,7 +724,7 @@
                     <span class="doc-card__tag" x-show="doc.author" x-text="doc.author"></span>
                   </div>
                 </div>
-                <div class="doc-card__ext"><p x-text="doc.summary || '暂无摘要'"></p></div>
+                <div class="doc-card__ext"><div class="doc-card__ext__inner"><p x-text="doc.summary || '暂无摘要'"></p></div></div>
               </div>
             </template>
           </div>

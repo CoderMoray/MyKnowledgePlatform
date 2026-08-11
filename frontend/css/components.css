@@ -204,15 +204,22 @@
 }
 
 .doc-card__ext {
-  max-height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
   opacity: 0;
-  overflow: hidden;
-  transition: max-height 0.28s ease, opacity 0.28s ease;
+  /* grid-template-rows 0fr→1fr：折叠容器自适应内容高度，0.3s 完整展开
+     （max-height 动画会被内容实际高度截断——短摘要 50ms 就触顶，视觉突变） */
+  transition: grid-template-rows 0.3s ease, opacity 0.3s ease;
 }
 
 .doc-card:hover .doc-card__ext {
-  max-height: 110px;
+  grid-template-rows: 1fr;
   opacity: 1;
+}
+
+.doc-card__ext__inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .doc-card__ext p {
