@@ -226,7 +226,7 @@
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   line-height: 1.6;
-  margin: 0;
+  margin: 10px 0 0; /* 横线与上方 meta 留 10px（对齐项目卡片面板的 margin-top:10px） */
   border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-2);
   display: -webkit-box;
