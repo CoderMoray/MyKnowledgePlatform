@@ -187,6 +187,48 @@ function closeCardPanel(cardEl) {
 }
 
 /**
+ * 知识卡片 hover：懒加载正文预览 + 引用数（0 引用不显示引用行）。
+ * 摘要已常显在卡片上；hover 下拉区展示正文预览（纯文本截断，防 XSS）+ 被引用数。
+ * dataset.loaded 防重：同一卡片只拉一次（hover 多次不重复请求）。
+ */
+async function openDocPreview(cardEl, path) {
+  const inner = cardEl.querySelector(".doc-card__preview");
+  if (!inner || inner.dataset.loaded) return;
+  inner.dataset.loaded = "1";
+  inner.innerHTML = '<div class="doc-card__preview__loading">加载中…</div>';
+  try {
+    const data = await api.getDocumentWithRefs(path);
+    const md = (data && data.content) || "";
+    const body = document.createElement("div");
+    body.className = "doc-card__preview__body";
+    const text = md
+      .replace(/^---[\s\S]*?---\s*/m, "")      // frontmatter
+      .replace(/^#{1,6}\s+/gm, "")             // 标题
+      .replace(/^>\s?/gm, "")                  // 引用
+      .replace(/^\s*[-*+]\s+/gm, "")           // 无序列表
+      .replace(/^\s*\d+\.\s+/gm, "")           // 有序列表
+      .replace(/^```[\s\S]*?```$/gm, "")       // 代码块
+      .replace(/[`*_~]/g, "")                  // 行内符号
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // 链接 → 文字
+      .replace(/\s+/g, " ")
+      .trim();
+    body.textContent = (text || "（无正文）").slice(0, 180);
+    inner.textContent = "";
+    inner.appendChild(body);
+    const refs = (data && data.refs) || [];
+    const refCount = Array.isArray(refs) ? refs.length : 0;
+    if (refCount > 0) {
+      const refsRow = document.createElement("div");
+      refsRow.className = "doc-card__preview__refs";
+      refsRow.textContent = "被 " + refCount + " 篇文档引用";
+      inner.appendChild(refsRow);
+    }
+  } catch (e) {
+    inner.textContent = ""; // 加载失败不阻塞（hover 区留空）
+  }
+}
+
+/**
  * 从 ref 对象生成来源路径字符串（用于 viewer__refs 列表）
  * @param {{ path: string }} ref
  * @returns {string}

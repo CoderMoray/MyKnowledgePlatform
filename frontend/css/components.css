@@ -222,17 +222,33 @@
   overflow: hidden;
 }
 
-.doc-card__ext p {
+.doc-card__preview__loading {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  margin-top: 10px; /* 横线与上方 meta 留 10px（对齐项目卡片面板） */
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-2);
+}
+
+.doc-card__preview__body {
   font-size: var(--text-xs);
   color: var(--text-tertiary);
   line-height: 1.6;
-  margin: 10px 0 0; /* 横线与上方 meta 留 10px（对齐项目卡片面板的 margin-top:10px） */
+  margin-top: 10px; /* 横线与上方 meta 留 10px（对齐项目卡片面板） */
   border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-2);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  white-space: normal;
+}
+
+.doc-card__preview__refs {
+  margin-top: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  opacity: 0.85;
 }
 
 /* ── 卡片图标 ──────────────────────────────────────────────────────────── */
