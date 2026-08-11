@@ -95,6 +95,18 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 > 兼容性：`ref_status` 是新增字段，旧前端忽略即可，不影响既有 `resolved`/`content` 语义。
 
+**含空格路径（S16）**：`refs[i].path` 统一为**解码后的真实路径**（`%20` → 空格）；`resolved`/`ref_status` 对 `%20` 编码与空格原文两种写法均正确分类（空格路径项目如 `projects/MyKnowledge 项目知识管理平台/...`）。
+
+**写入时 ref 目标校验（S16）**：`POST/PUT /api/document/{path}` 响应新增 `ref_warnings` 字段（字符串数组，空=全部正常）。仅提示不阻断写入：
+- `normal`（目标存在）→ 不出现
+- `in_trash` → `「引用目标在垃圾箱中（可恢复）」`
+- `dead` → `「引用目标不存在（将显示为死链）」`
+- 空 target → `「ref 目标为空」`
+- 外链（http/https）→ 跳过不校验
+同时写入内容中的 `ref:` 路径空格会自动规范化为 `%20`（幂等，前端已编码的不受影响）。
+
+> 兼容性：`ref_warnings` 是新增字段，旧前端忽略即可。
+
 ### 垃圾箱
 
 | 方法 | 路径 | Body | 说明 |

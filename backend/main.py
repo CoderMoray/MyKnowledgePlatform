@@ -11,7 +11,7 @@ access is possible.
 
 from __future__ import annotations
 
-import asyncio, os, subprocess, sys, threading, time, json
+import asyncio, os, re, subprocess, sys, threading, time, json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -76,9 +76,52 @@ def _extract_all_refs(body: str) -> list[tuple[str, str, str]]:
             section = ''
             if '::' in ref_path:
                 ref_path, section = ref_path.split('::', 1)
-            results.append(('ref', ref_path, section))
+            # %20 → 空格：所有读取路径统一拿到真实路径（unquote 幂等，空格原样）
+            from urllib.parse import unquote
+            results.append(('ref', unquote(ref_path), section))
 
     return results
+
+
+# ── ref 写入规范化 + 存在性校验（S16）───────────────────────────
+
+_REF_LINK_RE = re.compile(r'(\[[^\]]*\]\()(ref:)([^)\n]*)(\))')
+
+
+def normalize_ref_content(content: str) -> str:
+    """ref: 链接路径内的空格 → %20（幂等；% 不是空格，不会二次编码）。
+
+    只在 ``[text](ref:...)`` 链接内替换，不碰普通文本/外链/代码块。
+    ``::章节`` 内的空格一并编码（与前端 ``replace(/ /g, "%20")`` 一致）。
+    """
+    def _sub(m: re.Match) -> str:
+        return m.group(1) + m.group(2) + m.group(3).replace(" ", "%20") + m.group(4)
+    return _REF_LINK_RE.sub(_sub, content)
+
+
+def check_ref_targets(storage, content: str) -> list[str]:
+    """扫描 content 中 ref: 链接，返回目标状态警告列表（不阻断写入）。
+
+    - 外链（http/https）→ 跳过（外部可达性不检查）
+    - normal（目标存在）→ 无提示
+    - in_trash（目标在垃圾箱）→ 警告「可恢复」
+    - dead（目标不存在）→ 警告「死链」
+    - 空/纯空格 target → 提示「ref 目标为空」
+    """
+    warnings: list[str] = []
+    for ref_type, ref_path, _section in _extract_all_refs(content):
+        if ref_type != "ref":
+            continue
+        if not ref_path.strip():
+            warnings.append("⚠ ref 目标为空（未填写路径）")
+            continue
+        from backend.trash import ref_status
+        status = ref_status(storage, ref_path)
+        if status == "in_trash":
+            warnings.append(f"⚠ 引用目标在垃圾箱中（可恢复）: {ref_path}")
+        elif status == "dead":
+            warnings.append(f"⚠ 引用目标不存在（将显示为死链）: {ref_path}")
+    return warnings
 
 # ── App creation ───────────────────────────────────────────
 
@@ -455,7 +498,10 @@ def api_create_document(path: str, payload: DocumentPayload):
     _check_write_allowed()
     _guard_doc_write_path(path)
     storage, gen = get_storage()
+    # S16: ref 路径空格 → %20 规范化（幂等）后，再校验与写入
+    payload.content = normalize_ref_content(payload.content)
     _check_doc(payload, storage)
+    ref_warnings = check_ref_targets(storage, payload.content)
     meta = {"type": payload.doc_type, "summary": payload.summary}
     from backend.mcp_server import _attach_identity
     _attach_identity(meta, True)
@@ -465,7 +511,8 @@ def api_create_document(path: str, payload: DocumentPayload):
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "ok", "id": meta.get("id", "")}
+    return {"status": "ok", "id": meta.get("id", ""),
+            "ref_warnings": ref_warnings}
 
 
 class DocRenamePayload(BaseModel):
@@ -527,10 +574,13 @@ def api_update_document(path: str, payload: DocumentPayload):
         payload.content = old_body
     if not payload.summary:
         payload.summary = old_meta.get("summary", "")
+    # S16: ref 路径空格 → %20 规范化（幂等）后，再校验与写入
+    payload.content = normalize_ref_content(payload.content)
     _check_doc(payload, storage)
 
     new_content = payload.content
     new_summary = payload.summary
+    ref_warnings = check_ref_targets(storage, new_content)
 
     # ── No-op: skip write if nothing changed ──────────────
     if new_content == old_body and new_summary == old_meta.get("summary", ""):
@@ -539,6 +589,7 @@ def api_update_document(path: str, payload: DocumentPayload):
             "id": old_meta.get("id", ""),
             "unchanged": True,
             "version": _doc_version(old_body, old_meta.get("summary", "")),
+            "ref_warnings": ref_warnings,
         }
 
     new_meta = dict(old_meta)
@@ -557,6 +608,7 @@ def api_update_document(path: str, payload: DocumentPayload):
         "id": new_meta.get("id", ""),
         "unchanged": False,
         "version": _doc_version(new_content, new_summary),
+        "ref_warnings": ref_warnings,
     }
 
 

@@ -301,6 +301,10 @@ def ref_status(storage, rel_path: str) -> str:
     ``in_trash`` — the path was deleted and is recoverable from trash.
     ``dead``     — the path was never deleted and does not exist.
     """
+    from urllib.parse import unquote
+    # S16: 任何调用方可能传 %20 编码路径（含空格文档路径），先解码再判。
+    # unquote 幂等：%20→空格、空格→空格，不会双重解码。
+    rel_path = unquote(rel_path)
     # Strip any :section suffix that may have slipped in
     rel_path = re.split(r"::", rel_path)[0].strip("/")
     if (storage.kb_root / rel_path).exists():

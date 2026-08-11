@@ -83,6 +83,16 @@
 - MCP（`write__rename_document`）与 REST（`PUT /api/document/rename`）共用 `rename_document` 底层，映射两条路径均覆盖
 - 映射文件读写失败不阻塞 rename/delete 主流程（best-effort try/except 兜底）
 
+### Step 10 — ref 空格路径支持（S16）✅
+
+- 扫描容错：`_extract_all_refs` 统一提取（链接语法 + balanced parens）并对 `ref:` 路径 `unquote`（%20 → 空格）；`maint__check_refs` 复用该提取器，替代裸正则 `ref:([^)\s]+)`（旧正则截断空格、%20 不解码 → 误报 dead）
+- `ref_status` 入口 `unquote`（幂等：%20→空格、空格→空格），任何调用方传 %20 都先解码再判 exists/trash
+- 写入规范化：`normalize_ref_content` 将 `[text](ref:...)` 链接内空格 → `%20`（幂等，只动 ref 链接，不碰普通文本/外链）；MCP 写工具（create/update）与 REST 写端点（POST/PUT）共用
+- 写入校验：`check_ref_targets` 扫描 ref 目标分类（normal/in_trash/dead/空），警告附 MCP 返回 message / REST `ref_warnings` 字段，不阻断写入
+- rename 联动：`rename_document` / `rename_project` / `move_project` 的 ref 替换改用双 pattern（空格原文 + `%20` 编码），替换值统一 `%20` 编码落盘——防规范化后 %20 ref 在 rename 时漏替换变隐性死链
+- CLI 无直接写文档入口（写文档走 MCP/REST），该需求项不适用；share 导入不做规范化（保持内容忠实）
+- 新增 `tests/test_ref_spaces.py`（34 个测试），全量 337 passed
+
 ### 路径校验规则（`_validate_path`）✅
 
 所有 MCP/CLI 写路径经 `backend/mcp_server.py::_validate_path` 校验，错误信息带恢复指引，按序执行：
@@ -101,8 +111,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 302 个后端测试通过（含 S15 renames 20 个）
-- 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射
+- 337 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个）
+- 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径
 
 ### 前端构建守门（2026-08-09 引入）
 

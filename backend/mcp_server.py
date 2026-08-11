@@ -229,14 +229,19 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     # ── 4. Replace ref: links ────────────────────────────
     old_prefix = f"{old_rel}/"
     new_prefix = f"{new_rel}/"
-    ref_pattern = re.compile(r'(ref:)' + re.escape(old_prefix))
+    # S16: 落盘 ref 可能是空格原文或 %20 编码两种形式，替换都要覆盖；
+    # 替换值用 %20 编码，保持与写入规范化一致的落盘规范。
+    ref_pattern = re.compile(
+        r'(ref:)(?:' + re.escape(old_prefix)
+        + r'|' + re.escape(old_prefix.replace(" ", "%20")) + r')')
+    new_prefix_pct = new_prefix.replace(" ", "%20")
 
     for md_file in kb_root.rglob("*.md"):
         if any(p.startswith(".") for p in md_file.parts):
             continue
         text = md_file.read_text(encoding="utf-8")
-        if old_prefix in text:
-            updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+        if old_prefix in text or old_prefix.replace(" ", "%20") in text:
+            updated = ref_pattern.sub(r'\g<1>' + new_prefix_pct, text)
             md_file.write_text(updated, encoding="utf-8")
             committed_files.add(str(md_file))
 
@@ -244,8 +249,8 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     for refs_dir in kb_root.rglob("_refs"):
         for md_file in refs_dir.rglob("*.md"):
             text = md_file.read_text(encoding="utf-8")
-            if old_prefix in text:
-                updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+            if old_prefix in text or old_prefix.replace(" ", "%20") in text:
+                updated = ref_pattern.sub(r'\g<1>' + new_prefix_pct, text)
                 md_file.write_text(updated, encoding="utf-8")
                 committed_files.add(str(md_file))
 
@@ -318,15 +323,19 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
         committed_files = {str(new_path)}
 
         # Replace ref: links (exact path match only)
+        # S16: 覆盖空格原文与 %20 编码两种落盘形式；替换值用 %20 编码统一规范。
         old_escaped = re.escape(old_rel)
-        pattern = re.compile(r'(ref:)' + old_escaped + r'(?=[\): ]|$)')
+        old_escaped_pct = re.escape(old_rel.replace(" ", "%20"))
+        new_rel_pct = new_rel.replace(" ", "%20")
+        pattern = re.compile(
+            r'(ref:)(?:' + old_escaped + r'|' + old_escaped_pct + r')(?=[\): ]|$)')
 
         for md_file in storage.kb_root.rglob("*.md"):
             if any(p.startswith(".") for p in md_file.parts):
                 continue
             text = md_file.read_text(encoding="utf-8")
-            if old_rel in text:
-                updated = pattern.sub(r'\g<1>' + new_rel, text)
+            if old_rel in text or old_rel.replace(" ", "%20") in text:
+                updated = pattern.sub(r'\g<1>' + new_rel_pct, text)
                 if updated != text:
                     md_file.write_text(updated, encoding="utf-8")
                     committed_files.add(str(md_file))
@@ -335,8 +344,8 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
         for refs_dir in storage.kb_root.rglob("_refs"):
             for md_file in refs_dir.rglob("*.md"):
                 text = md_file.read_text(encoding="utf-8")
-                if old_rel in text:
-                    updated = pattern.sub(r'\g<1>' + new_rel, text)
+                if old_rel in text or old_rel.replace(" ", "%20") in text:
+                    updated = pattern.sub(r'\g<1>' + new_rel_pct, text)
                     if updated != text:
                         md_file.write_text(updated, encoding="utf-8")
                         committed_files.add(str(md_file))
@@ -519,22 +528,26 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     # ── 3. Replace ref: links ────────────────────────────
     old_prefix = f"{project_rel}/"
     new_prefix = f"{new_rel}/"
-    ref_pattern = re.compile(r'(ref:)' + re.escape(old_prefix))
+    # S16: 覆盖空格原文与 %20 编码两种落盘形式；替换值用 %20 编码统一规范。
+    ref_pattern = re.compile(
+        r'(ref:)(?:' + re.escape(old_prefix)
+        + r'|' + re.escape(old_prefix.replace(" ", "%20")) + r')')
+    new_prefix_pct = new_prefix.replace(" ", "%20")
 
     for md_file in kb_root.rglob("*.md"):
         if any(p.startswith(".") for p in md_file.parts):
             continue
         text = md_file.read_text(encoding="utf-8")
-        if old_prefix in text:
-            updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+        if old_prefix in text or old_prefix.replace(" ", "%20") in text:
+            updated = ref_pattern.sub(r'\g<1>' + new_prefix_pct, text)
             md_file.write_text(updated, encoding="utf-8")
             committed_files.add(str(md_file))
 
     for refs_dir in kb_root.rglob("_refs"):
         for md_file in refs_dir.rglob("*.md"):
             text = md_file.read_text(encoding="utf-8")
-            if old_prefix in text:
-                updated = ref_pattern.sub(r'\g<1>' + new_prefix, text)
+            if old_prefix in text or old_prefix.replace(" ", "%20") in text:
+                updated = ref_pattern.sub(r'\g<1>' + new_prefix_pct, text)
                 md_file.write_text(updated, encoding="utf-8")
                 committed_files.add(str(md_file))
 
@@ -1253,6 +1266,12 @@ def create_mcp_app(storage: Storage,
         full_path = storage.kb_root / path
 
         # ── Dry-run: preview only ──────────────────────────────
+        # S16: ref 路径空格 → %20 规范化（幂等）+ 写入前目标校验警告。
+        # dry_run 与真实写入共用同一份规范化后的 content。
+        from backend.main import normalize_ref_content, check_ref_targets
+        content = normalize_ref_content(content)
+        ref_warnings = check_ref_targets(storage, content)
+
         if dry_run:
             exists = full_path.is_file()
             existing_meta = None
@@ -1292,6 +1311,12 @@ def create_mcp_app(storage: Storage,
                 lines.append(f"  已有文档 id:   {existing_meta.get('id', '(未知)')}")
                 lines.append(f"  已有创建时间: {existing_meta.get('created', '(未知)')}")
             lines.append("─" * 60)
+            lines.append("⚠ ref 目标检查（写入前）:")
+            if ref_warnings:
+                lines.extend(f"  {w}" for w in ref_warnings)
+            else:
+                lines.append("  ✅ 全部正常（normal / 外链跳过）")
+            lines.append("─" * 60)
             lines.append("💡 确认无误后调用本工具时设置 dry_run=False 即可。")
             return "\n".join(lines)
 
@@ -1318,7 +1343,10 @@ def create_mcp_app(storage: Storage,
         written = storage.write_document(path, meta, content)
         parent_rel = _parent_rel(path)
         _write_through(parent_rel, f"create: {path}")
-        return f"✅ 已创建 {path} → id: {written['id']}"
+        msg = f"✅ 已创建 {path} → id: {written['id']}"
+        if ref_warnings:
+            msg += "\n" + "\n".join(ref_warnings)
+        return msg
 
     @mcp.tool()
     def write__update_document(path: str, content: str = "",
@@ -1336,9 +1364,13 @@ def create_mcp_app(storage: Storage,
         _validate_path(path, kind="file", storage=storage)
         old_meta, old_body = storage.read_document(path)
         if content:
-            new_body = content
+            # S16: ref 路径空格 → %20 规范化（幂等）+ 目标校验警告
+            from backend.main import normalize_ref_content, check_ref_targets
+            new_body = normalize_ref_content(content)
+            ref_warnings = check_ref_targets(storage, new_body)
         else:
             new_body = old_body
+            ref_warnings = []
 
         new_meta = dict(old_meta)
         if summary:
@@ -1355,7 +1387,10 @@ def create_mcp_app(storage: Storage,
                                          auto_id=False)
         parent_rel = _parent_rel(path)
         _write_through(parent_rel, f"update: {path}")
-        return written.get("id", "")
+        msg = written.get("id", "")
+        if ref_warnings:
+            msg += "\n" + "\n".join(ref_warnings)
+        return msg
 
     @mcp.tool()
     def write__update_project_meta(project_rel: str,
@@ -1605,13 +1640,18 @@ def create_mcp_app(storage: Storage,
             scan_files = storage.kb_root.rglob("*.md")
 
         normal, in_trash, dead = [], [], []
+        # S16: 复用 _extract_all_refs（链接语法 + 空格路径 + %20 解码统一），
+        # 替代裸正则 ref:([^)\s]+)——旧正则截断含空格路径、%20 不解码 → 误报 dead。
+        # 函数内导入避免 main ↔ mcp_server 循环导入。
+        from backend.main import _extract_all_refs
         for md_file in scan_files:
             if any(p.startswith(".") for p in md_file.parts) \
                     or "/trash/" in str(md_file):
                 continue
             text = md_file.read_text(encoding="utf-8")
-            for m in _re.finditer(r'ref:([^)\s]+)', text):
-                target = m.group(1)
+            for ref_type, target, _section in _extract_all_refs(text):
+                if ref_type != "ref":
+                    continue
                 rel = md_file.relative_to(storage.kb_root)
                 status = ref_status(storage, target)
                 entry = {"from": str(rel), "ref": target}
