@@ -241,7 +241,7 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  white-space: normal;
+  white-space: pre-line; /* 保留 textContent 里的换行（预览保持段落/列表分行） */
 }
 
 .doc-card__preview__refs {

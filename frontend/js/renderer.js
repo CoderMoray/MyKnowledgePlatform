@@ -202,14 +202,21 @@ async function openDocPreview(cardEl, path) {
     const body = document.createElement("div");
     body.className = "doc-card__preview__body";
     // marked 渲染 → textContent 提取纯文本（解析准确：表格/代码块/嵌套列表都正确处理，
-    // 优于手写正则剥符号）。先用 textContent（不插 HTML）→ 无 XSS；先剥离 frontmatter
+    // 优于手写正则剥符号）。只用 textContent（不插 HTML）→ 无 XSS；先剥离 frontmatter
     // （marked 不会自动跳过 YAML 头）+ script/style 噪音。
     const mdBody = md.replace(/^---[\s\S]*?---\s*/m, "");
     const tmp = document.createElement("div");
     tmp.innerHTML = renderMarkdown(mdBody);
     tmp.querySelectorAll("script, style").forEach((el) => el.remove());
-    const text = (tmp.textContent || "").replace(/\s+/g, " ").trim();
-    body.textContent = (text || "（无正文）").slice(0, 180);
+    // 保留分行：块级元素后补换行再取文本（marked 输出的块级标签在 textContent 里会被挤成一行）
+    tmp.querySelectorAll("h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,tr,div").forEach((el) => {
+      el.appendChild(document.createTextNode("\n"));
+    });
+    const text = (tmp.textContent || "")
+      .replace(/[ \t]+/g, " ")       // 行内多空格压成单空格（保留换行）
+      .replace(/\n{3,}/g, "\n\n")    // 连续空行收敛
+      .trim();
+    body.textContent = (text || "（无正文）").slice(0, 200);
     inner.textContent = "";
     inner.appendChild(body);
     const refs = (data && data.refs) || [];
