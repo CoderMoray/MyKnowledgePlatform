@@ -201,17 +201,14 @@ async function openDocPreview(cardEl, path) {
     const md = (data && data.content) || "";
     const body = document.createElement("div");
     body.className = "doc-card__preview__body";
-    const text = md
-      .replace(/^---[\s\S]*?---\s*/m, "")      // frontmatter
-      .replace(/^#{1,6}\s+/gm, "")             // 标题
-      .replace(/^>\s?/gm, "")                  // 引用
-      .replace(/^\s*[-*+]\s+/gm, "")           // 无序列表
-      .replace(/^\s*\d+\.\s+/gm, "")           // 有序列表
-      .replace(/^```[\s\S]*?```$/gm, "")       // 代码块
-      .replace(/[`*_~]/g, "")                  // 行内符号
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // 链接 → 文字
-      .replace(/\s+/g, " ")
-      .trim();
+    // marked 渲染 → textContent 提取纯文本（解析准确：表格/代码块/嵌套列表都正确处理，
+    // 优于手写正则剥符号）。先用 textContent（不插 HTML）→ 无 XSS；先剥离 frontmatter
+    // （marked 不会自动跳过 YAML 头）+ script/style 噪音。
+    const mdBody = md.replace(/^---[\s\S]*?---\s*/m, "");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = renderMarkdown(mdBody);
+    tmp.querySelectorAll("script, style").forEach((el) => el.remove());
+    const text = (tmp.textContent || "").replace(/\s+/g, " ").trim();
     body.textContent = (text || "（无正文）").slice(0, 180);
     inner.textContent = "";
     inner.appendChild(body);
@@ -224,7 +221,8 @@ async function openDocPreview(cardEl, path) {
       inner.appendChild(refsRow);
     }
   } catch (e) {
-    inner.textContent = ""; // 加载失败不阻塞（hover 区留空）
+    inner.textContent = "";              // 加载失败不阻塞（hover 区留空）
+    inner.dataset.loaded = "";           // 失败不毒化防重缓存：下次 hover 允许重试
   }
 }
 
