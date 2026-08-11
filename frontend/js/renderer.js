@@ -189,12 +189,16 @@ function closeCardPanel(cardEl) {
 /**
  * 知识卡片 hover：懒加载正文预览 + 引用数（0 引用不显示引用行）。
  * 摘要已常显在卡片上；hover 下拉区展示正文预览（纯文本截断，防 XSS）+ 被引用数。
- * dataset.loaded 防重：同一卡片只拉一次（hover 多次不重复请求）。
+ * 缓存键 = 文档版本（doc.modified）：同版本 hover 不重复请求（防重）；
+ * 编辑保存后 dashboard 刷新列表 → modified 变 → 下次 hover 自动重载（内容更新）。
+ * 失败时缓存键清空 → 下次 hover 重试。
  */
-async function openDocPreview(cardEl, path) {
+async function openDocPreview(cardEl, path, version) {
   const inner = cardEl.querySelector(".doc-card__preview");
-  if (!inner || inner.dataset.loaded) return;
-  inner.dataset.loaded = "1";
+  if (!inner) return;
+  const key = String(version || "");
+  if (inner.dataset.loaded === key) return;
+  inner.dataset.loaded = key;
   inner.innerHTML = '<div class="doc-card__preview__loading">加载中…</div>';
   try {
     const data = await api.getDocumentWithRefs(path);

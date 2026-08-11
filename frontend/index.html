@@ -67,9 +67,9 @@
   <script src="js/utils.js?v=70ed381cd8"></script>
   <script src="js/api.js?v=6871db1dfb"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
-  <script src="js/renderer.js?v=49a81a7cdb"></script>
+  <script src="js/renderer.js?v=cdeed19029"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=2928e34338"></script>
+  <script src="js/store.js?v=5391254a0a"></script>
   <script src="js/router.js?v=2ed83b02dd"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=9c2004f279"></script>
@@ -556,7 +556,7 @@
           <div class="doc-grid" x-show="$store.app.commonKnowledge.length > 0 && !$store.app.loading">
             <template x-for="doc in $store.app.commonKnowledge" :key="doc.path">
               <div class="doc-card" @click="goToDocument(doc.path)"
-                   @mouseenter="openDocPreview($el, doc.path)">
+                   @mouseenter="openDocPreview($el, doc.path, doc.modified)">
                 <button class="doc-card__del" @click.stop="$store.app.confirmDeleteCard(doc.path)" title="删除文档（移入垃圾箱）">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12"/><path d="M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4"/><path d="M3.333 4v9.333a1.333 1.333 0 0 0 1.334 1.334h6.666a1.333 1.333 0 0 0 1.334-1.334V4"/></svg>
                   删除
@@ -710,7 +710,7 @@
           <div class="doc-grid" x-show="$store.app.projectDocs.length > 0 && !$store.app.loading">
             <template x-for="doc in $store.app.projectDocs" :key="doc.path">
               <div class="doc-card" @click="goToDocument(doc.path)"
-                   @mouseenter="openDocPreview($el, doc.path)">
+                   @mouseenter="openDocPreview($el, doc.path, doc.modified)">
                 <button class="doc-card__del" @click.stop="$store.app.confirmDeleteCard(doc.path)" title="删除文档（移入垃圾箱）">
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12"/><path d="M5.333 4V2.667a1.333 1.333 0 0 1 1.334-1.334h2.666a1.333 1.333 0 0 1 1.334 1.334V4"/><path d="M3.333 4v9.333a1.333 1.333 0 0 0 1.334 1.334h6.666a1.333 1.333 0 0 0 1.334-1.334V4"/></svg>
                   删除

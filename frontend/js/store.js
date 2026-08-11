@@ -766,6 +766,8 @@ let _tocCollapsedSet = {};
         this.projectSubprojects = (subData.items || []).filter(i => i.is_dir);
         this.projectArchived = (archData.items || []).filter(i => excludeReadme(i));
         this.projectMeta = projectData || {};
+        // 知识卡片预览缓存失效（项目视图文档网格）：编辑保存返回后 hover 重新加载
+        Alpine.nextTick(() => this.invalidateDocPreviewCache());
       } catch (err) {
         this.error = err.message || "加载项目数据失败";
         this.projectDocs = [];
@@ -1044,9 +1046,16 @@ let _tocCollapsedSet = {};
             ts: Date.now()
           }));
         } catch(e) {}
+        // 知识卡片预览缓存失效：进入文档编辑保存后返回主页，hover 预览需重新加载
+        Alpine.nextTick(() => this.invalidateDocPreviewCache());
       } catch (err) {
         this.error = err.message || "加载仪表盘失败";
       }
+    },
+
+    /** 知识卡片 hover 预览缓存失效：列表重新加载后文档可能已更新，下次 hover 重新拉取 */
+    invalidateDocPreviewCache() {
+      document.querySelectorAll(".doc-card__preview").forEach((el) => { el.dataset.loaded = ""; });
     },
 
     /**
