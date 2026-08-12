@@ -15,9 +15,19 @@ function setupMarkedRenderer() {
     renderer.link.bind(renderer);
 
   renderer.link = function (href, title, text) {
+    // marked 5.x link renderer 签名改为单一对象 {href, title, text}——
+    // 兼容两种调用（否则 href 收到对象，ref/ext 分支永不触发，链接渲染异常）
+    if (href && typeof href === "object") {
+      const args = href;
+      href = args.href;
+      title = args.title;
+      text = args.text;
+    }
     // ref: 协议的链接渲染为可点击的关联文档链接
     if (href && href.startsWith("ref:")) {
       const rawPath = href.slice(4);
+      // 空/纯空格 ref 目标：不渲染链接（显示链接文字纯文本，避免空路径死链）
+      if (!rawPath.trim()) return text || "";
       // 解码空格编码（避免后续 encodeURIComponent 二次编码）
       const decodedPath = rawPath.replace(/%20/g, " ");
       const parts = decodedPath.split("::");
@@ -38,7 +48,8 @@ function setupMarkedRenderer() {
                  data-ext-link="${escapeHtml(href)}"
                  target="_blank" rel="noopener">${text || href}</a>`;
     }
-    return origLink({ href, title, text });
+    // 普通链接：不依赖 origLink（marked 5.x 默认 renderer 签名不一致，参数错位会输出 [object Object]）
+    return `<a href="${escapeHtml(href || "")}"${title ? ` title="${escapeHtml(title)}"` : ""}>${text || href || ""}</a>`;
   };
 
   marked.setOptions({ renderer });
