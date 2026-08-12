@@ -253,3 +253,9 @@ autosave 的 1s 定时器可能先于锁生效触发保存，导致误报。
 **经验**（排查 d9659f1 时沉淀）：
 - 验证预览/摘要更新时，**测试标记必须放文档开头（前 200 字内）**——预览 200 字截断，追加末尾会被截掉误判"未修复"
 - 用 API PUT 反复测试会污染测试库文档 → 测完用测试库 git `checkout HEAD -- 文件` 恢复
+
+## 8. 关联：粘贴 markdown 解析（P 系列）→ 独立文档
+
+编辑器粘贴 markdown 全量解析（方案 B）的测试设计见 **`doc/test/testing-plan-paste-markdown.md`**
+（P-A 行内 / P-B 块级 / P-C 组合 / P-D ref / P-E 往返 / P-F 位置上下文 / P-G title-summary，约 40 场景）。
+TDD 流程：先写测试（当前红色）→ 实现 B → 转正。
