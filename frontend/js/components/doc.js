@@ -988,14 +988,25 @@ Alpine.data("docComponent", () => ({
           // （renderMarkdown → _prepareEditorHtml（ref href 转换）→ insertContent）；
           // 否则 return false 交回 tiptap 原生（行内 pasteRules 解析 **/*/_/` 与链接）
           handlePaste: (view, event, slice) => {
+            const sel = view.state.selection;
+            const $from = sel.$from;
             // 代码块内：交回原生（纯文本插入）——接管会拆代码块并把块级插到代码块外（PF5）
-            if (view.state.selection.$from.parent.type.name === "codeBlock") return false;
+            if ($from.parent.type.name === "codeBlock") return false;
             const text = event.clipboardData && event.clipboardData.getData("text/plain");
             if (!text || !detectBlockMarkdown(text)) return false;
             const html = renderMarkdown(text);
             const prepared = this._prepareEditorHtml(html);
             const ed = _editorInstance;
             if (!ed || !prepared) return false;
+            // 列表内：行首 → lift 脱出成独立块级；行中/行尾 → 交回原生（块级作为列表项文字，结果 a）
+            let d = $from.depth;
+            while (d > 0 && $from.node(d).type.name !== "listItem") d--;
+            if (d > 0) {
+              if ($from.pos > $from.start(d) + 1) return false; // 行中 → 原生（结果 a）
+              ed.chain().liftListItem("listItem").run();
+              ed.commands.insertContent(prepared);
+              return true;
+            }
             ed.commands.insertContent(prepared);
             return true;
           },

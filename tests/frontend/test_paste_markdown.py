@@ -170,6 +170,43 @@ class TestPastePositionContext:
         text = page.evaluate("document.querySelector('.editor-shell .ProseMirror').textContent")
         assert "# 代码块内" in text, "代码块内粘贴内容应作为代码文本保留"
 
+    def test_pf4a_paste_at_list_start_lifts(self, static_server, test_docs, page):
+        """PF4a 列表项行首粘贴 # 标题 → 脱出列表成独立标题"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        _clear_editor(page)
+        _paste_markdown(page, "- 项一\n- 项二\n")
+        page.evaluate("""() => {
+          const ed = window.__mykEditor;
+          let p = -1;
+          ed.state.doc.descendants((n, pos) => { if (n.type.name === 'listItem' && n.textContent.includes('项二')) p = pos; });
+          ed.chain().setTextSelection(p + 1).run();
+        }""")
+        page.wait_for_timeout(200)
+        _paste_markdown(page, "# 标题A\n")
+        html = _editor_html(page)
+        assert "<h1" in html, "行首粘贴 # 标题应脱出列表成独立标题"
+        assert "标题A" in html, "独立标题应包含粘贴内容"
+
+    def test_pf4b_paste_mid_list_stays_text(self, static_server, test_docs, page):
+        """PF4b 列表项行中粘贴 # 标题 → 保留列表，# 标题作为列表项文字（结果 a）"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        _clear_editor(page)
+        _paste_markdown(page, "- 项一\n- 项二\n")
+        page.evaluate("""() => {
+          const ed = window.__mykEditor;
+          let p = -1;
+          ed.state.doc.descendants((n, pos) => { if (n.type.name === 'listItem' && n.textContent.includes('项二')) p = pos; });
+          ed.chain().setTextSelection(p + 3).run();
+        }""")
+        page.wait_for_timeout(200)
+        _paste_markdown(page, "# 标题B\n")
+        html = _editor_html(page)
+        assert "<h1" not in html, "行中粘贴 # 标题不应解析为标题"
+        text = page.evaluate("document.querySelector('.editor-shell .ProseMirror').textContent")
+        assert "# 标题B" in text, "# 标题B 应作为列表项文字保留（结果 a）"
+
 
 class TestPasteNestedList:
     """批 P-C 子集：嵌套列表"""

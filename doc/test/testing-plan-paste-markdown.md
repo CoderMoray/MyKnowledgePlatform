@@ -154,14 +154,14 @@ Turndown ref 输出 837-844，粘贴插入的 ref-link 带上 `data-ref-path` �
 
 ## 实现结果与已知问题（2026-08-13 阶段 C 记录）
 
-**已实现并转正**（21/21）：
+**已实现并转正**（23/23）：
 - 分流 handlePaste：行内交回原生 pasteRules、块级接管（renderMarkdown→_prepareEditorHtml→insertContent）
 - **PF5 代码块内粘贴兜底**：选区在 codeBlock 内 → return false（纯文本插入，不拆代码块/不解析）
 - PF2 段落中间拆段 ✓、PC2 嵌套列表结构 ✓
+- **PF4 列表内粘贴**：行首（列表项最开头）→ liftListItem 脱出成独立块级；行中/行尾 → 交回原生
+  （块级作为列表项文字，结果 a）
 
 **已知问题（专项排查，本次不强制断言）**：
-1. **PF4 列表内粘贴块级**：probe 实测 H1 会嵌进列表项（`<li>...<h1>`）——非法 markdown 嵌套。
-   需决定处理策略（列表内粘贴块级 → 先 lift 列表项？还是接受？）——专项
-2. **PD2 ref 章节锚点（`ref:path::章节`）**：probe 实测编辑态渲染异常——renderMarkdown 输出
+1. **PD2 ref 章节锚点（`ref:path::章节`）**：probe 实测编辑态渲染异常——renderMarkdown 输出
    ref-link 正常，但 tiptap Link 扩展（PatchedLink）对 `ref:` href 的处理把 `hover-ref-b.md::某章节`
    渲染成 `http://hover-ref-b.md`（href 被异常解析）——**PatchedLink 既有问题**（与 B 无关），专项排查
