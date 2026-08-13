@@ -430,6 +430,32 @@ create_document / update_document（agent 调 MCP）
 | Web UI 人修改 | 人 | **不做** | 留 dirty 等 AI 处理 |
 | 人直接改文件 | 人 | 人（可选） | checkpoint 记录 AI 最后处理点 |
 
+#### 文档乐观锁（Web 保存冲突检测）
+
+**背景**：多会话/多端同时编辑同一文档会互相覆盖（A 窗口加载旧内容，B 改了，A 保存用旧覆盖新 → 数据丢失）。
+`.lock` 机制只保护"MCP/AI 写入 vs 其它"，保护不了"两个 Web UI 会话之间"（都只读检查锁、都可写）。Web 保存路径靠**基于内容指纹的乐观锁**。
+
+**关键决策：为什么不用 git HEAD commit hash 作 version**——前端保存路径**不产生 git commit**（见上方 commit 策略表：Web UI 编辑留 dirty），HEAD 不变 → 基于 HEAD 的 version 不变 → 乐观锁失效。因此：
+
+- `version = sha256(f"{summary}\x00{content}")[:12]`（content 为纯 body，不含 frontmatter；`summary or ""` 兜底；`\x00` 分隔符避免碰撞）
+- **含 summary**：否则 summary 的并发修改无法触发冲突
+- **无状态**：GET 每次现算、PUT 与请求携带值比对，后端不存储历史指纹
+- **前端不计算 hash**：GET 存 version → PUT 回传 `expected_version` → 保存后收新 version；分隔符/hash 基准是后端内部实现
+
+**PUT 行为**：
+- 不带 `expected_version`（旧客户端/逃生舱）→ 照常写盘
+- 带 `expected_version`：与当前指纹一致 → 写盘；不一致（已被别处修改）→ **不写盘**，返回 **HTTP 409** `{error:"conflict", message:"文档已被其他会话修改", current_version, current_summary, content}`（含最新 content，前端做两栏 diff 可视化）
+- **409 优先于死链 400**：冲突检测先于内容校验
+- 零 diff 保存（内容未变）hash 相同 → 不冲突
+
+**前端保存不 commit 是刻意设计**（不是缺陷）：
+1. `maint__read_diff`（checkpoint→HEAD）需要看到前端变更（dirty working tree），AI 才有"评估内容是否有问题"的入口——若前端自动 commit，前端变更进 HEAD，AI 失去审查入口
+2. 自动保存高频 commit 污染 git 历史
+3. 违背本页"Web UI 编辑留 dirty 等 AI 处理"的既有约定
+4. 前端写操作只重新生成 2 个文件：父级 `readme.md` + `project-status.md`（加上被编辑文档本身）
+
+API 契约细节见 `docs/FRONTEND.md`「乐观锁（PUT /api/document）」。
+
 #### AI 工作前检查流程
 
 每次对话开始时，AI 按 `nav__maintenance_procedure` prompt 执行：
@@ -527,6 +553,60 @@ A 品牌最高 500 元，B 品牌最高 300 元。
 #### 为什么不使用前端渲染兼容的 `#` 定位
 
 前端渲染时 Markdown 标题有层级含义（HTML `<h1>`~`<h6>`），不宜与引用定位混合。改用 `::` 作为分隔符，与 `#` 解耦。
+
+#### 写入时 ref 目标校验（S16）
+
+保存文档（MCP `write__create_document` / `write__update_document`，REST `POST/PUT /api/document`）时，
+落盘前扫描 `ref:` 目标分类（`_classify_ref_targets`）：`dead`（不存在）/ `in_trash`（在垃圾箱）/ `empty`（空 target）。
+**不阻断写入**，仅附在返回里提示。
+
+- **MCP 侧**：`check_ref_targets` 在其上拼**给 AI 的指令文案**（不是给人看的报错），附在工具返回 message
+- **REST 侧**：`ref_warnings` 为前端契约结构化数组 `[{type, ref_path, display_text}]`（前端消费 toast 提示）
+- **update 差集**：只检查**本次改动引入**的引用（`old_content` 差集，REST 与 MCP 一致）——用户原有内容里的
+  死链/空 target 不打扰。差集 key：非空目标用路径（链接文本改了不算新引用），空 target 用链接文本
+- **dry_run**：`write__update_document` 支持 `dry_run=True` 写前预览警告，不落盘（按需使用，如引用目标不确定时）
+
+##### 判定原则（文案背后的语义，改动时须遵守）
+
+- **影响面判据**：只读自查（`nav__exists`/`nav__find`/`maint__list_trash`）→ AI 自主不问；只改当前文档引用 → 自主；创建/恢复/删除 → 看用户意图
+- **创建边界**：创建是用户任务直接组成部分 → AI 自主；目标不存在且用户可能不知情（以为已有/身份不明）→ 先告知并让用户确认（创建/引别的/移除）
+- **in_trash 原则**：默认**提醒**非提问；只有用户指令明确指向该目标（指令冲突）时 AI 才需提问；默认动作「保留现状，交付时提醒」
+- **空 target 本质**：`[文本](ref:)` 的链接文本是**未完成引用意图的证据**，不是无价值残骸。默认顺着文本找回（`nav__find`），移除仅限确认笔误/多余
+
+##### 三份定稿文案（MCP 给 AI 的指令）
+
+**dead**：
+```
+⚠ 引用目标不存在（将显示为死链）: {ref_path}
+  自查：nav__exists / nav__find 确认是否路径写错；找到正确路径 → 修正后重新保存
+  · 该引用为误写/多余 → 直接移除
+  · 用户指令明确要求引用该文档 → 告知用户后创建目标文档，或向用户确认应引用的文档
+  · 用户未提及 → 保留现状，交付时提醒用户
+```
+
+**in_trash**（天数来自 `list_trash` 的 `deleted_at`，解析失败退回落日文案）：
+```
+⚠ 引用目标在垃圾箱中（可恢复，已删除 X 天）: {ref_path}
+  该文档可能是用户有意删除的；如用户明确需要，先确认再调 write__restore_document 恢复
+  · 引用应指向其他文档 → 更新引用
+  · 该引用为误写/非必需 → 移除
+  · 用户未提及 → 保留现状（前端显示"可恢复"），交付时提醒用户
+```
+
+**空 target**（链接文本由 `_REF_LINK_RE` 提取 `[文本]` 部分）：
+```
+⚠ ref 目标为空（未填写路径）: 「{链接文本}」
+  该引用的链接文本表明你有引用意图，按序处理：
+  1. 用链接文本自查：nav__find(keyword="{链接文本}") 找到目标 → 补全路径
+  2. 自查找不到 → 该目标可能来自用户上下文 → 向用户确认应引用的文档（勿直接移除）
+  3. 仅在确认该引用为笔误/多余时 → 移除
+```
+
+##### 空 target 的链接文本约定（前端已确认）
+
+`[文本](ref:)` 前端不渲染为链接，显示纯文本「文本」。链接文本是可靠的引用意图证据——非空、非系统占位符、
+可读，空 target 时前端保留该文本。空格编码：存储用 `%20`（前端输入空格→`%20`、渲染解码、Turndown 输出空格原文），
+与后端「读入 unquote、写盘 normalize（空格→%20，幂等）」闭环一致。
 
 ### 2.5.12 项目合并（import_share 合并逻辑）
 

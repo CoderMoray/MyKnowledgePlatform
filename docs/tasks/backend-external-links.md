@@ -1,8 +1,12 @@
 ---
 title: 支持外链（http/https）的 ref 解析、校验和导出
 area: backend
-status: todo
+status: done
 ---
+
+> 状态更新（2026-08-13）：实际已完成——`api_get_document_with_refs`（main.py）返回 `type:"external"` 外链条目，
+> 前端 store.js 已移除自解析、doc.js 渲染"外部链接/打开链接"。下方"改法"中 `re.findall` 正则已被
+> `_extract_all_refs`（balanced parens + unquote，S16 重构）取代，正文为历史记录。
 
 ## 背景
 
