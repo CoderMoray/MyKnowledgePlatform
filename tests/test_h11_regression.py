@@ -15,6 +15,8 @@ h11 是 HTTP/1.1 协议实现，httpcore 与 h11 的版本耦合非随意——�
 - 固定当前基线：若未来升级 h11 / httpcore / httpx 任一库，或某路径触发冲突，
   本文件跑红即暴露——届时须优先排查 h11 共享冲突（见 ADR）。
 - 不 pin h11、不卸载 httpx2（架构师已定决策，保留 httpx2 正视冲突）。
+- 另含 `TestH11Guard`：backend 启动即拦截断言
+  （backend/__init__.py::_assert_h11_compatible，见「依赖升级检查清单.md」第六节）的测试。
 
 注意：本测试起真实 uvicorn server，加载 websockets 库时会产生 `websockets.legacy`
 弃用警告——那是 uvicorn/websockets 库自身的启动噪音，与 h11 冲突无关。为不污染全量
@@ -242,3 +244,50 @@ class TestH11ChunkedLargeBody:
         assert r.status_code == 200
         expected = "".join(f"chunk-{i}-" + ("x" * 500) for i in range(100))
         assert r.content.decode() == expected, "分块传输聚合后内容完整"
+
+
+class TestH11Guard:
+    """backend 启动即拦截断言（backend/__init__.py::_assert_h11_compatible）。
+
+    生产路径 httpx(httpcore) 要求 h11<0.15；httpx2(测试层)要求 >=0.16 但生产不用。
+    断言只拦生产侧：h11>=0.15 视为不兼容，拒绝启动，让"请求时诡异失败"提前暴露。
+    """
+
+    def test_normal_h11_below_15_passes(self) -> None:
+        """当前 h11（<0.15）下断言不抛错。"""
+        import h11
+        from backend import _assert_h11_compatible
+        v = tuple(int(x) for x in h11.__version__.split(".")[:2])
+        assert v < (0, 15), f"测试前提：当前 h11 应 <0.15（实际 {h11.__version__}）"
+        # 正常路径不应抛错
+        _assert_h11_compatible()
+
+    def test_h11_above_15_raises(self, monkeypatch) -> None:
+        """模拟 h11>=0.15（monkeypatch 版本来源）时断言抛 RuntimeError，不真改环境。"""
+        import importlib.metadata as md
+        from backend import _assert_h11_compatible
+
+        def _fake_version(pkg: str) -> str:
+            if pkg == "h11":
+                return "0.15.0"
+            return md.version(pkg)
+
+        monkeypatch.setattr(md, "version", _fake_version)
+        with pytest.raises(RuntimeError) as excinfo:
+            _assert_h11_compatible()
+        assert "h11" in str(excinfo.value)
+        assert "<0.15" in str(excinfo.value)
+
+    def test_version_parse_failure_is_lenient(self, monkeypatch) -> None:
+        """版本解析失败（异常元数据）宁松勿误伤——不抛错。"""
+        import importlib.metadata as md
+        from backend import _assert_h11_compatible
+
+        def _bad_version(pkg: str) -> str:
+            if pkg == "h11":
+                return "not-a-version"
+            return md.version(pkg)
+
+        monkeypatch.setattr(md, "version", _bad_version)
+        # 解析失败（int("not-a-version") 抛 ValueError）应被内部吞掉，不误伤
+        _assert_h11_compatible()
