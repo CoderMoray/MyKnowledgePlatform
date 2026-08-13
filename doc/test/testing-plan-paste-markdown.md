@@ -104,17 +104,47 @@ Turndown ref 输出 837-844，粘贴插入的 ref-link 带上 `data-ref-path` �
 | PG2 | 粘贴 markdown 到 **summary** → 保持纯文本原样 | summary 同为原生 input |
 | PG3 | 边界：title 粘贴含 `#`/`/` 等特殊字符 → 保存 rename 文件名校验 | 文件名特殊字符拦截 |
 
+## 批 P-H：分流边界与误判（冲突预期管理）
+
+**背景**：实现用"分流 handlePaste"——行内-only 交回 tiptap 原生 pasteRules（已内置 `**`/`*`/`_`/`` ` `` 行内解析），
+**含块级模式才接管**（自写解析）。交界处的冲突/误判是本批重点：
+- **接管分支必须自己处理行内**（块级文本里的 `**` 不能残留）
+- **分流检测必须严格**（只认"行首 + 语法标记 + 空格"），否则普通文本被误判接管 → 跳过原生行内解析
+
+| # | 场景 | 预期 |
+|---|---|---|
+| PH1 | 行内-only 多 mark 混排（`**加粗** 和 *斜体* 和 `代码``）| 不接管 → 原生 pasteRules 全部正确 |
+| PH2 | 块级+行内混合（`- **加粗** 列表项` / `# 标题 带**粗**`）| 接管后行内 mark 也解析（不残留 `**`）|
+| PH3 | 行首 `#` 无空格（`#标签`）| 非标题 → 纯文本（不误判接管）|
+| PH4 | 行首 `-` 无空格（`-3℃`）| 非列表 → 纯文本 |
+| PH5 | `1.5. 版本`（点后非空格）| 非有序列表 → 纯文本（`^\d+\. ` 严格匹配）|
+| PH6 | 行内文本里的 `#`/`-`（非行首，`文本 # 备注`）| 不解析（只认行首）|
+| PH7 | 接管分支的链接（`# 标题` 后 `[ref](...)`/`[http](...)`）| 接管时 ref href 转换（javascript:void(0)→ref:path）+ 外链正确 |
+| PH8 | 连续空行粘贴（`# a\n\n\n# b`）| 空行不产生多余节点 |
+
 ---
 
 ## 执行计划
 
 ```
-📋 阶段 1：场景矩阵落文档（本文件）——已完成 2026-08-13
-📋 阶段 2：test_paste_markdown.py（当前红色，xfail 标记）——2026-08-14
-📋 阶段 3：实现 B（handlePaste + ref-link 往返适配）
+📋 阶段 1：场景矩阵落文档（本文件）——已完成 2026-08-13（A-H 八批，48 场景）
+📋 阶段 2：test_paste_markdown.py（当前红色，块级未实现）——进行中 2026-08-13
+📋 阶段 3：实现 B（分流 handlePaste：行内交回原生 pasteRules，含块级模式才接管 + ref href 转换）
 📋 阶段 4：P 系列测试转正
 📋 阶段 5：全量回归（edit_switch 42 + hover 5 + paste N）
 ```
+
+## 实现方案要点（2026-08-13 定稿）
+
+- **行内 markdown 粘贴 tiptap 已内置**（bundle 有 starPasteRegex/underscorePasteRegex 等 markPasteRule：
+  `**`/`*`/`_`/`` ` `` → strong/italic/code）——**不重复实现**
+- **bundle 无 nodePasteRule**（grep 实证：只有 markPasteRule）→ 块级无法走官方 pasteRule 路线
+- **分流 handlePaste**（最小侵入）：
+  - 纯文本不含块级模式（行首 `# `/`- `/`* `/`> `/```` `/`1. `/`---`）→ `return false` 交回 tiptap 原生（行内 pasteRules）
+  - 含块级模式 → 接管：renderMarkdown → 转 HTML（ref-link href 从 javascript:void(0) 转 ref:path）→ insertContent
+- **冲突预期**（PH 批）：接管分支必须自己处理行内（不残留 `**`）；分流检测严格（行首+标记+空格），
+  防普通文本误判接管跳过原生解析
+- **ref href 转换**：PatchedLink parseHTML 排除 `javascript:` href → 接管分支必须先把 ref-link href 换成 ref:path
 
 ## 待确认项
 
