@@ -147,6 +147,44 @@ class TestPastePositionContext:
         _paste_markdown(page, "# 标题A\n")
         assert "<h1" in _editor_html(page)
 
+    def test_pf2_paste_mid_paragraph_splits(self, static_server, test_docs, page):
+        """PF2 段落中间粘贴 # 标题 → ProseMirror 拆段（标题插入到光标附近）"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        page.locator(".editor-shell .ProseMirror").click(position={"x": 300, "y": 80})
+        page.wait_for_timeout(300)
+        _paste_markdown(page, "# 插入标题\n")
+        assert "<h1" in _editor_html(page), "段落中间粘贴 # 标题应拆段插入"
+
+    def test_pf5_paste_in_codeblock_stays_text(self, static_server, test_docs, page):
+        """PF5 代码块内粘贴 markdown → 作为代码文本（不拆代码块、不解析块级）"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        _clear_editor(page)
+        _paste_markdown(page, "```\ncode_line\n```\n")
+        page.locator(".editor-shell .ProseMirror pre").click(position={"x": 60, "y": 15})
+        page.wait_for_timeout(300)
+        _paste_markdown(page, "# 代码块内\n")
+        html = _editor_html(page)
+        assert "<h1" not in html, "代码块内粘贴 # 不应解析为标题"
+        text = page.evaluate("document.querySelector('.editor-shell .ProseMirror').textContent")
+        assert "# 代码块内" in text, "代码块内粘贴内容应作为代码文本保留"
+
+
+class TestPasteNestedList:
+    """批 P-C 子集：嵌套列表"""
+
+    def test_pc2_nested_list(self, static_server, test_docs, page):
+        """PC2 嵌套列表粘贴 → 层级结构保留"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        _clear_editor(page)
+        _paste_markdown(page, "- 一级甲\n  - 二级甲\n  - 二级乙\n- 一级乙\n")
+        html = _editor_html(page)
+        assert html.count("<li") == 4, f"应有 4 个列表项，实际 {html.count('<li')}"
+        # 嵌套结构：二级列表在 li 内
+        assert "<li" in html and html.find("<ul") < html.find("</li>"), "应存在嵌套列表结构"
+
 
 class TestPasteTitleSummary:
     """批 P-G：title/summary 粘贴为纯文本（原生 input 不受影响）"""

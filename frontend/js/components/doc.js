@@ -988,6 +988,8 @@ Alpine.data("docComponent", () => ({
           // （renderMarkdown → _prepareEditorHtml（ref href 转换）→ insertContent）；
           // 否则 return false 交回 tiptap 原生（行内 pasteRules 解析 **/*/_/` 与链接）
           handlePaste: (view, event, slice) => {
+            // 代码块内：交回原生（纯文本插入）——接管会拆代码块并把块级插到代码块外（PF5）
+            if (view.state.selection.$from.parent.type.name === "codeBlock") return false;
             const text = event.clipboardData && event.clipboardData.getData("text/plain");
             if (!text || !detectBlockMarkdown(text)) return false;
             const html = renderMarkdown(text);
