@@ -12,7 +12,7 @@
 
 - [x] **锁状态过期不刷新 UI** ✅ 已解决（2026-08-04 验证）：`store.init()` 有 15s 轮询 `checkLock` + doc.js `Alpine.effect` 监听 `isLocked` 响应遮罩
 - [x] **"Node cannot be found" warning** ✅ 已解决（2026-08-04 验证）：单 DOM 改造后编辑器复用（不再销毁重建），进编辑/退出/切文档 console 干净
-- [x] **数据一致性（乐观锁）** ✅ 已完成（2026-08-05 双窗口实测通过）：后端 `version=sha256(f"{summary}\x00{content}")[:12]` + 409 冲突；前端保存带 `expected_version`、编辑中收到 SSE 变更主动弹 diff 弹窗（内容不静默覆盖）、冲突可视化（两栏行号 diff + summary 差异 + 保留我的/采用服务端/取消）；detail 见 `docs/backend-optimistic-lock-prompt.md`
+- [x] **数据一致性（乐观锁）** ✅ 已完成（2026-08-05 双窗口实测通过）：后端 `version=sha256(f"{summary}\x00{content}")[:12]` + 409 冲突；前端保存带 `expected_version`、编辑中收到 SSE 变更主动弹 diff 弹窗（内容不静默覆盖）、冲突可视化（两栏行号 diff + summary 差异 + 保留我的/采用服务端/取消）；设计决策见 `docs/DESIGN.md`「2.5.9 文档乐观锁」
 
 ### P1 编辑器 / 体验（飞书对齐）
 
@@ -97,7 +97,16 @@
 
 ### 测试资产
 - `tests/frontend/test_paste_markdown.py`（P 系列 24 用例）；场景矩阵 `doc/test/testing-plan-paste-markdown.md`（8 批 48 场景）
-- 前端全量 **71/71**（edit_switch 42 + hover 5 + paste 24）+ 后端 **337/337**
+- 前端全量 **75/75**（edit_switch 42 + hover 5 + paste 24 + refwarn toast 4）+ 后端 **349/349**
+
+### S16 引用异常提示（ref_warnings toast，4252a96）
+- 后端 PUT/POST 返回结构化 `ref_warnings` `[{type, ref_path, display_text}]`（契约见 `docs/FRONTEND_ARCHITECTURE.md` 5.2.1）
+- 前端 `showRefWarningsToast`：保存后消费（≤3 逐条「A」引用目标不存在 / >3 计数汇总），exitEdit 显式保存才提示（autosave 静默）
+- 测试 `test_refwarn_toast.py` 4/4
+
+### 测试基建修复
+- **s3_rename flaky 修复**（836c413）：rename 异步竞态（backend_doc 单次 GET 太早）→ 新增 `wait_for_backend` 轮询 helper，显式等新路径 200 + 旧路径 404；S 系列 42/42 + s3×3 全绿
+- 依赖升级（fastapi 0.141，后端 3234e39/2c7f557）前端 API 兼容回归通过（75 用例，无 API 差异）
 
 ---
 
