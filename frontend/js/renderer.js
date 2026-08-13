@@ -73,6 +73,9 @@ function renderMarkdown(markdown) {
  */
 function detectBlockMarkdown(text) {
   if (!text) return false;
+  // ref: 链接（含章节锚点 ::）→ 接管：原生 Link pasteRule 对 ref:url::章节 解析异常
+  // （把 .md::章节 当域名 → http://xxx.md），由 renderMarkdown 正确处理
+  if (/\[[^\]]*\]\(ref:/.test(text)) return true;
   const patterns = [
     /^#{1,6} /,    // 标题：井号 + 空格（#标签 不匹配）
     /^[-*+] /,     // 无序列表：-/*/+ + 空格（-3℃ 不匹配）

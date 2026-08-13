@@ -135,6 +135,17 @@ class TestPasteRefRoundtrip:
         exit_inplace(page)
         assert "hover-ref-b" in page.content(), "保存后阅读态应保留 ref 链接"
 
+    def test_pd2_section_anchor_roundtrip(self, static_server, test_docs, page):
+        """PD2 粘贴 ref 章节锚点（ref:path::章节）→ 编辑态 href 完整保留 ref: + 章节"""
+        open_doc(page, static_server, DOC_MAIN)
+        enter_edit(page, "body")
+        _clear_editor(page)
+        _paste_markdown(page, "参考 [章节](ref:common-knowledge/hover-ref-b.md::某章节)\n")
+        link = page.locator(".editor-shell .ProseMirror a[href*='hover-ref-b.md::某章节']")
+        assert link.count() == 1, "章节锚点应完整保留（ref:path::章节，不被解析成 http 链接）"
+        assert link.get_attribute("href") == "ref:common-knowledge/hover-ref-b.md::某章节", \
+            f"href 应完整，实际 {link.get_attribute('href')}"
+
 
 class TestPastePositionContext:
     """批 P-F：粘贴位置与上下文"""
