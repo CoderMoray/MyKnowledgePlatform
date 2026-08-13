@@ -175,7 +175,7 @@
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
-  border: 1px solid transparent;
+  border: 0.5px solid transparent; /* 与 top-header .btn-delete 边框宽度统一：hover 只变色不跳宽 */
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-tertiary);
@@ -199,8 +199,9 @@
 
 .doc-card__del:hover {
   background: var(--color-danger-subtle);
-  color: var(--danger);
-  border-color: var(--danger);
+  color: var(--color-danger); /* 原 --danger 未定义→回退近黑；统一用 --color-danger（与 .btn-delete 一致） */
+  border-color: var(--color-danger);
+  font-weight: 500; /* hover 加字重，与 top-header 危险按钮一致 */
 }
 
 .doc-card__ext {

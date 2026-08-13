@@ -1365,14 +1365,14 @@ let _tocCollapsedSet = {};
     confirmDeleteDocument() {
       const path = this.currentPath;
       if (!path) return;
-      const name = (this.document && this.document.meta && this.document.meta.title) || fileName(path);
-      this.openModal("delete-doc", { path, name });
+      const title = (this.document && this.document.meta && this.document.meta.title) || fileName(path);
+      this.openModal("delete-doc", { path, title });
     },
 
     /** 文档卡片右上角删除按钮（hover 出现）→ 复用 delete-doc 确认弹窗（与 top-header 交互一致） */
     confirmDeleteCard(path) {
       if (!path) return;
-      this.openModal("delete-doc", { path, name: fileName(path) });
+      this.openModal("delete-doc", { path, title: fileName(path) });
     },
 
     /** Headbar 面包屑（复刻 page-label 逻辑） */

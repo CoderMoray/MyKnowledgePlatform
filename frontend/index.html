@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=68abfa9ee3" />
+  <link rel="stylesheet" href="css/components.css?v=422f129196" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,12 +69,12 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=5391254a0a"></script>
+  <script src="js/store.js?v=47da33d0a7"></script>
   <script src="js/router.js?v=2ed83b02dd"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=2847f1080f"></script>
+  <script src="js/components/modal.js?v=73336b5b86"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -388,7 +388,7 @@
             </svg>
           </button>
 
-          <!-- 文档页删除按钮（仅阅读态显示） -->
+          <!-- 文档页删除按钮（view+edit 态显示；S23：编辑态点删除 → 自动退出编辑保存 → 确认删除） -->
           <button class="btn-delete" x-show="$store.app.currentView === 'view' || $store.app.currentView === 'edit'"
                   @click="$store.app.confirmDeleteDocument()">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">

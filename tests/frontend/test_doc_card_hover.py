@@ -15,6 +15,7 @@ sys.path.insert(0, "/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_Pla
 import pytest
 
 from conftest import api, backend_doc  # noqa: E402 (同目录 conftest，与 helpers 同法)
+from edit_switch_helpers import wait_for_backend  # noqa: E402 (rename 异步轮询，防批量跑时序)
 
 MARKER = "HOVER-UPDATED-2026"
 HOVER_A = "common-knowledge/hover-ref-a.md"
@@ -144,3 +145,39 @@ class TestDocCardHover:
         page.get_by_role("button", name="取消").first.click()
         page.wait_for_timeout(600)
         assert not page.locator(".modal").filter(has_text="确认删除").is_visible(), "取消后模态应关闭"
+
+    def test_h5b_delete_modal_shows_doc_name(self, static_server, hover_docs, page):
+        """H5b 卡片删除模态应显示文档名（回归：confirmDeleteCard 传 name 而模态读 title → 文档名空白）"""
+        _open_dashboard(page, static_server)
+        card = _hover_card_by_title(page, "hover-ref-a")
+        card.locator(".doc-card__del").click()
+        page.wait_for_timeout(700)
+        modal = page.locator(".modal").filter(has_text="删除文档")
+        assert modal.is_visible(), "点击删除应弹 delete-doc 确认模态"
+        text = modal.inner_text()
+        assert "hover-ref-a" in text, f"模态应显示文档名 hover-ref-a（不能空白），实际: {text!r}"
+        # 收尾：取消关闭（不执行删除，避免污染 fixture 清理）
+        page.get_by_role("button", name="取消").first.click()
+        page.wait_for_timeout(600)
+        assert not modal.is_visible(), "取消后模态应关闭"
+
+    def test_h5c_delete_confirm_removes_card(self, static_server, hover_docs, page):
+        """H5c 卡片删除确认 → 原地刷新不跳转：卡片从列表消失 + 后端 404 + 移入垃圾箱
+        （回归：删除后设相同 hash 不触发 hashchange → 卡片残留）"""
+        _open_dashboard(page, static_server)
+        card = _hover_card_by_title(page, "hover-ref-a")
+        card.locator(".doc-card__del").click()
+        page.wait_for_timeout(700)
+        modal = page.locator(".modal").filter(has_text="删除文档")
+        assert modal.is_visible()
+        modal.get_by_role("button", name="确认删除").click()
+        # 原地刷新：删除 + loadDashboard 异步，等卡片从列表消失
+        page.wait_for_timeout(1500)
+        titles = [page.locator(".doc-card__title").nth(i).inner_text()
+                  for i in range(page.locator(".doc-card").count())]
+        assert not any("hover-ref-a" in t for t in titles), "确认删除后卡片应从列表消失（原地刷新）"
+        assert any("hover-ref-b" in t for t in titles), "其余文档卡片应仍在列表中"
+        # 后端：旧路径 404 + 垃圾箱有该文档（轮询防异步竞态）
+        wait_for_backend(HOVER_A, 404)
+        st, trash = api("GET", "/api/trash")
+        assert st == 200 and "hover-ref-a" in str(trash), "删除的文档应在垃圾箱中"

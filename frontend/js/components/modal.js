@@ -96,18 +96,29 @@ Alpine.data("modalComponent", () => ({
         await api.deleteDocument(path);
         store.closeModal();
 
-        // 倒计时面板：明确跳转目标（项目页 / 首页）
-        const projPath = projectName(path);
-        showCountdownToast(
-          projPath
-            ? "已移入垃圾箱，3 秒后返回项目「" + fileName(projPath) + "」"
-            : "已移入垃圾箱，3 秒后返回首页",
-          () => {
-            if (projPath) window.location.hash = "project/" + projPath;
-            else window.location.hash = "dashboard";
-          },
-          3
-        );
+        const view = store.currentView;
+        if (view === "dashboard" || view === "project") {
+          // 卡片删除（dashboard 公共知识 / 项目视图）：原地不跳、无倒计时。
+          // SSE updated 事件已按当前视图自动刷新列表，这里显式刷新双保险（不依赖 SSE 时序）；
+          // 侧栏树同步（项目文档，公共知识 parent 为空自动跳过）。
+          if (view === "dashboard") store.loadDashboard().catch(() => {});
+          else store.loadProjectDocuments(store.currentPath).catch(() => {});
+          store.refreshProjectTree(store._treeParentPath(path)).catch(() => {});
+          showToast("已移入垃圾箱，30 天内可恢复", "success");
+        } else {
+          // 文档页删除（view/edit）：保留 3 秒倒计时跳转（hash 必变 → 触发刷新）
+          const projPath = projectName(path);
+          showCountdownToast(
+            projPath
+              ? "已移入垃圾箱，3 秒后返回项目「" + fileName(projPath) + "」"
+              : "已移入垃圾箱，3 秒后返回首页",
+            () => {
+              if (projPath) window.location.hash = "project/" + projPath;
+              else window.location.hash = "dashboard";
+            },
+            3
+          );
+        }
       } catch (err) {
         showToast(err.message || "删除失败", "error");
       }
