@@ -422,7 +422,7 @@ def import_share(storage, pkg_path: str,
                 if not norm or norm.startswith("/") or ".." in norm.split("/"):
                     raise ValueError(
                         f"分享包内含非法路径，拒绝导入: {member.name}")
-            tar.extractall(path=str(tmp_dir))
+            tar.extractall(path=str(tmp_dir), filter="data")
 
         # Determine source and target paths（project_name 已在解包前校验）
         src = tmp_dir / manifest["name"]
