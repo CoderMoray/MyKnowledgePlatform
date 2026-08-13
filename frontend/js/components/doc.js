@@ -984,6 +984,19 @@ Alpine.data("docComponent", () => ({
         editorProps: {
           // 复用 markdown-body 排版，保证阅读态/编辑态视觉一致
           attributes: { class: "ProseMirror markdown-body" },
+          // 粘贴分流（方案 B）：纯文本含块级 markdown 模式 → 接管
+          // （renderMarkdown → _prepareEditorHtml（ref href 转换）→ insertContent）；
+          // 否则 return false 交回 tiptap 原生（行内 pasteRules 解析 **/*/_/` 与链接）
+          handlePaste: (view, event, slice) => {
+            const text = event.clipboardData && event.clipboardData.getData("text/plain");
+            if (!text || !detectBlockMarkdown(text)) return false;
+            const html = renderMarkdown(text);
+            const prepared = this._prepareEditorHtml(html);
+            const ed = _editorInstance;
+            if (!ed || !prepared) return false;
+            ed.commands.insertContent(prepared);
+            return true;
+          },
         },
         onUpdate: () => {
           store.isDirty = true;

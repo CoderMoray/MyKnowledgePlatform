@@ -66,6 +66,25 @@ function renderMarkdown(markdown) {
 }
 
 /**
+ * 检测纯文本是否含块级 markdown 模式（行首）——粘贴分流用。
+ * 严格匹配"行首 + 语法标记 + 空格"，防误判（#标签/-3℃/1.5. 均不匹配）。
+ * @param {string} text
+ * @returns {boolean}
+ */
+function detectBlockMarkdown(text) {
+  if (!text) return false;
+  const patterns = [
+    /^#{1,6} /,    // 标题：井号 + 空格（#标签 不匹配）
+    /^[-*+] /,     // 无序列表：-/*/+ + 空格（-3℃ 不匹配）
+    /^\d+\. /,     // 有序列表：数字. + 空格（1.5. 不匹配）
+    /^> /,         // 引用：> + 空格
+    /^```/,        // 代码块
+    /^---\s*$/,    // 分割线（整行）
+  ];
+  return text.split("\n").some((line) => patterns.some((re) => re.test(line)));
+}
+
+/**
  * 渲染文档内容到容器（后处理：highlight.js 代码高亮）
  * 注意：HTML 内容由 Alpine x-html 设置，此函数仅做后处理
  * @param {string} html - 未使用，保留兼容性

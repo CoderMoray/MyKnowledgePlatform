@@ -90,14 +90,15 @@ class TestPasteBlockElements:
         assert "<blockquote" in _editor_html(page)
 
     def test_pb6_codeblock_renders(self, static_server, test_docs, page):
-        """粘贴 ``` 代码块 → 渲染为代码块"""
+        """粘贴 ``` 代码块 → 渲染为代码块（hljs 高亮 span 不影响内容）"""
         open_doc(page, static_server, DOC_MAIN)
         enter_edit(page, "body")
         _clear_editor(page)
         _paste_markdown(page, "```python\nprint('hi')\n```\n")
         html = _editor_html(page)
-        assert "print('hi')" in html, "代码块内容应保留"
         assert "<pre" in html, "应渲染为 pre 代码块"
+        text = page.evaluate("document.querySelector('.editor-shell .ProseMirror').textContent")
+        assert "print('hi')" in text, f"代码块内容应保留（可能被 hljs span 拆分）：{text!r}"
 
 
 class TestPasteInlineElements:
