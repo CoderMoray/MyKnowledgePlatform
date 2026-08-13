@@ -29,4 +29,7 @@ oss2>=2.18.0
 apscheduler>=3.10.0
 
 # Test client (fastapi>=0.141 TestClient works with httpx>=0.28)
+# httpx2: starlette 1.6+ TestClient 优先用它，消除 "Using httpx with testclient is
+#         deprecated" 警告（仅测试基础设施，运行时不用）
 httpx>=0.28,<1.0
+httpx2>=2.0,<3.0
