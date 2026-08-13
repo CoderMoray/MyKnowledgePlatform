@@ -97,15 +97,15 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 
 **含空格路径（S16）**：`refs[i].path` 统一为**解码后的真实路径**（`%20` → 空格）；`resolved`/`ref_status` 对 `%20` 编码与空格原文两种写法均正确分类（空格路径项目如 `projects/MyKnowledge 项目知识管理平台/...`）。
 
-**写入时 ref 目标校验（S16）**：`POST/PUT /api/document/{path}` 响应新增 `ref_warnings` 字段（字符串数组，空=全部正常）。仅提示不阻断写入：
-- `normal`（目标存在）→ 不出现
-- `in_trash` → `「引用目标在垃圾箱中（可恢复）」`
-- `dead` → `「引用目标不存在（将显示为死链）」`
-- 空 target → `「ref 目标为空」`
+**写入时 ref 目标校验（S16）**：`POST/PUT /api/document/{path}` 响应含 `ref_warnings` 字段，为**结构化数组**（空数组=全部正常），仅提示不阻断写入。每条 `{type, ref_path, display_text}`：
+- `type`：`"dead"`（目标不存在）| `"in_trash"`（在垃圾箱）| `"empty"`（`[文本](ref:)` 空 target）
+- `ref_path`：目标路径（`empty` 时为 `""`）
+- `display_text`：链接显示文本（引用意图证据，`empty` 时即 `[文本]` 部分）
 - 外链（http/https）→ 跳过不校验
+`PUT`（update）只检查**本次改动引入**的引用（原有内容里的问题不返回，与 MCP 一致）。
 同时写入内容中的 `ref:` 路径空格会自动规范化为 `%20`（幂等，前端已编码的不受影响）。
 
-> 兼容性：`ref_warnings` 是新增字段，旧前端忽略即可。
+> 兼容性：旧前端若读 `ref_warnings`（字符串数组形态）需按新契约适配；不读则无影响。
 
 ### 垃圾箱
 

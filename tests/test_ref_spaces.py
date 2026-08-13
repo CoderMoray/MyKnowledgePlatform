@@ -165,6 +165,58 @@ class TestCheckRefTargets:
         assert check_ref_targets(
             storage, "[x](ref:projects/X%20项目/common-knowledge/a.md)") == []
 
+    # ── 改动 1：集合差集（update 只检查本次引入的引用）──
+
+    def test_diff_old_dead_ignored(self, storage):
+        """旧内容里的 dead 不警告，只警告本次新增的。"""
+        w = check_ref_targets(
+            storage,
+            "[a](ref:common-knowledge/旧.md) [b](ref:common-knowledge/新.md)",
+            old_content="[a](ref:common-knowledge/旧.md)",
+        )
+        assert len(w) == 1
+        assert "新.md" in w[0]
+        assert "旧.md" not in w[0]
+
+    def test_diff_same_target_not_warned_twice(self, storage):
+        """链接文本变了但目标路径没变 → 不算新引用，不警告。"""
+        w = check_ref_targets(
+            storage,
+            "[新名字](ref:common-knowledge/dead.md)",
+            old_content="[旧名字](ref:common-knowledge/dead.md)",
+        )
+        assert w == []
+
+    def test_diff_old_empty_not_warned(self, storage):
+        """旧内容里已有的空 target 不重复警告，只警告本次新增的空 target。"""
+        w = check_ref_targets(
+            storage,
+            "[旧空](ref:) [新空](ref:)",
+            old_content="[旧空](ref:)",
+        )
+        assert len(w) == 1
+        assert "「新空」" in w[0]
+
+    # ── 改动 3：空 target 含链接文本；in_trash 含已删除天数 ──
+
+    def test_empty_target_includes_link_text(self, storage):
+        """空 target 文案含链接文本，并引导 nav__find 找回。"""
+        w = check_ref_targets(storage, "[门店周报](ref:)")
+        assert len(w) == 1
+        assert "「门店周报」" in w[0]
+        assert "nav__find" in w[0]
+
+    def test_in_trash_warns_with_days(self, storage):
+        """in_trash 文案含已删除天数。"""
+        from backend.trash import move_doc_to_trash
+        self._mk(storage, "common-knowledge/被删.md")
+        move_doc_to_trash(storage, "common-knowledge/被删.md")
+        w = check_ref_targets(storage, "[x](ref:common-knowledge/被删.md)")
+        assert len(w) == 1
+        assert "垃圾箱" in w[0]
+        assert "已删除" in w[0]
+        assert "天" in w[0]
+
 
 # ══════════════════════════════════════════════════════════════
 #  MCP 集成：写入规范化 + 校验警告 + maint__check_refs
@@ -262,6 +314,68 @@ class TestMCPWriteNormalize:
         assert "已死: 0" in msg
         assert "正常: 2" in msg
 
+    # ── 改动 1：update 只警告本次引入的引用 ──
+
+    def test_update_warns_only_new(self, app, storage):
+        """update 只警告本次新增的 dead，原有 dead 不打扰。"""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/u1.md",
+            "content": "[旧](ref:common-knowledge/旧.md)",
+        }))
+        result = asyncio.run(app.call_tool("write__update_document", {
+            "path": "common-knowledge/u1.md",
+            "content": "[旧](ref:common-knowledge/旧.md) "
+                       "[新](ref:common-knowledge/新.md)",
+        }))
+        msg = _tool_text(result)
+        assert "新.md" in msg
+        assert "旧.md" not in msg
+
+    # ── 改动 3：update 正式返回含引导语 ──
+
+    def test_update_guide_prefix(self, app, storage):
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/u2.md", "content": "# x",
+        }))
+        result = asyncio.run(app.call_tool("write__update_document", {
+            "path": "common-knowledge/u2.md",
+            "content": "[x](ref:common-knowledge/不存在.md)",
+        }))
+        msg = _tool_text(result)
+        assert "以下警告仅针对本次改动引入的引用" in msg
+
+    # ── 改动 2：dry_run 写前预览 ──
+
+    def test_update_dry_run_no_write(self, app, storage):
+        """dry_run=True 不落盘，返回预览。"""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/u3.md", "content": "# x",
+        }))
+        result = asyncio.run(app.call_tool("write__update_document", {
+            "path": "common-knowledge/u3.md",
+            "content": "[x](ref:common-knowledge/不存在.md)",
+            "dry_run": True,
+        }))
+        msg = _tool_text(result)
+        assert "Dry-run" in msg
+        assert "不存在" in msg
+        # 未落盘：文档内容仍是原样
+        _, body = storage.read_document("common-knowledge/u3.md")
+        assert "不存在.md" not in body
+
+    def test_update_dry_run_clean(self, app, storage):
+        """dry_run 无警告时返回全部正常。"""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/u4.md", "content": "# x",
+        }))
+        result = asyncio.run(app.call_tool("write__update_document", {
+            "path": "common-knowledge/u4.md",
+            "content": "# 新内容",
+            "dry_run": True,
+        }))
+        msg = _tool_text(result)
+        assert "全部正常" in msg
+
 
 # ══════════════════════════════════════════════════════════════
 #  REST 集成：写入规范化 + ref_warnings + /refs 端点
@@ -293,6 +407,10 @@ def client(tmp_kb_root: Path):
 
 class TestRESTNormalize:
     def test_create_normalizes_and_returns_warnings(self, client, tmp_kb_root):
+        # y 的目标真实存在（normal 不警告），x 的目标不存在（dead）
+        y_target = tmp_kb_root / "projects/X 项目/a.md"
+        y_target.parent.mkdir(parents=True, exist_ok=True)
+        y_target.write_text("# a", encoding="utf-8")
         r = client.post("/api/document/common-knowledge/r1.md", json={
             "content": "[x](ref:common-knowledge/不存在.md) "
                        "[y](ref:projects/X 项目/a.md)",
@@ -301,10 +419,33 @@ class TestRESTNormalize:
         assert r.status_code == 201, r.text
         body = r.json()
         assert "ref_warnings" in body
-        assert any("不存在" in w for w in body["ref_warnings"])
+        # 结构化契约：dead 只针对 不存在.md（y 的 %20 目标是 normal，不警告）
+        assert body["ref_warnings"] == [
+            {"type": "dead", "ref_path": "common-knowledge/不存在.md",
+             "display_text": "x"},
+        ]
         _, doc = Storage(kb_root=tmp_kb_root).read_document(
             "common-knowledge/r1.md")
         assert "ref:projects/X%20项目/a.md" in doc
+
+    def test_create_empty_target_structured(self, client, tmp_kb_root):
+        """导入/API 直写含 [文本](ref:) 空 target → {type:"empty", ref_path:"", display_text}。"""
+        r = client.post("/api/document/common-knowledge/r1e.md", json={
+            "content": "[门店周报](ref:)",
+            "summary": "s",
+        })
+        assert r.status_code == 201, r.text
+        assert r.json()["ref_warnings"] == [
+            {"type": "empty", "ref_path": "", "display_text": "门店周报"},
+        ]
+
+    def test_create_no_warnings_empty_array(self, client, tmp_kb_root):
+        r = client.post("/api/document/common-knowledge/r1n.md", json={
+            "content": "# 无引用",
+            "summary": "s",
+        })
+        assert r.status_code == 201, r.text
+        assert r.json()["ref_warnings"] == []
 
     def test_update_normalizes_and_returns_warnings(self, client, tmp_kb_root):
         client.post("/api/document/common-knowledge/r2.md", json={
@@ -316,6 +457,22 @@ class TestRESTNormalize:
         _, doc = Storage(kb_root=tmp_kb_root).read_document(
             "common-knowledge/r2.md")
         assert "ref:projects/X%20项目/a.md" in doc
+
+    def test_update_warns_only_new_structured(self, client, tmp_kb_root):
+        """REST update 与 MCP 一致：只警告本次引入的引用（差集）。"""
+        client.post("/api/document/common-knowledge/r3.md", json={
+            "content": "[旧](ref:common-knowledge/旧.md)",
+            "summary": "s",
+        })
+        r = client.put("/api/document/common-knowledge/r3.md", json={
+            "content": "[旧](ref:common-knowledge/旧.md) "
+                       "[新](ref:common-knowledge/新.md)",
+        })
+        assert r.status_code == 200, r.text
+        assert r.json()["ref_warnings"] == [
+            {"type": "dead", "ref_path": "common-knowledge/新.md",
+             "display_text": "新"},
+        ]
 
 
 class TestRefsEndpointSpaces:

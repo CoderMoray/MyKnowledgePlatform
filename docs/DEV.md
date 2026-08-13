@@ -88,10 +88,10 @@
 - 扫描容错：`_extract_all_refs` 统一提取（链接语法 + balanced parens）并对 `ref:` 路径 `unquote`（%20 → 空格）；`maint__check_refs` 复用该提取器，替代裸正则 `ref:([^)\s]+)`（旧正则截断空格、%20 不解码 → 误报 dead）
 - `ref_status` 入口 `unquote`（幂等：%20→空格、空格→空格），任何调用方传 %20 都先解码再判 exists/trash
 - 写入规范化：`normalize_ref_content` 将 `[text](ref:...)` 链接内空格 → `%20`（幂等，只动 ref 链接，不碰普通文本/外链）；MCP 写工具（create/update）与 REST 写端点（POST/PUT）共用
-- 写入校验：`check_ref_targets` 扫描 ref 目标分类（normal/in_trash/dead/空），警告附 MCP 返回 message / REST `ref_warnings` 字段，不阻断写入
+- 写入校验：`_classify_ref_targets` 扫描 ref 目标分类（dead/in_trash/empty，结构化）——MCP 侧 `check_ref_targets` 在其上拼 AI 指令文案（含 in_trash 已删除天数、空 target 链接文本）；REST `ref_warnings` 为前端契约结构化数组 `[{type, ref_path, display_text}]`。`write__update_document` 支持 `dry_run=True` 写前预览；update 只检查本次改动引入的引用（`old_content` 差集，REST 与 MCP 一致）
 - rename 联动：`rename_document` / `rename_project` / `move_project` 的 ref 替换改用双 pattern（空格原文 + `%20` 编码），替换值统一 `%20` 编码落盘——防规范化后 %20 ref 在 rename 时漏替换变隐性死链
 - CLI 无直接写文档入口（写文档走 MCP/REST），该需求项不适用；share 导入不做规范化（保持内容忠实）
-- 新增 `tests/test_ref_spaces.py`（34 个测试），全量 337 passed
+- 新增 `tests/test_ref_spaces.py`（46 个测试），全量 361 passed
 
 ### Step 11 — nav__find 全文搜索升级 ✅
 

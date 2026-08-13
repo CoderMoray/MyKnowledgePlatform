@@ -99,29 +99,151 @@ def normalize_ref_content(content: str) -> str:
     return _REF_LINK_RE.sub(_sub, content)
 
 
-def check_ref_targets(storage, content: str) -> list[str]:
-    """扫描 content 中 ref: 链接，返回目标状态警告列表（不阻断写入）。
+def _extract_ref_links(content: str) -> list[tuple[str, str]]:
+    """提取所有 ref: 链接的 (目标路径, 链接文本)，供 check_ref_targets 使用。
 
-    - 外链（http/https）→ 跳过（外部可达性不检查）
-    - normal（目标存在）→ 无提示
-    - in_trash（目标在垃圾箱）→ 警告「可恢复」
-    - dead（目标不存在）→ 警告「死链」
-    - 空/纯空格 target → 提示「ref 目标为空」
+    与 _extract_all_refs 的区别：额外保留 [文本] 部分（空 target 文案需要）。
+    剥离代码块/行内代码后扫描（与 _extract_all_refs 一致）。
     """
-    warnings: list[str] = []
-    for ref_type, ref_path, _section in _extract_all_refs(content):
-        if ref_type != "ref":
-            continue
+    body = re.sub(r'```.*?```', '', content, flags=re.DOTALL)
+    body = re.sub(r'`[^`]+`', '', body)
+    from urllib.parse import unquote
+    out: list[tuple[str, str]] = []
+    for m in _REF_LINK_RE.finditer(body):
+        text_part = m.group(1)               # "[文本]("
+        link_text = text_part[1:-2].strip()  # 去掉 "[" 与 "]("
+        raw = m.group(3)
+        if "::" in raw:
+            raw = raw.split("::", 1)[0]
+        out.append((unquote(raw), link_text))
+    return out
+
+
+def _days_in_trash(storage, target: str) -> str:
+    """返回目标已删除的天数文案（如 "3 天"）；匹配不到/解析失败返回空串。"""
+    from backend.trash import list_trash
+    from datetime import datetime
+    for item in list_trash(storage):
+        if item.get("original_path") == target:
+            deleted_at = item.get("deleted_at", "")
+            try:
+                dt = datetime.fromisoformat(deleted_at)
+                days = (datetime.now() - dt).days
+                return f"{days} 天"
+            except Exception:
+                return ""
+    return ""
+
+
+def _classify_ref_targets(storage, content: str,
+                          old_content: str | None = None) -> list[dict]:
+    """扫描 content 中 ref: 链接，返回结构化目标分类（不阻断写入）。
+
+    返回 ``[{type, ref_path, display_text, days}]``：
+      - type: ``"dead"``（目标不存在）| ``"in_trash"``（在垃圾箱）| ``"empty"``（空 target）
+      - ref_path: 目标路径（``empty`` 时为空字符串）
+      - display_text: 链接显示文本（引用意图证据）
+      - days: 仅 in_trash 且可计算时给出（如 ``"3 天"``），否则 ``None``
+    外链（http/https）跳过；normal（目标存在）无条目。
+
+    old_content 非空时（update 场景）：只检查「新 - 旧」差集里本次引入的
+    ref 目标，用户原有内容里的问题不返回。
+    """
+    def _key(target: str, link_text: str) -> str:
+        # 非空目标用路径做 key（链接文本改了不算新引用）；
+        # 空目标路径都是空串无法区分，用链接文本做 key。
+        return target if target.strip() else f"<empty>:{link_text}"
+
+    refs = _extract_ref_links(content)
+    if old_content is not None:
+        old_keys = {_key(t, l) for t, l in _extract_ref_links(old_content)}
+        refs = [(t, l) for t, l in refs if _key(t, l) not in old_keys]
+
+    out: list[dict] = []
+    for ref_path, link_text in refs:
         if not ref_path.strip():
-            warnings.append("⚠ ref 目标为空（未填写路径）")
+            out.append({
+                "type": "empty", "ref_path": "", "display_text": link_text,
+                "days": None,
+            })
             continue
         from backend.trash import ref_status
         status = ref_status(storage, ref_path)
         if status == "in_trash":
-            warnings.append(f"⚠ 引用目标在垃圾箱中（可恢复）: {ref_path}")
+            out.append({
+                "type": "in_trash", "ref_path": ref_path,
+                "display_text": link_text,
+                "days": _days_in_trash(storage, ref_path) or None,
+            })
         elif status == "dead":
-            warnings.append(f"⚠ 引用目标不存在（将显示为死链）: {ref_path}")
+            out.append({
+                "type": "dead", "ref_path": ref_path,
+                "display_text": link_text, "days": None,
+            })
+    return out
+
+
+def check_ref_targets(storage, content: str,
+                      old_content: str | None = None) -> list[str]:
+    """扫描 content 中 ref: 链接，返回给 AI 看的文本警告列表（不阻断写入）。
+
+    - 外链（http/https）→ 跳过（外部可达性不检查）
+    - normal（目标存在）→ 无提示
+    - in_trash（目标在垃圾箱）→ 警告「可恢复」（含已删除天数）
+    - dead（目标不存在）→ 警告「死链」
+    - 空/纯空格 target → 提示「ref 目标为空」（含链接文本）
+
+    old_content 非空时（update 场景）：只检查「新 - 旧」差集里本次引入的
+    ref 目标，用户原有内容里的问题不警告。
+    """
+    warnings: list[str] = []
+    for item in _classify_ref_targets(storage, content, old_content):
+        ref_path = item["ref_path"]
+        link_text = item["display_text"]
+        if item["type"] == "empty":
+            warnings.append(
+                f"⚠ ref 目标为空（未填写路径）: 「{link_text}」\n"
+                f"  该引用的链接文本表明你有引用意图，按序处理：\n"
+                f"  1. 用链接文本自查：nav__find(keyword=\"{link_text}\") 找到目标 → 补全路径\n"
+                f"  2. 自查找不到 → 该目标可能来自用户上下文 → 向用户确认应引用的文档（勿直接移除）\n"
+                f"  3. 仅在确认该引用为笔误/多余时 → 移除"
+            )
+        elif item["type"] == "in_trash":
+            head = (f"⚠ 引用目标在垃圾箱中（可恢复，已删除 {item['days']}）: {ref_path}"
+                    if item["days"] else
+                    f"⚠ 引用目标在垃圾箱中（可恢复）: {ref_path}")
+            warnings.append(
+                f"{head}\n"
+                f"  该文档可能是用户有意删除的；如用户明确需要，先确认再调 "
+                f"write__restore_document 恢复\n"
+                f"  · 引用应指向其他文档 → 更新引用\n"
+                f"  · 该引用为误写/非必需 → 移除\n"
+                f"  · 用户未提及 → 保留现状（前端显示\"可恢复\"），交付时提醒用户"
+            )
+        elif item["type"] == "dead":
+            warnings.append(
+                f"⚠ 引用目标不存在（将显示为死链）: {ref_path}\n"
+                f"  自查：nav__exists / nav__find 确认是否路径写错；"
+                f"找到正确路径 → 修正后重新保存\n"
+                f"  · 该引用为误写/多余 → 直接移除\n"
+                f"  · 用户指令明确要求引用该文档 → 告知用户后创建目标文档，"
+                f"或向用户确认应引用的文档\n"
+                f"  · 用户未提及 → 保留现状，交付时提醒用户"
+            )
     return warnings
+
+
+def _rest_ref_warnings(storage, content: str,
+                       old_content: str | None = None) -> list[dict]:
+    """REST 返回给前端的结构化 ref_warnings（契约 [{type, ref_path, display_text}]）。
+
+    内部 days 字段不下发（前端契约未定义；AI 文本文案在 check_ref_targets 里用）。
+    """
+    return [
+        {"type": it["type"], "ref_path": it["ref_path"],
+         "display_text": it["display_text"]}
+        for it in _classify_ref_targets(storage, content, old_content)
+    ]
 
 # ── App creation ───────────────────────────────────────────
 
@@ -498,10 +620,11 @@ def api_create_document(path: str, payload: DocumentPayload):
     _check_write_allowed()
     _guard_doc_write_path(path)
     storage, gen = get_storage()
-    # S16: ref 路径空格 → %20 规范化（幂等）后，再校验与写入
+    # S16: ref 路径空格 → %20 规范化（幂等）后，再校验与写入。
+    # REST ref_warnings 为结构化数组 [{type, ref_path, display_text}]（前端契约）。
     payload.content = normalize_ref_content(payload.content)
     _check_doc(payload, storage)
-    ref_warnings = check_ref_targets(storage, payload.content)
+    ref_warnings = _rest_ref_warnings(storage, payload.content)
     meta = {"type": payload.doc_type, "summary": payload.summary}
     from backend.mcp_server import _attach_identity
     _attach_identity(meta, True)
@@ -580,7 +703,8 @@ def api_update_document(path: str, payload: DocumentPayload):
 
     new_content = payload.content
     new_summary = payload.summary
-    ref_warnings = check_ref_targets(storage, new_content)
+    # REST update：与 MCP 一致，只检查本次改动引入的引用（old_content 差集）
+    ref_warnings = _rest_ref_warnings(storage, new_content, old_content=old_body)
 
     # ── No-op: skip write if nothing changed ──────────────
     if new_content == old_body and new_summary == old_meta.get("summary", ""):

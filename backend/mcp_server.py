@@ -1383,7 +1383,7 @@ def create_mcp_app(storage: Storage,
 
     @mcp.tool()
     def write__update_document(path: str, content: str = "",
-                        summary: str = "") -> str:
+                        summary: str = "", dry_run: bool = False) -> str:
         """[write] Update an existing knowledge document.
 
         Fields left empty keep their current value.
@@ -1391,19 +1391,38 @@ def create_mcp_app(storage: Storage,
             path:    KB-relative path to the existing .md file.
             content: New markdown body (leave empty to keep existing).
             summary: New one-line description (leave empty to keep existing).
+            dry_run: When ``True``, only preview the ref-target warnings
+                     without writing.
         Returns:
-            The document id.
+            The document id (or preview text when dry_run=True).
         """
         _validate_path(path, kind="file", storage=storage)
         old_meta, old_body = storage.read_document(path)
         if content:
-            # S16: ref 路径空格 → %20 规范化（幂等）+ 目标校验警告
+            # S16: ref 路径空格 → %20 规范化（幂等）+ 目标校验警告。
+            # 只检查本次改动引入的引用（old_content 差集），原有引用不打扰。
             from backend.main import normalize_ref_content, check_ref_targets
             new_body = normalize_ref_content(content)
-            ref_warnings = check_ref_targets(storage, new_body)
+            ref_warnings = check_ref_targets(storage, new_body,
+                                             old_content=old_body)
         else:
             new_body = old_body
             ref_warnings = []
+
+        if dry_run:
+            lines = [f"🔍 **Dry-run: write__update_document**"]
+            lines.append("─" * 60)
+            lines.append(f"  路径: {path}")
+            lines.append(f"  摘要: {summary or '(保持原值)'}")
+            lines.append("─" * 60)
+            if ref_warnings:
+                lines.append("以下警告仅针对本次改动引入的引用（原有引用不受影响）：")
+                lines.extend(f"  {w}" for w in ref_warnings)
+            else:
+                lines.append("⚠ ref 目标检查（写入前）: ✅ 全部正常")
+            lines.append("─" * 60)
+            lines.append("💡 确认无误后调用本工具时设置 dry_run=False 即可。")
+            return "\n".join(lines)
 
         new_meta = dict(old_meta)
         if summary:
@@ -1422,6 +1441,7 @@ def create_mcp_app(storage: Storage,
         _write_through(parent_rel, f"update: {path}")
         msg = written.get("id", "")
         if ref_warnings:
+            msg += "\n以下警告仅针对本次改动引入的引用（原有引用不受影响）："
             msg += "\n" + "\n".join(ref_warnings)
         return msg
 
