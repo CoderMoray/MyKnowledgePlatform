@@ -725,7 +725,11 @@ Alpine.data("docComponent", () => ({
         const fullMd = this._editorToMarkdown();
         if (fullMd) {
           try {
-            await store.saveDocument(path, this._buildSaveBody());
+            const resp = await store.saveDocument(path, this._buildSaveBody());
+            // 保存后引用异常提示（消费后端 ref_warnings 结构化数组——差集：仅本次新增问题）
+            if (resp && Array.isArray(resp.ref_warnings) && resp.ref_warnings.length) {
+              showRefWarningsToast(resp.ref_warnings);
+            }
             // 保存成功后同步 htmlContent = 编辑器 DOM 快照：
             // 否则退出编辑切回阅读态时，effect 会用"旧 htmlContent"把编辑器内容还原成保存前（内容已保存但显示回滚）。
             // 仅当仍停留在本文档时快照：编辑态切文档竞态下（GET 新文档先返回、PUT 旧文档后返回）

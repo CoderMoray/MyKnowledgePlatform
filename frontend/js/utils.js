@@ -197,6 +197,34 @@ function showToast(message, type = "info", duration = 900) {
   }, duration);
 }
 
+/**
+ * 保存后引用异常提示：消费后端 ref_warnings（结构化数组）。
+ * 少（≤3）时逐条列具体引用；多时计数汇总（主 label 短）。
+ * @param {Array<{type: 'dead'|'in_trash'|'empty', ref_path: string, display_text: string}>} warnings
+ */
+function showRefWarningsToast(warnings) {
+  if (!Array.isArray(warnings) || warnings.length === 0) return;
+  const typeText = {
+    dead: "引用目标不存在",
+    in_trash: "在垃圾箱（可恢复）",
+    empty: "未填写目标",
+  };
+  if (warnings.length <= 3) {
+    const parts = warnings.map(
+      (w) => `「${w.display_text || "未命名"}」${typeText[w.type] || w.type}`
+    );
+    showToast(parts.join("、"), "warning", 3000);
+    return;
+  }
+  const n = { dead: 0, in_trash: 0, empty: 0 };
+  warnings.forEach((w) => { if (n[w.type] !== undefined) n[w.type]++; });
+  const bits = [];
+  if (n.dead) bits.push(`${n.dead} 死链`);
+  if (n.in_trash) bits.push(`${n.in_trash} 在垃圾箱`);
+  if (n.empty) bits.push(`${n.empty} 未完成`);
+  showToast(`${warnings.length} 个引用异常（${bits.join(" + ")}）`, "warning", 3000);
+}
+
 /** 倒计时面板（删除后返回上级）：浅色面板 + 「立刻跳转」按钮 + 倒计时自动跳转 */
 function showCountdownToast(message, jumpFn, seconds = 3) {
   const panel = document.createElement("div");
