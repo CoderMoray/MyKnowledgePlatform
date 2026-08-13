@@ -92,13 +92,15 @@ frontend/
 | **页面结构/路由/视图模板** | `index.html`（所有 `<template>` 和 `x-show` 块） |
 | 仪表盘数据获取 | `js/store.js`（`loadDashboard` 方法） |
 | 文档加载逻辑 | `js/store.js`（`loadDocument` 方法） |
-| 编辑器初始化 | `js/app.js`（`editorComponent`） |
+| 编辑器初始化 | `js/components/doc.js`（`_editorInstance`，ProseMirror 常驻单容器） |
 | API 请求/端点 | `js/api.js` |
 | 路由规则 | `js/router.js`（`route()` 函数） |
 | 锁状态轮询策略 | `js/app.js`（`lockPolling`） |
-| ref 引用渲染行为 | `js/renderer.js` |
-| Markdown 转换行为 | `js/converter.js` |
-| 工具函数（日期/MD5/Gravatar） | `js/utils.js` |
+| ref 引用渲染行为 | `js/renderer.js`（marked renderer：ref-link / ext-link / 空 ref 拦截） |
+| Markdown 转换行为 | `js/renderer.js`（`renderMarkdown`）+ `js/components/doc.js`（Turndown 保存规则） |
+| **粘贴 markdown 全量解析** | `js/components/doc.js`（`editorProps.handlePaste` 分流接管）+ `js/renderer.js`（`detectBlockMarkdown`） |
+| **文档卡片 hover 预览** | `js/renderer.js`（`openDocPreview`）+ `js/store.js`（`invalidateDocPreviewCache` 缓存失效） |
+| 工具函数（日期/哈希） | `js/utils.js` |
 
 ### 改设计令牌（换主题）
 

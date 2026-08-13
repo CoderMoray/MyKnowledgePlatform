@@ -42,7 +42,7 @@ MyKnowledge 项目前端 Web UI 开发者。专精 Alpine.js、TipTap 编辑器�
 |------|------|
 | docs/FRONTEND.md | API 端点列表、请求格式、状态码 |
 | docs/FRONTEND_STATUS.md | 当前实现进度和待办清单 |
-| docs/UPDATE_TO_FRONTEND_3.md | 最近一次后端变更总结 |
+| docs/FRONTEND_ARCHITECTURE.md | 前端架构设计（渲染/编辑器/ref 链接约定） |
 
 其它文档按需通过 nav__get_document 读取。
 

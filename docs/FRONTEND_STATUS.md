@@ -1,8 +1,8 @@
 # MyKnowledge 前端实现状态（唯一状态/待办文档）
 
-> 最后更新：2026-08-04
+> 最后更新：2026-08-13
 > 说明：本文件为前端**唯一**状态文档（原 `docs/TODO.md` 已并入本文件的"待办清单"章节并删除）。
-> 设计决策详见：`docs/FRONTEND_INTERACTION_FEEDBACK.md`（设计原文备查，包含补充分支场景与讨论过程）
+> 设计决策详见：`docs/archive/FRONTEND_INTERACTION_FEEDBACK.md`（历史设计确认，已实现，归档备查）
 
 ---
 
@@ -22,7 +22,8 @@
   - 背景色 / 高亮（`<span style="background:...">`，含"恢复默认"）
   - 技术方案：marked raw HTML 保留 / turndown span 规则 / 回归新增用例
 - [x] **+ 加号菜单** ✅ 已完成（2026-08-05）：空行行首 hover 出现 + 按钮（平滑滑动），点击弹插入菜单（复用斜杠选项，表格内过滤表格项）；提交 `2d10c06`/`7c3d49f`
-- [ ] **文档卡片 hover 重命名/删除**：dashboard 卡片 hover 右上角浮出，删除需二次确认弹窗（C2 设计已定）
+- [x] **文档卡片 hover 删除** ✅ 已完成（2026-08-11）：dashboard/项目视图卡片 hover 右上角浮出删除按钮 → delete-doc 确认模态 → 移入垃圾箱（提交 d9659f1 同批）
+- [ ] **文档卡片 hover 重命名**：卡片 hover 重命名（未做，待定）
 - [ ] **离线场景补齐**（A2 部分实现，当前只有横幅 + 草稿恢复）：
   - 全屏阻断弹窗：导航到新页面 / 冷启动离线无草稿 / Setup 页
   - toast 提示（3s）：点击操作按钮（新建/删除/保存）时离线
@@ -31,7 +32,7 @@
 ### P2 小项 / 待讨论
 
 - [ ] **动态 icon 接入**：`cardIconSvg()` 已写好未调用（关键词→SVG 映射）
-- [ ] **E2 元信息展示时机**：正文 vs 折叠（待讨论，设计原文 FRONTEND_INTERACTION_FEEDBACK.md）
+- [ ] **E2 元信息展示时机**：正文 vs 折叠（待讨论，设计原文 docs/archive/FRONTEND_INTERACTION_FEEDBACK.md）
 - [ ] **区块 ⋮⋮ 菜单**：内容块行首（可选，非核心）
 - [ ] **主题切换过渡动画**（F，低优先级）
 - [ ] 响应式 & 移动端（G，明确不考虑）；快捷键（H3，未来考虑）
@@ -70,6 +71,33 @@
 ### 基建 / 数据
 - CDN 全本地化（frontend/vendor/）；build contenthash 版本化 + 后端 HTML no-cache（普通刷新即最新）
 - 数据恢复：技术选型.md / 编辑保存测试.md 从 git 恢复 + 补回 ref 链接
+
+---
+
+## 📅 2026-08-11 ~ 08-13 增量（已完成）
+
+### 文档卡片 hover 交互（dashboard 公共知识 + 项目视图「知识」卡片）
+- 摘要常显（与项目卡片同构）；hover 下拉展开正文预览（marked 取文本、保留分行、200 字截断、4 行省略号）
+- 预览内 `ref:` 引用渲染为可点击链接（点击跳转引用文档，stopPropagation 不触发卡片打开）
+- 底部「被 N 篇文档引用」行（0 引用不显示）
+- 卡片删除按钮（hover 右上角浮出）→ delete-doc 确认模态
+- **预览缓存失效**（d9659f1）：缓存键 = doc.modified 版本 + loadDashboard/loadProjectDocuments 后 `invalidateDocPreviewCache()`——编辑保存后返回主页 hover 预览更新
+
+### 渲染修复
+- **marked 5.x link renderer 签名兼容**（2524463）：`(href,title,text)` → 单一对象参数——此前 ref:/ext 分支永不触发，链接渲染异常（截图：链接不可点）
+- ref: 空/纯空格目标 → 不渲染链接（纯文本），避免空路径死链
+
+### 粘贴 markdown 全量解析（方案 B）
+- **分流 handlePaste**：行内-only 交回 tiptap 原生 pasteRules（`**`/`*`/`_`/`` ` ``/链接 已内置解析）；
+  含块级模式（行首 `# `/`- `/`1. `/`> `/``` `/`---`）或 `ref:` 链接 → 接管
+  （renderMarkdown → _prepareEditorHtml（ref href 转换）→ insertContent）——编辑态即所见即所得
+- **PF5 代码块内**：纯文本兜底（不拆代码块）；**PF4 列表内**：行首 lift 脱出、行中保留列表（结果 a）
+- **PD2 ref 章节锚点**：含 `ref:` 链接文本走接管，`href="ref:path::章节"` 完整保留
+- 提交：65b1c85 / a4d0768 / 198d771 / b31939a
+
+### 测试资产
+- `tests/frontend/test_paste_markdown.py`（P 系列 24 用例）；场景矩阵 `doc/test/testing-plan-paste-markdown.md`（8 批 48 场景）
+- 前端全量 **71/71**（edit_switch 42 + hover 5 + paste 24）+ 后端 **337/337**
 
 ---
 
