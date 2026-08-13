@@ -1,8 +1,8 @@
 """粘贴 markdown 解析测试（P 系列）——方案 B：粘贴 markdown 全量解析为富文本。
 
 设计文档：doc/test/testing-plan-paste-markdown.md
-TDD 流程：当前（未实现 B）为红色 → 实现 B 后转正。
-覆盖：批 P-A 行内 / P-B 块级 / P-D ref / P-F 位置上下文 / P-G title-summary。
+TDD 流程：已实现（分流 handlePaste）并全量转正。
+覆盖：批 P-A 行内 / P-B 块级 / P-D ref / P-F 位置上下文 / P-G title-summary / P-H 分流边界。
 """
 import sys
 import urllib.parse
