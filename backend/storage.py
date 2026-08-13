@@ -209,6 +209,166 @@ class Storage:
 
         return results
 
+    def search_documents(self, q: str, limit: Optional[int] = 20) -> list[dict]:
+        """Full-text search across the KB (name + summary + body).
+
+        Searches document/project names, frontmatter summaries, and bodies for
+        *q* (case-insensitive substring match), ranking by a 7-level score.
+
+        Returns a list of result dicts (sorted by score desc, then path):
+            {
+              "type": "doc" | "project",
+              "path": <KB-relative path; project = dir path without /readme.md>,
+              "name": <filename stem or project name>,
+              "score": <1-7, higher = more relevant>,
+              "matched_in": [<"name" | "summary" | "body">, ...],
+              "summary": <frontmatter summary>,
+              "snippet": <match window around first body hit, or "">
+            }
+
+        *limit* caps the returned list (clamped to 1-50); pass ``None`` to get
+        the full list (used by callers that need a pre-truncation count).
+
+        Exclusion rules (same as ``api_search``): readme.md layer indexes,
+        ``trash/``, ``_templates/``, ``_refs/``, ``publish/``, dot files/dirs,
+        ``__pycache__``.
+        """
+        q = (q or "").strip()
+        if not q:
+            return []
+        q_lower = q.lower()
+
+        def _score(title: str, summary: str, body: str) -> tuple[int, bool, bool, bool]:
+            hit_title = q_lower in title.lower()
+            hit_summary = q_lower in (summary or "").lower()
+            hit_body = q_lower in body.lower()
+            if not (hit_title or hit_summary or hit_body):
+                return 0, False, False, False
+            score = (
+                7 if hit_title and hit_summary and hit_body else
+                6 if hit_title and hit_summary else
+                5 if hit_title and hit_body else
+                4 if hit_summary and hit_body else
+                3 if hit_title else
+                2 if hit_summary else
+                1
+            )
+            return score, hit_title, hit_summary, hit_body
+
+        def _make_snippet(body: str, radius: int = 40) -> str:
+            idx = body.lower().find(q_lower)
+            if idx == -1:
+                return ""
+            start = max(0, idx - radius)
+            end = min(len(body), idx + len(q_lower) + radius)
+            prefix = "…" if start > 0 else ""
+            suffix = "…" if end < len(body) else ""
+            return f"{prefix}{body[start:end].strip()}{suffix}"
+
+        def _matched_in(hit_title: bool, hit_summary: bool, hit_body: bool) -> list[str]:
+            fields = []
+            if hit_title:
+                fields.append("name")
+            if hit_summary:
+                fields.append("summary")
+            if hit_body:
+                fields.append("body")
+            return fields
+
+        hidden = {"_templates", "trash", "_refs", "publish"}
+        hits: list[dict] = []
+
+        # ── Documents (name = filename stem; path = doc relative path) ──
+        for md in self.kb_root.rglob("*.md"):
+            rel_parts = md.relative_to(self.kb_root).parts
+            if any(p.startswith(".") for p in rel_parts) or "__pycache__" in rel_parts:
+                continue
+            if any(p in hidden for p in rel_parts):
+                continue
+            if md.name == "readme.md":
+                continue
+            rel = md.relative_to(self.kb_root).as_posix()
+            try:
+                meta, body = self.read_document(rel)
+            except Exception:
+                continue
+            title = md.stem
+            score, hit_title, hit_summary, hit_body = _score(
+                title, meta.get("summary", ""), body)
+            if not score:
+                continue
+            hits.append({
+                "type": "doc",
+                "path": rel,
+                "name": title,
+                "score": score,
+                "matched_in": _matched_in(hit_title, hit_summary, hit_body),
+                "summary": meta.get("summary", ""),
+                "snippet": _make_snippet(body) if hit_body else "",
+            })
+
+        # ── Projects (name = project dir name; path = dir path without /readme.md) ──
+        for md in self.kb_root.rglob("*.md"):
+            if md.name != "readme.md":
+                continue
+            rel = md.relative_to(self.kb_root).as_posix()
+            parts = rel.split("/")
+            valid = (
+                len(parts) >= 3
+                and parts[0] == "projects"
+                and parts[-1] == "readme.md"
+                and all(parts[j] == "projects" for j in range(2, len(parts) - 1, 2))
+            )
+            if not valid:
+                continue
+            if any(p.startswith(".") for p in parts) or any(p in hidden for p in parts):
+                continue
+            try:
+                meta, body = self.read_document(rel)
+            except Exception:
+                continue
+            title = parts[-2]
+            project_path = rel.rsplit("/readme.md", 1)[0]
+            score, hit_title, hit_summary, hit_body = _score(
+                title, meta.get("summary", ""), body)
+            if not score:
+                continue
+            hits.append({
+                "type": "project",
+                "path": project_path,
+                "name": title,
+                "score": score,
+                "matched_in": _matched_in(hit_title, hit_summary, hit_body),
+                "summary": meta.get("summary", ""),
+                "snippet": _make_snippet(body) if hit_body else "",
+            })
+
+        # ── Root readme.md (represents "公共知识" root, path = "") ──
+        root_md = self.kb_root / "readme.md"
+        if root_md.exists():
+            try:
+                meta, body = self.read_document("readme.md")
+                title = meta.get("title") or "公共知识"
+                score, hit_title, hit_summary, hit_body = _score(
+                    title, meta.get("summary", ""), body)
+                if score:
+                    hits.append({
+                        "type": "project",
+                        "path": "",
+                        "name": title,
+                        "score": score,
+                        "matched_in": _matched_in(hit_title, hit_summary, hit_body),
+                        "summary": meta.get("summary", ""),
+                        "snippet": _make_snippet(body) if hit_body else "",
+                    })
+            except Exception:
+                pass
+
+        hits.sort(key=lambda r: (-r["score"], r["path"]))
+        if limit is None:
+            return hits
+        return hits[: max(1, min(int(limit), 50))]
+
     def list_children_recursive(self, rel_path: str) -> list[DirEntry]:
         """Recursive listing of a KB directory.
 

@@ -398,7 +398,7 @@ create_document / update_document（agent 调 MCP）
 >
 > **已补齐：** `write__move_project`（跨父级移动项目）已实现。现在改名用 `write__rename_project`，换父级用 `write__move_project`。
 >
-> **新增：** `nav__exists`（路径存在性检查）、`nav__find`（名称模糊搜索）、`nav__list_dir` 的 `recursive` 参数、`write__create_document` 的 `dry_run` 预览与 `if_exists` 策略。
+> **新增：** `nav__exists`（路径存在性检查）、`nav__find`（全文搜索：名称+摘要+正文，返回 JSON）、`nav__list_dir` 的 `recursive` 参数、`write__create_document` 的 `dry_run` 预览与 `if_exists` 策略。
 
 ### 2.5.9 会话锁定与维护流程
 
@@ -664,7 +664,7 @@ OSS 定时同步 / 更新即上传（文件监听或 git hook）。
 | `nav:` (6) | `nav__read_readme` | 读路由索引 |
 | | `nav__list_dir` | 列目录（支持 `recursive=True` 递归展开） |
 | | `nav__exists` | 一次性确认路径是否存在 |
-| | `nav__find` | 按名称模糊搜索（不区分大小写，支持 scope） |
+| | `nav__find` | 全文搜索（名称+摘要+正文，返回 JSON，score 1-7 排序） |
 | | `nav__get_document` | 读全文 |
 | | `nav__get_document_with_refs` | 读全文 + 拼接引用 |
 | `write:` (8) | `write__create_document` | 新建知识（支持 `dry_run` 预览 + `if_exists` 策略） |

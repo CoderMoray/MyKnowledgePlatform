@@ -1170,37 +1170,70 @@ def create_mcp_app(storage: Storage,
         return f"✗ 不存在：{path}{hint_text}"
 
     @mcp.tool()
-    def nav__find(keyword: str, scope: str = "") -> str:
-        """[nav] Search for files and directories by name (fuzzy, case-insensitive).
+    def nav__find(keyword: str) -> dict:
+        """[nav] Full-text search across the knowledge base (name + summary + body).
 
-        Accepts a keyword and optionally a scope to limit search to a specific
-        project or directory.  Returns all matching items with their full
-        KB-relative path, type, and last-modified date.
+        Searches document/project names, frontmatter summaries, and bodies for
+        *keyword* (case-insensitive substring match), returning a JSON object
+        with results ranked by relevance.
 
-        Args:
-            keyword: Search term (case-insensitive substring match).
-            scope:   Optional KB-relative directory to restrict search to,
-                     e.g. ``"projects"`` or ``"projects/以旧换新"``.
-                     Leave empty to search the entire KB.
         Returns:
-            Formatted table of matching items, or a "无匹配" message.
-        """
-        _validate_read_path(scope)
-        results = storage.find_by_name(keyword, scope)
-        if not results:
-            return (
-                f"未找到匹配「{keyword}」的项目或文档。\n\n"
-                "尝试换一个关键词，或调 nav__list_dir(project_rel=\"projects\") 浏览所有项目。"
-            )
+            {
+              "query": <keyword>,
+              "hint":  <how to interpret score / how to refine the query>,
+              "results": [
+                {
+                  "type": "doc" | "project",
+                  "path": <KB-relative path; feed to nav__get_document>,
+                  "name": <filename stem or project name>,
+                  "score": <1-7, higher = more relevant>,
+                  "matched_in": [<"name" | "summary" | "body">, ...]
+                }
+              ],
+              "total": <match count>
+            }
 
-        lines = ["类型             路径                    修改日期"]
-        lines.append("─" * 80)
-        for rel_path, is_dir, modified in results:
-            kind = "📂 project" if rel_path.startswith(("projects/", "archive/")) and is_dir else \
-                   "📂 subprj" if is_dir else \
-                   "📄 doc"
-            lines.append(f"{kind:<8} {rel_path:<50} {modified}")
-        return "\n".join(lines)
+        score ranks by which fields matched:
+          7 name+summary+body, 6 name+summary, 5 name+body, 4 summary+body,
+          3 name, 2 summary, 1 body.
+        matched_in lists the hit fields (for auditing).  Results are sorted by
+        score desc, then path.  When nothing matches, hint suggests shortening
+        the keyword, trying synonyms, or browsing with nav__list_dir.
+        """
+        results = storage.search_documents(keyword, limit=10)
+        # 过滤根 readme（path=""）：REST 侧用空 path 表示"公共知识"根，但 MCP
+        # 工具链里 nav__get_document("") 不可用——返回的 path 必须都能 feed
+        # to nav__get_document，因此根 readme 命中时不展示。
+        results = [r for r in results if r["path"]]
+        if not results:
+            return {
+                "query": keyword,
+                "hint": (
+                    f"未找到匹配「{keyword}」的条目。可尝试：\n"
+                    "1. 缩短关键词（如「门店」）或用更常见的同义词\n"
+                    "2. nav__list_dir 浏览目录结构"
+                ),
+                "results": [],
+                "total": 0,
+            }
+        return {
+            "query": keyword,
+            "hint": (
+                "score 1-7 越高匹配越准（名称权重最高、摘要次之、正文最低）；"
+                "matched_in 为命中位置，供复查。"
+            ),
+            "results": [
+                {
+                    "type": r["type"],
+                    "path": r["path"],
+                    "name": r["name"],
+                    "score": r["score"],
+                    "matched_in": r["matched_in"],
+                }
+                for r in results
+            ],
+            "total": len(results),
+        }
 
     @mcp.tool()
     def nav__get_document(path: str) -> str:
@@ -2009,7 +2042,7 @@ def create_mcp_app(storage: Storage,
 
 禁止：`..`、绝对路径、非 `.md` 后缀、`projects`（系统目录）等。
 不确定路径时，先调 `nav__list_dir(project_rel="projects")` 列出项目，
-或用 `nav__find(keyword=...)` 按名称搜索，或用 `nav__exists(path=...)` 一次性确认。
+或用 `nav__find(keyword=...)` 全文搜索（名称+摘要+正文），或用 `nav__exists(path=...)` 一次性确认。
 
 ### 四、铁律：禁止直接操作 KB 文件系统
 
@@ -2042,7 +2075,7 @@ def create_mcp_app(storage: Storage,
 | 工具 | 用途 | 示例 |
 |------|------|------|
 | `nav__exists(path)` | 一次性确认路径是否存在 | `nav__exists("projects/以旧换新")` |
-| `nav__find(keyword, scope?)` | 按名称模糊搜索（不区分大小写） | `nav__find(keyword="补贴", scope="projects")` |
+| `nav__find(keyword)` | 全文搜索（名称+摘要+正文，返回 JSON，score 1-7 排序） | `nav__find(keyword="补贴")` |
 | `nav__list_dir(recursive=True)` | 递归展开目录树，减少往返 | `nav__list_dir(project_rel="projects/以旧换新", recursive=True)` |
 
 > 目标：**1 次 exists/find + 1 次 create** 完成文档创建，无需逐层猜测路径。

@@ -1074,18 +1074,6 @@ def api_export(payload: ExportPayload):
 # ══════════════════════════════════════════════════════════════
 
 
-def _make_snippet(body: str, q_lower: str, radius: int = 40) -> str:
-    """Extract a short match window around the first keyword hit in *body*."""
-    idx = body.lower().find(q_lower)
-    if idx == -1:
-        return ""
-    start = max(0, idx - radius)
-    end = min(len(body), idx + len(q_lower) + radius)
-    prefix = "…" if start > 0 else ""
-    suffix = "…" if end < len(body) else ""
-    return f"{prefix}{body[start:end].strip()}{suffix}"
-
-
 @app.get("/api/search")
 def api_search(q: str = "", limit: int = 20, kind: str = "all"):
     """Full-KB search.
@@ -1101,7 +1089,7 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
       - ``projects``: project-level search.  Matches each project's
         ``readme.md`` (project name / summary / body) and returns the
         *project directory* as ``path`` — never matches documents under
-        ``common-knowledge``.  Root ``readme.md`` is excluded.
+        ``common-knowledge``.  Root ``readme.md`` is included as ``path=""``.
     """
     storage, _ = get_storage()
     q = (q or "").strip()
@@ -1109,121 +1097,19 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
         return {"results": [], "total": 0}
     if len(q) > 200:
         raise HTTPException(400, "关键词过长（≤200）")
-    q_lower = q.lower()
 
-    hidden = {"_templates", "trash", "_refs", "publish"}
-    hits: list[dict] = []
-
-    def _score(title: str, summary: str, body: str) -> tuple[int, bool, bool, bool]:
-        hit_title = q_lower in title.lower()
-        hit_summary = q_lower in (summary or "").lower()
-        hit_body = q_lower in body.lower()
-        if not (hit_title or hit_summary or hit_body):
-            return 0, False, False, False
-        score = (
-            7 if hit_title and hit_summary and hit_body else
-            6 if hit_title and hit_summary else
-            5 if hit_title and hit_body else
-            4 if hit_summary and hit_body else
-            3 if hit_title else
-            2 if hit_summary else
-            1
-        )
-        return score, hit_title, hit_summary, hit_body
-
-    if kind == "projects":
-        # 项目级搜索：匹配项目 readme。合法项目路径有严格结构——
-        #   projects/A/readme.md                    （顶层项目）
-        #   projects/A/projects/B/readme.md         （子项目）
-        #   projects/A/projects/B/projects/C/readme.md（子子项目）
-        # 即 parts[0]=='projects'，此后「项目名/projects」交替，倒数第二段是项目名；
-        # 因此 archive/、common-knowledge/ 等目录下的 readme 天然不匹配（结构校验），
-        # 根 readme.md 也不匹配。
-        for md in storage.kb_root.rglob("*.md"):
-            if md.name != "readme.md":
-                continue
-            rel = md.relative_to(storage.kb_root).as_posix()
-            parts = rel.split("/")
-            valid = (
-                len(parts) >= 3
-                and parts[0] == "projects"
-                and parts[-1] == "readme.md"
-                # 偶数位（0-based: 2,4,6…）必须是子项目容器 "projects"
-                and all(parts[j] == "projects" for j in range(2, len(parts) - 1, 2))
-            )
-            if not valid:
-                continue
-            if any(p.startswith(".") for p in parts) or any(p in hidden for p in parts):
-                continue
-            try:
-                meta, body = storage.read_document(rel)
-            except Exception:
-                continue
-            title = parts[-2]  # 项目名 = readme 所在目录名
-            project_path = rel.rsplit("/readme.md", 1)[0]
-            score, hit_title, hit_summary, hit_body = _score(
-                title, meta.get("summary", ""), body)
-            if not score:
-                continue
-            hits.append({
-                "path": project_path,
-                "title": title,
-                "summary": meta.get("summary", ""),
-                "snippet": _make_snippet(body, q_lower) if hit_body else "",
-                "score": score,
-            })
-        # 最表层（根）readme.md —— 代表"公共知识"根归属（path 为空串）
-        root_md = storage.kb_root / "readme.md"
-        if root_md.exists():
-            try:
-                meta, body = storage.read_document("readme.md")
-                title = meta.get("title") or "公共知识"
-                score, hit_title, hit_summary, hit_body = _score(
-                    title, meta.get("summary", ""), body)
-                if score:
-                    hits.append({
-                        "path": "",
-                        "title": title,
-                        "summary": meta.get("summary", ""),
-                        "snippet": _make_snippet(body, q_lower) if hit_body else "",
-                        "score": score,
-                    })
-            except Exception:
-                pass
-    else:
-        for md in storage.kb_root.rglob("*.md"):
-            rel_parts = md.relative_to(storage.kb_root).parts
-            # dot 文件/目录（.DS_Store/.hidden.md/.git 等）与 __pycache__ 一律排除
-            if any(p.startswith(".") for p in rel_parts) or "__pycache__" in rel_parts:
-                continue
-            if any(p in hidden for p in rel_parts):
-                continue
-            if md.name == "readme.md":
-                continue
-            rel = md.relative_to(storage.kb_root).as_posix()
-            try:
-                meta, body = storage.read_document(rel)
-            except Exception:
-                continue
-            title = md.stem  # filename without .md
-            score, hit_title, hit_summary, hit_body = _score(
-                title, meta.get("summary", ""), body)
-            if not score:
-                continue
-            hits.append({
-                "path": rel,
-                "title": title,
-                "summary": meta.get("summary", ""),
-                "snippet": _make_snippet(body, q_lower) if hit_body else "",
-                "score": score,
-            })
-
-    hits.sort(key=lambda r: (-r["score"], r["path"]))
+    want = "project" if kind == "projects" else "doc"
+    all_hits = storage.search_documents(q, limit=None)
+    hits = [h for h in all_hits if h["type"] == want]
     total = len(hits)
     top = hits[: max(1, min(int(limit), 50))]
-    for r in top:
-        r.pop("score", None)
-    return {"results": top, "total": total}
+    results = [{
+        "path": h["path"],
+        "title": h["name"],
+        "summary": h["summary"],
+        "snippet": h["snippet"],
+    } for h in top]
+    return {"results": results, "total": total}
 
 
 # ══════════════════════════════════════════════════════════════

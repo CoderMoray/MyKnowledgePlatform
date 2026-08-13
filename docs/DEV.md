@@ -93,6 +93,17 @@
 - CLI 无直接写文档入口（写文档走 MCP/REST），该需求项不适用；share 导入不做规范化（保持内容忠实）
 - 新增 `tests/test_ref_spaces.py`（34 个测试），全量 337 passed
 
+### Step 11 — nav__find 全文搜索升级 ✅
+
+- `nav__find` 从「按文件名模糊搜索（返回文本表格）」升级为「全文搜索（名称+摘要+正文，返回 dict JSON）」
+- 抽取 `Storage.search_documents(q, limit)` 到 `storage.py`（单份实现），合并文档路（`type="doc"`）与项目路（`type="project"`，path 去掉 `/readme.md`），复用 REST `_score` 7 级评分逻辑（原样，不改）
+- 返回结构：`{query, hint, results[{type, path, name, score, matched_in}], total}`；`score` 1-7 排序（name+summary+body > name+summary > name+body > summary+body > name > summary > body），`matched_in` 供复查
+- `api_search` 重构为调 `search_documents`，REST 返回格式**逐字段不变**（`{path, title, summary, snippet}`），`kind` 参数语义保留（`all`→doc / `projects`→project，根 readme 以 `path=""` 返回）
+- 去掉 `scope` 参数（全库搜），`limit` 固定 10；`find_by_name` 保留不删（已无调用方）
+- 预期行为变化：不再搜普通目录（内容搜索只能搜 `.md`）
+- **根 readme 命中时不返回**（`path=""` 无法 feed to `nav__get_document`——REST 侧空 path 表示根，MCP 侧无等价语义；`search_documents` 保留根 readme 供 REST `kind=projects`，`nav__find` 展示层过滤）
+- 新增 `tests/test_nav_find.py`（12 个测试），全量 349 passed
+
 ### 路径校验规则（`_validate_path`）✅
 
 所有 MCP/CLI 写路径经 `backend/mcp_server.py::_validate_path` 校验，错误信息带恢复指引，按序执行：
@@ -111,8 +122,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 337 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个）
-- 覆盖：storage 读写/list/search、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径
+- 349 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个）
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径
 
 ### 前端构建守门（2026-08-09 引入）
 

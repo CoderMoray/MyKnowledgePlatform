@@ -262,7 +262,8 @@ recency_weight = 0.5 · freq_norm        // 提及频次归一
 1. **读类 MCP 工具加 `compressed: bool = False` 参数**（默认 False，向后兼容）：`nav__get_document(path, compressed=True)` 返回压缩结果。
 2. **新增 retrieve 工具**：按引用句柄取回原文（CCR 兜底），实现"惰性加载"而非"有损压缩"。
 3. **按工具配 profile**（headroom 原生 `MCPToolProfile`）：
-   - `nav__list_dir` / `nav__find`（表格/搜索结果）→ 高压缩（收益最大，省 90%+）
+   - `nav__list_dir`（表格）→ 高压缩（收益最大，省 90%+）
+   - `nav__find`（结构化 JSON 搜索结果，含 query/hint/results/total）→ 低阈值压缩（结构化字段不宜高压缩，`matched_in`/`score` 是复查与排序依据，压缩易失真）
    - `nav__get_document` / `nav__read_readme`（文档全文）→ 低阈值（`min_tokens_to_compress≈500`）或压缩 + 强提示 retrieve
 4. **修改前必须取回原文**：agent 基于压缩版直接 `write__update_document` 有改写风险，压缩返回需提示"修改前先 retrieve"。
 
