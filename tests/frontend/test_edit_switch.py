@@ -22,7 +22,7 @@ from edit_switch_helpers import (
     attach_tracker, backend_doc, click_toc, delete_doc_from_edit, delay_route,
     enter_edit, exit_inplace, inject_lock, mock_409, navigate, open_doc,
     release_lock, shown_body, shown_summary, shown_title,
-    toggle_project_chevron, toasts,
+    toggle_project_chevron, toasts, wait_for_backend,
 )
 
 MARKER = "AUTO-MARKER-2026"
@@ -62,10 +62,9 @@ class TestBatch1:
         apply_mod(page, "title")                 # M2 改标题 → rename
         navigate(page, "doc_same")
         new_path = f"{PROJ}/common-knowledge/{NEW_TITLE}.md"
-        st, _ = backend_doc(new_path)
-        assert st == 200, f"rename 后新路径应存在: {new_path}"
-        st_old, _ = backend_doc(DOC_MAIN)
-        assert st_old != 200, "旧路径应不存在"
+        # rename 是异步（保存→_maybeRename→后端 git 操作）：显式轮询等待，防批量跑偶发时序
+        wait_for_backend(new_path, 200)          # 新路径出现
+        wait_for_backend(DOC_MAIN, 404)          # 旧路径消失
         # toast 生命周期 ~900ms，切走后可能已消失——收集到才校验文案
         if toasts(page):
             assert any("已重命名为" in t for t in toasts(page)), f"toast 异常: {toasts(page)}"

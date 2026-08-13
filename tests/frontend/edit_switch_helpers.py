@@ -112,6 +112,19 @@ def shown_summary(page):
     return el.inner_text().strip() if el.count() else ""
 
 
+def wait_for_backend(path, status, timeout=8.0, interval=0.2):
+    """轮询后端直到 GET 状态符合预期（rename 等异步操作需显式等待，防批量跑偶发时序）"""
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        st, _ = backend_doc(path)
+        if st == status:
+            return
+        time.sleep(interval)
+    st, _ = backend_doc(path)
+    assert st == status, f"等待超时: {path} GET 期望 {status}，实际 {st}"
+
+
 def shown_body(page):
     return page.locator(".editor-shell").inner_text()
 
