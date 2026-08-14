@@ -1815,6 +1815,63 @@ def create_mcp_app(storage: Storage,
             return f"diff 失败: {e}"
 
     @mcp.tool()
+    def maint__check_uncommitted() -> str:
+        """[maint] 检查工作区未 commit 的改动（用户前端 REST 保存的临时草稿）。
+
+        返回：
+        - 无改动时：「工作区干净，无未 commit 的修改」
+        - 有改动时：文件清单 + 每个文件的 diff（带截断保护）
+
+        定位：这是「待处理清单」，与 maint__read_diff（审计正式 commit）分离。
+        AI 对话开头调用它，只做「一句话播报」，不阻塞、不主动追问，
+        等用户明确要求「正式化/提交/整理」时才走 write__update_document 流程。
+        """
+        if gm is None:
+            return "Git 管理器未就绪"
+
+        # 文件清单（过滤掉 .mcp-heartbeat 等运行时系统文件）
+        try:
+            entries = gm.worktree_status()  # type: ignore[union-attr]
+        except Exception as e:
+            return f"获取状态失败: {e}"
+
+        if not entries:
+            return "工作区干净，无未 commit 的修改"
+
+        status = "\n".join(f"{xy} {path}" for xy, path in entries)
+
+        # 工作区 diff：已跟踪文件用 git diff HEAD；
+        # 未跟踪新文件用 git diff --no-index /dev/null <file> 合成新增 diff，
+        # 让 AI 能读到草稿实际内容。
+        untracked = [path for xy, path in entries if xy.strip().endswith("?")]
+        try:
+            diff = gm.read_worktree_diff_full(untracked)  # type: ignore[union-attr]
+        except Exception as e:
+            return f"diff 失败: {e}"
+
+        lines = ["## 工作区未 commit 改动\n", "### 文件清单\n```\n" + status + "\n```"]
+
+        if not diff.strip():
+            # 理论上不会发生（未跟踪文件也已被 read_worktree_diff_full 纳入），
+            # 保险兜底提示，避免输出空 diff 段落
+            return "\n".join(lines) + "\n\n（存在未跟踪文件，未纳入 diff，见上方清单）"
+
+        threshold = 8000
+        truncated = False
+        if len(diff) > threshold:
+            diff = diff[:threshold]
+            truncated = True
+
+        lines.append("\n### Diff\n```diff\n" + diff + "\n```")
+
+        if truncated:
+            lines.append(
+                "\n> 改动较多，diff 已截断，建议用 nav__get_document 按文件逐个细读"
+            )
+
+        return "\n".join(lines)
+
+    @mcp.tool()
     def maint__check_integrity() -> str:
         """[maint] Run integrity check: GC archive + GC trash + rebuild status.
 
@@ -2042,7 +2099,15 @@ def create_mcp_app(storage: Storage,
 - "LOCK ACQUIRED" → 继续
 - "LOCK BUSY" → 等待后重试，最多 3 次
 
-### 二、检查待处理变更
+### 二、检查变更（两步，不阻塞）
+
+**步骤 1：检查工作区未 commit 改动（用户临时草稿）**
+调 `maint__check_uncommitted`：
+- 无改动 → 跳过
+- 有改动 → 只做「一句话播报」告知用户（如「检测到 N 个文档有未提交修改，需要时可帮你正式化」），不追问、不阻塞
+  → 只有用户明确要求「正式化 / 提交 / 整理」时，才进入 `write__update_document` 流程
+
+**步骤 2：检查正式 commit 变更**
 调 `maint__read_diff` 对比 checkpoint 到 HEAD：
 - 无差异 → 开始对话
 - 有差异 → 读 diff → `maint__validate_doc`

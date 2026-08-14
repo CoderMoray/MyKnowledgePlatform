@@ -32,6 +32,40 @@ def app_with_git(storage: Storage, tmp_kb_root: Path):
     return create_mcp_app(storage, gen=gen, gm=gm)
 
 
+@pytest.fixture
+def app_with_git_no_head(storage: Storage, tmp_kb_root: Path):
+    """App with git initialized but *no commit yet* (empty repo)."""
+    template = tmp_kb_root / "_templates" / "readme.md"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
+    template.write_text(shipped.read_text(), encoding="utf-8")
+
+    gen = ReadmeGenerator(storage=storage, template_path=template)
+    gen.rebuild("", name="TestKB", summary="test")
+
+    acquire_lock(storage)  # create lock for write tools
+    gm = GitManager(tmp_kb_root)
+    gm.init()
+
+    return create_mcp_app(storage, gen=gen, gm=gm)
+
+
+@pytest.fixture
+def app_no_git(storage: Storage, tmp_kb_root: Path):
+    """App with no GitManager (gm=None) — diff/maint tools degrade gracefully."""
+    template = tmp_kb_root / "_templates" / "readme.md"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
+    template.write_text(shipped.read_text(), encoding="utf-8")
+
+    gen = ReadmeGenerator(storage=storage, template_path=template)
+    gen.rebuild("", name="TestKB", summary="test")
+
+    acquire_lock(storage)  # create lock for write tools
+
+    return create_mcp_app(storage, gen=gen)  # no gm passed
+
+
 def _tool_text(result) -> str:
     return result[0][0].text
 
@@ -94,6 +128,76 @@ class TestReadDiff:
         text = _tool_text(result)
         # Should either fail gracefully or show no-checkpoint message
         assert text
+
+
+class TestCheckUncommitted:
+    def test_clean_worktree(self, app_with_git) -> None:
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "工作区干净" in text
+
+    def test_uncommitted_changes(self, app_with_git, storage: Storage,
+                                 tmp_kb_root: Path) -> None:
+        """前端 REST 保存（写文件不 commit）→ 返回文件清单 + diff。"""
+        storage.write_document("common-knowledge/draft.md",
+                               {"summary": "draft"}, "# draft body")
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "文件清单" in text
+        assert "draft.md" in text
+        assert "Diff" in text
+        assert "draft body" in text
+
+    def test_uncommitted_modify_tracked(self, app_with_git, storage: Storage,
+                                        tmp_kb_root: Path) -> None:
+        """已跟踪文件的修改（未 commit）也应被 diff 覆盖。"""
+        storage.write_document("common-knowledge/draft.md",
+                               {"summary": "draft"}, "# original")
+        gm = GitManager(tmp_kb_root)
+        gm.commit("add draft")
+        # 再次写入，产生未 commit 的修改
+        storage.write_document("common-knowledge/draft.md",
+                               {"summary": "draft"}, "# modified")
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "Diff" in text
+        assert "modified" in text
+
+    def test_truncation_on_large_diff(self, app_with_git, storage: Storage,
+                                      tmp_kb_root: Path) -> None:
+        """大改动触发截断保护。"""
+        big_body = "# " + ("x" * 12000) + "\n"
+        storage.write_document("common-knowledge/big.md",
+                               {"summary": "big"}, big_body)
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "文件清单" in text
+        assert "big.md" in text
+        assert "已截断" in text
+
+    def test_no_head_with_untracked_draft(self, app_with_git_no_head,
+                                          storage: Storage) -> None:
+        """空仓库（无 HEAD）+ 未跟踪草稿 → 正常返回合成 diff，不报错不空 diff。"""
+        storage.write_document("common-knowledge/draft.md",
+                               {"summary": "draft"}, "# draft body")
+        result = asyncio.run(app_with_git_no_head.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "文件清单" in text
+        assert "draft.md" in text
+        assert "Diff" in text
+        assert "draft body" in text
+
+    def test_gm_none_returns_not_ready(self, app_no_git) -> None:
+        """gm 为 None 时返回「Git 管理器未就绪」。"""
+        result = asyncio.run(app_no_git.call_tool(
+            "maint__check_uncommitted", {}))
+        text = _tool_text(result)
+        assert "Git 管理器未就绪" in text
 
 
 # ══════════════════════════════════════════════════════════════

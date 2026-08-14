@@ -72,6 +72,21 @@ class TestGitManagerDiff:
         diff = git_manager.read_diff(h)
         assert "modified" in diff
 
+    def test_read_worktree_diff(self, git_manager: GitManager, tmp_path: Path) -> None:
+        (tmp_path / "f.md").write_text("original")
+        git_manager.commit("first")
+        (tmp_path / "f.md").write_text("modified")
+
+        diff = git_manager.read_worktree_diff()
+        assert "modified" in diff
+        assert "original" in diff
+
+    def test_read_worktree_diff_clean(self, git_manager: GitManager, tmp_path: Path) -> None:
+        (tmp_path / "f.md").write_text("content")
+        git_manager.commit("first")
+
+        assert git_manager.read_worktree_diff() == ""
+
 
 class TestGitManagerCheckpoint:
     def test_write_and_read(self, git_manager: GitManager, tmp_path: Path) -> None:
@@ -110,3 +125,72 @@ class TestGitManagerStatus:
         (tmp_path / "f.md").write_text("content")
         git_manager.commit("done")
         assert not git_manager.has_uncommitted_changes()
+
+
+class TestGitManagerWorktreeStatus:
+    def test_filters_system_noise(self, git_manager: GitManager, tmp_path: Path) -> None:
+        """Runtime system files (.mcp-heartbeat, .events/) must not count."""
+        (tmp_path / ".mcp-heartbeat").write_text("write:0")
+        (tmp_path / ".events").mkdir()
+        (tmp_path / ".events" / "version.json").write_text("{}")
+        (tmp_path / ".DS_Store").write_text("")
+        assert git_manager.worktree_status() == []
+
+    def test_returns_user_files_only(self, git_manager: GitManager, tmp_path: Path) -> None:
+        (tmp_path / ".mcp-heartbeat").write_text("write:0")
+        (tmp_path / "common-knowledge").mkdir()
+        (tmp_path / "common-knowledge" / "draft.md").write_text("# draft body")
+        status = git_manager.worktree_status()
+        assert status == [("??", "common-knowledge/draft.md")]
+
+    def test_read_worktree_diff_full_includes_untracked(self, git_manager: GitManager,
+                                                        tmp_path: Path) -> None:
+        (tmp_path / "common-knowledge").mkdir()
+        (tmp_path / "common-knowledge" / "draft.md").write_text("# draft body")
+        diff = git_manager.read_worktree_diff_full(["common-knowledge/draft.md"])
+        assert "draft body" in diff
+        assert "+" in diff  # synthetic addition diff
+
+    def test_read_worktree_diff_full_clean(self, git_manager: GitManager, tmp_path: Path) -> None:
+        (tmp_path / "f.md").write_text("content")
+        git_manager.commit("first")
+        assert git_manager.read_worktree_diff_full([]) == ""
+
+    def test_staged_rename_returns_destination_path(self, git_manager: GitManager,
+                                                    tmp_path: Path) -> None:
+        """git mv (staged rename) must yield the *new* path, not 'old -> new'."""
+        import subprocess
+        (tmp_path / "common-knowledge").mkdir(parents=True)
+        (tmp_path / "common-knowledge" / "old.md").write_text("# old body")
+        git_manager.commit("add old")
+        subprocess.run(
+            ["git", "mv", "common-knowledge/old.md", "common-knowledge/new.md"],
+            cwd=tmp_path, check=True)
+        assert git_manager.worktree_status() == [("R ", "common-knowledge/new.md")]
+
+    def test_unstaged_rename_delete_plus_untracked(self, git_manager: GitManager,
+                                                   tmp_path: Path) -> None:
+        """Worktree rename (delete old + create new) parses both correctly."""
+        (tmp_path / "common-knowledge").mkdir(parents=True)
+        (tmp_path / "common-knowledge" / "old.md").write_text("# old body")
+        git_manager.commit("add old")
+        (tmp_path / "common-knowledge" / "old.md").unlink()
+        (tmp_path / "common-knowledge" / "new.md").write_text("# new body")
+        status = git_manager.worktree_status()
+        assert (" D", "common-knowledge/old.md") in status
+        assert ("??", "common-knowledge/new.md") in status
+
+    def test_no_head_untracked_diff(self, git_manager: GitManager, tmp_path: Path) -> None:
+        """Empty repo (no HEAD yet) + untracked draft must still produce a diff."""
+        (tmp_path / "common-knowledge").mkdir(parents=True)
+        (tmp_path / "common-knowledge" / "draft.md").write_text("# draft body")
+        diff = git_manager.read_worktree_diff_full(["common-knowledge/draft.md"])
+        assert "draft body" in diff
+
+    def test_hidden_underscore_prefix_still_noise(self, git_manager: GitManager,
+                                                  tmp_path: Path) -> None:
+        """New runtime files starting with '.' at root are caught generically."""
+        (tmp_path / ".cache").mkdir()
+        (tmp_path / ".cache" / "x").write_text("1")
+        (tmp_path / ".tmp_heartbeat").write_text("1")
+        assert git_manager.worktree_status() == []
