@@ -1079,6 +1079,81 @@ def api_check():
     return {"removed": removed}
 
 
+_DIAGNOSE_RESULT_FILE = ".diagnose-result.json"
+
+
+def _diagnose_result_path(storage: Storage) -> Path:
+    """KB root result file path (dot-prefixed → skipped by validator noise)."""
+    return storage.kb_root / _DIAGNOSE_RESULT_FILE
+
+
+def _read_saved_diagnose(storage: Storage) -> dict:
+    """Read the last persisted diagnose result, or ``{"saved": False}``.
+
+    Never raises on a missing/corrupt file — callers get an empty state so
+    the endpoint stays 200 rather than 500.
+    """
+    p = _diagnose_result_path(storage)
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError, OSError):
+        return {"saved": False}
+    if not isinstance(data, dict):
+        return {"saved": False}
+    data.setdefault("saved", True)
+    return data
+
+
+def _write_saved_diagnose(storage: Storage, payload: dict) -> None:
+    """Atomically persist the diagnose result (tmp + replace).
+
+    Atomicity prevents half-written files being read by ``/diagnose/saved``
+    if two requests race or the process is interrupted mid-write.
+    """
+    p = _diagnose_result_path(storage)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
+                   encoding="utf-8")
+    os.replace(tmp, p)
+
+
+@app.get("/api/diagnose")
+def api_diagnose():
+    """Run a read-only structural diagnosis and persist the result.
+
+    Returns ``{"issues": [...], "summary": {...}}`` where each issue carries
+    ``path / type / severity / message / action / needs_semantic``.  The
+    KB-scan itself is pure read-only (``validate_kb`` uses ``dry_run=True``
+    and never writes/commits); only the persisted result file is written so
+    the frontend can reload the last check without re-scanning.
+    """
+    from backend.validator import validate_kb
+    import datetime
+    storage, gen = get_storage()
+    report = validate_kb(storage, gen)
+    payload = {
+        "issues": [i.__dict__ for i in report.issues],
+        "summary": report.summary,
+        "generated_at": datetime.datetime.now(
+            datetime.timezone.utc).isoformat(),
+    }
+    _write_saved_diagnose(storage, payload)
+    return {"issues": payload["issues"], "summary": payload["summary"]}
+
+
+@app.get("/api/diagnose/saved")
+def api_diagnose_saved():
+    """Return the last persisted diagnose result (read/compute separation).
+
+    ``{"saved": True, "issues": [...], "summary": {...}, "generated_at": ...}``
+    when a previous ``/api/diagnose`` run saved a result, otherwise
+    ``{"saved": False}``.  Missing/corrupt file → empty state (200), not 500.
+    """
+    storage, _gen = get_storage()
+    return _read_saved_diagnose(storage)
+
+
 # ══════════════════════════════════════════════════════════════
 #  Identity (读/写 ~/.myknowledge/config.yaml)
 # ══════════════════════════════════════════════════════════════

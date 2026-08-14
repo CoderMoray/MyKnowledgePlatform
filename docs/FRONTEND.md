@@ -180,6 +180,8 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | GET | `/api/status/detail` | 结构化 JSON（项目数/文档数） |
 | GET | `/api/lock` | 锁状态 JSON（`{locked, pid, since, expires_at}`） |
 | POST | `/api/check` | 完整性检查 + GC |
+| GET | `/api/diagnose` | 知识库结构诊断（只读 JSON，结果写入 KB 根 `.diagnose-result.json`） |
+| GET | `/api/diagnose/saved` | 读取上次诊断结果（读/算分离；无结果或损坏返回 `{saved: false}`） |
 
 ## 可编辑字段清单
 

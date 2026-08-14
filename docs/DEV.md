@@ -31,10 +31,11 @@
 - 写入时自动注入 `author` / `maintainer` frontmatter
 - 非 active 项目自动归档到 `archive/`
 
-### Step 5 — 检修工具（maint__ 共 6 个） ✅
+### Step 5 — 检修工具（maint__ 共 7 个） ✅
 
 - `validate_doc` / `read_diff` / `check_integrity`
 - `rebuild_index` — 手动重建 readme
+- `knowledgebase_diagnose` — 知识库结构健康诊断（纯只读，validator.py，2026-08-14 新增）
 - `nav__maintenance_procedure` prompt — 会话开始时的自动维护流程
 - `.lock` 机制 — 写锁（5 分钟超时，Web UI 检查 423 Locked）
   - v0.5 改进：**写操作自动加解锁**，每个 `write__*` 工具执行前后自动 acquire/release
@@ -122,8 +123,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 349 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个）
-- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径
+- 437 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个）
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved
 
 ### 前端构建守门（2026-08-09 引入）
 
