@@ -1139,7 +1139,11 @@ def api_diagnose():
             datetime.timezone.utc).isoformat(),
     }
     _write_saved_diagnose(storage, payload)
-    return {"issues": payload["issues"], "summary": payload["summary"]}
+    return {
+        "issues": payload["issues"],
+        "summary": payload["summary"],
+        "generated_at": payload["generated_at"],
+    }
 
 
 @app.get("/api/diagnose/saved")

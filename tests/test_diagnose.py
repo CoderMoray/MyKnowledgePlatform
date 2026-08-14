@@ -109,6 +109,10 @@ class TestDiagnoseHealthy:
         assert data["summary"]["total_issues"] == 0
         assert data["summary"]["total_files"] == 2
         assert data["summary"]["by_type"] == {}
+        # generated_at present and valid ISO 8601 datetime
+        assert isinstance(data["generated_at"], str) and data["generated_at"]
+        from datetime import datetime
+        datetime.fromisoformat(data["generated_at"])
 
 
 class TestDiagnoseProblems:
