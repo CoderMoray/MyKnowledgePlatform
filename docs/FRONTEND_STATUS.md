@@ -110,6 +110,26 @@
 
 ---
 
+## 📅 2026-08-13 ~ 08-14 增量（已完成）
+
+### 文档卡片删除链路修复（c81dfe9）
+- **Bug1 删除模态文档名空白**：delete-doc 模态读 `modalData.title`，但 `confirmDeleteDocument`/`confirmDeleteCard` 传 `name` → 弹窗文档名空白。修复：store.js 两处 payload 统一 `{path, title}`（viewer/doc 早已传 title）。测试 H5b。
+- **Bug2 卡片删除原地不刷新**：原实现删除后 3s 倒计时设置相同 hash（dashboard/project）→ 浏览器不触发 hashchange → 不刷新（但实测被 SSE updated 事件兜底，卡片会消失）；真正问题是「3 秒后返回首页/项目」倒计时在同 hash 下是空操作 + 文案误导。按产品拍板：卡片删除（dashboard/project 视图）= 简单 toast + 显式刷新 `loadDashboard`/`loadProjectDocuments` + `refreshProjectTree`，不跳转；文档页删除（view/edit）= 保留 3 秒倒计时跳转。测试 H5c。
+- **按钮 hover 样式对齐 header**（components.css）：hover 统一 `--color-danger`（原 `var(--danger)` **未定义** → 回退近黑，表现为黑色描边）、边框 1px→0.5px（与 `.btn-delete` 一致）、hover 加字重 500。**教训**：CSS 变量命名要统一（`--color-danger` 而非 `--danger`）；改 css/js 后必须跑 `frontend/build.py` 更新 `?v=`，否则浏览器缓存旧资源。
+
+### loadDocument pending 态（ffc6d45）
+- 新增 `store.docPending`（不并入全局 `loading`，避免误触发 splash）；`loadDocument` 在途置 true、finally 清 false（含 404→redirect 分支）。
+- index.html：加载中显示「加载中…」；`viewer--empty` 空文档条件排除 `docPending`——**修复「加载中」被误显示为「文档不存在或无法加载」**。
+- 真 404（非 deleted）错误文案改为「文档不存在或无法加载」（原为后端原始 `not_found`）。测试 S27。
+
+### 垃圾箱死链检查性能（后端 856d9dc 已修，前端配合完成）
+- **根因**：`/refs` 对死链调 `ref_status` → `list_trash` 逐个读 trash 文件（曾 4939 个）→ 每次 1.7~2.5s，拖慢 hover 预览与打开含死链文档。
+- **后端已修**：trash_index.json 索引 + 进程内缓存（`perf(trash)` 856d9dc），/refs 死链 <1ms。
+- **前端配合项状态**：① pending 态已完成（见上）；② **hover 预览轻量化结论——不需要新端点**：现有 `/refs` 每条已带 `resolved`/`ref_status`，「被 N 篇引用」用 `refs.length` 前端本地即可算，且性能已修复、轻量化动机消失，保持调用现状。
+- 前端调用 `/refs` 的依赖关系不变（`openDocPreview` 用 `refs.length` 显示引用数；`loadDocument` 用 `refs` 详情渲染底部引用区块）。
+
+---
+
 ## ✅ 已完成（2026-07-29 快照，以下为当时状态）
 
 ### I1. 加载动画（Splash Screen）
