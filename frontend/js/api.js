@@ -253,6 +253,18 @@ const api = {
     return apiRequest("/api/check", { method: "POST" });
   },
 
+  /* ── 结构体检 API ───────────────────────────────────────────────────── */
+
+  /** 读取上次诊断结果（读/算分离；无结果或损坏返回 {saved:false}） */
+  async getDiagnoseSaved() {
+    return apiRequest("/api/diagnose/saved");
+  },
+
+  /** 重新体检：真算 + 写结果文件，返回 {issues, summary} */
+  async getDiagnose() {
+    return apiRequest("/api/diagnose");
+  },
+
   /* ── 身份 API ────────────────────────────────────────────────────────── */
 
   /**

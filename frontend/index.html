@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=422f129196" />
+  <link rel="stylesheet" href="css/components.css?v=6f38f93683" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,12 +65,12 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=6871db1dfb"></script>
+  <script src="js/api.js?v=f6614b4b98"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=00c6469e20"></script>
-  <script src="js/router.js?v=2ed83b02dd"></script>
+  <script src="js/store.js?v=fd2f42b7a2"></script>
+  <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
@@ -181,6 +181,17 @@
               <path d="M6.5 7v3.5M9.5 7v3.5"/>
             </svg>
             <span class="sidebar-item__name">垃圾箱</span>
+          </div>
+          <!-- 知识健康检查快捷入口 -->
+          <div class="sidebar-item"
+               :class="{ 'sidebar-item--active': $store.app.currentView === 'health' }"
+               @click="window.location.hash='health'"
+               title="知识健康检查（检测知识库结构健康度）">
+            <svg class="sidebar-item__icon" viewBox="0 0 16 16" fill="none"
+                 stroke="currentColor" stroke-width="1.5">
+              <path d="M9 1.5 2.5 9h4l-1.5 5.5L12 7H7.5z"/>
+            </svg>
+            <span class="sidebar-item__name">知识健康检查</span>
           </div>
         </div>
 
@@ -1074,6 +1085,183 @@
             </div>
             <pre class="status-json"
                  x-text="JSON.stringify($store.app.statusSummary, null, 2)"></pre>
+          </div>
+        </div>
+
+        <!-- ═══ Health View（知识健康检查） ═══════════════════════════════ -->
+        <div x-show="$store.app.currentView === 'health'" x-cloak>
+
+          <!-- 页面标题区 -->
+          <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:var(--space-6);">
+            <div>
+              <h1 class="page-title">知识健康检查</h1>
+              <p class="page-subtitle" style="margin-bottom:0;">检测知识库结构健康度，识别并处理结构性问题</p>
+            </div>
+            <button class="btn btn--primary" @click="$store.app.runHealthCheck()"
+                    :disabled="$store.app.healthLoading || $store.app.isLocked">
+              <span x-show="!$store.app.healthLoading"
+                    x-text="$store.app.healthCheckBtnLabel"></span>
+              <span x-show="$store.app.healthLoading">刷新中...</span>
+              <span class="spinner" x-show="$store.app.healthLoading"
+                    style="width:12px;height:12px;border-width:1.5px;background:transparent;"></span>
+            </button>
+          </div>
+
+          <!-- 加载态（首次 / 重新检查） -->
+          <div class="loading-state" x-show="$store.app.healthLoading && !$store.app.healthData" x-cloak>
+            <div class="spinner"></div>
+            <span>正在体检知识库结构...</span>
+          </div>
+
+          <!-- 已检查：健康概览卡 + 问题清单 + 复杂区 -->
+          <template x-if="$store.app.healthData">
+            <div>
+              <!-- 健康概览卡 -->
+              <div class="card-glass" style="padding:var(--space-6);">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+
+                  <!-- 健康徽标 + 概览数字（左侧） -->
+                  <div>
+                    <div class="health-badge"
+                         :style="{ '--dot-color': ($store.app.healthSummary.total_issues || 0) === 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                      <span class="health-badge__dot"></span>
+                      <span class="health-badge__label"
+                            :style="{ color: ($store.app.healthSummary.total_issues || 0) === 0 ? 'var(--text-primary)' : 'var(--text-primary)' }"
+                            x-text="($store.app.healthSummary.total_issues || 0) === 0 ? '健康' : '发现问题'"></span>
+                    </div>
+                    <div class="health-metrics">
+                      <div class="health-metric">
+                        <div class="health-metric__value" x-text="($store.app.healthSummary.total_files || 0)"></div>
+                        <div class="health-metric__label">扫描文件</div>
+                      </div>
+                      <div class="health-metric">
+                        <div class="health-metric__value" x-text="($store.app.healthSummary.total_issues || 0)"></div>
+                        <div class="health-metric__label">发现问题</div>
+                      </div>
+                      <div class="health-metric">
+                        <div class="health-metric__value health-metric__value--high"
+                             :class="{ 'is-danger': $store.app.healthHighCount > 0 }"
+                             x-text="$store.app.healthHighCount"></div>
+                        <div class="health-metric__label">高危问题</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 分组计数芯片 + 上次检查时间（右侧） -->
+                  <div style="text-align:right;">
+                    <div class="health-chips">
+                      <template x-for="chip in $store.app.healthChips" :key="chip.type">
+                        <span class="health-chip"
+                              :class="{ 'health-chip--zero': chip.count === 0 }">
+                          <span class="health-chip__label" x-text="chip.label"></span>
+                          <span class="health-chip__count" x-text="chip.count"></span>
+                        </span>
+                      </template>
+                    </div>
+                    <div class="health-generated" x-show="$store.app.hasHealthGeneratedAt">
+                      <span>上次体检</span>
+                      <span class="health-generated__time" x-text="$store.app.healthGeneratedAtLabel"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 空态（无问题） -->
+              <div class="empty-state" x-show="($store.app.healthSummary.total_issues || 0) === 0" x-cloak>
+                <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+                  <path d="m9 12 2 2 4-4"/>
+                </svg>
+                <div class="empty-state__title">知识库结构健康</div>
+                <div class="empty-state__description"
+                     x-text="'全部 ' + ($store.app.healthSummary.total_files || 0) + ' 个文档结构正常，无需修复'"></div>
+                <button class="btn" @click="$store.app.runHealthCheck()"
+                        :disabled="$store.app.healthLoading || $store.app.isLocked">再次体检</button>
+              </div>
+
+              <!-- 问题清单（按 type 分组，无问题组隐藏） -->
+              <template x-if="($store.app.healthSummary.total_issues || 0) > 0">
+                <div>
+                  <template x-for="group in $store.app.healthGroups" :key="group.type">
+                    <div class="card-glass health-group" style="margin-top:var(--space-4);padding:var(--space-3) var(--space-4);">
+                      <div class="health-group__header">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                          <span class="tag tag--accent" style="font-size:var(--text-2xs);" x-text="group.type"></span>
+                          <span class="health-group__label" x-text="group.label"></span>
+                          <span class="health-group__count" x-text="group.issues.length + ' 项'"></span>
+                        </div>
+                      </div>
+                      <div class="health-issues">
+                        <template x-for="issue in group.issues" :key="issue.path + issue.type + issue.message">
+                          <div class="issue-row">
+                            <span class="issue-severity" :class="'issue-severity--' + (issue.severity || 'low')"></span>
+                            <span class="issue-path" :title="issue.path" x-text="issue.path"></span>
+                            <span class="issue-message" x-text="issue.message"></span>
+                            <span class="tag health-action" x-show="issue.action"
+                                  x-text="$store.app.healthActionLabel(issue.action)"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- 复杂区（needs_semantic=true 收敛） -->
+              <template x-if="$store.app.healthComplexIssues.length > 0">
+                <div class="card-glass complex-zone">
+                  <div class="complex-zone__header">
+                    <div>
+                      <div class="complex-zone__title">
+                        <svg class="complex-zone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                          <path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>
+                        </svg>
+                        需 AI 判断的复杂问题
+                        <span class="complex-zone__count" x-text="'· ' + $store.app.healthComplexIssues.length + ' 项'"></span>
+                      </div>
+                      <div class="complex-zone__desc">无法自动修复 · 复制结构化 prompt 给 AI 处理后，回填重查</div>
+                    </div>
+                    <button class="btn btn--primary complex-zone__copy-btn"
+                            @click="$store.app.copyHealthPrompt()"
+                            :disabled="$store.app.isLocked"
+                            title="将复杂问题清单复制为结构化 prompt，粘贴到你的 AI agent 对话中，由它经 MCP 工具处理并修复">
+                      <svg class="complex-zone__copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                      </svg>
+                      复制 prompt
+                    </button>
+                  </div>
+                  <div class="health-issues">
+                    <template x-for="issue in $store.app.healthComplexIssues" :key="issue.path + issue.type + issue.message">
+                      <div class="issue-row">
+                        <span class="issue-severity" :class="'issue-severity--' + (issue.severity || 'low')"></span>
+                        <span class="issue-path" :title="issue.path" x-text="issue.path"></span>
+                        <span class="issue-message" x-text="issue.message"></span>
+                        <span class="tag health-action" x-show="issue.action"
+                              x-text="$store.app.healthActionLabel(issue.action)"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- 空态（尚未检查） -->
+          <div class="empty-state" x-show="!$store.app.healthLoading && !$store.app.healthData" x-cloak>
+            <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 1.5 2.5 9h4l-1.5 5.5L12 7H7.5z"/>
+            </svg>
+            <div class="empty-state__title">尚未检查</div>
+            <div class="empty-state__description">还没有进行知识健康检查，点击「开始检查」检测知识库结构</div>
+            <button class="btn btn--primary" @click="$store.app.runHealthCheck()"
+                    :disabled="$store.app.healthLoading || $store.app.isLocked">开始检查</button>
           </div>
         </div>
 

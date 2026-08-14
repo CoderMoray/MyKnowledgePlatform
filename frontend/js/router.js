@@ -162,6 +162,12 @@ function setupRouter() {
     }
   });
 
+  // #health
+  router.on("health", async () => {
+    store.setView("health");
+    store.loadHealthSaved();
+  });
+
   // 暴露到全局
   window._mykRouter = router;
 

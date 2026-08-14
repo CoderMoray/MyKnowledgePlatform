@@ -38,6 +38,15 @@ let _tocCollapsedSet = {};
     trashItems: [],
     trashLoading: false,
 
+    /* ── 知识健康检查（#health） ──────────────────────────────────────── */
+
+    /** 体检数据 { issues, summary }（无 saved/未检查时为空对象） */
+    healthData: null,
+    /** 体检加载中（首次 / 重新检查） */
+    healthLoading: false,
+    /** 上次检查时间（UTC ISO 字符串，取自 /api/diagnose/saved 的 generated_at） */
+    healthGeneratedAt: "",
+
     /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
     deletedInfo: null,
 
@@ -1342,6 +1351,192 @@ let _tocCollapsedSet = {};
         showToast(e.message || "清空失败", "error");
       } finally {
         this.closeModal();
+      }
+    },
+
+    /* ── 知识健康检查（#health） ──────────────────────────────────────── */
+
+    /**
+     * 进 #health 时加载上次体检结果（读/算分离）。
+     * saved:true → 渲染上次结果 + 记录 generated_at；saved:false → 空态「尚未检查」。
+     */
+    async loadHealthSaved() {
+      this.healthLoading = true;
+      try {
+        const data = await api.getDiagnoseSaved();
+        if (data && data.saved) {
+          this.healthData = { issues: data.issues || [], summary: data.summary || {} };
+          this.healthGeneratedAt = data.generated_at || "";
+        } else {
+          this.healthData = null;
+          this.healthGeneratedAt = "";
+        }
+      } catch (e) {
+        // 读上次失败：不弹错误，降级为空态（保留旧数据不适用——此处无旧数据）
+        this.healthData = null;
+        this.healthGeneratedAt = "";
+        if (e && e.isLocked) showToast("知识库正在整理中，暂时只读", "warning");
+      } finally {
+        this.healthLoading = false;
+      }
+    },
+
+    /**
+     * 重新检查：调 /api/diagnose 真算，覆盖结果并渲染新结果。
+     * 失败 toast 且保留旧数据（healthLoading 结束、healthData 不变）。
+     */
+    async runHealthCheck() {
+      this.healthLoading = true;
+      try {
+        const data = await api.getDiagnose();
+        this.healthData = { issues: data.issues || [], summary: data.summary || {} };
+        this.healthGeneratedAt = data.generated_at || ""; // 后端已补 generated_at
+      } catch (e) {
+        if (e && e.isLocked) {
+          showToast("知识库正在整理中，暂时只读", "warning");
+        } else {
+          showToast("体检失败 · 请检查后端连接", "error");
+        }
+        // 保留旧数据：healthData 不变
+      } finally {
+        this.healthLoading = false;
+      }
+    },
+
+    /* ── 知识健康检查：派生数据（渲染辅助） ──────────────────────────── */
+
+    /** 当前体检的 summary（为空对象兜底） */
+    get healthSummary() {
+      return (this.healthData && this.healthData.summary) || {};
+    },
+
+    /** 当前体检的 issues 列表 */
+    get healthIssues() {
+      return (this.healthData && this.healthData.issues) || [];
+    },
+
+    /** 是否显示「上次检查」时间（有真实 generated_at 时） */
+    get hasHealthGeneratedAt() {
+      return !!this.healthGeneratedAt;
+    },
+
+    /** 上次检查本地时间文案 */
+    get healthGeneratedAtLabel() {
+      if (!this.healthGeneratedAt) return "";
+      try {
+        return new Date(this.healthGeneratedAt).toLocaleString();
+      } catch (_) {
+        return this.healthGeneratedAt;
+      }
+    },
+
+    /** 高危（high severity）问题数 */
+    get healthHighCount() {
+      return this.healthIssues.filter(i => i.severity === "high").length;
+    },
+
+    /** 顶部「检查」按钮文案：尚未检查→开始检查；已有结果→重新检查 */
+    get healthCheckBtnLabel() {
+      return this.healthData ? "重新检查" : "开始检查";
+    },
+
+    /** 需要 AI 判断（needs_semantic）的 issue 列表 */
+    get healthComplexIssues() {
+      return this.healthIssues.filter(i => i.needs_semantic);
+    },
+
+    /** 按 type 分组的非复杂 issue（只保留有问题的组；顺序按系统 type 顺序） */
+    get healthGroups() {
+      const order = ["position", "metadata", "index", "ref", "illegal", "system"];
+      const labels = {
+        position: "位置非法",
+        metadata: "缺元数据",
+        index: "索引过时",
+        ref: "死链",
+        illegal: "非法结构",
+        system: "系统文件",
+      };
+      const byType = {};
+      this.healthIssues.forEach(i => {
+        if (i.needs_semantic) return; // 复杂 issue 进复杂区，不进分组
+        (byType[i.type] = byType[i.type] || []).push(i);
+      });
+      return order
+        .filter(t => byType[t] && byType[t].length)
+        .map(t => ({ type: t, label: labels[t] || t, issues: byType[t] }));
+    },
+
+    /** 分组计数芯片数据：{type, label, count}（全 type，含 0） */
+    get healthChips() {
+      const order = ["position", "metadata", "index", "ref", "illegal", "system"];
+      const labels = {
+        position: "position", metadata: "metadata", index: "index",
+        ref: "ref", illegal: "illegal", system: "system",
+      };
+      const byType = (this.healthSummary.by_type) || {};
+      return order.map(t => ({ type: t, label: labels[t] || t, count: byType[t] || 0 }));
+    },
+
+    /** action → 中文文案映射（issue 行尾部标签） */
+    healthActionLabel(action) {
+      const map = {
+        move_to_peer_ck: "移动",
+        add_metadata: "补齐元数据",
+        rebuild_index: "重建索引",
+        rebuild: "重建索引",
+        review: "审查",
+      };
+      return map[action] || action || "";
+    },
+
+    /**
+     * 构造「复制 prompt 交 AI」的 Markdown（前缀已定稿，不含 KB 根路径）。
+     * 每条 issue 一行 bullet：type · path · [severity] · message · action
+     */
+    buildHealthPrompt() {
+      const complex = this.healthComplexIssues;
+      if (!complex.length) return "";
+      const lines = complex.map(i => {
+        const sev = i.severity || "low";
+        const act = this.healthActionLabel(i.action) || "";
+        return `- **${i.type || "?"}** \`${i.path || ""}\` [${sev}] ${i.message || ""}${act ? `（${act}）` : ""}`;
+      });
+      return (
+        "请用 MyKnowledge 的 MCP 工具（maint__knowledgebase_diagnose 复查 + write__ 系列修复）" +
+        "处理以下知识库结构问题。每项请给出处理建议，并按需执行修复：\n" +
+        lines.join("\n") +
+        "\n---\n" +
+        `扫描文件：${(this.healthSummary.total_files) || 0} 个`
+      );
+    },
+
+    /** 点击「复制 prompt 交 AI」：复制到剪贴板 + toast */
+    async copyHealthPrompt() {
+      const prompt = this.buildHealthPrompt();
+      const count = this.healthComplexIssues.length;
+      if (!count) return;
+      try {
+        await navigator.clipboard.writeText(prompt);
+        showToast(`已复制 ${count} 条复杂问题 · 粘贴到 AI 对话`, "success");
+      } catch (_) {
+        // 剪贴板 API 不可用（非 https/非本地）→ 降级 textarea 选中复制
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = prompt;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand("copy");
+          ta.remove();
+          if (ok) {
+            showToast(`已复制 ${count} 条复杂问题 · 粘贴到 AI 对话`, "success");
+          } else {
+            showToast("复制失败，请手动复制", "error");
+          }
+        } catch (_2) {
+          showToast("复制失败，请手动复制", "error");
+        }
       }
     },
 

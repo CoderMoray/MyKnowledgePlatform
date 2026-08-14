@@ -1,6 +1,6 @@
 # MyKnowledge 前端实现状态（唯一状态/待办文档）
 
-> 最后更新：2026-08-13
+> 最后更新：2026-08-14
 > 说明：本文件为前端**唯一**状态文档（原 `docs/TODO.md` 已并入本文件的"待办清单"章节并删除）。
 > 设计决策详见：`docs/archive/FRONTEND_INTERACTION_FEEDBACK.md`（历史设计确认，已实现，归档备查）
 
@@ -184,6 +184,21 @@
 
 ### H2. 系统状态页（#status）✅
 - 路由 + 状态页已实现（store.setView("status") + statusSummary）
+
+### H3. 知识健康检查视图（#health）✅ 2026-08-14
+- 规范来源：`designs/kb-health/SPEC.md`（已定稿，唯一权威依据）
+- 后端契约：`GET /api/diagnose`（真算+写 `.diagnose-result.json`，含 `generated_at`）、`GET /api/diagnose/saved`（读上次，含 `generated_at`）
+- 前端实现：
+  - 路由 `#health`（router.js）+ 侧边栏「知识健康检查」入口（垃圾箱下方）
+  - 检查按钮两态：尚未检查=「开始检查」/ 有结果=「重新检查」；loading「刷新中...」
+  - 进页先 `/api/diagnose/saved`：有 → 渲染上次结果 +「上次体检:本地时间」；无 → 空态「尚未检查」+ 检查按钮
+  - 「重新检查」按钮常驻：调 `/api/diagnose` 覆盖结果；loading「刷新中...」+spinner；失败 toast 保留旧数据
+  - 健康概览卡（徽标/三联数字/分组计数芯片）+ 按 type 分组列表（无问题组隐藏）+ 复杂区（needs_semantic 收敛）+ 空态/加载态
+  - 严重度三色：high=danger / medium=warning / low=info（走 token，暗色自动适配）
+  - 复杂区「复制 prompt 交 AI」：前缀已定稿（maint__knowledgebase_diagnose + write__ 系列）、Markdown bullet 全量 issue、`扫描文件：N 个` 结尾、不含 KB 根路径
+- MVP 边界：不做分组批量修复按钮（修复主体是 AI）、不做轮询/SSE（仅手动重新检查）、不做 issue 行点击跳转
+- 阶段 B 预留：`.myknowledge_test/projects/health-demo/`（6 类结构错误脚手架）**保留**，作为阶段 B「非复杂问题修复交互」的活测试数据（届时开发「修复按钮+弹窗+勾选」交互）。阶段 B 验收通过后再删除。
+- 测试：`tests/frontend/test_health.py`（24 用例：静态结构/构建/浏览器渲染/复制 prompt/console 干净/按钮两态/改名/generated_at）+ `test_smoke.py` 22 用例回归通过
 
 ---
 

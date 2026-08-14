@@ -1755,3 +1755,209 @@
   color: var(--text-tertiary);
 }
 .sidebar-toc__item--active .sidebar-toc__icon { color: var(--accent); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   知识健康检查（#health）
+   全部复用现有 token（--color-success/danger/warning/info、--text-*、--bg-*、
+   --font-mono、--card-glass-*），无 design-token 增量
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 健康徽标（彩色圆点 + 文字标签） */
+.health-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.health-badge__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot-color, var(--color-success));
+  flex-shrink: 0;
+}
+.health-badge__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 概览三联数字 */
+.health-metrics {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+.health-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.health-metric__value {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.health-metric__value--high.is-danger { color: var(--color-danger); }
+.health-metric__label {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* 分组计数芯片 */
+.health-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.health-chip__label { color: var(--text-tertiary); }
+.health-chip__count {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.health-chip--zero { opacity: 0.4; }
+
+/* 上次检查时间 */
+.health-generated {
+  margin-top: var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.health-generated__time { font-weight: 500; }
+
+/* 分组卡片 */
+.health-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+.health-group__label {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.health-group__count {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+
+/* issue 行 */
+.health-issues {
+  display: flex;
+  flex-direction: column;
+}
+.issue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: var(--transition-interactive);
+}
+.issue-row:hover { background: var(--bg-secondary); }
+
+/* severity 左侧色标 */
+.issue-severity {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.issue-severity--high   { background: var(--color-danger); }
+.issue-severity--medium { background: var(--color-warning); }
+.issue-severity--low    { background: var(--color-info); }
+
+/* issue 路径（等宽） */
+.issue-path {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* issue 描述 */
+.issue-message {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+/* action 标签（复用 .tag，补充小字号） */
+.health-action { font-size: var(--text-2xs); white-space: nowrap; flex-shrink: 0; }
+
+/* 复杂区 */
+.complex-zone {
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid rgba(59, 130, 246, 0.25);
+}
+.complex-zone__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.complex-zone__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.complex-zone__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-info);
+  flex-shrink: 0;
+}
+.complex-zone__count { color: var(--text-tertiary); font-weight: 500; }
+.complex-zone__desc {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+.complex-zone__copy-btn {
+  flex-shrink: 0;
+  /* 面积更紧凑：内边距/字号略小于标准 .btn，但圆角复用 --button-radius 保持全局统一 */
+  padding: 6px 14px;
+  font-size: var(--text-sm);
+  gap: 6px;
+}
+.complex-zone__copy-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
