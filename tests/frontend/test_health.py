@@ -13,6 +13,7 @@
 运行：PYTHONPATH=. pytest tests/frontend/test_health.py
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -143,6 +144,66 @@ class TestHealthStaticStructure:
         assert "--color-info" in block, "low severity must use --color-info token"
         assert "--color-success" in block, "healthy badge must use --color-success token"
 
+    # ── 阶段 B：非复杂分组修复交互 静态结构 ─────────────────────────────
+
+    def test_stageb_api_heal_methods(self):
+        """api.js 暴露 heal 修复方法"""
+        js = API.read_text(encoding="utf-8")
+        assert "healMove" in js, "Missing api.healMove()"
+        assert "healRebuild" in js, "Missing api.healRebuild()"
+        assert "/api/heal/move" in js, "Missing /api/heal/move endpoint"
+        assert "/api/heal/rebuild" in js, "Missing /api/heal/rebuild endpoint"
+
+    def test_stageb_store_state_and_methods(self):
+        """store.js 暴露阶段 B 勾选/修复方法"""
+        js = STORE.read_text(encoding="utf-8")
+        for name in ["healthSelected", "healthHealingGroup", "healthLazyCopying",
+                     "healthIsFixableType", "healthGroupButtonLabel",
+                     "healthGroupChecked", "healthGroupAllChecked",
+                     "healthGroupSomeChecked", "toggleHealthSelect",
+                     "toggleHealthGroupSelect", "openHealthFixModal",
+                     "healthFixPathsPreview", "copyHealthFixPrompt",
+                     "execHealthFix", "copyLazyHealthPrompt",
+                     "buildHealthPrompt"]:
+            assert name in js, f"Missing stage B store symbol: {name}"
+
+    def test_stageb_lazy_button_markup(self):
+        """lazy 按钮「我懒得看了，交给 AI 吧」在 header，与重新检查并列，total_issues>0 显示"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "我懒得看了，交给 AI 吧" in html, "Missing lazy button text"
+        assert "btn-lazy-ai" in html, "Missing lazy button CSS class"
+        assert "copyLazyHealthPrompt" in html, "lazy 按钮未绑定 copyLazyHealthPrompt"
+        assert "healthLazyCopying" in html, "lazy 按钮缺少复制中状态"
+
+    def test_stageb_checkbox_and_group_action_markup(self):
+        """非复杂分组：勾选框 + 组头单按钮；勾选项高亮"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "issue-checkbox" in html, "Missing issue checkbox"
+        assert "issue-group__action" in html, "Missing group action button"
+        assert "toggleHealthSelect" in html, "Missing toggleHealthSelect"
+        assert "toggleHealthGroupSelect" in html, "Missing group select-all"
+        assert "healthGroupButtonLabel" in html, "Missing group button label"
+        assert "is-checked" in html, "Missing checked highlight class"
+
+    def test_stageb_fix_modal_markup(self):
+        """修复确认弹窗：确认执行 + 复制 prompt + path 列表"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "health-fix" in html, "Missing health-fix modal"
+        assert "确认执行" in html, "Missing confirm button"
+        assert "复制 prompt" in html, "Missing copy prompt button"
+        assert "fix-modal__paths" in html, "Missing fix-modal paths element"
+        assert "execHealthFix" in html, "Missing execHealthFix"
+
+    def test_stageb_css_classes(self):
+        """阶段 B 新增样式类在 components.css（复用 token）"""
+        css = COMPONENTS_CSS.read_text(encoding="utf-8")
+        for cls in ["issue-checkbox", "issue-group__action", "issue-row.is-checked",
+                    "btn-lazy-ai", "fix-modal__paths"]:
+            assert f".{cls}" in css, f"Missing stage B CSS class: .{cls}"
+        # 关键 token 引用
+        assert "accent-color: var(--accent)" in css, "checkbox 应使用 --accent"
+        assert "var(--radius-md)" in css, "lazy 按钮圆角用 --radius-md"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 构建测试
@@ -161,6 +222,10 @@ class TestHealthBuild:
             "知识健康检查",
             "复制 prompt",
             "health-badge", "health-chip", "issue-row", "complex-zone",
+            # 阶段 B
+            "btn-lazy-ai", "我懒得看了，交给 AI 吧",
+            "issue-checkbox", "issue-group__action",
+            "health-fix", "确认执行", "execHealthFix",
         ]
         for c in checks:
             assert c in content, f"Missing in standalone: {c}"
@@ -243,7 +308,7 @@ class TestHealthBrowser:
         # 此测试库存在需 AI 判断的问题（复杂区），断言其渲染
         if page.locator(".health-badge__label", has_text="发现问题").count() > 0:
             expect(page.locator(".complex-zone__title")).to_be_visible(timeout=5000)
-            expect(page.locator("button", has_text="复制 prompt")).to_be_visible(timeout=5000)
+            expect(page.locator(".complex-zone__copy-btn")).to_be_visible(timeout=5000)
 
     def test_health_copy_prompt_content(self, static_server, page, backend_running):
         """复制 prompt 内容：前缀正确 + 含全部复杂 issue + 不含 KB 根路径"""
@@ -297,3 +362,332 @@ class TestHealthBrowser:
         self._goto_health_and_ensure_data(static_server, page)
         page.wait_for_timeout(1500)
         assert errors == [], f"Console errors/warnings on #health: {errors}"
+
+    # ── 阶段 B：浏览器渲染测试 ─────────────────────────────────────────
+
+    def _has_problems(self, page):
+        """当前 healthData 是否有问题（有则 lazy 按钮应显示）"""
+        return page.evaluate(
+            "() => !!window.Alpine.store('app').healthData"
+            " && (window.Alpine.store('app').healthSummary.total_issues || 0) > 0")
+
+    def _has_fixable_group(self, page):
+        """是否存在可修复分组（position/index/system）"""
+        return page.evaluate(
+            "() => window.Alpine.store('app').healthGroups"
+            ".some(g => ['position','index','system'].includes(g.type))")
+
+    def test_stageb_lazy_button_present(self, static_server, page, backend_running):
+        """lazy 按钮存在（有问题时显示，文案正确）"""
+        self._goto_health_and_ensure_data(static_server, page)
+        if not self._has_problems(page):
+            pytest.skip("当前知识库无问题，lazy 按钮应隐藏")
+        lazy = page.locator(".btn-lazy-ai")
+        expect(lazy.first).to_be_visible(timeout=5000)
+        expect(lazy.first).to_contain_text("我懒得看了，交给 AI 吧")
+
+    def test_stageb_group_action_buttons(self, static_server, page, backend_running):
+        """可修复分组：默认全选后组头按钮 enabled；复杂区无按钮无勾选"""
+        self._goto_health_and_ensure_data(static_server, page)
+        if not self._has_fixable_group(page):
+            pytest.skip("当前知识库无可修复分组")
+        action = page.locator(".issue-group__action").first
+        expect(action).to_be_visible(timeout=5000)
+        # 进入页面默认全选可修复分组 → 按钮初始 enabled
+        expect(action).to_be_enabled()
+        # 复杂区无勾选框
+        assert page.locator(".complex-zone .issue-checkbox").count() == 0
+
+    def test_stageb_checkbox_activates_button(self, static_server, page, backend_running):
+        """取消全选 → 按钮 disabled；重新勾选 → 变可交互"""
+        self._goto_health_and_ensure_data(static_server, page)
+        if not self._has_fixable_group(page):
+            pytest.skip("当前知识库无可修复分组")
+        checkbox = page.locator(".health-group .issue-checkbox").first
+        expect(checkbox).to_be_visible(timeout=5000)
+        btn = page.locator(".issue-group__action").first
+        # 默认全选 → 按钮初始 enabled
+        expect(btn).to_be_enabled()
+        # 清空勾选 → 按钮 disabled
+        page.evaluate("() => { window.Alpine.store('app').healthSelected = {}; }")
+        page.wait_for_timeout(300)
+        expect(btn).to_be_disabled()
+        # 重新勾选第一个 issue → 按钮变可交互
+        page.locator(".health-group .issue-checkbox").nth(1).click()
+        page.wait_for_timeout(300)
+        expect(btn).to_be_enabled(timeout=5000)
+
+    def test_stageb_lazy_copy(self, static_server, page, backend_running):
+        """lazy 复制完整清单 prompt：头部 + maint 工具 + 扫描文件"""
+        self._goto_health_and_ensure_data(static_server, page)
+        if not self._has_problems(page):
+            pytest.skip("当前知识库无问题")
+        ctx = page.context
+        try:
+            ctx.grant_permissions(["clipboard-read", "clipboard-write"])
+        except Exception:
+            pass
+        page.locator(".btn-lazy-ai").first.click()
+        page.wait_for_timeout(500)
+        text = ""
+        try:
+            text = page.evaluate("async () => await navigator.clipboard.readText()")
+        except Exception:
+            pass
+        assert text, "lazy 剪贴板为空"
+        assert "我知识库的结构体检发现了以下问题" in text, "lazy 缺头部"
+        assert "maint__knowledgebase_diagnose" in text, "lazy 缺复查工具"
+        assert "maint__rebuild_index" in text, "lazy 缺重建工具"
+        assert "扫描文件：" in text, "lazy 缺扫描文件结尾"
+
+    def test_stageb_console_clean_with_modal(self, static_server, page, backend_running):
+        """打开修复弹窗后 console 仍干净"""
+        errors = []
+        page.on("console", lambda m: errors.append(m.text) if m.type in ("error", "warning") else None)
+        self._goto_health_and_ensure_data(static_server, page)
+        if self._has_fixable_group(page):
+            # 默认已全选 → 直接点组头按钮打开弹窗
+            action = page.locator(".issue-group__action").first
+            if action.is_visible():
+                action.click()
+                page.wait_for_timeout(500)
+                # 健康修复弹窗唯一标识：fix-modal__paths（path 列表）
+                expect(page.locator(".fix-modal__paths").first).to_be_attached(timeout=5000)
+        page.wait_for_timeout(800)
+        assert errors == [], f"Console errors/warnings: {errors}"
+
+    # ── 阶段 B 补强：修复中禁用 + 交互/端到端测试（mock 后端） ─────────
+
+    @staticmethod
+    def _inject_health_data(page, issues, total_files=100):
+        """注入受控 healthData（不依赖真实后端状态），供确定性地测试交互。"""
+        page.evaluate(
+            """(arg) => {
+              const { issues, total } = arg;
+              window.Alpine.store('app').healthData = {
+                issues: issues,
+                summary: { total_files: total, total_issues: issues.length, by_type: {} }
+              };
+              window.Alpine.store('app').healthGeneratedAt = '';
+              window.Alpine.store('app').healthSelected = {};
+              window.Alpine.store('app').healthHealingGroup = '';
+            }""",
+            {"issues": issues, "total": total_files})
+        page.wait_for_timeout(300)
+
+    def test_stageb_mock_move_rest_body(self, static_server, page, backend_running):
+        """勾选 position 问题 → 确认执行 → 断言 /api/heal/move body.paths 正确 + 自动重查"""
+        captured = {}
+        issues = [
+            {"type": "position", "path": "projects/P/orphan.md", "severity": "high",
+             "message": "孤儿文档", "action": "move_to_peer_ck", "needs_semantic": False},
+            {"type": "index", "path": "projects/P/readme.md", "severity": "medium",
+             "message": "索引过时", "action": "rebuild_index", "needs_semantic": False},
+        ]
+
+        def handle_route(route):
+            if "/api/heal/move" in route.request.url:
+                captured["move"] = route.request.post_data
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"moved":["projects/P/common-knowledge/orphan.md"],"failed":[]}')
+            elif "/api/diagnose" in route.request.url:
+                captured["diagnose"] = True
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"issues":[],"summary":{"total_files":100,"total_issues":0,"by_type":{}},"generated_at":"2026-08-14T00:00:00Z"}')
+            else:
+                route.continue_()
+
+        page.route("**/api/heal/move", handle_route)
+        page.route("**/api/diagnose", handle_route)
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+
+        # 勾选 position issue 并打开弹窗
+        page.locator(".health-group .issue-checkbox").first.click()
+        page.wait_for_timeout(300)
+        page.locator(".issue-group__action").first.click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".fix-modal__paths").first).to_be_attached(timeout=5000)
+        # 确认执行
+        page.locator(".modal button", has_text="确认执行").first.click()
+        page.wait_for_timeout(1200)
+
+        # 断言 REST body.paths 正确
+        assert captured.get("move"), "未调用 /api/heal/move"
+        move_body = json.loads(captured["move"])
+        assert move_body.get("paths") == ["projects/P/orphan.md"], \
+            f"move body.paths 错误: {move_body.get('paths')}"
+        # 自动重查（/api/diagnose 被调用）
+        assert captured.get("diagnose"), "确认执行后未自动重新检查"
+
+    def test_stageb_mock_rebuild_rest_body(self, static_server, page, backend_running):
+        """勾选 index 问题 → 确认执行 → 断言 /api/heal/rebuild body.all=true + 自动重查"""
+        captured = {}
+        issues = [
+            {"type": "index", "path": "projects/P/readme.md", "severity": "medium",
+             "message": "索引过时", "action": "rebuild_index", "needs_semantic": False},
+        ]
+
+        def handle_route(route):
+            if "/api/heal/rebuild" in route.request.url:
+                captured["rebuild"] = route.request.post_data
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"rebuilt":["projects/P"],"project_status":true}')
+            elif "/api/diagnose" in route.request.url:
+                captured["diagnose"] = True
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"issues":[],"summary":{"total_files":100,"total_issues":0,"by_type":{}},"generated_at":"2026-08-14T00:00:00Z"}')
+            else:
+                route.continue_()
+
+        page.route("**/api/heal/rebuild", handle_route)
+        page.route("**/api/diagnose", handle_route)
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+
+        page.locator(".health-group .issue-checkbox").first.click()
+        page.wait_for_timeout(300)
+        page.locator(".issue-group__action").first.click()
+        page.wait_for_timeout(300)
+        page.locator(".modal button", has_text="确认执行").first.click()
+        page.wait_for_timeout(1200)
+
+        assert captured.get("rebuild"), "未调用 /api/heal/rebuild"
+        rebuild_body = json.loads(captured["rebuild"])
+        assert rebuild_body.get("all") is True, f"rebuild body.all 错误: {rebuild_body}"
+        assert captured.get("diagnose"), "确认执行后未自动重新检查"
+
+    def test_stageb_modal_copy_prompt_content(self, static_server, page, backend_running):
+        """弹窗「复制 prompt」内容含勾选项 path/type/severity"""
+        issues = [
+            {"type": "position", "path": "projects/P/orphan.md", "severity": "high",
+             "message": "孤儿文档", "action": "move_to_peer_ck", "needs_semantic": False},
+        ]
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+        page.locator(".health-group .issue-checkbox").first.click()
+        page.wait_for_timeout(300)
+        page.locator(".issue-group__action").first.click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".fix-modal__paths").first).to_be_attached(timeout=5000)
+        # 授予剪贴板权限并点弹窗「复制 prompt」
+        try:
+            page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+        except Exception:
+            pass
+        page.locator(".modal button", has_text="复制 prompt").first.click()
+        page.wait_for_timeout(500)
+        text = ""
+        try:
+            text = page.evaluate("async () => await navigator.clipboard.readText()")
+        except Exception:
+            pass
+        assert text, "弹窗复制 prompt 为空"
+        assert "projects/P/orphan.md" in text, "缺勾选项 path"
+        assert "**position**" in text, "缺 type"
+        assert "[high]" in text, "缺 severity"
+
+    def test_stageb_select_all_indeterminate(self, static_server, page, backend_running):
+        """部分勾选时全选框为中间态（indeterminate）"""
+        issues = [
+            {"type": "position", "path": "projects/P/a.md", "severity": "high",
+             "message": "孤儿A", "action": "move_to_peer_ck", "needs_semantic": False},
+            {"type": "position", "path": "projects/P/b.md", "severity": "high",
+             "message": "孤儿B", "action": "move_to_peer_ck", "needs_semantic": False},
+        ]
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+        # position 组 checkbox 顺序：[全选框, issueA, issueB]；勾选第一个 issue（第 2 个）
+        issue_a = page.locator(".health-group .issue-checkbox").nth(1)
+        issue_a.click()
+        page.wait_for_timeout(300)
+        # 组头全选框（第 1 个）应为 indeterminate
+        all_box = page.locator(".health-group .issue-checkbox").first
+        indeterminate = all_box.evaluate("el => el.indeterminate")
+        assert indeterminate, "部分勾选时全选框应为 indeterminate 中间态"
+
+    def test_stageb_e2e_heal_loop(self, static_server, page, backend_running):
+        """端到端完整闭环：勾选→按钮激活→弹窗→确认执行→toast→自动重查→修复项消失"""
+        captured = {"diagnose_calls": 0}
+        issues = [
+            {"type": "position", "path": "projects/P/orphan.md", "severity": "high",
+             "message": "孤儿文档", "action": "move_to_peer_ck", "needs_semantic": False},
+        ]
+
+        def handle_route(route):
+            url = route.request.url
+            if "/api/heal/move" in url:
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"moved":["projects/P/common-knowledge/orphan.md"],"failed":[]}')
+            elif "/api/diagnose" in url:
+                captured["diagnose_calls"] += 1
+                # 修复后返回空问题（孤儿文档已移走）→ 修复项消失
+                route.fulfill(status=200, content_type="application/json",
+                              body='{"issues":[],"summary":{"total_files":100,"total_issues":0,"by_type":{}},"generated_at":"2026-08-14T00:00:00Z"}')
+            else:
+                route.continue_()
+
+        page.route("**/api/heal/move", handle_route)
+        page.route("**/api/diagnose", handle_route)
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+
+        # 组头按钮初始 disabled
+        btn = page.locator(".issue-group__action").first
+        expect(btn).to_be_disabled()
+        # 勾选 → 按钮激活
+        page.locator(".health-group .issue-checkbox").first.click()
+        page.wait_for_timeout(300)
+        expect(btn).to_be_enabled()
+        # 点击按钮 → 弹窗出现
+        btn.click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".fix-modal__paths").first).to_be_attached(timeout=5000)
+        # 确认执行
+        page.locator(".modal button", has_text="确认执行").first.click()
+        # toast「已移动」（DOM 中 toast 元素）
+        expect(page.locator(".toast", has_text="已移动").first).to_be_visible(timeout=5000)
+        # 自动重查（diagnose 被调用）
+        assert captured["diagnose_calls"] >= 1, f"自动重查未触发: {captured['diagnose_calls']}"
+        # 修复项消失：position 组不再有 issue
+        pos_group = page.evaluate(
+            "() => (window.Alpine.store('app').healthGroups.find(g=>g.type==='position')||{}).issues?.length || 0")
+        assert pos_group == 0, f"修复后 position 组仍有问题: {pos_group}"
+
+    def test_stageb_healing_disables_all(self, static_server, page, backend_running):
+        """修复进行中禁用所有修复操作；完成后恢复（直接设置 healing 状态验证渲染）"""
+        issues = [
+            {"type": "position", "path": "projects/P/orphan.md", "severity": "high",
+             "message": "孤儿文档", "action": "move_to_peer_ck", "needs_semantic": False},
+            {"type": "index", "path": "projects/P/readme.md", "severity": "medium",
+             "message": "索引过时", "action": "rebuild_index", "needs_semantic": False},
+        ]
+        page.goto(f"{static_server}#health")
+        page.wait_for_timeout(2500)
+        self._inject_health_data(page, issues)
+        # 先勾选一个 issue（保证组头按钮非空可测 disabled 前的激活态）
+        page.locator(".health-group .issue-checkbox").nth(1).click()
+        page.wait_for_timeout(300)
+        # 模拟进入修复中：healthHealingGroup = 'position'
+        page.evaluate("() => { window.Alpine.store('app').healthHealingGroup = 'position'; }")
+        page.wait_for_timeout(300)
+        healing = page.evaluate("() => window.Alpine.store('app').isHealthHealing")
+        assert healing, "应处于修复中状态"
+        # 修复中断言：组头按钮 disabled、勾选 disabled、重新检查 disabled
+        expect(page.locator(".issue-group__action").first).to_be_disabled()
+        expect(page.locator(".health-group .issue-checkbox").first).to_be_disabled()
+        recheck_btn = page.locator(".page-header button", has_text="重新检查").first
+        if recheck_btn.count() > 0:
+            expect(recheck_btn).to_be_disabled()
+        # 模拟修复完成：healthHealingGroup 复位
+        page.evaluate("() => { window.Alpine.store('app').healthHealingGroup = ''; }")
+        page.wait_for_timeout(300)
+        healing_after = page.evaluate("() => window.Alpine.store('app').isHealthHealing")
+        assert not healing_after, "修复完成后应恢复可交互"
+        # 完成后按钮恢复可交互
+        expect(page.locator(".issue-group__action").first).to_be_enabled()

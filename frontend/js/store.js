@@ -47,6 +47,13 @@ let _tocCollapsedSet = {};
     /** 上次检查时间（UTC ISO 字符串，取自 /api/diagnose/saved 的 generated_at） */
     healthGeneratedAt: "",
 
+    /** 阶段 B：各组勾选项 { groupType: { path: true } } */
+    healthSelected: {},
+    /** 阶段 B：正在执行修复的分组 type（'' = 未执行；按钮显示「处理中...」防重复点击） */
+    healthHealingGroup: "",
+    /** 阶段 B：lazy 按钮复制中标记 */
+    healthLazyCopying: false,
+
     /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
     deletedInfo: null,
 
@@ -1367,9 +1374,11 @@ let _tocCollapsedSet = {};
         if (data && data.saved) {
           this.healthData = { issues: data.issues || [], summary: data.summary || {} };
           this.healthGeneratedAt = data.generated_at || "";
+          this.healthSelectAllFixable(); // 进入页面默认全选可修复分组
         } else {
           this.healthData = null;
           this.healthGeneratedAt = "";
+          this.healthSelected = {};
         }
       } catch (e) {
         // 读上次失败：不弹错误，降级为空态（保留旧数据不适用——此处无旧数据）
@@ -1385,12 +1394,15 @@ let _tocCollapsedSet = {};
      * 重新检查：调 /api/diagnose 真算，覆盖结果并渲染新结果。
      * 失败 toast 且保留旧数据（healthLoading 结束、healthData 不变）。
      */
-    async runHealthCheck() {
+    async runHealthCheck(opts = {}) {
+      // 修复进行中禁止用户手动重新检查；内部自动重查（opts.force=true）不受限
+      if (this.isHealthHealing && !opts.force) return;
       this.healthLoading = true;
       try {
         const data = await api.getDiagnose();
         this.healthData = { issues: data.issues || [], summary: data.summary || {} };
         this.healthGeneratedAt = data.generated_at || ""; // 后端已补 generated_at
+        this.healthSelectAllFixable(); // 重查后默认全选可修复分组
       } catch (e) {
         if (e && e.isLocked) {
           showToast("知识库正在整理中，暂时只读", "warning");
@@ -1489,18 +1501,23 @@ let _tocCollapsedSet = {};
       return map[action] || action || "";
     },
 
+    /** issue → 单行 bullet（type · path · [severity] · message · action） */
+    _healthIssueLine(i) {
+      const sev = i.severity || "low";
+      const act = this.healthActionLabel(i.action) || "";
+      return `- **${i.type || "?"}** \`${i.path || ""}\` [${sev}] ${i.message || ""}${act ? `（${act}）` : ""}`;
+    },
+
     /**
-     * 构造「复制 prompt 交 AI」的 Markdown（前缀已定稿，不含 KB 根路径）。
-     * 每条 issue 一行 bullet：type · path · [severity] · message · action
+     * 构造复制 prompt 的 Markdown（不含 KB 根路径）。
+     * mode: 'complex' → 仅 needs_semantic（复杂区）；'all' → 全部 issue（lazy 按钮）
      */
-    buildHealthPrompt() {
-      const complex = this.healthComplexIssues;
-      if (!complex.length) return "";
-      const lines = complex.map(i => {
-        const sev = i.severity || "low";
-        const act = this.healthActionLabel(i.action) || "";
-        return `- **${i.type || "?"}** \`${i.path || ""}\` [${sev}] ${i.message || ""}${act ? `（${act}）` : ""}`;
-      });
+    buildHealthPrompt(mode = "complex") {
+      const issues = mode === "all"
+        ? this.healthIssues
+        : this.healthComplexIssues;
+      if (!issues.length) return "";
+      const lines = issues.map(i => this._healthIssueLine(i));
       return (
         "请用 MyKnowledge 的 MCP 工具（maint__knowledgebase_diagnose 复查 + write__ 系列修复）" +
         "处理以下知识库结构问题。每项请给出处理建议，并按需执行修复：\n" +
@@ -1510,33 +1527,255 @@ let _tocCollapsedSet = {};
       );
     },
 
-    /** 点击「复制 prompt 交 AI」：复制到剪贴板 + toast */
-    async copyHealthPrompt() {
-      const prompt = this.buildHealthPrompt();
-      const count = this.healthComplexIssues.length;
-      if (!count) return;
-      try {
-        await navigator.clipboard.writeText(prompt);
-        showToast(`已复制 ${count} 条复杂问题 · 粘贴到 AI 对话`, "success");
-      } catch (_) {
-        // 剪贴板 API 不可用（非 https/非本地）→ 降级 textarea 选中复制
+    /**
+     * 剪贴板写入。
+     * 优先在用户手势同步栈里用 document.execCommand("copy")（最可靠，兼容 http/file 环境，
+     * 避免 Clipboard API 在非 https/localhost 下 reject 且异步回调丢失用户手势导致降级失败）。
+     * execCommand 失败时才回退 Clipboard API。
+     */
+    _writeClipboard(text) {
+      return new Promise((resolve) => {
+        // 同步降级：在进入函数的用户手势同步栈内执行 execCommand
+        let ok = false;
         try {
           const ta = document.createElement("textarea");
-          ta.value = prompt;
+          ta.value = text;
           ta.style.position = "fixed";
+          ta.style.left = "-9999px";
           ta.style.opacity = "0";
           document.body.appendChild(ta);
+          ta.focus();
           ta.select();
-          const ok = document.execCommand("copy");
+          ta.setSelectionRange(0, text.length);
+          ok = document.execCommand("copy");
           ta.remove();
-          if (ok) {
-            showToast(`已复制 ${count} 条复杂问题 · 粘贴到 AI 对话`, "success");
-          } else {
-            showToast("复制失败，请手动复制", "error");
-          }
-        } catch (_2) {
+        } catch (_) {
+          ok = false;
+        }
+        if (ok) {
+          resolve(true);
+          return;
+        }
+        // 回退：Clipboard API（https/localhost 且有用户权限时）
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => resolve(true))
+            .catch(() => resolve(false));
+        } else {
+          resolve(false);
+        }
+      });
+    },
+
+    /** 点击「复制 prompt 交 AI」（复杂区）：复制 needs_semantic 子集 + toast */
+    async copyHealthPrompt() {
+      const prompt = this.buildHealthPrompt("complex");
+      const count = this.healthComplexIssues.length;
+      if (!count) return;
+      const ok = await this._writeClipboard(prompt);
+      if (ok) {
+        showToast(`已复制 ${count} 条复杂问题 · 粘贴到 AI 对话`, "success");
+      } else {
+        showToast("复制失败，请手动复制", "error");
+      }
+    },
+
+    /**
+     * lazy 按钮「我懒得看了，交给 AI 吧」：复制全部问题清单（含复杂+非复杂）+ toast。
+     * 仅 total_issues>0 时显示。
+     */
+    async copyLazyHealthPrompt() {
+      if (this.isHealthHealing) return; // 修复进行中禁止复制
+      const issues = this.healthIssues;
+      const total = this.healthSummary.total_issues || issues.length;
+      if (!issues.length) return;
+      this.healthLazyCopying = true;
+      try {
+        const header =
+          "我知识库的结构体检发现了以下问题（共 " + total + " 项）。" +
+          "请用 MyKnowledge 的 MCP 工具处理：\n\n" +
+          "复查：maint__knowledgebase_diagnose（先跑一次确认最新状态）\n" +
+          "处理：根据每个问题的语义判断该不该修、怎么修，用对应 MCP 工具执行\n" +
+          "  - 需移动文档 → write__rename_document 或移动工具\n" +
+          "  - 需重建索引 → maint__rebuild_index\n" +
+          "  - 需补元数据/内容 → write__update_document（生成 summary 等）\n" +
+          "  - 死链/需判断的 → 判断是修复、删除引用还是补充文档，必要时先问我\n" +
+          "移动/删除等不可逆操作前先向我确认。\n\n" +
+          "问题清单：\n" +
+          issues.map(i => this._healthIssueLine(i)).join("\n") +
+          "\n\n---\n" +
+          `扫描文件：${(this.healthSummary.total_files) || 0} 个`;
+        const ok = await this._writeClipboard(header);
+        if (ok) {
+          showToast("Prompt 已复制，请回到你与 AI 的对话框粘贴。", "success");
+        } else {
           showToast("复制失败，请手动复制", "error");
         }
+      } finally {
+        this.healthLazyCopying = false;
+      }
+    },
+
+    /* ── 知识健康检查：阶段 B 修复交互 ────────────────────────────────── */
+
+    /** 该 type 是否可勾选修复（非复杂分组：position/index/system） */
+    healthIsFixableType(type) {
+      return type === "position" || type === "index" || type === "system";
+    },
+
+    /** 该 type 的分组组头按钮文案（position→修复知识位置；index/system→重建索引） */
+    healthGroupButtonLabel(type) {
+      if (type === "position") return "修复知识位置";
+      if (type === "index" || type === "system") return "重建索引";
+      return "";
+    },
+
+    /** 组内已勾选的 path 列表 */
+    healthGroupChecked(type) {
+      const sel = this.healthSelected[type];
+      return sel ? Object.keys(sel) : [];
+    },
+
+    /** 组内可勾选 issue 列表（position/index/system 全部 issue） */
+    healthGroupCheckableIssues(group) {
+      return this.healthIsFixableType(group.type) ? group.issues : [];
+    },
+
+    /** 组内全部可勾选项是否都已勾选（全选框 checked） */
+    healthGroupAllChecked(group) {
+      const issues = this.healthGroupCheckableIssues(group);
+      if (!issues.length) return false;
+      const sel = this.healthSelected[group.type];
+      return issues.every(i => sel && sel[i.path]);
+    },
+
+    /** 组内部分勾选（全选框 indeterminate） */
+    healthGroupSomeChecked(group) {
+      const issues = this.healthGroupCheckableIssues(group);
+      const checked = this.healthGroupChecked(group.type).length;
+      return checked > 0 && checked < issues.length;
+    },
+
+    /** 修复进行中标记：为 true 时禁用所有修复相关操作 */
+    get isHealthHealing() {
+      return !!this.healthHealingGroup;
+    },
+
+    /** 勾选/取消勾选单个 issue（修复进行中忽略） */
+    toggleHealthSelect(type, path) {
+      if (this.isHealthHealing) return;
+      const sel = { ...(this.healthSelected[type] || {}) };
+      if (sel[path]) delete sel[path];
+      else sel[path] = true;
+      this.healthSelected = { ...this.healthSelected, [type]: sel };
+    },
+
+    /** 组头全选/取消全选（修复进行中忽略） */
+    toggleHealthGroupSelect(group) {
+      if (this.isHealthHealing) return;
+      const all = this.healthGroupAllChecked(group);
+      const sel = { ...(this.healthSelected[group.type] || {}) };
+      const issues = this.healthGroupCheckableIssues(group);
+      issues.forEach(i => {
+        if (all) delete sel[i.path];
+        else sel[i.path] = true;
+      });
+      this.healthSelected = { ...this.healthSelected, [group.type]: sel };
+    },
+
+    /** 默认全选所有可勾选分组（position/index/system）的全部 issue */
+    healthSelectAllFixable() {
+      const sel = {};
+      this.healthGroups.forEach(group => {
+        if (!this.healthIsFixableType(group.type)) return;
+        const groupSel = {};
+        this.healthGroupCheckableIssues(group).forEach(i => {
+          groupSel[i.path] = true;
+        });
+        if (Object.keys(groupSel).length) sel[group.type] = groupSel;
+      });
+      this.healthSelected = sel;
+    },
+
+    /** 分组头单按钮：打开修复确认弹窗（只处理勾选项） */
+    openHealthFixModal(group) {
+      const paths = this.healthGroupChecked(group.type);
+      if (!paths.length || this.isLocked || this.healthHealingGroup) return;
+      this.openModal("health-fix", {
+        groupType: group.type,
+        title: this.healthGroupButtonLabel(group.type),
+        paths,
+      });
+    },
+
+    /** 弹窗内勾选项 path 列表（最多显示 5 项，超出折叠） */
+    get healthFixPathsPreview() {
+      const paths = (this.modalData && this.modalData.paths) || [];
+      const max = 5;
+      if (paths.length <= max) return { shown: paths, folded: 0 };
+      return { shown: paths.slice(0, max), folded: paths.length - max };
+    },
+
+    /** 弹窗「复制 prompt」：复制勾选项 prompt + toast */
+    async copyHealthFixPrompt() {
+      const md = this.modalData || {};
+      const groupType = md.groupType || "";
+      const paths = md.paths || [];
+      if (!paths.length) return;
+      const issues = this.healthIssues.filter(i =>
+        i.type === groupType && paths.includes(i.path));
+      const lines = issues.map(i => this._healthIssueLine(i));
+      const prompt =
+        "请用 MyKnowledge 的 MCP 工具（maint__knowledgebase_diagnose 复查 + write__ 系列修复）" +
+        "处理以下知识库结构问题。每项请给出处理建议，并按需执行修复：\n" +
+        lines.join("\n") +
+        "\n---\n" +
+        `扫描文件：${(this.healthSummary.total_files) || 0} 个`;
+      const ok = await this._writeClipboard(prompt);
+      if (ok) {
+        showToast(`已复制 ${paths.length} 条问题 · 粘贴到 AI 对话`, "success");
+      } else {
+        showToast("复制失败，请手动复制", "error");
+      }
+    },
+
+    /**
+     * 弹窗「确认执行」：按 groupType 调 REST → toast → 自动重查 → 关闭弹窗。
+     * position → /api/heal/move；index/system → /api/heal/rebuild(all:true)
+     */
+    async execHealthFix() {
+      const md = this.modalData || {};
+      const groupType = md.groupType || "";
+      const paths = md.paths || [];
+      if (!paths.length || this.isLocked || this.healthHealingGroup) return;
+      this.healthHealingGroup = groupType;
+      try {
+        if (groupType === "position") {
+          const res = await api.healMove(paths);
+          const moved = (res && res.moved) || [];
+          showToast(`已移动 ${moved.length} 个文档到同级知识区`, "success");
+        } else {
+          // index / system → 重建受影响层
+          const res = await api.healRebuild();
+          const count = ((res && res.rebuilt) || []).length;
+          showToast(count ? `已重建 ${count} 个层索引` : "已重建索引", "success");
+        }
+        // 成功：清空该组勾选，关闭弹窗，自动重新检查（内部 force=true，不受修复中守卫限制）
+        const sel = { ...(this.healthSelected[groupType] || {}) };
+        paths.forEach(p => { delete sel[p]; });
+        this.healthSelected = { ...this.healthSelected, [groupType]: sel };
+        this.closeModal();
+        await this.runHealthCheck({ force: true });
+      } catch (e) {
+        if (e && e.isLocked) {
+          showToast("知识库正在整理中，暂时只读", "warning");
+        } else {
+          showToast(`修复失败：${(e && e.message) || "请检查后端连接"}`, "error");
+        }
+        // 失败保留旧数据
+      } finally {
+        this.healthHealingGroup = "";
       }
     },
 

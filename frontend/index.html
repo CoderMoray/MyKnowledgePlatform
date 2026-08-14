@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=6f38f93683" />
+  <link rel="stylesheet" href="css/components.css?v=ea70ae3cd3" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=f6614b4b98"></script>
+  <script src="js/api.js?v=edb8d53c9a"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=fd2f42b7a2"></script>
+  <script src="js/store.js?v=9c1e2cad4f"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1097,14 +1097,29 @@
               <h1 class="page-title">知识健康检查</h1>
               <p class="page-subtitle" style="margin-bottom:0;">检测知识库结构健康度，识别并处理结构性问题</p>
             </div>
-            <button class="btn btn--primary" @click="$store.app.runHealthCheck()"
-                    :disabled="$store.app.healthLoading || $store.app.isLocked">
-              <span x-show="!$store.app.healthLoading"
-                    x-text="$store.app.healthCheckBtnLabel"></span>
-              <span x-show="$store.app.healthLoading">刷新中...</span>
-              <span class="spinner" x-show="$store.app.healthLoading"
-                    style="width:12px;height:12px;border-width:1.5px;background:transparent;"></span>
-            </button>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <!-- lazy 按钮：复制全部问题清单给 AI（仅 total_issues>0 时显示） -->
+              <button class="btn-lazy-ai"
+                      x-show="$store.app.healthData && ($store.app.healthSummary.total_issues || 0) > 0"
+                      @click="$store.app.copyLazyHealthPrompt()"
+                      :disabled="$store.app.isLocked || $store.app.healthLazyCopying || $store.app.isHealthHealing"
+                      title="把全部问题复制为 prompt，交给你的 AI agent 处理">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+                </svg>
+                <span x-text="$store.app.healthLazyCopying ? '复制中...' : '我懒得看了，交给 AI 吧'"></span>
+              </button>
+              <!-- 重新检查 / 开始检查 -->
+              <button class="btn btn--primary" @click="$store.app.runHealthCheck()"
+                      :disabled="$store.app.healthLoading || $store.app.isLocked || $store.app.isHealthHealing">
+                <span x-show="!$store.app.healthLoading"
+                      x-text="$store.app.healthCheckBtnLabel"></span>
+                <span x-show="$store.app.healthLoading">刷新中...</span>
+                <span class="spinner" x-show="$store.app.healthLoading"
+                      style="width:12px;height:12px;border-width:1.5px;background:transparent;"></span>
+              </button>
+            </div>
           </div>
 
           <!-- 加载态（首次 / 重新检查） -->
@@ -1177,7 +1192,7 @@
                 <div class="empty-state__description"
                      x-text="'全部 ' + ($store.app.healthSummary.total_files || 0) + ' 个文档结构正常，无需修复'"></div>
                 <button class="btn" @click="$store.app.runHealthCheck()"
-                        :disabled="$store.app.healthLoading || $store.app.isLocked">再次体检</button>
+                        :disabled="$store.app.healthLoading || $store.app.isLocked || $store.app.isHealthHealing">再次体检</button>
               </div>
 
               <!-- 问题清单（按 type 分组，无问题组隐藏） -->
@@ -1187,14 +1202,46 @@
                     <div class="card-glass health-group" style="margin-top:var(--space-4);padding:var(--space-3) var(--space-4);">
                       <div class="health-group__header">
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                          <!-- 全选框（仅非复杂分组显示） -->
+                          <input type="checkbox" class="issue-checkbox"
+                                 x-show="$store.app.healthIsFixableType(group.type)"
+                                 x-effect="$el.indeterminate = $store.app.healthGroupSomeChecked(group)"
+                                 :checked="$store.app.healthGroupAllChecked(group)"
+                                 :disabled="$store.app.isHealthHealing"
+                                 @change="$store.app.toggleHealthGroupSelect(group)"
+                                 title="全选 / 取消全选本组">
                           <span class="tag tag--accent" style="font-size:var(--text-2xs);" x-text="group.type"></span>
                           <span class="health-group__label" x-text="group.label"></span>
                           <span class="health-group__count" x-text="group.issues.length + ' 项'"></span>
                         </div>
+                        <!-- 组头单按钮（仅非复杂分组：position/index/system） -->
+                        <div class="health-group__actions" x-show="$store.app.healthIsFixableType(group.type)">
+                          <button class="btn btn--sm issue-group__action"
+                                  :disabled="$store.app.healthGroupChecked(group.type).length === 0
+                                             || $store.app.healthLoading
+                                             || $store.app.healthHealingGroup
+                                             || $store.app.isLocked"
+                                  @click="$store.app.openHealthFixModal(group)">
+                            <span x-show="$store.app.healthHealingGroup !== group.type"
+                                  x-text="$store.app.healthGroupButtonLabel(group.type)"></span>
+                            <span x-show="$store.app.healthHealingGroup === group.type">处理中...</span>
+                            <span class="spinner" x-show="$store.app.healthHealingGroup === group.type"
+                                  style="width:12px;height:12px;border-width:1.5px;background:transparent;display:inline-block;"></span>
+                          </button>
+                        </div>
                       </div>
                       <div class="health-issues">
                         <template x-for="issue in group.issues" :key="issue.path + issue.type + issue.message">
-                          <div class="issue-row">
+                          <div class="issue-row"
+                               :class="{ 'is-checked': $store.app.healthSelected[group.type]
+                                         && $store.app.healthSelected[group.type][issue.path] }">
+                            <!-- 勾选框（仅非复杂分组） -->
+                            <input type="checkbox" class="issue-checkbox"
+                                   x-show="$store.app.healthIsFixableType(group.type)"
+                                   :checked="$store.app.healthSelected[group.type]
+                                             && !!$store.app.healthSelected[group.type][issue.path]"
+                                   :disabled="$store.app.isHealthHealing"
+                                   @change="$store.app.toggleHealthSelect(group.type, issue.path)">
                             <span class="issue-severity" :class="'issue-severity--' + (issue.severity || 'low')"></span>
                             <span class="issue-path" :title="issue.path" x-text="issue.path"></span>
                             <span class="issue-message" x-text="issue.message"></span>
@@ -1261,7 +1308,7 @@
             <div class="empty-state__title">尚未检查</div>
             <div class="empty-state__description">还没有进行知识健康检查，点击「开始检查」检测知识库结构</div>
             <button class="btn btn--primary" @click="$store.app.runHealthCheck()"
-                    :disabled="$store.app.healthLoading || $store.app.isLocked">开始检查</button>
+                    :disabled="$store.app.healthLoading || $store.app.isLocked || $store.app.isHealthHealing">开始检查</button>
           </div>
         </div>
 
@@ -1553,6 +1600,42 @@
                   @click="saveSetup()"
                   :disabled="!setupNickname.trim() || !setupEmail.trim() || !isValidEmail(setupEmail)">
             开始使用
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 修复确认弹窗（阶段 B：position/index/system 组头单按钮触发） -->
+    <div class="modal-overlay"
+         x-show="$store.app.modal === 'health-fix'"
+         x-cloak
+         @click.self="$store.app.closeModal()">
+      <div class="modal">
+        <h2 class="modal__title" x-text="$store.app.modalData?.title || '修复'"></h2>
+        <p class="modal__description">
+          将修复选中的 <strong x-text="$store.app.healthFixPathsPreview.shown.length + ($store.app.healthFixPathsPreview.folded ? ' + ' + $store.app.healthFixPathsPreview.folded : '')"></strong> 项问题：
+        </p>
+        <div class="fix-modal__paths">
+          <template x-for="p in $store.app.healthFixPathsPreview.shown" :key="p">
+            <div x-text="'• ' + p"></div>
+          </template>
+          <div x-show="$store.app.healthFixPathsPreview.folded > 0"
+               x-text="'… 等 ' + $store.app.healthFixPathsPreview.folded + ' 项'"></div>
+        </div>
+        <p class="modal__description">
+          确认后执行并自动重新检查。若你不确定该怎么做，点「复制 prompt」把问题交给 AI。
+        </p>
+        <div class="modal__actions">
+          <button class="btn" @click="$store.app.copyHealthFixPrompt()"
+                  :disabled="$store.app.healthHealingGroup || $store.app.isLocked">
+            复制 prompt
+          </button>
+          <button class="btn btn--primary" @click="$store.app.execHealthFix()"
+                  :disabled="$store.app.healthHealingGroup || $store.app.isLocked">
+            <span x-show="!$store.app.healthHealingGroup">确认执行</span>
+            <span x-show="$store.app.healthHealingGroup">处理中...</span>
+            <span class="spinner" x-show="$store.app.healthHealingGroup"
+                  style="width:12px;height:12px;border-width:1.5px;background:transparent;display:inline-block;"></span>
           </button>
         </div>
       </div>

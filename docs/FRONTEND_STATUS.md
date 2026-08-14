@@ -197,8 +197,25 @@
   - 严重度三色：high=danger / medium=warning / low=info（走 token，暗色自动适配）
   - 复杂区「复制 prompt 交 AI」：前缀已定稿（maint__knowledgebase_diagnose + write__ 系列）、Markdown bullet 全量 issue、`扫描文件：N 个` 结尾、不含 KB 根路径
 - MVP 边界：不做分组批量修复按钮（修复主体是 AI）、不做轮询/SSE（仅手动重新检查）、不做 issue 行点击跳转
-- 阶段 B 预留：`.myknowledge_test/projects/health-demo/`（6 类结构错误脚手架）**保留**，作为阶段 B「非复杂问题修复交互」的活测试数据（届时开发「修复按钮+弹窗+勾选」交互）。阶段 B 验收通过后再删除。
-- 测试：`tests/frontend/test_health.py`（24 用例：静态结构/构建/浏览器渲染/复制 prompt/console 干净/按钮两态/改名/generated_at）+ `test_smoke.py` 22 用例回归通过
+- 阶段 B 完成（2026-08-14）：非复杂分组修复交互 + lazy 按钮。后端契约 `/api/heal/move` + `/api/heal/rebuild`（已就绪）。
+  - 非复杂分组（position/index/system）：issue 勾选框 + 组头全选（indeterminate）+ 组头单按钮（position→修复知识位置；index/system→重建索引）。无勾选 disabled；≥1 勾选可交互，只处理勾选项；已勾选行 `.is-checked` 高亮。
+  - 修复确认弹窗（health-fix，复用 modal）：path 列表（最多 5 项折叠）+「确认执行」+「复制 prompt」+ 关闭。确认执行 → REST → toast → 自动重查 → 修复项消失。执行中「处理中...」+spinner 防重复。
+  - lazy 按钮「我懒得看了，交给 AI 吧」（total_issues>0 显示）：复制全部问题清单 prompt（含复杂+非复杂，完整头部+maint 工具+扫描文件）+ toast。
+  - metadata/ref/illegal 无勾选无按钮（走复杂区）；复杂区维持现状。
+  - 后端 health-demo 演示项目仍保留（6 类错误脚手架）。
+- 阶段 B 补强（2026-08-14）：修复进行中禁用所有修复相关操作。
+  - store.js 新增 `isHealthHealing` getter；`toggleHealthSelect`/`toggleHealthGroupSelect`/`runHealthCheck`/`copyLazyHealthPrompt` 在修复中忽略点击。
+  - `runHealthCheck({force:true})` 供修复成功后的内部自动重查绕过守卫。
+  - index.html：勾选/全选/组头按钮/重新检查/开始检查/再次体检/lazy 按钮在 `isHealthHealing` 时 disabled。
+  - 全选框 indeterminate 改用 `x-effect`（原 `:indeterminate.prop` 在 Alpine 未生效，已修正）。
+  - 测试：补 6 用例（REST body 断言 / 自动重查 / 弹窗复制 prompt / 全选 indeterminate / 端到端闭环 / 修复中禁用）。
+- 阶段 B 交付前补充（2026-08-14）：
+  - `_writeClipboard` 改为同步手势栈优先 execCommand（修复非 https/file:// 下复制失败）。
+  - `.btn-lazy-ai` 垂直 padding 对齐 `--space-2`（与重新检查按钮同高 36px）。
+  - `.issue-group__action` 圆角统一 `--radius-md`（8px，替代 `.btn--sm` 的 4px）。
+  - 进入页面/重查后默认全选可修复分组（`healthSelectAllFixable`，在 loadHealthSaved/runHealthCheck 调用）。
+  - health-demo 重置为完整 6 类（position/metadata/index/ref/illegal/system 各≥1）。
+- 测试：`tests/frontend/test_health.py`（41 用例）+ `test_smoke.py` 22 用例回归通过 = 63 全绿
 
 ---
 

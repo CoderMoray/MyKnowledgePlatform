@@ -1823,19 +1823,29 @@
   gap: 4px;
   padding: 2px 8px;
   border-radius: 10px;
-  background: var(--bg-tertiary);
+  background: var(--accent-subtle); /* 有数字时 accent 色，与 tag--accent 一致 */
   font-size: var(--text-2xs);
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--accent);
   white-space: nowrap;
 }
-.health-chip__label { color: var(--text-tertiary); }
+.health-chip__label { color: var(--accent); opacity: 0.75; }
 .health-chip__count {
-  color: var(--text-primary);
+  color: var(--accent);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.health-chip--zero { opacity: 0.4; }
+/* 数据为 0 时灰色弱化 */
+.health-chip--zero {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+.health-chip--zero .health-chip__label,
+.health-chip--zero .health-chip__count {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
 
 /* 上次检查时间 */
 .health-generated {
@@ -1960,4 +1970,73 @@
   width: 13px;
   height: 13px;
   flex-shrink: 0;
+}
+
+/* ── 阶段 B：非复杂分组修复交互 ───────────────────────────────────────── */
+
+/* 勾选框（非复杂分组 issue 行头部 + 组头全选框） */
+.issue-checkbox {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* 已勾选 issue 行高亮（与分享弹窗选中态一致） */
+.issue-row.is-checked {
+  background: var(--accent-subtle);
+}
+
+/* 组头单按钮（position/index/system） */
+.health-group__actions {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.issue-group__action {
+  white-space: nowrap;
+  flex-shrink: 0;
+  /* 圆角与页面其他按钮统一（--radius-md=8px，替代 .btn--sm 的 --radius-sm=4px） */
+  border-radius: var(--radius-md);
+}
+.issue-group__action:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* lazy 按钮「我懒得看了，交给 AI 吧」（weak 于主按钮，secondary 透明底 accent 字） */
+.btn-lazy-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* 垂直 padding 对齐 .btn(--space-2=8px)，保证与重新检查按钮同高 */
+  padding: var(--space-2) 14px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-interactive);
+  white-space: nowrap;
+}
+.btn-lazy-ai:hover { background: var(--accent-subtle); }
+.btn-lazy-ai:disabled { opacity: 0.45; pointer-events: none; }
+.btn-lazy-ai svg { width: 14px; height: 14px; }
+
+/* 修复确认弹窗内：勾选项 path 列表 */
+.fix-modal__paths {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  max-height: 140px;
+  overflow-y: auto;
 }

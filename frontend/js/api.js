@@ -260,9 +260,21 @@ const api = {
     return apiRequest("/api/diagnose/saved");
   },
 
-  /** 重新体检：真算 + 写结果文件，返回 {issues, summary} */
+  /** 重新体检：真算 + 写结果文件，返回 {issues, summary, generated_at} */
   async getDiagnose() {
     return apiRequest("/api/diagnose");
+  },
+
+  /* ── 结构体检 · 修复 API（阶段 B） ─────────────────────────────────── */
+
+  /** 移动孤儿文档到同级 common-knowledge；body {paths} → {moved, failed} */
+  async healMove(paths) {
+    return apiRequest("/api/heal/move", { method: "POST", body: JSON.stringify({ paths }) });
+  },
+
+  /** 重建受影响层 readme 索引 + project-status；body {all:true} → {rebuilt, project_status} */
+  async healRebuild() {
+    return apiRequest("/api/heal/rebuild", { method: "POST", body: JSON.stringify({ all: true }) });
   },
 
   /* ── 身份 API ────────────────────────────────────────────────────────── */
