@@ -2025,6 +2025,14 @@
 .btn-lazy-ai:disabled { opacity: 0.45; pointer-events: none; }
 .btn-lazy-ai svg { width: 14px; height: 14px; }
 
+/* 修复确认弹窗内：小描述分两行 */
+.fix-modal__desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.5;
+}
+
 /* 修复确认弹窗内：勾选项 path 列表 */
 .fix-modal__paths {
   display: flex;

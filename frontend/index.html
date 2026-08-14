@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=ea70ae3cd3" />
+  <link rel="stylesheet" href="css/components.css?v=24858a5e32" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -1622,9 +1622,10 @@
           <div x-show="$store.app.healthFixPathsPreview.folded > 0"
                x-text="'… 等 ' + $store.app.healthFixPathsPreview.folded + ' 项'"></div>
         </div>
-        <p class="modal__description">
-          确认后执行并自动重新检查。若你不确定该怎么做，点「复制 prompt」把问题交给 AI。
-        </p>
+        <div class="modal__description fix-modal__desc">
+          <div>确认后执行并自动重新检查。</div>
+          <div>若你不确定该怎么做，点「复制 prompt」把问题交给 AI。</div>
+        </div>
         <div class="modal__actions">
           <button class="btn" @click="$store.app.copyHealthFixPrompt()"
                   :disabled="$store.app.healthHealingGroup || $store.app.isLocked">
