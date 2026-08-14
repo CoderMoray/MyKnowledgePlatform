@@ -22,6 +22,10 @@ let _tocCollapsedSet = {};
     /** 是否正在加载 */
     loading: true,
 
+    /** 文档内容加载中（loadDocument 请求在途）：区分「加载中」与「空文档/错误」占位
+     *  不并入全局 loading——loading 只用于首次 splash，SPA 内导航触发会误弹 splash */
+    docPending: false,
+
     /** 错误信息 */
     error: null,
 
@@ -793,6 +797,7 @@ let _tocCollapsedSet = {};
       // 前者在途时 document 仍为空 → 兜底条件成立 → 一次导航发 2 轮完整请求）
       if (this._loadingDocPath === path) return;
       this._loadingDocPath = path;
+      this.docPending = true;
       this.error = null;
       try {
         // 双 API：getDocument 取纯净内容+meta，getDocumentWithRefs 只取 refs
@@ -838,7 +843,10 @@ let _tocCollapsedSet = {};
           location.replace("#doc/" + String(dd.redirect_to).replace(/\//g, "%2F"));
           return;
         }
-        this.error = err.message || "加载文档失败";
+        this.error =
+          err && err.status === 404 && err.message !== "deleted"
+            ? "文档不存在或无法加载" // 真 404：友好文案（deleted 语义走下方 deletedInfo 分支）
+            : (err.message || "加载文档失败");
         this.document = null;
         this.htmlContent = "";
         this.refs = [];
@@ -852,6 +860,7 @@ let _tocCollapsedSet = {};
       } finally {
         // 仅当没有更新请求覆盖时才清除标记（快速连续切文档：A 在途时切 B → 标记是 B）
         if (this._loadingDocPath === path) this._loadingDocPath = null;
+        this.docPending = false;
       }
     },
 

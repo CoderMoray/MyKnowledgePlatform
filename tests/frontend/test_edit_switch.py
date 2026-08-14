@@ -712,3 +712,17 @@ class TestBatch3:
         assert MARKER not in shown_body(page), "快速切换后残留 main 内容"
         assert shown_title(page) in ("test-edit-auto-same", "test-edit-auto-target")
         assert_backend_content(DOC_MAIN, MARKER)
+
+    def test_s27_open_nonexistent_doc_shows_error_not_empty(self, static_server, test_docs, page):
+        """S27 打开从不存在的文档 → 显示错误态「文档不存在或无法加载」（loading-state），
+        不误显示空文档占位（回归：loadDocument 期间 docPending=false 曾把「加载中」误判为空文档）"""
+        page.goto(f"{static_server}#doc/{urllib.parse.quote('common-knowledge/zzz-never-exists-20260814.md', safe='/')}")
+        page.wait_for_timeout(2500)
+        # 真 404 → error 非空 → 可见的错误态 loading-state 显示友好文案（deletedInfo 为 null，走 error 分支）
+        err_state = page.locator(".loading-state:visible")
+        assert err_state.count() >= 1, "真 404 应显示可见的错误态 loading-state"
+        assert "文档不存在或无法加载" in err_state.first.inner_text(), \
+            f"错误态应显示友好文案，实际: {err_state.first.inner_text()[:40]!r}"
+        # 「加载中…」与空文档占位均不应显示（docPending 已清 + error 非空）
+        empty = page.locator(".viewer--empty:visible")
+        assert empty.count() == 0, "不应有可见的空文档/加载中占位"

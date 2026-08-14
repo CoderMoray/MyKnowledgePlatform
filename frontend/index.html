@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=47da33d0a7"></script>
+  <script src="js/store.js?v=00c6469e20"></script>
   <script src="js/router.js?v=2ed83b02dd"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -940,9 +940,15 @@
             </div>
           </article>
 
-          <!-- 空文档 -->
+          <!-- 文档加载中（loadDocument 在途：与「空文档/错误」占位区分，避免误显示「文档不存在」） -->
+          <div class="viewer--empty" x-cloak
+               x-show="!$store.app.loading && $store.app.docPending && !$store.app.document">
+            <p class="viewer--empty__text">加载中…</p>
+          </div>
+
+          <!-- 空文档（真空：无加载、无数据、无错误） -->
           <div class="viewer--empty"
-               x-show="!$store.app.loading && !$store.app.document && !$store.app.error">
+               x-show="!$store.app.loading && !$store.app.docPending && !$store.app.document && !$store.app.error">
             <svg class="viewer--empty__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1">
               <path d="M3 2h7l3 3v9H3V2z"/>
             </svg>
