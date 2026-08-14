@@ -1159,6 +1159,88 @@ def api_diagnose_saved():
 
 
 # ══════════════════════════════════════════════════════════════
+#  Heal (frontend 一键修复：move 孤儿文档 + rebuild 索引)
+# ══════════════════════════════════════════════════════════════
+
+
+class HealMovePayload(BaseModel):
+    paths: list[str]
+    target_rel: str = ""
+
+
+@app.post("/api/heal/move")
+def api_heal_move(payload: HealMovePayload):
+    """Move orphan documents into a ``common-knowledge/`` directory.
+
+    Calls the same shared ``move_document`` used by the
+    ``maint__move_document`` MCP tool (single kernel).  Each path is moved
+    individually; a failure on one does not abort the others.
+
+    Body: ``{"paths": [...], "target_rel"?: "<目标目录，缺省=同级 common-knowledge>"}``
+
+    Returns ``{"moved": [<新路径>], "failed": [{"path":..., "error":...}]}``.
+    """
+    from backend.mcp_server import move_document, _peer_ck_dir
+    storage, _gen = get_storage()
+    moved: list[str] = []
+    failed: list[dict] = []
+    for src in payload.paths:
+        dst_dir = payload.target_rel or _peer_ck_dir(src)
+        dst = f"{dst_dir}/{src.split('/')[-1]}"
+        try:
+            move_document(storage, src, dst)
+            moved.append(dst)
+        except Exception as exc:  # noqa: BLE001 — 部分失败需标记而非整体 500
+            failed.append({"path": src, "error": str(exc)})
+    return {"moved": moved, "failed": failed}
+
+
+class HealRebuildPayload(BaseModel):
+    layers: list[str] = []
+    all: bool = False
+
+
+@app.post("/api/heal/rebuild")
+def api_heal_rebuild(payload: HealRebuildPayload):
+    """Rebuild readme index layers and project-status.
+
+    Merges the ``rebuild_index`` and ``rebuild`` actions (both re-create the
+    readme/system index).  ``layers`` lists the affected project layers
+    (``""`` for root); ``all: True`` rebuilds every project layer recursively.
+
+    Returns ``{"rebuilt": [<层>], "project_status": true}``.
+    """
+    storage, gen = get_storage()
+    rebuilt: list[str] = []
+
+    layers: list[str] = list(payload.layers)
+    if payload.all or not layers:
+        # collect every project layer (root + recursive projects/archive)
+        def _collect(container: str, out: list[str]) -> None:
+            for e in storage.list_children(container):
+                if not e.is_dir:
+                    continue
+                layer = f"{container}/{e.name}"
+                out.append(layer)
+                if storage.path_exists(f"{layer}/projects"):
+                    _collect(f"{layer}/projects", out)
+        layers = [""]
+        _collect("projects", layers)
+        _collect("archive", layers)
+
+    for layer in layers:
+        # 项目层先于根层重建（根 readme 读取项目摘要）
+        if layer and gen is not None:
+            gen.rebuild(layer)
+            rebuilt.append(layer)
+    if gen is not None:
+        gen.rebuild("")
+        rebuilt.append("")
+        gen.rebuild_project_status()
+    return {"rebuilt": rebuilt, "project_status": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Identity (读/写 ~/.myknowledge/config.yaml)
 # ══════════════════════════════════════════════════════════════
 

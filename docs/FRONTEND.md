@@ -182,6 +182,8 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | POST | `/api/check` | 完整性检查 + GC |
 | GET | `/api/diagnose` | 知识库结构诊断（只读 JSON，结果写入 KB 根 `.diagnose-result.json`） |
 | GET | `/api/diagnose/saved` | 读取上次诊断结果（读/算分离；无结果或损坏返回 `{saved: false}`） |
+| POST | `/api/heal/move` | 批量移动孤儿文档到同级 `common-knowledge/`（body: `{paths, target_rel?}`）→ `{moved, failed}` |
+| POST | `/api/heal/rebuild` | 重建 readme 索引层 + project-status（body: `{layers?, all?}`）→ `{rebuilt, project_status}` |
 
 ## 可编辑字段清单
 

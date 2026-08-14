@@ -380,6 +380,124 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
             release_lock(storage)
 
 
+def _peer_ck_dir(path: str) -> str:
+    """Return the sibling ``common-knowledge/`` directory of a document path.
+
+    The default heal target for an orphan doc: its own project's
+    ``common-knowledge/`` (or the root ``common-knowledge/`` for a root doc).
+    """
+    parent = _parent_rel(path)
+    if parent == "":
+        return "common-knowledge"
+    return f"{parent}/common-knowledge"
+
+
+def move_document(storage: Storage, src_rel: str, dst_rel: str) -> str:
+    """Move a document to a new path, possibly in a different directory.
+
+    Reuses :func:`rename_document`'s capabilities — ``ref:`` link replacement,
+    parent readme rebuild, project-status rebuild, S15 rename mapping
+    (``record_rename``), write lock, and ``_validate_path`` on the destination.
+    Unlike ``rename_document`` (same-directory rename only), ``dst_rel`` may
+    live in a different directory (e.g. an orphan doc moved into its peer
+    ``common-knowledge/``).
+
+    Lock is guaranteed released via ``finally`` even on error.
+    """
+    import shutil, re
+
+    if dst_rel == src_rel:
+        raise ValueError("源与目标路径相同，无需移动。")
+    # 源：仅做「安全」校验（防穿越/绝对路径/超界），不做结构校验——因为源可能正是
+    # 待修复的孤儿文档（结构上不合法，如 projects/P/x.md），结构校验会误拒绝它。
+    _validate_read_path(src_rel)
+    if not src_rel.endswith(".md") or src_rel.rsplit("/", 1)[-1] == "readme.md":
+        raise ValueError("源必须是普通 .md 文档（不能是 readme.md 系统文件）。")
+    # 目标：完整结构校验（目标必须是合法文档路径，位于 common-knowledge/ 文档区）。
+    _validate_path(dst_rel, kind="file")  # dst 尚未落盘，仅格式校验
+    # 目标 basename 必须是单个合法段（无分隔符/穿越/readme.md/超长）。
+    _check_rename_name(dst_rel.split("/")[-1])
+    # 目标所在目录必须是合法容器目录。
+    dst_dir = dst_rel.rsplit("/", 1)[0] if "/" in dst_rel else ""
+    if dst_dir:
+        _validate_path(dst_dir, kind="dir")
+
+    should_release = _lock_enter(storage)
+    try:
+        old_path = storage.kb_root / src_rel
+        if not old_path.is_file():
+            raise FileNotFoundError(f"文件不存在: {src_rel}")
+        new_path = storage.kb_root / dst_rel
+        if new_path.exists():
+            raise FileExistsError(f"目标文件已存在: {dst_rel}")
+
+        # 确保目标目录存在后移动。
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old_path), str(new_path))
+
+        # S15 rename 映射（旧 URL/历史重定向）。best-effort，失败不阻塞。
+        from backend.renames import record_rename
+        record_rename(storage, src_rel, dst_rel)
+
+        committed_files = {str(new_path)}
+
+        # 替换 ref: 链接（精确路径匹配，覆盖空格原文与 %20 两种落盘形式）。
+        old_escaped = re.escape(src_rel)
+        old_escaped_pct = re.escape(src_rel.replace(" ", "%20"))
+        new_rel_pct = dst_rel.replace(" ", "%20")
+        pattern = re.compile(
+            r'(ref:)(?:' + old_escaped + r'|' + old_escaped_pct + r')(?=[\): ]|$)')
+        for md_file in storage.kb_root.rglob("*.md"):
+            if any(p.startswith(".") for p in md_file.parts):
+                continue
+            text = md_file.read_text(encoding="utf-8")
+            if src_rel in text or src_rel.replace(" ", "%20") in text:
+                updated = pattern.sub(r'\g<1>' + new_rel_pct, text)
+                if updated != text:
+                    md_file.write_text(updated, encoding="utf-8")
+                    committed_files.add(str(md_file))
+        for refs_dir in storage.kb_root.rglob("_refs"):
+            for md_file in refs_dir.rglob("*.md"):
+                text = md_file.read_text(encoding="utf-8")
+                if src_rel in text or src_rel.replace(" ", "%20") in text:
+                    updated = pattern.sub(r'\g<1>' + new_rel_pct, text)
+                    if updated != text:
+                        md_file.write_text(updated, encoding="utf-8")
+                        committed_files.add(str(md_file))
+
+        # 重建受影响层：旧父层（readme 少了该文档）+ 新父层（readme 多了该文档）。
+        # 项目层先于根层重建（根 readme 读取项目 readme 摘要）。
+        from backend.readme_generator import ReadmeGenerator
+        template = storage.kb_root / "_templates" / "readme.md"
+        old_parent = _parent_rel(src_rel)
+        new_parent = _parent_rel(dst_rel)
+        if template.exists():
+            gen = ReadmeGenerator(storage=storage, template_path=template)
+            for layer in sorted({old_parent, new_parent}, key=lambda p: p == ""):
+                gen.rebuild(layer)
+            gen.rebuild_project_status()
+            committed_files.add(str(storage.kb_root / "readme.md"))
+            committed_files.add(str(storage.kb_root / "project-status.md"))
+
+        # Git commit（仅提交涉及文件；git 未初始化则跳过）。
+        from backend.git_manager import GitManager
+        try:
+            gm = GitManager(storage.kb_root)
+            file_args = sorted(f for f in committed_files if Path(f).is_file())
+            if file_args:
+                gm._run("add", "--", *file_args)
+                gm.commit(f"move: {src_rel} → {dst_rel}")
+            from backend.events import broadcast as _evt
+            _evt(storage.kb_root)
+        except Exception:
+            pass
+
+        return f"✓ 已移动: {src_rel} → {dst_rel}"
+    finally:
+        if should_release:
+            release_lock(storage)
+
+
 def delete_project(storage: Storage, project_rel: str) -> str:
     """Permanently delete a project directory and all its contents.
 
@@ -1980,6 +2098,29 @@ def create_mcp_app(storage: Storage,
         """
         from backend.share import import_share as _import
         return _import(storage, file_path, sharer_email=sharer_email)
+
+    @mcp.tool()
+    def maint__move_document(path: str,
+                             target_rel: str = "") -> str:
+        """[maint] Move a document to a new directory (cross-directory).
+
+        Fixes ``position`` issues (orphan docs not under ``common-knowledge/``)
+        by moving a document into its peer ``common-knowledge/`` directory.
+        Unlike ``write__rename_document`` (same-directory rename), this moves
+        across directories and rewrites ``ref:`` links + rebuilds indexes.
+
+        Args:
+            path:        Source document path, e.g. ``"projects/以旧换新/x.md"``.
+            target_rel:  Target directory, e.g. ``"projects/以旧换新/common-knowledge"``.
+                         Leave empty to default to the sibling
+                         ``common-knowledge/`` of ``path`` (its peer).
+        Returns:
+            Confirmation message.
+        """
+        from backend.mcp_server import move_document, _peer_ck_dir
+        dst_dir = target_rel or _peer_ck_dir(path)
+        dst_rel = f"{dst_dir}/{path.split('/')[-1]}"
+        return move_document(storage, path, dst_rel)
 
     @mcp.tool()
     def maint__rebuild_index(project_rel: str = "") -> str:
