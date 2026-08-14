@@ -53,6 +53,41 @@ class TestGitManagerCommit:
         assert h1 != h2
 
 
+class TestGitManagerPreciseCommit:
+    """commit(paths=...) must stage only the specified files."""
+
+    def test_paths_commits_only_specified_files(self, git_manager: GitManager,
+                                                tmp_path: Path) -> None:
+        (tmp_path / "a.md").write_text("a")
+        (tmp_path / "b.md").write_text("b")
+        # commit only a.md
+        h = git_manager.commit("precise", paths=[str(tmp_path / "a.md")])
+        assert h is not None
+        # a.md committed, b.md left uncommitted (untracked)
+        assert git_manager.has_uncommitted_changes()
+        status = git_manager._run("status", "--porcelain")
+        assert "b.md" in status
+        assert "a.md" not in status
+
+    def test_paths_stages_deletion(self, git_manager: GitManager,
+                                   tmp_path: Path) -> None:
+        (tmp_path / "f.md").write_text("x")
+        git_manager.commit("baseline")
+        # delete the file, then precise-commit the deletion via its path
+        (tmp_path / "f.md").unlink()
+        h = git_manager.commit("delete", paths=[str(tmp_path / "f.md")])
+        assert h is not None
+        assert not git_manager.has_uncommitted_changes()
+
+    def test_no_paths_commits_everything(self, git_manager: GitManager,
+                                         tmp_path: Path) -> None:
+        (tmp_path / "a.md").write_text("a")
+        (tmp_path / "b.md").write_text("b")
+        h = git_manager.commit("full")
+        assert h is not None
+        assert not git_manager.has_uncommitted_changes()
+
+
 class TestGitManagerDiff:
     def test_diff_between_commits(self, git_manager: GitManager, tmp_path: Path) -> None:
         (tmp_path / "f.md").write_text("line1\nline2\n")

@@ -328,9 +328,15 @@ def _post_import(storage, project_name: str) -> None:
         gen.rebuild(f"projects/{project_name}")
         gen.rebuild("")
         gen.rebuild_project_status()
+    # 精准提交：导入的项目目录（整棵，含新增 .md/readme）+ 根 readme + project-status。
+    import_paths = [str(storage.kb_root / "projects" / project_name)]
+    for f in [storage.kb_root / "readme.md",
+              storage.kb_root / "project-status.md"]:
+        if f.exists():
+            import_paths.append(str(f))
     try:
         gm = GitManager(storage.kb_root)
-        gm.commit(f"import: {project_name}")
+        gm.commit(f"import: {project_name}", paths=import_paths)
     except Exception:
         pass
 

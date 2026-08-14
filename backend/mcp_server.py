@@ -220,8 +220,9 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
     # ── 3. Move directory ────────────────────────────────
     shutil.move(str(old_dir), str(new_dir))
 
-    # Files to track for git commit (start with the moved dir)
-    committed_files = set()
+    # Files to track for git commit (start with the moved dir).
+    # old_dir path included so git add -A -- paths stages the directory's deletion.
+    committed_files = {str(old_dir)}
     for f in new_dir.rglob("*"):
         if f.is_file():
             committed_files.add(str(f))
@@ -275,12 +276,15 @@ def rename_project(storage: Storage, old_rel: str, new_name: str) -> str:
             if f.exists():
                 committed_files.add(str(f))
 
-    # ── 8. Git commit (specific files only, skip if no repo) ──
+    # ── 8. Git commit (precise: only this rename's files, skip if no repo) ──
     try:
-        file_args = sorted(f for f in committed_files if Path(f).is_file())
+        # 精准提交：现有文件 + 旧目录路径（git add -A -- 用目录路径暂存其删除）。
+        file_args = sorted(
+            f for f in committed_files
+            if Path(f).is_file() or f == str(old_dir))
         if file_args:
-            gm._run("add", "--", *file_args)
-            gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}")
+            gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}",
+                      paths=file_args)
         from backend.events import broadcast as _evt
         _evt(storage.kb_root)
     except Exception:
@@ -320,7 +324,8 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
         from backend.renames import record_rename
         record_rename(storage, old_rel, new_rel)
 
-        committed_files = {str(new_path)}
+        # 目标（新增/修改）+ 源（删除，供 git add -A -- paths 暂存删除）。
+        committed_files = {str(new_path), str(old_path)}
 
         # Replace ref: links (exact path match only)
         # S16: 覆盖空格原文与 %20 编码两种落盘形式；替换值用 %20 编码统一规范。
@@ -361,14 +366,17 @@ def rename_document(storage: Storage, old_rel: str, new_name: str) -> str:
             committed_files.add(str(storage.kb_root / "readme.md"))
             committed_files.add(str(storage.kb_root / "project-status.md"))
 
-        # Git commit
+        # Git commit (precise: only this rename's files + deleted source)
         from backend.git_manager import GitManager
         try:
             gm = GitManager(storage.kb_root)
-            file_args = sorted(f for f in committed_files if Path(f).is_file())
+            # 现有文件 + 旧源路径（已删除，供 git add -A -- 暂存其删除）。
+            file_args = sorted(
+                f for f in committed_files
+                if Path(f).is_file() or f == str(old_path))
             if file_args:
-                gm._run("add", "--", *file_args)
-                gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}")
+                gm.commit(f"rename: {old_rel.split('/')[-1]} → {new_name}",
+                          paths=file_args)
             from backend.events import broadcast as _evt
             _evt(storage.kb_root)
         except Exception:
@@ -439,7 +447,8 @@ def move_document(storage: Storage, src_rel: str, dst_rel: str) -> str:
         from backend.renames import record_rename
         record_rename(storage, src_rel, dst_rel)
 
-        committed_files = {str(new_path)}
+        # 目标（新增）+ 源（删除，供 git add -A -- 暂存删除）。
+        committed_files = {str(new_path), str(old_path)}
 
         # 替换 ref: 链接（精确路径匹配，覆盖空格原文与 %20 两种落盘形式）。
         old_escaped = re.escape(src_rel)
@@ -475,18 +484,24 @@ def move_document(storage: Storage, src_rel: str, dst_rel: str) -> str:
             gen = ReadmeGenerator(storage=storage, template_path=template)
             for layer in sorted({old_parent, new_parent}, key=lambda p: p == ""):
                 gen.rebuild(layer)
+                layer_readme = storage.kb_root / (f"{layer}/readme.md" if layer
+                                                  else "readme.md")
+                if layer_readme.exists():
+                    committed_files.add(str(layer_readme))
             gen.rebuild_project_status()
             committed_files.add(str(storage.kb_root / "readme.md"))
             committed_files.add(str(storage.kb_root / "project-status.md"))
 
-        # Git commit（仅提交涉及文件；git 未初始化则跳过）。
+        # Git commit（精准提交本次 move 涉及文件；git 未初始化则跳过）。
         from backend.git_manager import GitManager
         try:
             gm = GitManager(storage.kb_root)
-            file_args = sorted(f for f in committed_files if Path(f).is_file())
+            # 现有文件 + 源路径（已删除，供 git add -A -- 暂存其删除）。
+            file_args = sorted(
+                f for f in committed_files
+                if Path(f).is_file() or f == str(old_path))
             if file_args:
-                gm._run("add", "--", *file_args)
-                gm.commit(f"move: {src_rel} → {dst_rel}")
+                gm.commit(f"move: {src_rel} → {dst_rel}", paths=file_args)
             from backend.events import broadcast as _evt
             _evt(storage.kb_root)
         except Exception:
@@ -566,10 +581,12 @@ def delete_project(storage: Storage, project_rel: str) -> str:
     # ── 4. Git commit ────────────────────────────────────
     try:
         committed_files.add(str(kb_root / project_rel))  # track deletion
-        if committed_files:
-            gm._run("add", "--", *sorted(str(f) for f in committed_files if Path(f).is_file()))
-            gm._run("add", "--all", str(kb_root))  # ensure deletions tracked
-            gm.commit(f"delete(trash): {project_rel}")
+        # 用 git add -A -- <pathspec> 精准提交：项目目录（含删除）+ trash + 索引文件。
+        # pathspec 里的目录路径即使已不存在，-A 仍会暂存其删除。
+        pathspecs = sorted(
+            str(f) for f in committed_files
+            if Path(f).is_file() or str(f).endswith(project_rel))
+        gm.commit(f"delete(trash): {project_rel}", paths=pathspecs)
         from backend.events import broadcast as _evt
         _evt(kb_root)
     except Exception:
@@ -638,7 +655,8 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
     # ── 2. Move directory ────────────────────────────────
     shutil.move(str(old_dir), str(new_dir))
 
-    committed_files = set()
+    # 旧目录路径计入，供 git add -A -- 暂存其删除。
+    committed_files = {str(old_dir)}
     for f in new_dir.rglob("*"):
         if f.is_file():
             committed_files.add(str(f))
@@ -707,10 +725,12 @@ def move_project(storage: Storage, project_rel: str, target_parent_rel: str) -> 
 
     # ── 6. Git commit ────────────────────────────────────
     try:
-        file_args = sorted(f for f in committed_files if Path(f).is_file())
+        # 精准提交：现有文件 + 旧目录路径（git add -A -- 用目录路径暂存其删除）。
+        file_args = sorted(
+            f for f in committed_files
+            if Path(f).is_file() or f == str(old_dir))
         if file_args:
-            gm._run("add", "--", *file_args)
-            gm.commit(f"move: {project_rel} → {new_rel}")
+            gm.commit(f"move: {project_rel} → {new_rel}", paths=file_args)
         from backend.events import broadcast as _evt
         _evt(storage.kb_root)
     except Exception:
@@ -1128,12 +1148,17 @@ def _validate_project_rel(project_rel: str, storage: object) -> None:
         raise ValueError(str(exc)) from exc
 
 
-def _git_commit(kb_root: Path, message: str) -> None:
-    """Helper: git commit (no-op if git is not initialized)."""
+def _git_commit(kb_root: Path, message: str,
+                paths: Optional[list[str]] = None) -> None:
+    """Helper: git commit (no-op if git is not initialized).
+
+    *paths* is a precise file list (staged only); when ``None`` the commit is
+    full ``git add -A`` (used by callers that intentionally commit everything).
+    """
     from backend.git_manager import GitManager
     gm = GitManager(kb_root)
     try:
-        gm.commit(message)
+        gm.commit(message, paths=paths)
     except Exception:
         pass  # non-fatal for MCP tools
 
@@ -1161,7 +1186,15 @@ def _auto_archive(parent_rel: str, storage: Storage, gen: object) -> None:
     shutil.move(str(src), str(dst))
     gen.rebuild("")   # type: ignore[union-attr]
     gen.rebuild_project_status()   # type: ignore[union-attr]
-    _git_commit(storage.kb_root, f"archive: {project_name} → {meta.get('status', '?')}")
+    # 精准提交：src（删除）+ dst（新增）+ 根 readme + project-status。
+    archive_paths = [str(src), str(dst)]
+    for f in [storage.kb_root / "readme.md",
+              storage.kb_root / "project-status.md"]:
+        if f.exists():
+            archive_paths.append(str(f))
+    _git_commit(storage.kb_root,
+                f"archive: {project_name} → {meta.get('status', '?')}",
+                paths=archive_paths)
     from backend.events import broadcast as _evt
     _evt(storage.kb_root)
 
@@ -1396,15 +1429,28 @@ def create_mcp_app(storage: Storage,
     #  Write tools
     # ══════════════════════════════════════════════════════════
 
-    def _write_through(parent_rel: str, msg: str) -> None:
-        """Rebuild indices and commit. Auto-acquires lock on entry, releases on exit."""
+    def _write_through(parent_rel: str, msg: str,
+                       doc_path: str = "") -> None:
+        """Rebuild indices and commit. Auto-acquires lock on entry, releases on exit.
+
+        *doc_path* (the document just written / deleted) is committed precisely
+        alongside the rebuilt parent readme + project-status — unrelated
+        working-tree files are never swept into the commit.
+        """
         if gen is None:
             return
         should_release = _lock_enter(storage)
         try:
             gen.rebuild(parent_rel)               # type: ignore[union-attr]
             gen.rebuild_project_status()          # type: ignore[union-attr]
-            _git_commit(storage.kb_root, msg)
+            paths = []
+            if doc_path:
+                paths.append(str(storage.kb_root / doc_path))
+            for f in [storage.kb_root / "readme.md",
+                      storage.kb_root / "project-status.md"]:
+                if f.exists():
+                    paths.append(str(f))
+            _git_commit(storage.kb_root, msg, paths=paths or None)
 
             # ── Auto-archive: non-active projects move to archive/ ──
             if parent_rel.startswith("projects/") and gen is not None:
@@ -1522,7 +1568,7 @@ def create_mcp_app(storage: Storage,
         _attach_identity(meta, is_new=True)
         written = storage.write_document(path, meta, content)
         parent_rel = _parent_rel(path)
-        _write_through(parent_rel, f"create: {path}")
+        _write_through(parent_rel, f"create: {path}", doc_path=path)
         msg = f"✅ 已创建 {path} → id: {written['id']}"
         if ref_warnings:
             msg += "\n" + "\n".join(ref_warnings)
@@ -1588,7 +1634,7 @@ def create_mcp_app(storage: Storage,
         written = storage.write_document(path, new_meta, new_body,
                                          auto_id=False)
         parent_rel = _parent_rel(path)
-        _write_through(parent_rel, f"update: {path}")
+        _write_through(parent_rel, f"update: {path}", doc_path=path)
         msg = written.get("id", "")
         if ref_warnings:
             msg += "\n以下警告仅针对本次改动引入的引用（原有引用不受影响）："
@@ -1642,7 +1688,14 @@ def create_mcp_app(storage: Storage,
                 rebuild_rel = parent
             gen.rebuild(rebuild_rel)                         # type: ignore[union-attr]
             gen.rebuild_project_status()                     # type: ignore[union-attr]
-            _git_commit(storage.kb_root, f"meta: {project_rel}")
+            # 精准提交：本项目 readme + 父层 readme + project-status。
+            meta_paths = [str(storage.kb_root / readme_path)]
+            for f in [storage.kb_root / "readme.md",
+                      storage.kb_root / "project-status.md"]:
+                if f.exists():
+                    meta_paths.append(str(f))
+            _git_commit(storage.kb_root, f"meta: {project_rel}",
+                        paths=meta_paths)
 
         if should_release:
             release_lock(storage)
@@ -1671,7 +1724,7 @@ def create_mcp_app(storage: Storage,
         try:
             trash_rel = move_doc_to_trash(storage, path)
             parent_rel = _parent_rel(path)
-            _write_through(parent_rel, f"delete(trash): {path}")
+            _write_through(parent_rel, f"delete(trash): {path}", doc_path=path)
             return f"✓ 已移入垃圾箱: {path} → {trash_rel}（30 天内可恢复）"
         finally:
             if should_release:

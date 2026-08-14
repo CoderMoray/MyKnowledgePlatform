@@ -154,7 +154,37 @@ class TestMoveDocument:
                           "projects/P/common-knowledge/ghost.md")
 
 
-# ── maint__move_document (MCP tool) ────────────────────────────
+# ── precise git commit (unrelated files stay uncommitted) ──────
+
+class TestPreciseCommit:
+    def test_move_does_not_sweep_unrelated_dirty_file(
+            self, storage: Storage, gen, tmp_kb_root: Path) -> None:
+        """move_document commits only its involved files, not an unrelated dirty file."""
+        from backend.git_manager import GitManager
+        gm = GitManager(tmp_kb_root)
+        gm.init()
+        gm.commit("init")
+
+        _mk_ck(storage, "P")
+        src = _mk_orphan(storage, "P", "x.md")
+        dst = "projects/P/common-knowledge/x.md"
+        # unrelated dirty file, present but not part of the move
+        unrelated = tmp_kb_root / "common-knowledge" / "unrelated.md"
+        unrelated.parent.mkdir(parents=True, exist_ok=True)
+        unrelated.write_text("# unrelated", encoding="utf-8")
+
+        move_document(storage, src, dst)
+
+        # the unrelated file must still be uncommitted after the move commit
+        assert gm.has_uncommitted_changes()
+        # use -uall so git lists each untracked file explicitly (no dir collapsing)
+        status = gm._run("status", "--porcelain", "--untracked-files=all")
+        assert "common-knowledge/unrelated.md" in status
+        # the moved doc + rebuilt indexes were committed (not dirty)
+        assert "projects/P/common-knowledge/x.md" not in status
+        assert "projects/P/readme.md" not in status
+        assert "readme.md" not in status
+
 
 class TestMaintMoveDocument:
     def test_mcp_default_peer_target(self, app, storage: Storage, gen) -> None:

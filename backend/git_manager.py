@@ -105,13 +105,50 @@ class GitManager:
 
     # ── commit ───────────────────────────────────────────────
 
-    def commit(self, message: str) -> Optional[str]:
-        """``git add -A`` + ``git commit``.
+    def _filter_commit_paths(self, paths: list[str]) -> list[str]:
+        """Keep only *paths* that git can stage without aborting the command.
+
+        ``git add -A -- <pathspec>`` fails fatally if any pathspec matches no
+        file — including a pathspec for a file that was never tracked and has
+        since been deleted.  We keep paths that exist on disk (adds/mods) or
+        are tracked in git (deleted-but-tracked, so their deletion is staged);
+        deleted-and-never-tracked paths are dropped (git has nothing to do).
+        """
+        existing = [p for p in paths if Path(p).exists()]
+        deleted = [p for p in paths if not Path(p).exists()]
+        if not deleted:
+            return existing
+        try:
+            # -z: NUL-delimited, avoids git's C-quoting of non-ASCII/space paths.
+            tracked_rel = {
+                t for t in self._run("ls-files", "-z", "--", *deleted).split("\0")
+                if t}
+        except GitError:
+            return existing
+        tracked_abs = {str((self.repo / t).resolve()) for t in tracked_rel}
+        return existing + [
+            p for p in deleted if str(Path(p).resolve()) in tracked_abs]
+
+    def commit(self, message: str,
+               paths: Optional[list[str]] = None) -> Optional[str]:
+        """``git add`` + ``git commit``.
+
+        When *paths* is provided, **only** those paths are staged (precise
+        commit: ``git add -A -- <paths>`` stages additions/modifications/
+        deletions within the pathspec, never unrelated working-tree files).
+        When *paths* is ``None``, falls back to ``git add -A`` (full commit)
+        for init / whole-repo scenarios.
 
         Returns the commit hash, or ``None`` if nothing to commit.
         Raises ``GitError`` on failure.
         """
-        self._run("add", "-A")
+        if paths:
+            paths = self._filter_commit_paths(paths)
+            if not paths:
+                return None
+            self._run("add", "-A", "--", *paths)
+        else:
+            self._run("add", "-A")
 
         status = self._run("status", "--porcelain")
         if not status:
