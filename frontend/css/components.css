@@ -2025,6 +2025,23 @@
 .btn-lazy-ai:disabled { opacity: 0.45; pointer-events: none; }
 .btn-lazy-ai svg { width: 14px; height: 14px; }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   阶段二 · 就绪信号（替换顶部 status-indicator）
+   容器复用 layout.css 的 .status-indicator/.status-indicator__dot，仅补语义色 + hover
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* 就绪信号状态点色（复用现有 status-dot 体系 + 语义色 token） */
+.status-indicator__dot--success { background: var(--color-success); }
+.status-indicator__dot--danger  { background: var(--color-danger); }
+.status-indicator__dot--warning { background: var(--color-warning); }
+.status-indicator__dot--muted   { background: var(--text-muted); }
+
+/* 就绪信号整体 hover（可点击进 #health） */
+.status-indicator--readiness { cursor: pointer; }
+.status-indicator--readiness:hover { background: var(--bg-secondary); }
+.status-indicator--readiness:hover .status-indicator__dot { transform: scale(1.15); }
+.status-indicator--readiness .status-indicator__dot { transition: transform 0.15s ease; }
+
 /* 修复确认弹窗内：小描述分两行 */
 .fix-modal__desc {
   display: flex;

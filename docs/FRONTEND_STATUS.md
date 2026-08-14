@@ -215,7 +215,15 @@
   - `.issue-group__action` 圆角统一 `--radius-md`（8px，替代 `.btn--sm` 的 4px）。
   - 进入页面/重查后默认全选可修复分组（`healthSelectAllFixable`，在 loadHealthSaved/runHealthCheck 调用）。
   - health-demo 重置为完整 6 类（position/metadata/index/ref/illegal/system 各≥1）。
-- 测试：`tests/frontend/test_health.py`（41 用例）+ `test_smoke.py` 22 用例回归通过 = 63 全绿
+- 阶段二完成（2026-08-15）：顶部就绪信号（替换 status-indicator）。
+  - 后端契约：`/api/events`（SSE 事件带 type："write"|"diagnose"）、`/api/diagnose/saved`、MCP 自检广播 type="diagnose"。
+  - 替换顶部 `status-indicator`（379-389 行）为就绪信号；`sidebar-footer__status`（301 行）保留 AI 状态不动。
+  - 三态（SPEC §3.5，等长文本）：健康「知识状态健康」绿 / 存疑「N 个知识存疑」(有high红·无high黄) / 未检查「尚未触发检查」灰。
+  - 可点击进 `#health`；hover 背景 `--bg-secondary` + 状态点 scale。
+  - 更新机制：首次进入读 saved 初始化；SSE 订阅只对 type="diagnose" 响应（重读 saved），type="write" 忽略；#health 点重新检查后本地刷新；后端离线降级灰。
+  - store.js：`readiness` 状态 + `readinessLabel/readinessDotClass/readinessTitle` getter + `loadReadiness/_syncReadinessFromHealth`。
+  - 新增类：`.status-indicator__dot--success/--danger/--warning/--muted` + `.status-indicator--readiness`（components.css，复用 token）。
+- 测试：`tests/frontend/test_health.py`（49 用例：A5 + 阶段 B + 阶段二就绪信号）+ `test_smoke.py` 22 用例回归通过 = 71 全绿
 
 ---
 

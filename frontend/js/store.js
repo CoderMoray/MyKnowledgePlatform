@@ -54,6 +54,11 @@ let _tocCollapsedSet = {};
     /** 阶段 B：lazy 按钮复制中标记 */
     healthLazyCopying: false,
 
+    /* ── 阶段二：就绪信号（顶部 status-indicator） ──────────────────────── */
+
+    /** 就绪信号数据：{ saved, total_issues, has_high }（saved 表示上次检查是否有结果） */
+    readiness: { saved: false, total_issues: 0, has_high: false },
+
     /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
     deletedInfo: null,
 
@@ -1121,7 +1126,17 @@ let _tocCollapsedSet = {};
       setInterval(() => this.checkMcpStatus(), 15000);
 
       // 订阅 SSE 实时更新
-      api.subscribeEvents(() => {
+      api.subscribeEvents((raw) => {
+        // 事件带 type：{ version, type: "write" | "diagnose" }
+        // 阶段二：只对 type="diagnose"（MCP 自检广播）响应 → 重读就绪信号；
+        // type="write"（无关写操作）忽略，不被打扰。
+        let eventType = "";
+        if (typeof raw === "string" && raw.trim()) {
+          try { eventType = (JSON.parse(raw).type) || ""; } catch (_) { /* 忽略无法解析的事件 */ }
+        }
+        if (eventType === "diagnose") {
+          this.loadReadiness();
+        }
         const view = this.currentView;
         // 本端保存触发的 SSE（后端 2s 轮询 version，事件不带文档路径）：
         // 3s 内本端保存过即视为本次事件的源头 → 跳过重载（内容已在编辑器/缓存为最新），
@@ -1137,6 +1152,9 @@ let _tocCollapsedSet = {};
         else if (view === "view" && this.currentPath && !selfSaved) this.loadDocument(this.currentPath);
         else if (view === "edit" && this.currentPath && !selfSaved) window.dispatchEvent(new CustomEvent("myk:doc-modified"));
       });
+
+      // 阶段二：初始化就绪信号（读 /api/diagnose/saved，不触发检查）
+      this.loadReadiness();
 
       // 处理初始 hash
       this.handleRoute();
@@ -1375,18 +1393,56 @@ let _tocCollapsedSet = {};
           this.healthData = { issues: data.issues || [], summary: data.summary || {} };
           this.healthGeneratedAt = data.generated_at || "";
           this.healthSelectAllFixable(); // 进入页面默认全选可修复分组
+          this._syncReadinessFromHealth();
         } else {
           this.healthData = null;
           this.healthGeneratedAt = "";
           this.healthSelected = {};
+          this.readiness = { saved: false, total_issues: 0, has_high: false };
         }
       } catch (e) {
         // 读上次失败：不弹错误，降级为空态（保留旧数据不适用——此处无旧数据）
         this.healthData = null;
         this.healthGeneratedAt = "";
+        this.readiness = { saved: false, total_issues: 0, has_high: false };
         if (e && e.isLocked) showToast("知识库正在整理中，暂时只读", "warning");
       } finally {
         this.healthLoading = false;
+      }
+    },
+
+    /** 从当前 healthData/healthSummary 同步就绪信号（本地刷新，不依赖 SSE） */
+    _syncReadinessFromHealth() {
+      const summary = this.healthSummary;
+      const total = summary.total_issues || 0;
+      const saved = !!this.healthData;
+      // has_high：summary.by_type 中 high severity 计数 > 0
+      const byType = summary.by_type || {};
+      let hasHigh = false;
+      // by_type 只统计 type 计数，不含 severity；从 issues 计算 high
+      const issues = this.healthIssues;
+      hasHigh = issues.some(i => i.severity === "high");
+      this.readiness = { saved, total_issues: total, has_high: hasHigh };
+    },
+
+    /**
+     * 加载就绪信号：读 /api/diagnose/saved（只读，不触发检查）。
+     * 成功 → 渲染三态；失败/离线 → 降级 muted（中性，不渲染语义色）。
+     */
+    async loadReadiness() {
+      try {
+        const data = await api.getDiagnoseSaved();
+        if (data && data.saved) {
+          this.healthData = { issues: data.issues || [], summary: data.summary || {} };
+          this.healthGeneratedAt = data.generated_at || "";
+          this._syncReadinessFromHealth();
+        } else {
+          this.healthData = null;
+          this.readiness = { saved: false, total_issues: 0, has_high: false };
+        }
+      } catch (e) {
+        // 后端离线：降级 muted（中性，不渲染语义色）
+        this.readiness = { saved: false, total_issues: 0, has_high: false };
       }
     },
 
@@ -1403,6 +1459,7 @@ let _tocCollapsedSet = {};
         this.healthData = { issues: data.issues || [], summary: data.summary || {} };
         this.healthGeneratedAt = data.generated_at || ""; // 后端已补 generated_at
         this.healthSelectAllFixable(); // 重查后默认全选可修复分组
+        this._syncReadinessFromHealth(); // 本地刷新就绪信号（不依赖 SSE）
       } catch (e) {
         if (e && e.isLocked) {
           showToast("知识库正在整理中，暂时只读", "warning");
@@ -1420,6 +1477,34 @@ let _tocCollapsedSet = {};
     /** 当前体检的 summary（为空对象兜底） */
     get healthSummary() {
       return (this.healthData && this.healthData.summary) || {};
+    },
+
+    /* ── 阶段二：就绪信号派生（顶部 status-indicator） ────────────────── */
+
+    /** 就绪信号文本（等长三态）：健康 / N 个知识存疑 / 尚未触发检查 */
+    get readinessLabel() {
+      const r = this.readiness;
+      if (!r.saved) return "尚未触发检查";
+      if (r.total_issues === 0) return "知识状态健康";
+      return `${r.total_issues} 个知识存疑`;
+    },
+
+    /** 就绪信号状态点语义类（success/danger/warning/muted） */
+    get readinessDotClass() {
+      const r = this.readiness;
+      if (!r.saved) return "status-indicator__dot--muted";
+      if (r.total_issues === 0) return "status-indicator__dot--success";
+      return r.has_high
+        ? "status-indicator__dot--danger"
+        : "status-indicator__dot--warning";
+    },
+
+    /** 就绪信号 tooltip：点击进 #health 处理 */
+    get readinessTitle() {
+      const r = this.readiness;
+      if (!r.saved) return "尚未检查知识结构 · 点击进入结构体检";
+      if (r.total_issues === 0) return "知识结构健康 · 点击进入结构体检";
+      return `${r.total_issues} 个知识存疑 · 点击进入结构体检`;
     },
 
     /** 当前体检的 issues 列表 */

@@ -144,6 +144,44 @@ class TestHealthStaticStructure:
         assert "--color-info" in block, "low severity must use --color-info token"
         assert "--color-success" in block, "healthy badge must use --color-success token"
 
+    # ── 阶段二：就绪信号 静态结构 ───────────────────────────────────────
+
+    def test_stage2_store_readiness_methods(self):
+        """store.js 暴露就绪信号状态与 getter"""
+        js = STORE.read_text(encoding="utf-8")
+        for name in ["readiness", "readinessLabel", "readinessDotClass",
+                     "readinessTitle", "loadReadiness", "_syncReadinessFromHealth"]:
+            assert name in js, f"Missing readiness store symbol: {name}"
+
+    def test_stage2_api_events_diagnose(self):
+        """api.js subscribeEvents 已存在（SSE 订阅）"""
+        js = API.read_text(encoding="utf-8")
+        assert "subscribeEvents" in js, "Missing subscribeEvents"
+        assert "EventSource" in js, "Missing EventSource SSE"
+
+    def test_stage2_index_readiness_markup(self):
+        """顶部 status-indicator 替换为就绪信号；sidebar-footer 保留"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "status-indicator--readiness" in html, "Missing readiness indicator"
+        assert "readinessLabel" in html, "Missing readinessLabel binding"
+        assert "readinessDotClass" in html, "Missing readinessDotClass binding"
+        assert "readinessTitle" in html, "Missing readiness tooltip"
+        assert "hash='health'" in html or 'hash="health"' in html, \
+            "readiness 应可点击进 #health"
+        # sidebar-footer 状态保留
+        assert "sidebar-footer__status" in html, "sidebar-footer__status 应保留"
+
+    def test_stage2_css_classes(self):
+        """就绪信号样式类在 components.css（复用 token）"""
+        css = COMPONENTS_CSS.read_text(encoding="utf-8")
+        for cls in ["status-indicator__dot--success", "status-indicator__dot--danger",
+                    "status-indicator__dot--warning", "status-indicator__dot--muted",
+                    "status-indicator--readiness"]:
+            assert f".{cls}" in css, f"Missing readiness CSS class: .{cls}"
+        # 语义色走 token
+        assert "background: var(--color-success);" in css
+        assert "background: var(--text-muted);" in css
+
     # ── 阶段 B：非复杂分组修复交互 静态结构 ─────────────────────────────
 
     def test_stageb_api_heal_methods(self):
@@ -691,3 +729,82 @@ class TestHealthBrowser:
         assert not healing_after, "修复完成后应恢复可交互"
         # 完成后按钮恢复可交互
         expect(page.locator(".issue-group__action").first).to_be_enabled()
+
+    # ── 阶段二：就绪信号（顶部 status-indicator） ───────────────────────
+
+    @staticmethod
+    def _set_readiness(page, saved, total_issues, has_high=False):
+        """设置就绪信号状态并等待 Alpine 渲染"""
+        page.evaluate(
+            """(r) => { window.Alpine.store('app').readiness = r; }""",
+            {"saved": saved, "total_issues": total_issues, "has_high": has_high})
+        page.wait_for_timeout(400)
+
+    @staticmethod
+    def _read_readiness(page):
+        """读取就绪信号 DOM 文本与状态点类"""
+        return page.evaluate(
+            """() => {
+              const ind = document.querySelector('.status-indicator--readiness');
+              if (!ind) return null;
+              return {
+                label: ind.innerText.trim(),
+                dotClass: ind.querySelector('.status-indicator__dot').className
+              };
+            }""")
+
+    def test_stage2_readiness_render_and_sidebar(self, static_server, page, backend_running):
+        """就绪信号替换顶部 status-indicator；sidebar-footer AI 状态保留"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(3000)
+        # 顶部就绪信号存在（--readiness）
+        ind = page.locator(".status-indicator--readiness")
+        expect(ind.first).to_be_attached(timeout=5000)
+        # sidebar-footer 状态保留
+        expect(page.locator(".sidebar-footer__status").first).to_be_attached(timeout=5000)
+
+    def test_stage2_readiness_three_states(self, static_server, page, backend_running):
+        """就绪信号三态：健康(绿)/存疑有high(红)/存疑无high(黄)/未检查(灰)"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(3000)
+        # 态1 健康
+        self._set_readiness(page, True, 0)
+        s = self._read_readiness(page)
+        assert s["label"] == "知识状态健康", f"健康态文本错误: {s['label']}"
+        assert "success" in s["dotClass"], f"健康态应为绿: {s['dotClass']}"
+        # 态2 存疑有 high → 红
+        self._set_readiness(page, True, 3, True)
+        s = self._read_readiness(page)
+        assert s["label"] == "3 个知识存疑", f"存疑文本错误: {s['label']}"
+        assert "danger" in s["dotClass"], f"有high应为红: {s['dotClass']}"
+        # 态3 存疑无 high → 黄
+        self._set_readiness(page, True, 3, False)
+        s = self._read_readiness(page)
+        assert "warning" in s["dotClass"], f"无high应为黄: {s['dotClass']}"
+        # 态4 未检查 → 灰
+        self._set_readiness(page, False, 0)
+        s = self._read_readiness(page)
+        assert s["label"] == "尚未触发检查", f"未检查文本错误: {s['label']}"
+        assert "muted" in s["dotClass"], f"未检查应为灰: {s['dotClass']}"
+
+    def test_stage2_readiness_click_to_health(self, static_server, page, backend_running):
+        """点击就绪信号跳转 #health"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(3000)
+        self._set_readiness(page, True, 3)
+        page.locator(".status-indicator--readiness").first.click()
+        page.wait_for_timeout(1500)
+        assert page.evaluate("() => window.Alpine.store('app').currentView") == "health", \
+            "点击就绪信号应跳转 #health"
+
+    def test_stage2_readiness_offline_degrade(self, static_server, page, backend_running):
+        """后端离线读 saved 失败 → 降级 muted（中性灰）"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(3000)
+        # 拦截 /api/diagnose/saved 返回失败 → loadReadiness catch → muted
+        page.route("**/api/diagnose/saved", lambda route: route.abort())
+        page.evaluate("async () => { await window.Alpine.store('app').loadReadiness(); }")
+        page.wait_for_timeout(400)
+        s = self._read_readiness(page)
+        assert s and "muted" in s["dotClass"], f"离线应降级 muted: {s}"
+        assert s["label"] == "尚未触发检查", f"离线应为未检查灰: {s['label']}"
