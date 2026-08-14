@@ -127,6 +127,7 @@
 - **后端已修**：trash_index.json 索引 + 进程内缓存（`perf(trash)` 856d9dc），/refs 死链 <1ms。
 - **前端配合项状态**：① pending 态已完成（见上）；② **hover 预览轻量化结论——不需要新端点**：现有 `/refs` 每条已带 `resolved`/`ref_status`，「被 N 篇引用」用 `refs.length` 前端本地即可算，且性能已修复、轻量化动机消失，保持调用现状。
 - 前端调用 `/refs` 的依赖关系不变（`openDocPreview` 用 `refs.length` 显示引用数；`loadDocument` 用 `refs` 详情渲染底部引用区块）。
+- **语义取舍（独立产品决策，不混入本次）**：「被 N 篇引用」当前用 `refs.length`（**全部条目，含死链**）；架构建议的「过滤 `resolved===true` / `ref_status==='normal'` 的有效引用数」语义不同。轻量化不做 → 保持 `refs.length` 现状（H3 测试锁定该行为）；若产品要「有效引用数」语义（死链不计入），需单独提需求。
 
 ---
 
