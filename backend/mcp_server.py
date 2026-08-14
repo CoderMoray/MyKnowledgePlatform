@@ -1904,6 +1904,22 @@ def create_mcp_app(storage: Storage,
         return "\n".join(report) if report else "检查完成，无变更。"
 
     @mcp.tool()
+    def maint__knowledgebase_diagnose() -> str:
+        """[maint] 知识库结构健康诊断（只读，不修复）。
+
+        递归扫描整个 KB，对照递归知识结构，报告结构健康问题：
+        position（文档位置非法）/ metadata（frontmatter 缺陷）/
+        index（readme 过时）/ ref（死链）/ illegal（非法文件）/
+        system（系统文件缺失）。
+
+        纯只读诊断，不写盘、不 commit、不修复。发现问题后由
+        决策者（用户/AI）决定如何处理。
+        """
+        from backend.validator import validate_kb, format_report
+        report = validate_kb(storage, gen)
+        return format_report(report)
+
+    @mcp.tool()
     def share__publish(project_rel: str,
                         with_context: bool = False) -> str:
         """[share] Export a project subtree as an encrypted .mkpkg file.

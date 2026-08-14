@@ -341,3 +341,51 @@ class TestLock:
         info = _read_lock(tmp_kb_root)
         assert info is not None
         assert info["agent"] == "codebuddy:task-999"
+
+
+# ══════════════════════════════════════════════════════════════
+#  maint__knowledgebase_diagnose (read-only structural diagnosis)
+# ══════════════════════════════════════════════════════════════
+
+
+class TestKnowledgebaseDiagnose:
+    def _gen(self, storage: Storage, tmp_kb_root: Path) -> ReadmeGenerator:
+        """A gen bound to the same KB (to reach its project-status)."""
+        tmpl = tmp_kb_root / "_templates" / "readme.md"
+        return ReadmeGenerator(storage=storage, template_path=tmpl)
+
+    def test_clean_kb_healthy(self, app_with_git, storage: Storage,
+                              tmp_kb_root: Path) -> None:
+        # make the KB fully healthy (fixture only rebuilt the root readme)
+        g = self._gen(storage, tmp_kb_root)
+        g.rebuild_project_status()
+        g.rebuild("")
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__knowledgebase_diagnose", {}))
+        text = _tool_text(result)
+        assert "健康" in text
+
+    def test_kb_with_issues_reports_position(self, app_with_git,
+                                             storage: Storage,
+                                             tmp_kb_root: Path) -> None:
+        # an orphan doc at a project layer → position issue reported
+        storage.write_document("projects/P/bad.md",
+                               {"summary": "bad"}, "# bad")
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__knowledgebase_diagnose", {}))
+        text = _tool_text(result)
+        assert "位置" in text
+        assert "projects/P/bad.md" in text
+
+    def test_is_idempotent(self, app_with_git, storage: Storage,
+                           tmp_kb_root: Path) -> None:
+        """Repeated calls return the same result and never mutate the KB."""
+        g = self._gen(storage, tmp_kb_root)
+        g.rebuild_project_status()
+        g.rebuild("")
+        r1 = _tool_text(asyncio.run(app_with_git.call_tool(
+            "maint__knowledgebase_diagnose", {})))
+        r2 = _tool_text(asyncio.run(app_with_git.call_tool(
+            "maint__knowledgebase_diagnose", {})))
+        assert r1 == r2
+        assert "健康" in r1

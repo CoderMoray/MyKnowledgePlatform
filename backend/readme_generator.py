@@ -29,7 +29,8 @@ class ReadmeGenerator:
 
     def rebuild(self, project_rel: str, parent: str = "",
                 name: str = "", summary: str = "",
-                status: str = "", updated: str = "") -> str:
+                status: str = "", updated: str = "",
+                dry_run: bool = False) -> str:
         """Rebuild (or create) the readme at *project_rel*.
 
         Parameters:
@@ -41,8 +42,14 @@ class ReadmeGenerator:
             summary      Override summary (used on first build of root).
             status       Override status.
             updated      Date override.
+            dry_run:     When True, generate the markdown in memory and
+                         return it WITHOUT writing to disk and WITHOUT
+                         creating any directories (pure read-only, zero
+                         side effects).  Default False = current behavior
+                         (writes to disk).
 
-        Returns the generated markdown text (also written to disk).
+        Returns the generated markdown text (also written to disk unless
+        *dry_run* is True).
         """
         # ── 容器目录检测：路径最后一段若是保留名，不是项目层，直接报错 ──
         # projects/ 是根级系统目录，不是项目层。
@@ -61,9 +68,10 @@ class ReadmeGenerator:
             )
 
         # ── Ensure project directory structure ───────────────
-        # 白名单：只有 projects/xxx 或 archive/xxx 才视作项目层
-        if project_rel and (project_rel.startswith("projects/")
-                            or project_rel.startswith("archive/")):
+        # 白名单：只有 projects/xxx 或 archive/xxx 才视作项目层。
+        # dry_run 是纯只读诊断——不创建目录、不写盘、不改工作区。
+        if not dry_run and project_rel and (project_rel.startswith("projects/")
+                                            or project_rel.startswith("archive/")):
             for _d in ("common-knowledge", "projects", "archive"):
                 (self.storage.kb_root / project_rel / _d).mkdir(parents=True, exist_ok=True)
 
@@ -161,28 +169,33 @@ class ReadmeGenerator:
         self._validate(content, project_rel)
 
         # ── Write ────────────────────────────────────────────
-        frontmatter = {
-            "id": layer_id,
-            "type": "readme",
-            "name": name,
-            "summary": summary,
-            "status": status,
-            "author": author,
-            "maintainer": maintainer,
-            "created": existing_created,
-            "updated": updated or generated,
-            "generated": generated,
-            "parent": parent_id,
-        }
-        self.storage.write_readme(project_rel, frontmatter, content)
+        # dry_run=True：只返回生成文本，绝不写盘、绝不改工作区。
+        if not dry_run:
+            frontmatter = {
+                "id": layer_id,
+                "type": "readme",
+                "name": name,
+                "summary": summary,
+                "status": status,
+                "author": author,
+                "maintainer": maintainer,
+                "created": existing_created,
+                "updated": updated or generated,
+                "generated": generated,
+                "parent": parent_id,
+            }
+            self.storage.write_readme(project_rel, frontmatter, content)
         return content
-
-    # ── internals ─────────────────────────────────────────────
 
     # ── project-status.md ────────────────────────────────────
 
-    def rebuild_project_status(self) -> str:
-        """Scan all top-level projects and generate ``project-status.md``."""
+    def rebuild_project_status(self, dry_run: bool = False) -> str:
+        """Scan all top-level projects and generate ``project-status.md``.
+
+        *dry_run*: when True, return the generated text WITHOUT writing to
+        disk (pure read-only, zero side effects).  Default False = current
+        behavior (writes ``project-status.md``).
+        """
         from backend.storage import DocEntry
 
         projects_dir = str(self.storage.kb_root / "projects")
@@ -243,9 +256,10 @@ class ReadmeGenerator:
                 lines.append("")
 
         content = "\n".join(lines)
-        (self.storage.kb_root / "project-status.md").write_text(
-            content, encoding="utf-8"
-        )
+        if not dry_run:
+            (self.storage.kb_root / "project-status.md").write_text(
+                content, encoding="utf-8"
+            )
         return content
 
     # ── garbage collection ────────────────────────────────────
