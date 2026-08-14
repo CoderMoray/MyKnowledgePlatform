@@ -17,6 +17,7 @@ Layout::
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,6 +26,17 @@ TRASH = "trash"
 DOCS = f"{TRASH}/documents"
 PROJS = f"{TRASH}/projects"
 GC_DAYS = 30
+
+# Persistent index of trash contents: ``original_path → {type, trash_path}``.
+# Lives *inside* ``trash/`` so it is already hidden from external listings
+# (``top_level_hidden`` contains ``trash``).  Documents and projects are both
+# indexed; project entries keep ``original_path`` for the prefix-match logic
+# in ``ref_status`` (``rel_path.startswith(op + "/")``).
+TRASH_INDEX = "trash/trash_index.json"
+
+# Process-level cache: kb_root → parsed index dict.  Avoids re-reading +
+# re-parsing the JSON on every ``ref_status`` call (hover previews hit it a lot).
+_index_cache: dict[str, dict] = {}
 
 
 def _now() -> str:
@@ -91,6 +103,8 @@ def move_doc_to_trash(storage, rel_path: str) -> str:
     # must surface as "deleted", not redirect.  Best-effort — never blocks.
     from backend.renames import remove_renames_for
     remove_renames_for(storage, rel_path)
+    # Trash contents changed → invalidate the index (next read lazily rebuilds).
+    _invalidate_trash_index(storage)
     return trash_rel
 
 
@@ -131,6 +145,8 @@ def move_project_to_trash(storage, project_rel: str) -> str:
                 {"original_path": project_rel, "deleted_at": _now(),
                  "type": "project", "name": name}, f"# {name}（已删除）"),
         )
+    # Trash contents changed → invalidate the index (next read lazily rebuilds).
+    _invalidate_trash_index(storage)
     return trash_rel
 
 
@@ -153,15 +169,13 @@ def _parent_project_in_trash(storage, original_path: str) -> str | None:
     parts = original_path.split("/")
     if len(parts) >= 2 and parts[0] == "projects":
         project_rel = f"{parts[0]}/{parts[1]}"
-        for d in projects_dir(storage.kb_root).iterdir():
-            if not d.is_dir():
-                continue
-            try:
-                meta = _read_trash_meta(storage, f"{PROJS}/{d.name}")
-            except Exception:
-                continue
-            if meta.get("original_path") == project_rel:
-                return f"{PROJS}/{d.name}"
+        # Use the trash index (fast) instead of scanning every trash project.
+        entry = _get_trash_index(storage).get(project_rel)
+        if entry and entry.get("type") == "project":
+            tp = entry.get("trash_path")
+            # Confirm the trashed project dir still exists before reporting it.
+            if tp and (storage.kb_root / tp).is_dir():
+                return tp
     return None
 
 
@@ -206,6 +220,7 @@ def restore(storage, trash_rel: str) -> str:
                  if k not in ("original_path", "deleted_at")}
         storage.write_document(original_path, clean, body, auto_id=False)
         (storage.kb_root / trash_rel).unlink()
+        _invalidate_trash_index(storage)
         return original_path
 
     if trash_rel.startswith(f"{PROJS}/"):
@@ -225,6 +240,7 @@ def restore(storage, trash_rel: str) -> str:
             storage.write_readme(original_path, {}, dump_frontmatter(clean, b2))
         except FileNotFoundError:
             pass
+        _invalidate_trash_index(storage)
         return original_path
 
     raise ValueError(f"无效的垃圾箱路径: {trash_rel}")
@@ -234,15 +250,19 @@ def restore(storage, trash_rel: str) -> str:
 
 
 def list_trash(storage) -> list[dict]:
-    """List trash contents: type, name, original_path, deleted_at."""
+    """List trash contents: type, name, original_path, deleted_at.
+
+    Reads only the frontmatter header of each trash file (not the body), which
+    keeps ``list_trash`` fast even with thousands of trashed items.
+    """
     items: list[dict] = []
     ddir = docs_dir(storage.kb_root)
     if ddir.is_dir():
+        # ddir is kb_root/trash/documents (already realpath'd); glob yields
+        # canonical absolute paths — use the abs fast-reader to skip per-file
+        # resolve() in Storage._abs.
         for f in sorted(ddir.glob("*.md")):
-            try:
-                meta, _ = storage.read_document(f"{DOCS}/{f.name}")
-            except Exception:
-                continue
+            meta = storage.read_frontmatter_bytes_abs(f)
             items.append({
                 "type": "document", "name": f.name,
                 "original_path": meta.get("original_path", ""),
@@ -254,10 +274,7 @@ def list_trash(storage) -> list[dict]:
         for d in sorted(pdir.iterdir()):
             if not d.is_dir():
                 continue
-            try:
-                meta, _ = storage.read_document(f"{PROJS}/{d.name}/readme.md")
-            except Exception:
-                continue
+            meta = storage.read_frontmatter_bytes_abs(d / "readme.md")
             items.append({
                 "type": "project", "name": d.name,
                 "original_path": meta.get("original_path", ""),
@@ -288,7 +305,89 @@ def gc_trash(storage, days: int = GC_DAYS) -> int:
                 else:
                     p.unlink()
                 removed += 1
+    if removed:
+        _invalidate_trash_index(storage)
     return removed
+
+
+# ── Trash index (dead-link fast path) ──────────────────────────
+
+
+def _index_path(kb_root: Path) -> Path:
+    return kb_root / TRASH_INDEX
+
+
+def _load_trash_index(storage) -> dict | None:
+    """Read ``trash_index.json`` → ``{original_path: {type, trash_path}}``.
+
+    Returns ``None`` on any failure (missing / corrupt / non-dict JSON) so the
+    caller triggers a rebuild.  Never raises.
+    """
+    p = _index_path(storage.kb_root)
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _rebuild_trash_index(storage) -> dict:
+    """Scan ``list_trash`` and persist a fresh index; return it.
+
+    Used both as the fallback (corrupt/missing index) and the one-time cold
+    rebuild.  The scan itself is cheap because ``list_trash`` now reads only
+    frontmatter headers.
+    """
+    index: dict[str, dict] = {}
+    for item in list_trash(storage):
+        op = item.get("original_path")
+        if not op:
+            continue
+        index[op] = {"type": item.get("type", "document"),
+                     "trash_path": item.get("trash_path", "")}
+    try:
+        _index_path(storage.kb_root).write_text(
+            json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        # Best-effort persist; never fail the caller over a write hiccup.
+        pass
+    _index_cache[str(storage.kb_root)] = index
+    return index
+
+
+def _get_trash_index(storage) -> dict:
+    """Unified entry point: process cache → file → rebuild.
+
+    1. Cache hit → return.
+    2. Cache miss → read file; if valid, cache + return.
+    3. File missing/corrupt → rebuild from ``list_trash`` + persist + cache.
+    """
+    key = str(storage.kb_root)
+    cached = _index_cache.get(key)
+    if cached is not None:
+        return cached
+    loaded = _load_trash_index(storage)
+    if loaded is not None:
+        _index_cache[key] = loaded
+        return loaded
+    return _rebuild_trash_index(storage)
+
+
+def _invalidate_trash_index(storage) -> None:
+    """Drop the process cache + delete the on-disk index for this KB root.
+
+    Called by write operations (delete/restore/empty/gc).  The next read then
+    lazily rebuilds a fresh index — avoids re-scanning thousands of entries on
+    every write.
+    """
+    key = str(storage.kb_root)
+    _index_cache.pop(key, None)
+    try:
+        _index_path(storage.kb_root).unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 # ── Ref status (dead-link check) ───────────────────────────────
@@ -300,6 +399,10 @@ def ref_status(storage, rel_path: str) -> str:
     ``normal``  — the path exists at its original location.
     ``in_trash`` — the path was deleted and is recoverable from trash.
     ``dead``     — the path was never deleted and does not exist.
+
+    Dead-link branch goes through the trash index (in-memory + persisted) with a
+    ``stat``/``exists`` fallback to guard against index/disk drift, instead of a
+    full scan of every trash file.
     """
     from urllib.parse import unquote
     # S16: 任何调用方可能传 %20 编码路径（含空格文档路径），先解码再判。
@@ -310,14 +413,35 @@ def ref_status(storage, rel_path: str) -> str:
     if (storage.kb_root / rel_path).exists():
         return "normal"
 
-    # Single-doc match by original_path
-    for item in list_trash(storage):
-        if item["original_path"] == rel_path:
-            return "in_trash"
-        # Project-level: path is inside a trashed project
-        if item["type"] == "project" and item["original_path"]:
-            op = item["original_path"].rstrip("/")
-            if rel_path.startswith(op + "/"):
-                return "in_trash"
+    index = _get_trash_index(storage)
+    hit = index.get(rel_path)
+    if hit is None:
+        # Project-level prefix match: path lies inside a trashed project
+        for op, entry in index.items():
+            if entry.get("type") == "project" and op:
+                if rel_path.startswith(op.rstrip("/") + "/"):
+                    # stat fallback: index says in_trash, but confirm the
+                    # trashed project dir actually still exists on disk.
+                    if _trash_entry_exists(storage, entry):
+                        return "in_trash"
+                    break
+        return "dead"
 
+    # Direct hit by original_path → confirm trash file still on disk.
+    if _trash_entry_exists(storage, hit):
+        return "in_trash"
     return "dead"
+
+
+def _trash_entry_exists(storage, entry: dict) -> bool:
+    """Fallback confirmation: does the indexed trash entry still exist on disk?
+
+    Guards against index/disk drift (e.g. index says ``in_trash`` but the file
+    was manually deleted).  Returns False when the entry or its ``trash_path``
+    is malformed/missing so the caller reports ``dead`` instead of a stale
+    ``in_trash``.
+    """
+    tp = entry.get("trash_path")
+    if not tp:
+        return False
+    return (storage.kb_root / tp).exists()

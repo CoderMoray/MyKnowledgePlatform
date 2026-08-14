@@ -18,6 +18,23 @@ from uuid import uuid4, uuid5, NAMESPACE_URL
 # ── Regex ────────────────────────────────────────────────────
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
+# Use the C (libyaml) safe loader when available — ~5x faster than the pure
+# Python SafeLoader and behaviorally identical for standard frontmatter
+# (both produce the same dict, incl. date-object coercion handled below).
+try:
+    from yaml import CSafeLoader as _YamlLoader  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - libyaml absent
+    from yaml import SafeLoader as _YamlLoader  # type: ignore[attr-defined]
+
+
+def _safe_load_yaml(text: str):
+    """yaml.safe_load via the fastest available loader (never raises)."""
+    import yaml
+    try:
+        return yaml.load(text, Loader=_YamlLoader)
+    except yaml.YAMLError:
+        return None
+
 # ── ID namespaces ────────────────────────────────────────────
 _PROJECT_NS = uuid5(NAMESPACE_URL, "https://myknowledge.dev/project")
 _DOC_NS = uuid5(NAMESPACE_URL, "https://myknowledge.dev/doc")
@@ -36,10 +53,7 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}, text.strip()
-    try:
-        meta = yaml.safe_load(m.group(1))
-    except yaml.YAMLError:
-        meta = None
+    meta = _safe_load_yaml(m.group(1))
     if not isinstance(meta, dict):
         meta = {}
     # yaml auto-parses ``2026-07-23`` as ``datetime.date`` — always keep as str
@@ -116,6 +130,10 @@ class Storage:
 
     def __init__(self, kb_root: Path, templates_dir: Optional[Path] = None) -> None:
         self.kb_root = kb_root.resolve()
+        # Base for containment checks in _abs — already fully resolved, so we
+        # don't re-resolve it on every read (avoids a redundant filesystem
+        # syscall per operation; matters for hot loops like list_trash).
+        self._kb_base = self.kb_root
         self._templates_dir = templates_dir.resolve() if templates_dir else (self.kb_root / "_templates")
 
         # Cache for commonly-used paths
@@ -133,7 +151,7 @@ class Storage:
         outside and are rejected here, so every read/write that goes
         through Storage is contained regardless of caller validation.
         """
-        base = self.kb_root.resolve()
+        base = self._kb_base
         full = (self.kb_root / rel).resolve()
         if not full.is_relative_to(base):
             raise ValueError(
@@ -163,6 +181,52 @@ class Storage:
     def read_frontmatter(self, rel_path: str) -> dict:
         """Only frontmatter (fast, skips full body manipulation)."""
         meta, _ = self.read_document(rel_path)
+        return meta
+
+    def read_frontmatter_bytes(self, rel_path: str) -> dict:
+        """Only frontmatter, reading *only the file header* (not the body).
+
+        Unlike ``read_frontmatter`` (which still reads the whole file then
+        discards the body), this reads just the opening bytes up to the closing
+        ``---`` of the frontmatter block.  This matters when the file is large:
+        ``list_trash``/index rebuilds only need ``original_path`` + ``deleted_at``,
+        so reading the whole body (often 10s of KB) just to throw it away is
+        wasteful.  Never raises on malformed frontmatter — returns ``{}``.
+        """
+        full = self._abs(rel_path)
+        _FRONTMATTER_MAX = 1 << 16  # 64 KiB: ample for any frontmatter block
+        with open(full, "rb") as fh:
+            head = fh.read(_FRONTMATTER_MAX)
+        if not head.startswith(b"---\n") and not head.startswith(b"---\r\n"):
+            return {}
+        try:
+            text = head.decode("utf-8")
+        except UnicodeDecodeError:
+            return {}
+        meta, _ = parse_frontmatter(text)
+        return meta
+
+    def read_frontmatter_bytes_abs(self, abs_path: Path) -> dict:
+        """Header-only frontmatter read for an already-resolved *absolute* path.
+
+        Used by hot loops (``list_trash``) that glob an already-realpath'd
+        directory and thus already hold a canonical absolute path — avoids a
+        per-file ``resolve()`` in ``_abs``.  The caller is responsible for
+        passing a path strictly under ``kb_root``.
+        """
+        _FRONTMATTER_MAX = 1 << 16
+        try:
+            with open(abs_path, "rb") as fh:
+                head = fh.read(_FRONTMATTER_MAX)
+        except OSError:
+            return {}
+        if not head.startswith(b"---\n") and not head.startswith(b"---\r\n"):
+            return {}
+        try:
+            text = head.decode("utf-8")
+        except UnicodeDecodeError:
+            return {}
+        meta, _ = parse_frontmatter(text)
         return meta
 
     def read_dir(self, rel_path: str) -> dict[str, dict]:
