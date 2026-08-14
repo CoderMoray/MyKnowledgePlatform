@@ -160,6 +160,87 @@ class TestUpdateDocument:
         assert after["created"] == created  # created 永不改变
 
 
+class TestFrontmatterInContentGuard:
+    """write tools must reject content that embeds a whole frontmatter block.
+
+    ``content`` is meant to be the pure Markdown body; the tool prepends the
+    real frontmatter via ``dump_frontmatter``.  Pasting a whole ``.md`` file
+    (leading ``---\n``) would create double-frontmatter dirty data.
+    """
+
+    def test_create_rejects_leading_frontmatter(self, app) -> None:
+        """content starting with '---\\n' → rejected with guidance text.
+
+        FastMCP wraps the underlying ValueError in ToolError, so we match on
+        the message (the ValueError text is preserved).
+        """
+        with pytest.raises(Exception, match="不要包含 frontmatter"):
+            asyncio.run(app.call_tool("write__create_document", {
+                "path": "common-knowledge/bad.md",
+                "content": "---\nid: x\nsummary: y\n---\n# body",
+            }))
+
+    def test_create_rejects_crlf_frontmatter(self, app) -> None:
+        """content starting with '---\\r\\n' is also rejected."""
+        with pytest.raises(Exception, match="不要包含 frontmatter"):
+            asyncio.run(app.call_tool("write__create_document", {
+                "path": "common-knowledge/bad_crlf.md",
+                "content": "---\r\nid: x\r\n---\r\n# body",
+            }))
+
+    def test_create_rejects_leading_whitespace_frontmatter(self, app) -> None:
+        """content with leading whitespace then '---' is still rejected."""
+        with pytest.raises(Exception, match="不要包含 frontmatter"):
+            asyncio.run(app.call_tool("write__create_document", {
+                "path": "common-knowledge/bad_ws.md",
+                "content": "  \n---\nid: x\n---\n# body",
+            }))
+
+    def test_create_rejects_on_dry_run(self, app, storage: Storage) -> None:
+        """dry_run must also reject (consistent behaviour, no silent write)."""
+        with pytest.raises(Exception, match="不要包含 frontmatter"):
+            asyncio.run(app.call_tool("write__create_document", {
+                "path": "common-knowledge/bad_dry.md",
+                "content": "---\nid: x\n---\n# body",
+                "dry_run": True,
+            }))
+        assert not (storage.kb_root / "common-knowledge" / "bad_dry.md").exists()
+
+    def test_update_rejects_leading_frontmatter(self, app, storage: Storage) -> None:
+        """update_document with embedded frontmatter → rejected."""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/u.md",
+            "content": "# Old",
+        }))
+        with pytest.raises(Exception, match="不要包含 frontmatter"):
+            asyncio.run(app.call_tool("write__update_document", {
+                "path": "common-knowledge/u.md",
+                "content": "---\nid: y\n---\n# New",
+            }))
+        # original body untouched
+        _, body = storage.read_document("common-knowledge/u.md")
+        assert "# Old" in body
+
+    def test_normal_content_still_writes(self, app, storage: Storage) -> None:
+        """Content starting with '# 标题' is fine → normal write."""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/ok.md",
+            "content": "# 标题\n\n正文内容",
+        }))
+        _, body = storage.read_document("common-knowledge/ok.md")
+        assert "# 标题" in body
+
+    def test_mid_body_separator_not_false_positive(self, app, storage: Storage) -> None:
+        """A '---' horizontal rule mid-body must NOT trigger the guard."""
+        asyncio.run(app.call_tool("write__create_document", {
+            "path": "common-knowledge/sep.md",
+            "content": "# 标题\n\n第一段\n\n---\n\n第二段",
+        }))
+        _, body = storage.read_document("common-knowledge/sep.md")
+        assert "# 标题" in body
+        assert "\n---\n" in body  # separator preserved, no rejection
+
+
 class TestReadPathGuards:
     """读路径校验：绝对路径/穿越拒绝（信息泄露防护），合法读放行。"""
 

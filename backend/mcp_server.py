@@ -1048,6 +1048,32 @@ def _auto_archive(parent_rel: str, storage: Storage, gen: object) -> None:
     _evt(storage.kb_root)
 
 
+# content 误传「完整含 frontmatter 的文档」的拦截文案（复用，避免双 frontmatter 脏数据）。
+_FRONTMATTER_IN_CONTENT_MSG = (
+    "content 参数请只传 Markdown 正文，不要包含 frontmatter（--- 起始的元信息块）。"
+    "frontmatter（type/summary/author/id/created 等）由工具自动生成，"
+    "或通过 summary 等参数提供。"
+)
+
+
+def _check_no_embedded_frontmatter(content: str) -> None:
+    """Reject ``content`` that already begins with a frontmatter block.
+
+    ``content`` is the pure Markdown *body* — the tool (via
+    ``storage.write_document`` → ``dump_frontmatter``) prepends the real
+    frontmatter automatically.  If the caller pastes a whole ``.md`` file
+    (leading ``---\n``), the result would be a double-frontmatter dirty file.
+
+    Detection is intentionally precise to avoid false positives:
+      - only fires when the *stripped* content starts with ``---`` *followed by
+        a newline* (``---\n`` or ``---\r\n``);
+      - a ``---`` mid-body (e.g. a markdown horizontal rule) does not trigger.
+    """
+    stripped = content.lstrip()
+    if stripped.startswith("---\n") or stripped.startswith("---\r\n"):
+        raise ValueError(_FRONTMATTER_IN_CONTENT_MSG)
+
+
 def create_mcp_app(storage: Storage,
                    gen: Optional[object] = None,
                    gm: Optional[object] = None) -> FastMCP:
@@ -1296,6 +1322,9 @@ def create_mcp_app(storage: Storage,
             The document id (or preview info when dry_run=True).
         """
         _validate_path(path, kind="file")
+        # 拦截误传「完整含 frontmatter 的文档」——content 应只传正文，否则产生双 frontmatter。
+        # 放在 dry_run 之前，保证 dry_run 预览路径同样报错，行为一致。
+        _check_no_embedded_frontmatter(content)
         full_path = storage.kb_root / path
 
         # ── Dry-run: preview only ──────────────────────────────
@@ -1399,6 +1428,9 @@ def create_mcp_app(storage: Storage,
         _validate_path(path, kind="file", storage=storage)
         old_meta, old_body = storage.read_document(path)
         if content:
+            # 拦截误传「完整含 frontmatter 的文档」——content 应只传正文，否则产生双 frontmatter。
+            # 放 dry_run 之前，保证 dry_run 预览路径同样报错，行为一致。
+            _check_no_embedded_frontmatter(content)
             # S16: ref 路径空格 → %20 规范化（幂等）+ 目标校验警告。
             # 只检查本次改动引入的引用（old_content 差集），原有引用不打扰。
             from backend.main import normalize_ref_content, check_ref_targets
