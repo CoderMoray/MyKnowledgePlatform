@@ -2108,18 +2108,32 @@ def create_mcp_app(storage: Storage,
 
     @mcp.tool()
     def maint__knowledgebase_diagnose() -> str:
-        """[maint] 知识库结构健康诊断（只读，不修复）。
+        """[maint] 知识库结构健康诊断（扫描 + 写派生结果文件）。
 
         递归扫描整个 KB，对照递归知识结构，报告结构健康问题：
         position（文档位置非法）/ metadata（frontmatter 缺陷）/
         index（readme 过时）/ ref（死链）/ illegal（非法文件）/
         system（系统文件缺失）。
 
-        纯只读诊断，不写盘、不 commit、不修复。发现问题后由
-        决策者（用户/AI）决定如何处理。
+        扫描内核纯只读（validate_kb 用 dry_run=True，不写 KB 内容、不 commit）。
+        诊断结果写入派生文件 ``.diagnose-result.json``（与 REST /api/diagnose 同内核
+        同落点），并广播 ``diagnose`` 事件供前端就绪信号重读。
         """
+        import datetime
         from backend.validator import validate_kb, format_report
+        # 复用 REST /api/diagnose 的结果文件内核（同落点 .diagnose-result.json）。
+        from backend.main import _write_saved_diagnose
+        from backend.events import broadcast as _evt
+
         report = validate_kb(storage, gen)
+        payload = {
+            "issues": [i.__dict__ for i in report.issues],
+            "summary": report.summary,
+            "generated_at": datetime.datetime.now(
+                datetime.timezone.utc).isoformat(),
+        }
+        _write_saved_diagnose(storage, payload)
+        _evt(storage.kb_root, event_type="diagnose")
         return format_report(report)
 
     @mcp.tool()

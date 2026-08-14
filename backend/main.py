@@ -20,7 +20,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import resolve_root
-from backend.events import poll_version
+from backend.events import poll_event
 from backend.mcp_server import _lock_file, _lock_timeout, _pid_alive, _read_lock
 from backend.readme_generator import ReadmeGenerator
 from backend.storage import Storage
@@ -394,14 +394,15 @@ async def api_events():
     kb_root = resolve_root()
 
     async def event_stream():
-        last_version = poll_version(kb_root)
+        last_event = poll_event(kb_root)
         last_keepalive = time.monotonic()
         while True:
             await asyncio.sleep(POLL_INTERVAL)
-            current = poll_version(kb_root)
-            if current != last_version:
-                last_version = current
-                yield f"event: updated\ndata: {current}\n\n"
+            current = poll_event(kb_root)
+            if current.get("version") != last_event.get("version"):
+                last_event = current
+                # 下发 {version, type}，前端可据此只响应特定事件类型（如 diagnose）。
+                yield f"event: updated\ndata: {json.dumps(current, ensure_ascii=False)}\n\n"
             if time.monotonic() - last_keepalive >= _KEEPALIVE_INTERVAL:
                 last_keepalive = time.monotonic()
                 yield ": keepalive\n\n"

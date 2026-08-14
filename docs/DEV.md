@@ -123,8 +123,9 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 462 个后端测试通过（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个）
-- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...)）
+- 468 个后端测试（相关测试全绿；含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个）
+  - 注：`tests/test_h11_regression.py` 的 3 个真实 uvicorn 集成测试在本机环境返回 502（服务器就绪/端口问题），为**预存环境性失败**（stash 掉本阶段改动后依旧失败），与本次改动无关。
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...)）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件
 
 ### 前端构建守门（2026-08-09 引入）
 

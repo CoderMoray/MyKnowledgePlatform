@@ -379,7 +379,7 @@ class TestKnowledgebaseDiagnose:
 
     def test_is_idempotent(self, app_with_git, storage: Storage,
                            tmp_kb_root: Path) -> None:
-        """Repeated calls return the same result and never mutate the KB."""
+        """Repeated calls return the same result (scan stays read-only)."""
         g = self._gen(storage, tmp_kb_root)
         g.rebuild_project_status()
         g.rebuild("")
@@ -389,3 +389,28 @@ class TestKnowledgebaseDiagnose:
             "maint__knowledgebase_diagnose", {})))
         assert r1 == r2
         assert "健康" in r1
+
+    def test_writes_result_file_and_broadcasts_diagnose(
+            self, app_with_git, storage: Storage, tmp_kb_root: Path) -> None:
+        """diagnose writes .diagnose-result.json + broadcasts a diagnose event."""
+        from backend.events import poll_event, broadcast as _evt
+        _evt(tmp_kb_root, event_type="write")  # baseline event
+        g = self._gen(storage, tmp_kb_root)
+        g.rebuild_project_status()
+        g.rebuild("")
+
+        result = asyncio.run(app_with_git.call_tool(
+            "maint__knowledgebase_diagnose", {}))
+        assert "健康" in _tool_text(result)
+
+        # result file written (same landing point as REST /api/diagnose)
+        result_file = tmp_kb_root / ".diagnose-result.json"
+        assert result_file.exists()
+        import json
+        data = json.loads(result_file.read_text(encoding="utf-8"))
+        assert "issues" in data and "summary" in data
+        assert isinstance(data.get("generated_at"), str)
+
+        # last broadcast carries the diagnose type
+        evt = poll_event(tmp_kb_root)
+        assert evt.get("type") == "diagnose"
