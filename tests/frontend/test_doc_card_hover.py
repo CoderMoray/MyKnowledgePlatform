@@ -179,5 +179,7 @@ class TestDocCardHover:
         assert any("hover-ref-b" in t for t in titles), "其余文档卡片应仍在列表中"
         # 后端：旧路径 404 + 垃圾箱有该文档（轮询防异步竞态）
         wait_for_backend(HOVER_A, 404)
-        st, trash = api("GET", "/api/trash")
+        # GET /api/trash 已分页（默认 limit 50）；用大 limit 确保命中本次删除的文档
+        # （不受 trash 中历史残留积压影响）。
+        st, trash = api("GET", "/api/trash?limit=100000")
         assert st == 200 and "hover-ref-a" in str(trash), "删除的文档应在垃圾箱中"
