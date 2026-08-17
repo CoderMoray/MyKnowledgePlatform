@@ -184,6 +184,8 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | GET | `/api/diagnose/saved` | 读取上次诊断结果（读/算分离；无结果或损坏返回 `{saved: false}`） |
 | POST | `/api/heal/move` | 批量移动孤儿文档到同级 `common-knowledge/`（body: `{paths, target_rel?}`）→ `{moved, failed}` |
 | POST | `/api/heal/rebuild` | 重建 readme 索引层 + project-status（body: `{layers?, all?}`）→ `{rebuilt, project_status}` |
+| GET | `/api/client-config` | 检测 AI 客户端（Claude/CodeBuddy）的 MyKnowledge 配置状态 → `{claude: {mcp,hooks,agent}, codebuddy: {mcp,hooks,agent}}` |
+| POST | `/api/client-config/:platform/:kind` | 增量写入该平台该 kind 的 MyKnowledge 配置（platform: claude\|codebuddy；kind: mcp\|hooks\|agent）→ `{platform, kind, file, status, detected}` |
 
 ## 可编辑字段清单
 

@@ -1242,6 +1242,40 @@ def api_heal_rebuild(payload: HealRebuildPayload):
 
 
 # ══════════════════════════════════════════════════════════════
+#  AI Client Config (阶段三：Claude / CodeBuddy 协作配置生成与检测)
+# ══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/client-config")
+def api_client_config_detect():
+    """Detect MyKnowledge config presence in each AI client (Claude/CodeBuddy).
+
+    Returns ``{claude: {mcp, hooks, agent}, codebuddy: {mcp, hooks, agent}}``
+    — read-only, no writes.
+    """
+    from backend.client_config import detect_all
+    return detect_all()
+
+
+@app.post("/api/client-config/{platform}/{kind}")
+def api_client_config_write(platform: str, kind: str):
+    """Incrementally write MyKnowledge config for one platform/kind.
+
+    ``platform``: ``claude`` | ``codebuddy``; ``kind``: ``mcp`` | ``hooks`` | ``agent``.
+    Writes the user's **global** config files (``~/.claude`` / ``~/.codebuddy``),
+    merging incrementally without overwriting unrelated existing entries.
+
+    Returns ``{platform, kind, file, status, detected}`` where ``status`` is
+    ``"written"`` or ``"exists"`` (agent already present, not overwritten).
+    """
+    from backend.client_config import write_kind
+    try:
+        return write_kind(platform, kind)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ══════════════════════════════════════════════════════════════
 #  Identity (读/写 ~/.myknowledge/config.yaml)
 # ══════════════════════════════════════════════════════════════
 
