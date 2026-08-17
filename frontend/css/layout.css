@@ -130,7 +130,7 @@
   border-right: var(--glass-border);
   z-index: 20;
   position: relative;
-  transition: width 0.36s cubic-bezier(0.16,1,0.3,1), box-shadow 0.36s ease, var(--transition-theme);
+  transition: width 0.36s cubic-bezier(0.42, 0, 0.58, 1), box-shadow 0.36s ease, var(--transition-theme);
   flex-shrink: 0;
 }
 
@@ -161,18 +161,22 @@
 
 .sidebar--collapsed::after { display: none; }
 
-/* 悬浮态：sidebar 在 flex 流内，内容自然收缩 */
+/* 悬浮态：sidebar 在 flex 流内，内容自然收缩
+   宽度去 !important：hover 展开时 collapsed 已移除（collapsed && !hovering），
+   宽度由基类 transition(width 0.36s) 从 0 平滑过渡到 var(--sidebar-hover-width)，
+   与 toggle 收起/展开对称。淡入 animation（transform/opacity）与宽度 transition
+   是并行独立的动画，互不挤占时间，用于让内容随弹开逐渐浮现而非瞬间硬出现 */
 .sidebar--hovering {
   box-shadow: 4px 0 24px rgba(0,0,0,0.06);
-  width: var(--sidebar-hover-width, 168px) !important;
+  width: var(--sidebar-hover-width, 168px);
   overflow: visible;
   border-right: var(--glass-border);
-  animation: sidebar-slide-in 0.3s cubic-bezier(0.16,1,0.3,1) both;
+  animation: sidebar-slide-in 0.36s ease-in-out;
 }
 
 @keyframes sidebar-slide-in {
-  from { transform: translateX(-20px); opacity: 0.7; }
-  to   { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(-20px); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 /* 左侧边缘触发器：收起时 16px 不可见条 */
@@ -688,7 +692,7 @@
     position: fixed;
     left: calc(-1 * var(--sidebar-width));
     width: var(--sidebar-width) !important;
-    transition: left 0.3s ease;
+    transition: left 0.36s ease;
     max-width: var(--sidebar-width);
   }
 
