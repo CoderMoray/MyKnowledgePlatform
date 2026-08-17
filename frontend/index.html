@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=8759ffed5c" />
+  <link rel="stylesheet" href="css/components.css?v=6423cd0be8" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,16 +65,16 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=edb8d53c9a"></script>
+  <script src="js/api.js?v=724358e97e"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=b55bb34a9d"></script>
+  <script src="js/store.js?v=6e152e1aa6"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=73336b5b86"></script>
+  <script src="js/components/modal.js?v=41eacc7f1f"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -514,6 +514,13 @@
                   <path d="M2 12c0-2.8 2.2-5 5-5s5 2.2 5 5"/>
                 </svg>
                 编辑个人信息
+              </button>
+              <button class="user-menu__item" @click="open = false; $store.app.openSettings()">
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+                  <circle cx="7" cy="7" r="1.8"/>
+                  <path d="M7 2v1.5M7 10.5V12M2 7h1.5M10.5 7H12M3.6 3.6l1.1 1.1M9.3 9.3l1.1 1.1M10.4 3.6l-1.1 1.1M4.7 9.3l-1.1 1.1"/>
+                </svg>
+                设置
               </button>
             </div>
           </div>
@@ -1568,37 +1575,271 @@
       </div>
     </div>
 
-    <!-- 首次登录设置身份 -->
+    <!-- 首次登录初始化引导（阶段三：三步向导 身份 → AI 协作 → 完成） -->
     <div class="modal-overlay"
          x-show="$store.app.currentView === 'setup'"
          x-cloak>
       <div class="modal modal--setup">
-        <div style="text-align:center;margin-bottom:20px;">
-          <div class="avatar-row" style="justify-content:center;margin-bottom:12px;">
-            <div class="avatar avatar--fallback avatar--lg"
-                 x-text="setupNickname ? setupNickname[0] : '?'"
-                 style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto;"></div>
-          </div>
-          <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
-          <p class="modal__description" style="margin-bottom:0;">设置你的昵称和邮箱，开始管理知识</p>
+
+        <!-- 步骤指示条（3 步） -->
+        <div class="guide-steps">
+          <span class="guide-steps__dot" :class="{ 'guide-steps__dot--active': $store.app.guideStep === 1, 'guide-steps__dot--done': $store.app.guideStep > 1 }">
+            <span x-show="$store.app.guideStep > 1">✓</span><span x-show="$store.app.guideStep === 1">1</span>
+          </span>
+          <span class="guide-steps__line"></span>
+          <span class="guide-steps__dot" :class="{ 'guide-steps__dot--active': $store.app.guideStep === 2, 'guide-steps__dot--done': $store.app.guideStep > 2 }">
+            <span x-show="$store.app.guideStep > 2">✓</span><span x-show="$store.app.guideStep <= 2">2</span>
+          </span>
+          <span class="guide-steps__line"></span>
+          <span class="guide-steps__dot" :class="{ 'guide-steps__dot--active': $store.app.guideStep === 3 }">
+            3
+          </span>
         </div>
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">昵称</label>
-        <input class="modal__input" type="text"
-               x-model="setupNickname"
-               placeholder="如：张三"
-               @input="setupEmail = setupEmail || ''" />
-        <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;margin-top:12px;">邮箱</label>
-        <input class="modal__input" type="email"
-               x-model="setupEmail"
-               placeholder="如：zhangsan@example.com" />
-        <p class="modal__hint" x-show="setupEmail && !isValidEmail(setupEmail)"
-           x-text="'邮箱格式不正确'"></p>
-        <div class="modal__actions" style="justify-content:center;margin-top:16px;">
-          <button class="btn btn--primary"
-                  @click="saveSetup()"
-                  :disabled="!setupNickname.trim() || !setupEmail.trim() || !isValidEmail(setupEmail)">
-            开始使用
+
+        <!-- Step 1：身份 -->
+        <div x-show="$store.app.guideStep === 1">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div class="avatar-row" style="justify-content:center;margin-bottom:12px;">
+              <div class="avatar avatar--fallback avatar--lg"
+                   x-text="setupNickname ? setupNickname[0] : '?'"
+                   style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto;"></div>
+            </div>
+            <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
+            <p class="modal__description" style="margin-bottom:0;">设置你的昵称和邮箱，开始初始化 AI 协作</p>
+          </div>
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">昵称</label>
+          <input class="modal__input" type="text"
+                 x-model="setupNickname"
+                 placeholder="如：张三"
+                 @input="setupEmail = setupEmail || ''" />
+          <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;margin-top:12px;">邮箱</label>
+          <input class="modal__input" type="email"
+                 x-model="setupEmail"
+                 placeholder="如：zhangsan@example.com" />
+          <p class="modal__hint" x-show="setupEmail && !isValidEmail(setupEmail)"
+            x-text="'邮箱格式不正确'"></p>
+          <div class="modal__actions" style="justify-content:center;margin-top:16px;">
+            <button class="btn btn--primary"
+                    @click="guideNext()"
+                    :disabled="!setupNickname.trim() || !setupEmail.trim() || !isValidEmail(setupEmail)">
+              下一步
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2：AI 协作初始化（半自动化） -->
+        <div x-show="$store.app.guideStep === 2">
+          <h2 class="modal__title" style="text-align:center;">初始化 AI 协作</h2>
+          <p class="modal__description" style="text-align:center;">为每个 AI 客户端配置 MyKnowledge 协作能力，可稍后在设置中调整</p>
+          <div>
+            <template x-for="item in $store.app.guideConfigItems" :key="item.platform + '-' + item.kind">
+              <div class="ai-config-item">
+                <span class="ai-config-item__status">
+                  <span class="status-indicator__dot"
+                        :class="$store.app.clientStatus(item.platform, item.kind) === true ? 'status-indicator__dot--success'
+                               : $store.app.clientStatus(item.platform, item.kind) === false ? 'status-indicator__dot--muted'
+                               : 'status-indicator__dot--muted'"></span>
+                  <span x-text="$store.app._platformLabel(item.platform) + ' · ' + $store.app._clientKindLabel(item.kind)"></span>
+                </span>
+                <span class="ai-config-item__actions">
+                  <span class="ai-config-item__state"
+                        x-text="$store.app.clientStatus(item.platform, item.kind) === true ? '已就绪'
+                               : $store.app.clientStatus(item.platform, item.kind) === false ? '未配置' : '—'"></span>
+                  <button class="btn btn--sm"
+                          @click="configureAi(item.platform, item.kind)"
+                          :disabled="!!$store.app.clientConfiguring || $store.app.clientStatus(item.platform, item.kind) === true"
+                          x-text="$store.app.clientStatus(item.platform, item.kind) === true ? '已配置' : '自动配置'"></button>
+                  <button class="btn--sm btn-lazy-ai" @click="copyAiPrompt(item.platform, item.kind)">复制 prompt 给 AI</button>
+                </span>
+              </div>
+            </template>
+          </div>
+          <div class="modal__actions" style="justify-content:space-between;margin-top:16px;">
+            <button class="btn" @click="guidePrev()">上一步</button>
+            <button class="btn btn--primary" @click="guideNext()">下一步</button>
+          </div>
+        </div>
+
+        <!-- Step 3：完成 -->
+        <div x-show="$store.app.guideStep === 3">
+          <div style="text-align:center;margin-bottom:20px;">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.9;margin:0 auto 12px;">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <h2 class="modal__title" style="margin-bottom:4px;">初始化完成</h2>
+            <p class="modal__description" style="margin-bottom:0;">你的知识库已准备好与 AI 协作</p>
+          </div>
+          <div>
+            <template x-for="s in $store.app.guideSummary" :key="s.label">
+              <div class="ai-config-item" style="margin-bottom:6px;">
+                <span class="ai-config-item__status">
+                  <span class="status-indicator__dot"
+                        :class="s.done ? 'status-indicator__dot--success' : 'status-indicator__dot--muted'"></span>
+                  <span x-text="s.label"></span>
+                </span>
+                <span class="ai-config-item__state" :style="s.done ? '' : ''"
+                      x-text="s.done ? '已就绪' : '待配置'"></span>
+              </div>
+            </template>
+          </div>
+          <div class="modal__actions" style="justify-content:space-between;margin-top:16px;">
+            <button class="btn" @click="guidePrev()">上一步</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn" @click="window.location.hash='health'">进入知识体检</button>
+              <button class="btn btn--primary" @click="guideNext()">开始使用</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 配置 modal（阶段三：左导航 3 分组 + 右多卡片，Trae/OpenCode 范式） -->
+    <div class="modal-overlay"
+         x-show="$store.app.modal === 'settings'"
+         x-cloak
+         @click.self="$store.app.closeModal()">
+      <div class="settings-modal">
+        <!-- 左侧导航 -->
+        <div class="settings-nav">
+          <div class="settings-nav__title">设置</div>
+          <button class="settings-nav__item"
+                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'account' }"
+                  @click="settingsNav('account')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <circle cx="8" cy="5" r="2.6"/>
+              <path d="M2.5 13.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/>
+            </svg>
+            账号
           </button>
+          <button class="settings-nav__item"
+                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'general' }"
+                  @click="settingsNav('general')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <circle cx="8" cy="8" r="2.4"/>
+              <path d="M8 2v1.6M8 12.4V14M2 8h1.6M12.4 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/>
+            </svg>
+            通用
+          </button>
+          <button class="settings-nav__item"
+                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'ai' }"
+                  @click="settingsNav('ai')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="3" y="3" width="10" height="10" rx="2"/>
+              <path d="M8 6.5v3M6.5 8h3"/>
+            </svg>
+            AI 协作
+          </button>
+          <div class="settings-nav__version" x-text="'v' + ($store.app.systemVersion || '1.0.0') + ' · MyKnowledge'"></div>
+        </div>
+
+        <!-- 右侧内容区 -->
+        <div class="settings-body">
+
+          <!-- 账号 -->
+          <div x-show="$store.app.settingsGroup === 'account'">
+            <h3 class="settings-body__title">账号</h3>
+            <p class="settings-body__desc">管理你的身份信息，用于文档作者标记</p>
+            <div class="settings-card">
+              <div class="settings-card__title">头像与名称</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+                <span class="avatar avatar--fallback"
+                      x-text="identityNickname ? identityNickname[0].toUpperCase() : '?'"
+                      style="width:44px;height:44px;font-size:18px;background:var(--accent-subtle);color:var(--accent);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0;"></span>
+                <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+                  <input class="modal__input" style="margin:0;" type="text"
+                         x-model="identityNickname"
+                         placeholder="昵称" />
+                  <input class="modal__input" style="margin:0;" type="email"
+                         x-model="identityEmail"
+                         placeholder="邮箱" />
+                </div>
+              </div>
+              <p class="modal__hint" x-show="identityEmail && !isValidEmail(identityEmail)"
+                x-text="'邮箱格式不正确'"></p>
+              <div class="modal__actions" style="margin-top:12px;">
+                <button class="btn btn--primary"
+                        @click="saveSettingsIdentity()"
+                        :disabled="!identityNickname.trim() || !identityEmail.trim() || (identityEmail && !isValidEmail(identityEmail))">
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通用 -->
+          <div x-show="$store.app.settingsGroup === 'general'">
+            <h3 class="settings-body__title">通用</h3>
+            <p class="settings-body__desc">外观、引导与版本信息</p>
+
+            <div class="settings-card">
+              <div class="settings-card__title">外观</div>
+              <div class="settings-card__desc">选择主题风格与亮暗模式</div>
+              <div class="theme-picker">
+                <select class="modal__input" style="margin:0;"
+                        x-model="$store.app.designTheme"
+                        @change="$store.app.applyTheme()">
+                  <option value="raycast">Raycast</option>
+                  <option value="intercom">Intercom</option>
+                  <option value="warm-editorial">Warm Editorial</option>
+                  <option value="mistral">Mistral</option>
+                  <option value="resend">Resend</option>
+                </select>
+                <div class="color-mode-seg" x-show="$store.app.showColorMode">
+                  <button class="theme-switcher__btn" :class="{ 'theme-switcher__btn--active': $store.app.theme === 'light' }"
+                          @click="$store.app.switchTheme('light')" title="浅色">☀</button>
+                  <button class="theme-switcher__btn" :class="{ 'theme-switcher__btn--active': $store.app.theme === 'dark' }"
+                          @click="$store.app.switchTheme('dark')" title="深色">☾</button>
+                  <button class="theme-switcher__btn" :class="{ 'theme-switcher__btn--active': $store.app.theme === 'system' }"
+                          @click="$store.app.switchTheme('system')" title="跟随系统">◐</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card__title">引导</div>
+              <div class="settings-card__desc">重新运行初始化引导，再次配置身份与 AI 协作</div>
+              <div style="margin-top:12px;">
+                <button class="btn" @click="$store.app.rerunGuide()">重新运行初始化引导</button>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card__title">关于</div>
+              <div class="settings-card__desc" x-text="'MyKnowledge v' + ($store.app.systemVersion || '1.0.0') + ' · 知识库 v' + ($store.app.kbVersion || '—')"></div>
+            </div>
+          </div>
+
+          <!-- AI 协作：MCP / hooks / Agent 三卡，卡内各平台 -->
+          <div x-show="$store.app.settingsGroup === 'ai'">
+            <h3 class="settings-body__title">AI 协作</h3>
+            <p class="settings-body__desc">为各 AI 客户端配置 MyKnowledge 的 MCP、Hooks 与专用 Agent</p>
+            <template x-for="kind in $store.app.clientKinds" :key="kind.key">
+              <div class="settings-card">
+                <div class="settings-card__title" x-text="kind.label"></div>
+                <div class="settings-card__desc" x-text="kind.desc"></div>
+                <template x-for="plat in $store.app.clientPlatforms" :key="kind.key + '-' + plat.key">
+                  <div class="ai-platform-row">
+                    <span class="status-indicator__dot"
+                          :class="$store.app.clientStatus(plat.key, kind.key) === true ? 'status-indicator__dot--success'
+                                 : 'status-indicator__dot--muted'"></span>
+                    <span style="font-size:var(--text-xs);color:var(--text-secondary);flex:1;"
+                          x-text="plat.label"></span>
+                    <span style="font-size:var(--text-xs);color:var(--text-tertiary);"
+                          x-text="$store.app.clientStatus(plat.key, kind.key) === true ? '已就绪'
+                                 : $store.app.clientStatus(plat.key, kind.key) === false ? '未配置' : '检测失败'"></span>
+                    <button class="btn btn--sm" style="margin-left:8px;"
+                            @click="configureAi(plat.key, kind.key)"
+                            :disabled="!!$store.app.clientConfiguring || $store.app.clientStatus(plat.key, kind.key) === true"
+                            x-text="$store.app.isClientConfiguring(plat.key, kind.key) ? '配置中…' : ($store.app.clientStatus(plat.key, kind.key) === true ? '已配置' : '配置')"></button>
+                    <button class="btn--sm btn-lazy-ai" @click="copyAiPrompt(plat.key, kind.key)">复制 prompt 给 AI</button>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
         </div>
       </div>
     </div>

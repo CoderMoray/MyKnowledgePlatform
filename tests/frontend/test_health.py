@@ -14,6 +14,7 @@
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -359,7 +360,7 @@ class TestHealthBrowser:
             ctx.grant_permissions(["clipboard-read", "clipboard-write"])
         except Exception:
             pass
-        page.locator("button", has_text="复制 prompt").first.click()
+        page.locator("button", has_text=re.compile(r"复制 prompt(?! 给 AI)")).first.click()
         page.wait_for_timeout(500)
         # 读取剪贴板
         try:
@@ -616,7 +617,7 @@ class TestHealthBrowser:
             page.context.grant_permissions(["clipboard-read", "clipboard-write"])
         except Exception:
             pass
-        page.locator(".modal button", has_text="复制 prompt").first.click()
+        page.locator(".modal button", has_text=re.compile(r"复制 prompt(?! 给 AI)")).first.click()
         page.wait_for_timeout(500)
         text = ""
         try:

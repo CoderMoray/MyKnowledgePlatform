@@ -170,21 +170,93 @@ Alpine.data("modalComponent", () => ({
       if (!nick || !email || !this.isValidEmail(email)) return;
       try {
         await store.saveIdentity(nick, email);
-        showToast("欢迎！", "success");
-        window.location.hash = "dashboard";
+        showToast("身份已保存", "success");
+        // 阶段三：Step1 身份完成 → 进入 Step2 AI 协作初始化
+        store.guideStep = 2;
       } catch (err) {
         showToast(err.message || "保存失败", "error");
       }
     },
 
+    /** 引导向导：下一步（Step2→Step3；Step3 完成跳 dashboard） */
+    async guideNext() {
+      const store = Alpine.store("app");
+      if (store.guideStep === 1) {
+        // Step1 身份未保存则先保存（复用 saveSetup）
+        if (!store.identitySet) {
+          await this.saveSetup();
+          if (!store.identitySet) return; // 保存失败留在 Step1
+        }
+        store.guideStep = 2;
+      } else if (store.guideStep === 2) {
+        store.guideStep = 3;
+      } else {
+        // Step3 完成 → 开始使用
+        window.location.hash = "dashboard";
+      }
+    },
+
+    /** 引导向导：上一步（Step2→Step1；Step3→Step2） */
+    guidePrev() {
+      const store = Alpine.store("app");
+      if (store.guideStep === 2) store.guideStep = 1;
+      else if (store.guideStep === 3) store.guideStep = 2;
+    },
+
+    /** 配置 modal：切换左侧分组 */
+    settingsNav(group) {
+      Alpine.store("app").settingsGroup = group;
+    },
+
+    /** 配置 modal · 账号卡：保存昵称/邮箱 */
+    async saveSettingsIdentity() {
+      const store = Alpine.store("app");
+      const nick = this.identityNickname.trim();
+      const email = this.identityEmail.trim();
+      if (!nick || !email || !this.isValidEmail(email)) return;
+      try {
+        await store.saveIdentity(nick, email);
+        showToast("个人信息已保存", "success");
+      } catch (err) {
+        showToast(err.message || "保存失败", "error");
+      }
+    },
+
+    /** 配置 modal / 引导 Step2 · AI 协作：写入配置 */
+    configureAi(platform, kind) {
+      return Alpine.store("app").configureClient(platform, kind);
+    },
+
+    /** 配置 modal / 引导 Step2 · AI 协作：复制 prompt 兜底 */
+    copyAiPrompt(platform, kind) {
+      return Alpine.store("app").copyClientPrompt(platform, kind);
+    },
+
     init() {
       const store = Alpine.store("app");
       this.$watch("$store.app.modal", (val) => {
-        if (val === "edit-identity") {
+        if (val === "edit-identity" || val === "settings") {
+          // 身份卡共用 identityNickname/Email（edit-identity 与 settings 账号卡）
           this.identityNickname = store.nickname || "";
           this.identityEmail = store.email || "";
+          if (val === "settings") {
+            store.settingsGroup = "account";
+            store.loadClientConfig().catch(() => {});
+          }
         } else if (val === "new-doc") {
           this._initNewDocParent();
+        }
+      });
+      // 引导向导视图：进入 setup 重置 Step1（首次自动触发 / 重新运行引导）
+      this.$watch("$store.app.currentView", (val) => {
+        if (val === "setup") {
+          store.guideStep = 1;
+          // 身份已设置时预填（rerunGuide 进入场景；首次进入 setup 身份未设留空待填）
+          if (store.identitySet) {
+            this.setupNickname = store.nickname || "";
+            this.setupEmail = store.email || "";
+          }
+          store.loadClientConfig().catch(() => {});
         }
       });
       // 高度柔和动画：候选/展开状态变化时，先定格当前高度再过渡到目标高度

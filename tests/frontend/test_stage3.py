@@ -1,0 +1,244 @@
+"""MyKnowledge 前端 — 阶段三：引导页三步向导 + 配置 modal（3 分组）测试
+
+覆盖：
+1. 静态结构：api.js client-config 方法；store.js 阶段三状态/方法；
+   index.html 引导向导（guide-steps 3 步）+ 配置 modal（settings-nav 3 分组 + 账号/通用/AI协作卡）
+2. 构建：standalone 含阶段三功能文本/样式
+3. 浏览器渲染（复用 conftest fixtures）：
+   - user-menu「设置」打开配置 modal；左导航 3 分组切换
+   - 账号卡保存；通用卡双层主题；AI 协作卡平台状态 + 配置/复制按钮
+   - 引导页三步向导（Step1 身份 → Step2 AI 协作 → Step3 完成）
+   - console 无报错/警告
+
+注意：浏览器测试只 GET 检测 + 打开 modal 渲染，不实际 POST 写入
+（避免污染用户全局 ~/.claude / ~/.codebuddy 配置）。
+
+依赖：pip install playwright && playwright install chromium
+运行：PYTHONPATH=. pytest tests/frontend/test_stage3.py
+"""
+
+from pathlib import Path
+
+from playwright.sync_api import expect
+
+ROOT = Path(__file__).resolve().parents[2]
+FRONTEND = ROOT / "frontend"
+INDEX = FRONTEND / "index.html"
+API = FRONTEND / "js" / "api.js"
+STORE = FRONTEND / "js" / "store.js"
+MODAL = FRONTEND / "js" / "components" / "modal.js"
+COMPONENTS_CSS = FRONTEND / "css" / "components.css"
+STANDALONE = FRONTEND / "index.standalone.html"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 静态结构测试（不依赖后端运行）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestStage3StaticStructure:
+    """验证阶段三引导页 + 配置 modal 的 HTML/JS/CSS 结构完整性"""
+
+    def test_api_client_config_methods(self):
+        """api.js 暴露 client-config 方法"""
+        js = API.read_text(encoding="utf-8")
+        assert "getClientConfig" in js, "Missing api.getClientConfig()"
+        assert "setClientConfig" in js, "Missing api.setClientConfig(platform, kind)"
+        assert "/api/client-config" in js, "Missing /api/client-config endpoint"
+
+    def test_store_stage3_state_and_methods(self):
+        """store.js 暴露阶段三状态与方法"""
+        js = STORE.read_text(encoding="utf-8")
+        for name in ["clientConfig", "settingsGroup", "guideStep", "clientConfiguring",
+                     "clientPlatforms", "clientKinds", "loadClientConfig",
+                     "configureClient", "copyClientPrompt", "openSettings",
+                     "rerunGuide", "isClientConfiguring", "clientStatus",
+                     "guideConfigItems", "guideSummary"]:
+            assert name in js, f"Missing store symbol: {name}"
+
+    def test_store_platforms_match_backend(self):
+        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy）"""
+        js = STORE.read_text(encoding="utf-8")
+        assert "claude" in js and "codebuddy" in js, "Missing claude/codebuddy platforms"
+        # 不应出现 cursor 平台（后端未实现，前端不硬编码）
+        assert "cursor" not in js, "cursor 平台不应存在（后端 PLATFORMS 未含 cursor）"
+
+    def test_modal_stage3_methods(self):
+        """modal.js 暴露向导与配置 modal 逻辑"""
+        js = MODAL.read_text(encoding="utf-8")
+        for name in ["guideNext", "guidePrev", "settingsNav",
+                     "saveSettingsIdentity", "configureAi", "copyAiPrompt"]:
+            assert name in js, f"Missing modal method: {name}"
+
+    def test_index_settings_entry(self):
+        """user-menu 含「设置」入口，点击 openSettings()"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "openSettings()" in html, "Missing openSettings entry in user-menu"
+        assert "设置" in html, "Missing「设置」menu item"
+
+    def test_index_guide_wizard(self):
+        """引导页为三步向导：guide-steps + Step1 身份 / Step2 AI 协作 / Step3 完成"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "guide-steps" in html, "Missing guide-steps (3-step indicator)"
+        assert "guideStep === 1" in html, "Missing Step1 身份"
+        assert "guideStep === 2" in html, "Missing Step2 AI 协作"
+        assert "guideStep === 3" in html, "Missing Step3 完成"
+        assert "guideNext" in html, "Missing guideNext()"
+        assert "guidePrev" in html, "Missing guidePrev()"
+        assert "初始化 AI 协作" in html, "Missing Step2 title「初始化 AI 协作」"
+        assert "初始化完成" in html, "Missing Step3 title「初始化完成」"
+        assert "开始使用" in html, "Missing「开始使用」button"
+
+    def test_index_settings_modal_markup(self):
+        """配置 modal：settings-nav 3 分组 + settings-body 卡片"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "settings-nav" in html, "Missing settings-nav (left navigation)"
+        assert "settingsGroup === 'account'" in html, "Missing account group"
+        assert "settingsGroup === 'general'" in html, "Missing general group"
+        assert "settingsGroup === 'ai'" in html, "Missing AI 协作 group"
+        assert "settings-card" in html, "Missing settings-card"
+        # 账号卡
+        assert "saveSettingsIdentity" in html, "Missing account save"
+        # 通用卡：双层主题 + 重新引导 + 关于
+        assert "designTheme" in html, "Missing designTheme picker"
+        assert "showColorMode" in html, "Missing color-mode segmented (双层主题)"
+        assert "rerunGuide" in html, "Missing rerun guide button"
+        assert "systemVersion" in html, "Missing about version"
+        # AI 协作卡：平台状态 + 配置 + 复制
+        assert "ai-platform-row" in html, "Missing ai-platform-row"
+        assert "configureAi" in html, "Missing configureAi"
+        assert "copyAiPrompt" in html, "Missing copyAiPrompt (复制 prompt 兜底)"
+
+    def test_stage3_css_classes(self):
+        """阶段三新增样式类在 components.css"""
+        css = COMPONENTS_CSS.read_text(encoding="utf-8")
+        for cls in ["guide-steps", "guide-steps__dot", "guide-steps__dot--active",
+                    "guide-steps__dot--done", "guide-steps__line",
+                    "ai-config-item", "ai-config-item__status", "ai-config-item__actions",
+                    "settings-nav", "settings-nav__item", "settings-nav__item--active",
+                    "settings-modal", "settings-body", "settings-card",
+                    "theme-picker", "color-mode-seg", "ai-platform-row"]:
+            assert f".{cls}" in css, f"Missing CSS class: .{cls}"
+
+    def test_stage3_css_uses_tokens_not_new_colors(self):
+        """阶段三样式必须复用 design token（不引入硬编码十六进制颜色）"""
+        css = COMPONENTS_CSS.read_text(encoding="utf-8")
+        marker = "阶段三 · 引导页三步向导 + 配置 modal"
+        assert marker in css, f"Missing stage3 CSS section marker: {marker}"
+        block = css[css.index(marker):]
+        for hexcolor in ["#f00", "#ff0000", "#e74c3c", "#dc3545", "#27ae60", "#f39c12"]:
+            assert hexcolor not in block, f"Hardcoded color in stage3 CSS: {hexcolor}"
+        # 语义色必须走 token
+        assert "--color-success" in block, "success must use --color-success token"
+        assert "--accent" in block, "active nav must use --accent token"
+        assert "--card-glass-bg" in block, "settings-card must use --card-glass-bg token"
+        # 不应引用不存在的 --border-color
+        assert "--border-color" not in block, "must not use non-existent --border-color token"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 构建测试
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestStage3Build:
+    def test_standalone_contains_stage3(self):
+        assert STANDALONE.exists(), "Standalone not built. Run: python3 build.py"
+        content = STANDALONE.read_text(encoding="utf-8")
+        checks = [
+            "getClientConfig", "setClientConfig", "clientConfig",
+            "guide-steps", "初始化 AI 协作", "初始化完成",
+            "settings-nav", "settings-card", "ai-platform-row",
+            "复制 prompt 给 AI", "saveSettingsIdentity", "configureAi",
+        ]
+        for c in checks:
+            assert c in content, f"Standalone missing stage3 content: {c}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 浏览器渲染测试（复用 conftest fixtures：backend_running/static_server/browser/page）
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestStage3Browser:
+    """浏览器渲染验证。只 GET 检测 + 渲染，不实际 POST 写入用户全局配置。"""
+
+    def _open_settings(self, page):
+        """打开 user-menu 下拉并点击「设置」"""
+        page.locator(".user-menu__trigger").click()
+        page.locator(".user-menu__item", has_text="设置").click()
+        page.wait_for_timeout(800)
+
+    def test_settings_modal_opens(self, static_server, page, backend_running):
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        self._open_settings(page)
+        expect(page.locator(".settings-modal")).to_be_visible(timeout=5000)
+        # 左侧 3 分组导航 + 账号卡默认显示
+        expect(page.locator(".settings-nav__item", has_text="账号")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-nav__item", has_text="通用")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-nav__item", has_text="AI 协作")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="头像与名称")).to_be_visible(timeout=3000)
+
+    def test_settings_nav_switch_groups(self, static_server, page, backend_running):
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        self._open_settings(page)
+        # 切到「通用」
+        page.locator(".settings-nav__item", has_text="通用").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".settings-card", has_text="外观")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="重新运行初始化引导")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="关于")).to_be_visible(timeout=3000)
+        # 切到「AI 协作」
+        page.locator(".settings-nav__item", has_text="AI 协作").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".settings-card", has_text="MCP")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="Hooks")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="Agent")).to_be_visible(timeout=3000)
+
+    def test_guide_wizard_three_steps(self, static_server, page, backend_running):
+        """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        # 通过配置 modal 通用卡「重新运行初始化引导」进入（身份已设置时唯一入口）
+        self._open_settings(page)
+        page.locator(".settings-nav__item", has_text="通用").click()
+        page.wait_for_timeout(300)
+        page.locator("button", has_text="重新运行初始化引导").click()
+        page.wait_for_timeout(800)
+        # Step1 身份（重新引导后身份已有值，直接可下一步）
+        setup = page.locator(".modal--setup")
+        expect(setup).to_be_visible(timeout=5000)
+        expect(page.locator(".modal--setup", has_text="设置你的昵称和邮箱")).to_be_visible(timeout=5000)
+        setup.locator("input[placeholder='如：张三']").fill("测试用户")
+        setup.locator("input[placeholder='如：zhangsan@example.com']").fill("test@example.com")
+        setup.locator("button", has_text="下一步").first.click()
+        page.wait_for_timeout(800)
+        expect(page.locator(".modal--setup", has_text="初始化 AI 协作")).to_be_visible(timeout=5000)
+        expect(page.locator(".ai-config-item").first).to_be_visible(timeout=3000)
+        # 进入 Step3（Step2 的「下一步」在 DOM 中位于 Step1 之后，用 .last）
+        page.locator(".modal--setup button", has_text="下一步").last.click()
+        page.wait_for_timeout(800)
+        expect(page.locator(".modal--setup", has_text="初始化完成")).to_be_visible(timeout=5000)
+        expect(page.locator(".modal--setup", has_text="开始使用")).to_be_visible(timeout=3000)
+
+    def test_console_clean(self, static_server, page, backend_running):
+        """配置 modal 打开 + 分组切换后 console 无前端 JS 报错。
+
+        用 console error 断言（与现有 test_health 一致），过滤两类环境性错误：
+        1. "Failed to load resource" — 资源/网络 404（如 8080 后端旧进程未加载
+           /api/client-config 时，属后端版本环境问题，非前端 JS 错误）
+        注：不用 pageerror——conftest 的 toast 捕获 init_script 与 tiptap 编辑器
+        初始化时序冲突会产生既有 pageerror（stash 掉阶段三改动后依然存在），
+        与本次功能无关。"""
+        errors = []
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        self._open_settings(page)
+        for g in ["通用", "AI 协作", "账号"]:
+            page.locator(".settings-nav__item", has_text=g).click()
+            page.wait_for_timeout(200)
+        real = [e for e in errors if "Failed to load resource" not in e]
+        assert not real, f"Console JS errors: {real}"

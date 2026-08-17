@@ -59,6 +59,19 @@ let _tocCollapsedSet = {};
     /** 就绪信号数据：{ saved, total_issues, has_high }（saved 表示上次检查是否有结果） */
     readiness: { saved: false, total_issues: 0, has_high: false },
 
+    /* ── 阶段三：AI 客户端配置 + 引导向导 + 配置 modal ─────────────────── */
+
+    /** AI 客户端配置检测状态：{ claude: {mcp, hooks, agent}, codebuddy: {...} }（bool） */
+    clientConfig: null,
+    /** 配置 modal 当前左侧分组：account | general | ai */
+    settingsGroup: "account",
+    /** 引导向导当前步骤：1 身份 | 2 AI 协作 | 3 完成 */
+    guideStep: 1,
+    /** 是否强制重进引导向导（rerunGuide 设置，绕过身份已配置的 setup 拦截） */
+    guideForce: false,
+    /** 正在写入的平台/kind（防重复点击）：{ platform, kind } | null */
+    clientConfiguring: null,
+
     /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
     deletedInfo: null,
 
@@ -1181,11 +1194,12 @@ let _tocCollapsedSet = {};
 
       // setup 特殊处理
       if (hash === "setup") {
-        // 身份已配置 → 不展示 setup，直接跳仪表盘
-        if (this.identitySet) {
+        // 身份已配置且非强制重进（rerunGuide）→ 不展示 setup，直接跳仪表盘
+        if (this.identitySet && !this.guideForce) {
           window.location.hash = "dashboard";
           return;
         }
+        this.guideForce = false; // 放行进入后重置，避免后续导航残留强制标记
         this.currentView = "setup";
         return;
       }
@@ -1267,6 +1281,142 @@ let _tocCollapsedSet = {};
       await api.setIdentity(email, nickname);
       this.nickname = nickname;
       this.email = email;
+    },
+
+    /* ── 阶段三：AI 客户端配置（MCP/hooks/Agent 检测 + 半自动化写入） ── */
+
+    /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy） */
+    clientPlatforms: [
+      { key: "claude",    label: "Claude",    dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
+      { key: "codebuddy", label: "CodeBuddy", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
+    ],
+
+    /** 加载各平台配置检测状态（GET /api/client-config） */
+    async loadClientConfig() {
+      try {
+        const data = await api.getClientConfig();
+        this.clientConfig = data || {};
+      } catch (e) {
+        // 后端离线/异常：置 null，UI 显示「检测失败」并提供复制兜底
+        this.clientConfig = null;
+      }
+    },
+
+    /**
+     * 半自动化写入某平台某 kind 配置：POST → 刷新 GET → toast。
+     * @param {string} platform
+     * @param {string} kind - mcp | hooks | agent
+     */
+    async configureClient(platform, kind) {
+      if (this.clientConfiguring) return; // 同一时刻只允许一个写入
+      this.clientConfiguring = { platform, kind };
+      try {
+        const res = await api.setClientConfig(platform, kind);
+        // 写入后重新检测，更新状态显示「已就绪」
+        await this.loadClientConfig();
+        const label = this._clientKindLabel(kind);
+        if (res && res.status) {
+          showToast(`${this._platformLabel(platform)} ${label}已就绪`, "success");
+        } else {
+          showToast(`${this._platformLabel(platform)} ${label}配置完成`, "success");
+        }
+      } catch (e) {
+        showToast(`${this._platformLabel(platform)} 配置失败 · 请复制 prompt 交给 AI`, "error");
+      } finally {
+        this.clientConfiguring = null;
+      }
+    },
+
+    /** 复制「让 AI 配置」prompt 兜底（失败/非适配时） */
+    async copyClientPrompt(platform, kind) {
+      const label = this._platformLabel(platform);
+      const kindName = this._clientKindName(kind);
+      const prompt =
+        `请为我的 ${label} 客户端配置 MyKnowledge 的 ${kindName} 协作能力。\n` +
+        `目标：让 ${label} 的 AI 能通过 MyKnowledge 的 MCP/hooks/Agent 协作访问我的本地知识库。\n` +
+        `请用 MyKnowledge 的 MCP 工具或手动编辑 ${label} 配置文件完成配置，并告诉我配置位置与状态。`;
+      const ok = await this._writeClipboard(prompt);
+      if (ok) {
+        showToast(`${label} ${kindName}配置 prompt 已复制 · 粘贴到 AI 对话`, "success");
+      } else {
+        showToast("复制失败，请手动复制", "error");
+      }
+    },
+
+    /** 打开配置 modal：跳 account 分组 + 加载 AI 配置状态 */
+    openSettings() {
+      this.settingsGroup = "account";
+      this.openModal("settings");
+      // 进入时异步预加载 AI 配置状态（account/general 卡不依赖它）
+      this.loadClientConfig().catch(() => {});
+    },
+
+    /** 重新运行初始化引导：强制进入 #setup + 重置到 Step1（绕过身份已配置的 setup 拦截） */
+    rerunGuide() {
+      this.closeModal();
+      this.guideStep = 1;
+      this.guideForce = true;
+      window.location.hash = "setup";
+    },
+
+    /** 平台 key → 显示名 */
+    _platformLabel(key) {
+      const p = this.clientPlatforms.find(p => p.key === key);
+      return p ? p.label : key;
+    },
+
+    /** kind → 动词标签（用于 toast/按钮） */
+    _clientKindLabel(kind) {
+      return kind === "mcp" ? "MCP" : kind === "hooks" ? "Hooks" : "Agent";
+    },
+
+    /** kind → 中文名（用于 prompt 文案） */
+    _clientKindName(kind) {
+      return kind === "mcp" ? "MCP" : kind === "hooks" ? "Hooks（PreToolUse）" : "专用 Agent";
+    },
+
+    /** AI 协作三类型元信息（mcp/hooks/agent） */
+    clientKinds: [
+      { key: "mcp",   label: "MCP",       desc: "AI 客户端直连本地知识库工具" },
+      { key: "hooks", label: "Hooks",     desc: "PreToolUse 钩子保护裸操作" },
+      { key: "agent", label: "Agent",     desc: "专用 Agent 简化知识库操作" },
+    ],
+
+    /** 是否正在写入某平台某 kind（按钮转 spinner + disabled） */
+    isClientConfiguring(platform, kind) {
+      const c = this.clientConfiguring;
+      return !!(c && c.platform === platform && c.kind === kind);
+    },
+
+    /** 某平台某 kind 的检测状态（已配置=true/未配置=false/无数据=null） */
+    clientStatus(platform, kind) {
+      const cfg = this.clientConfig;
+      if (!cfg || !cfg[platform]) return null;
+      return cfg[platform][kind];
+    },
+
+    /** 引导 Step2：平台×kind 配置项行列表（供 x-for 渲染） */
+    get guideConfigItems() {
+      const items = [];
+      for (const plat of this.clientPlatforms) {
+        for (const kind of this.clientKinds) {
+          items.push({ platform: plat.key, kind: kind.key });
+        }
+      }
+      return items;
+    },
+
+    /** 引导 Step3：总结列表 [{label, done}]（身份 + 各平台 mcp/hooks/agent） */
+    get guideSummary() {
+      const list = [{ label: "身份信息", done: this.identitySet }];
+      for (const plat of this.clientPlatforms) {
+        const p = this.clientConfig && this.clientConfig[plat.key];
+        list.push({
+          label: `${this._platformLabel(plat.key)} 协作`,
+          done: !!(p && (p.mcp || p.hooks || p.agent)),
+        });
+      }
+      return list;
     },
 
     /* ── 版本管理 ─────────────────────────────────────────────────── */

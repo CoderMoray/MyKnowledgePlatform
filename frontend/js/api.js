@@ -306,6 +306,28 @@ const api = {
     });
   },
 
+  /* ── AI 客户端配置 API（阶段三：MCP/hooks/Agent 检测与增量写入） ────── */
+
+  /**
+   * 检测各 AI 客户端的 MyKnowledge 配置状态
+   * @returns {Promise<{claude: {mcp, hooks, agent}, codebuddy: {mcp, hooks, agent}}>}
+   */
+  async getClientConfig() {
+    return apiRequest("/api/client-config");
+  },
+
+  /**
+   * 增量写入某平台某 kind 的 MyKnowledge 配置
+   * @param {string} platform - claude | codebuddy
+   * @param {string} kind - mcp | hooks | agent
+   * @returns {Promise<{platform, kind, file, status, detected}>}
+   */
+  async setClientConfig(platform, kind) {
+    return apiRequest(`/api/client-config/${encodeURIComponent(platform)}/${encodeURIComponent(kind)}`, {
+      method: "POST",
+    });
+  },
+
   /* ── 实时事件 ─────────────────────────────────────────────────────────── */
 
   /** SSE 事件名 */
