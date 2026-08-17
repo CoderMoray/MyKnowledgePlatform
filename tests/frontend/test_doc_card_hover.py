@@ -14,7 +14,7 @@ sys.path.insert(0, "/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_Pla
 
 import pytest
 
-from conftest import api, backend_doc  # noqa: E402 (同目录 conftest，与 helpers 同法)
+from conftest import api, backend_doc, hard_delete_doc  # noqa: E402 (同目录 conftest，与 helpers 同法)
 from edit_switch_helpers import wait_for_backend  # noqa: E402 (rename 异步轮询，防批量跑时序)
 
 MARKER = "HOVER-UPDATED-2026"
@@ -32,14 +32,12 @@ def hover_docs(backend_running):
         HOVER_C: ("# Hover C\n\nC 正文，无引用。", "hover C 摘要"),
     }
     for path, (content, summary) in docs.items():
-        st, _ = backend_doc(path)
-        if st != 200:
-            api("POST", f"/api/document/{urllib.parse.quote(path, safe='/')}",
-                {"content": content, "summary": summary})
+        # 无论是否存在都 POST 覆盖，保证每次测试是干净起点（防残留污染复用）
+        api("POST", f"/api/document/{urllib.parse.quote(path, safe='/')}",
+            {"content": content, "summary": summary})
     yield docs
     for path in docs:
-        api("DELETE", f"/api/document/{urllib.parse.quote(path, safe='/')}")
-    api("POST", "/api/trash/empty?all=true")
+        hard_delete_doc(path)  # 真删除（不进垃圾箱）+ git 提交删除 + 重建父 readme
 
 
 def _open_dashboard(page, static_url):
