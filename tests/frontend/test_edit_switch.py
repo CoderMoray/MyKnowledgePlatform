@@ -420,7 +420,7 @@ def _cleanup_new_doc(path):
     try:
         from conftest import api
         api("DELETE", f"/api/document/{urllib.parse.quote(path, safe='/')}")
-        api("POST", "/api/trash/empty")
+        api("POST", "/api/trash/empty?all=true")
     except Exception:
         pass
 

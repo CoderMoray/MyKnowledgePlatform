@@ -53,6 +53,22 @@ def _restore_proj(app, trash_path: str) -> str:
     return _tool_text(asyncio.run(app.call_tool("write__restore_project", {"trash_path": trash_path})))
 
 
+@pytest.fixture
+def client_factory(tmp_kb_root: Path, storage: Storage):
+    """Return (TestClient, storage, tmp_kb_root) with get_storage overridden."""
+    import backend.main
+    from backend.main import app as _app
+    from backend.main import get_storage as _orig
+    from fastapi.testclient import TestClient
+
+    def _test_storage():
+        return storage, None
+
+    backend.main.get_storage = _test_storage
+    yield TestClient(_app), storage, tmp_kb_root
+    backend.main.get_storage = _orig
+
+
 # ══════════════════════════════════════════════════════════════
 #  Delete
 # ══════════════════════════════════════════════════════════════
@@ -256,6 +272,75 @@ class TestGC:
         n = gc_trash(storage)
         assert n == 0
         assert (tmp_kb_root / "trash" / "documents").glob("*.md")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Empty-all (user "clear trash" button) vs GC
+# ══════════════════════════════════════════════════════════════
+
+
+class TestEmptyAll:
+    def test_empty_all_clears_fresh_items(self, storage: Storage,
+                                          tmp_kb_root: Path):
+        """empty_trash removes even <30-day fresh items (unlike gc_trash)."""
+        from backend.trash import move_doc_to_trash, empty_trash
+        _mkdoc(storage, "common-knowledge/fresh.md")
+        move_doc_to_trash(storage, "common-knowledge/fresh.md")
+        assert (tmp_kb_root / "trash" / "documents").glob("*.md")
+        n = empty_trash(storage)
+        assert n == 1
+        assert not list((tmp_kb_root / "trash" / "documents").glob("*.md"))
+
+    def test_empty_all_clears_projects_too(self, storage: Storage,
+                                           tmp_kb_root: Path):
+        """empty_trash removes trashed projects (directories) as well."""
+        from backend.trash import move_project_to_trash, empty_trash
+        from pathlib import Path as P
+        _mkdoc(storage, "projects/P/common-knowledge/x.md")
+        move_project_to_trash(storage, "projects/P")
+        assert (tmp_kb_root / "trash" / "projects").exists()
+        n = empty_trash(storage)
+        assert n == 1
+        assert not list((tmp_kb_root / "trash" / "projects").glob("*"))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Pagination
+# ══════════════════════════════════════════════════════════════
+
+
+class TestTrashPagination:
+    def test_page_default_limit_50(self, client_factory):
+        """GET /api/trash defaults to limit=50 and reports total/has_more."""
+        client, storage, tmp = client_factory
+        from backend.trash import move_doc_to_trash
+        # 120 fresh items in trash
+        for i in range(120):
+            _mkdoc(storage, f"common-knowledge/pg{i}.md")
+            move_doc_to_trash(storage, f"common-knowledge/pg{i}.md")
+        r = client.get("/api/trash")
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data["items"]) == 50
+        assert data["total"] == 120
+        assert data["has_more"] is True
+
+    def test_page_offset_limit(self, client_factory):
+        """offset/limit slice correctly."""
+        client, storage, tmp = client_factory
+        from backend.trash import move_doc_to_trash
+        for i in range(10):
+            _mkdoc(storage, f"common-knowledge/pg{i}.md")
+            move_doc_to_trash(storage, f"common-knowledge/pg{i}.md")
+        r = client.get("/api/trash?offset=0&limit=4")
+        data = r.json()
+        assert len(data["items"]) == 4
+        assert data["total"] == 10
+        assert data["has_more"] is True
+        r2 = client.get("/api/trash?offset=8&limit=4")
+        data2 = r2.json()
+        assert len(data2["items"]) == 2
+        assert data2["has_more"] is False
 
 
 # ══════════════════════════════════════════════════════════════

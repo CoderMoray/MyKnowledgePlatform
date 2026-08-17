@@ -310,6 +310,30 @@ def gc_trash(storage, days: int = GC_DAYS) -> int:
     return removed
 
 
+def empty_trash(storage) -> int:
+    """Permanently remove **all** trash items (documents + projects).
+
+    User-triggered "clear trash" (the frontend empty button) — unlike
+    :func:`gc_trash` (which only purges items older than 30 days), this clears
+    everything immediately, including fresh items.  Returns the number of
+    items removed.
+    """
+    import shutil
+    items = list_trash(storage)
+    removed = 0
+    for item in items:
+        p = storage.kb_root / item["trash_path"]
+        if p.exists():
+            if p.is_dir():
+                shutil.rmtree(str(p))
+            else:
+                p.unlink()
+            removed += 1
+    if removed:
+        _invalidate_trash_index(storage)
+    return removed
+
+
 # ── Trash index (dead-link fast path) ──────────────────────────
 
 

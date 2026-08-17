@@ -1461,11 +1461,21 @@ def api_search(q: str = "", limit: int = 20, kind: str = "all"):
 
 
 @app.get("/api/trash")
-def api_trash_list():
-    """List all items currently in the trash."""
+def api_trash_list(offset: int = 0, limit: int = 50):
+    """List trash items, paginated.
+
+    ``offset``/``limit`` (default ``limit=50``) enable half-lazy loading: first
+    screen 50, scroll-to-bottom loads +50.  Returns ``{items, total, has_more}``.
+    """
     storage, _ = get_storage()
     from backend.trash import list_trash
-    return {"items": list_trash(storage)}
+    all_items = list_trash(storage)
+    total = len(all_items)
+    offset = max(offset, 0)
+    limit = max(limit, 1)
+    page = all_items[offset:offset + limit]
+    return {"items": page, "total": total,
+            "has_more": (offset + len(page)) < total}
 
 
 class TrashRestorePayload(BaseModel):
@@ -1492,16 +1502,22 @@ def api_trash_restore(payload: TrashRestorePayload):
 
 
 @app.post("/api/trash/empty")
-def api_trash_empty():
-    """Permanently remove trash items older than 30 days."""
+def api_trash_empty(all: bool = False):
+    """Empty the trash.
+
+    - no args (``all=false``) → GC: only purge items older than 30 days
+      (backward-compatible, used by auto-cleanup).
+    - ``all=true`` → clear **everything** immediately (frontend "清空垃圾箱"
+      button; user-triggered with a confirmation dialog).
+    """
     storage, gen = get_storage()
-    from backend.trash import gc_trash
-    n = gc_trash(storage)
+    from backend.trash import gc_trash, empty_trash
+    n = empty_trash(storage) if all else gc_trash(storage)
     gen.rebuild("")
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "emptied", "purged": n}
+    return {"status": "emptied", "purged": n, "all": all}
 
 
 def _frontend_dir() -> Path:

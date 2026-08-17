@@ -39,7 +39,7 @@ def hover_docs(backend_running):
     yield docs
     for path in docs:
         api("DELETE", f"/api/document/{urllib.parse.quote(path, safe='/')}")
-    api("POST", "/api/trash/empty")
+    api("POST", "/api/trash/empty?all=true")
 
 
 def _open_dashboard(page, static_url):

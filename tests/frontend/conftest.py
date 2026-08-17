@@ -100,10 +100,10 @@ def test_docs(backend_running):
             api("POST", f"/api/document/{urllib.parse.quote(path, safe='/')}",
                 {"content": content, "summary": summary})
     yield docs
-    # 清理：删除（含 rename 后的新名）+ 清空垃圾箱
+    # 清理：删除（含 rename 后的新名）+ 清空全部垃圾箱（all=true，避免 30 天 GC 残留累积）
     for path in list(docs) + [f"{PROJ}/common-knowledge/{NEW_TITLE}.md"]:
         api("DELETE", f"/api/document/{urllib.parse.quote(path, safe='/')}")
-    api("POST", "/api/trash/empty")
+    api("POST", "/api/trash/empty?all=true")
 
 
 @pytest.fixture
@@ -129,7 +129,7 @@ def subproject_docs(backend_running, test_docs):
     sub_dir = ROOT / ".myknowledge_test" / SUB_PROJ
     if sub_dir.exists():
         shutil.rmtree(sub_dir, ignore_errors=True)
-    api("POST", "/api/trash/empty")
+    api("POST", "/api/trash/empty?all=true")
 
 
 @pytest.fixture
