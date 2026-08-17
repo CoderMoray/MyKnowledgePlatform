@@ -33,8 +33,8 @@ WRITE_TOOLS = {
     "rebuild": "maint__rebuild_index",
 }
 
-# 引导文案提案（待用户/架构师确认后回填最终版，勿拍脑袋写死）。
-# 每个键对应被拦截的写操作类型；值为返回给 AI 的 agent_message 提案。
+# 引导文案（已定稿）。
+# 每个键对应被拦截的写操作类型；值为返回给 AI 的 agent_message 最终版。
 GUIDANCE_PROPOSAL = {
     "bash_destructive": (
         "检测到你试图用裸命令（rm/mv/cp/mkdir/重定向）直接操作 MyKnowledge 知识库文件。"
@@ -87,7 +87,7 @@ def evaluate(payload: dict) -> dict:
     """Decide allow/deny for a PreToolUse tool-call payload.
 
     Returns a Claude + Cursor compatible response dict.  ``*_message`` fields
-    carry the guidance proposal (see ``GUIDANCE_PROPOSAL``).
+    carry the finalized guidance text (see ``GUIDANCE_PROPOSAL``).
     """
     tool_name = str(payload.get("tool_name") or "")
     tool_input = payload.get("tool_input") or {}
@@ -167,7 +167,7 @@ def _decide(decision: str, reason: str,
     """Build the Claude + Cursor compatible response.
 
     When *proposal* names a key in ``GUIDANCE_PROPOSAL``, ``agent_message`` /
-    ``user_message`` carry that guidance proposal (pending confirmation).
+    ``user_message`` carry the corresponding guidance text (finalized).
     """
     agent_message = reason
     if proposal:
