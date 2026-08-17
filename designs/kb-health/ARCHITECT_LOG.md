@@ -13,7 +13,7 @@
 |---|---|---|
 | SPEC.md | `designs/kb-health/SPEC.md` | 语义核心（1096 行，含 §20 实际实现微调记录） |
 | ARCHITECT_LOG.md | 本文 | 架构日志（合并记录） |
-| SVG 矢量稿 ×7 | `export/` | A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / G 配置弹窗 |
+| SVG 矢量稿 ×7 | `export/` | A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / **G 配置 modal（Trae/OpenCode 范式：左导航 3 分组 + 右卡片）** |
 | PNG 人审参考 | `screenshots/` | 每 frame 最新截图 + 2 张旧方案 PNG |
 | 画布 | ardot「新文件」page `5:1` | 云端 file 714694871087289 |
 
@@ -24,7 +24,7 @@
 - `5_138-...svg` Frame D 加载态（同上标注；标题已修为"知识健康检查"）
 - `5_284-...svg` Frame E 就绪信号（**紧凑徽章**四态）
 - `5_165-...svg` Frame F 引导页 3 步（标注"阶段三待实现：当前 setup 为单步 modal，3 步向导为未来 AI 协作初始化设计"）
-- `5_300-...svg` Frame G 配置弹窗（**居中 modal + 3 tab**）
+- `57_6-...svg` Frame G 配置 modal（**Trae/OpenCode 范式**：居中 modal + 左侧导航 **3 分组**（账号/通用/AI 协作）+ 右侧多卡片内容）
 
 ---
 
@@ -57,7 +57,7 @@
 
 ## 4. 关键设计决策（最终形态）
 
-- **配置 = 居中 modal 弹窗 + 3 tab**（Profile / General / AI Setting），不新增独立路由；入口 user-menu，对齐「编辑个人信息」modal 交互。
+- **配置 = 居中 modal 弹窗 + 左导航 3 分组（账号 / 通用 / AI 协作）+ 右多卡片**（Trae/OpenCode 范式），不新增独立路由；入口 user-menu「设置」，对齐「编辑个人信息」modal 交互。账号 1 卡；通用含「外观(双层主题)/引导/关于」多卡；AI 协作按类型 3 卡（MCP/hooks/Agent）各平台分列。
 - **引导页 = 3 步向导**（身份 / AI 协作初始化 / 完成）**待阶段三实现**；当前 setup 为单步 modal。
 - **就绪信号 = 紧凑徽章**（复用 `.status-indicator`），四态：健康绿 / 存疑红（high>0）/ 存疑黄（high=0）/ 未检查灰。
 - **零 design-token 增量**：所有色值/字号/间距/圆角/阴影复用 `design-tokens.css`；新增样式类仅写入 `components.css`。

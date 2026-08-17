@@ -293,59 +293,68 @@
 
 ## 3.7 阶段三 · 配置页（常驻）
 
+> **最终形态（2026-08-17 架构师裁决）**：配置为 **modal 弹窗**（对齐 `openModal('edit-identity')` 交互，**不新增 `#settings` 路由**）；modal 内部布局 = **Trae/OpenCode 范式：左侧导航（3 分组）+ 右侧多卡片**。已取代早期「顶部 3 tab」设计。
+
 ### 3.7.1 目标与入口
 
-常驻配置页，维护身份/主题/AI 协作配置。
+常驻配置 modal，维护身份/主题/AI 协作配置。
 
-- **入口**：右上角 `user-menu`（index.html 第 453-462 行）加「配置」项，点击进 `#settings`（路由新增 `currentView === 'settings'`）
-- **路由**：`#settings`（与现有 dashboard/project/view/edit/new/status/trash/health/setup 并列）
-- **导航入口位置**：user-menu 下拉菜单「编辑个人信息」旁/下方加「配置」
+- **入口**：右上角 `user-menu` 加「设置」项（对齐「编辑个人信息」`openModal('edit-identity')` 模式），点击 `openModal('settings')`
+- **不新增路由**：配置走 modal，与现有 modal 体系一致
+- **导航入口位置**：user-menu 下拉菜单「编辑个人信息」旁加「设置」
 
-### 3.7.2 配置页布局
+### 3.7.2 配置 modal 布局（左导航 + 右卡片）
 
 ```
-#settings 视图
-├── 页面标题区（复用 .page-title）
-│   ├── page-title: "配置"
-│   └── page-subtitle: "维护 MyKnowledge AI 协作环境"
-├── 三 tab 导航（复用 .tab-nav 体系）
-│   ├── Tab Profile：用户基础信息
-│   ├── Tab General：主题切换 + 重新运行引导 + 关于
-│   └── Tab AI Setting：MCP / hooks / 专用 Agent
-└── tab 内容区（每 tab 一卡片，复用 .card-glass）
+配置 modal（居中 .modal，宽约 760px，高约 540px）
+├── 左侧导航（宽约 180px，--bg-secondary 浅灰底 + 右侧细分割线）
+│   ├── 标题「设置」+ 关闭 ×
+│   ├── 3 分组导航项（图标 16px + 文字 12px；选中项 = --accent-subtle 底 + 左侧 2px --accent 指示条 + accent 字）
+│   │   ├── 账号（active）
+│   │   ├── 通用
+│   │   └── AI 协作
+│   └── 底部版本号「v1.0.0 · MyKnowledge」
+└── 右侧内容区（flex 1，padding 24）
+    ├── 区标题 + 副说明
+    └── 独立设置卡片（每卡 = 标题 + 副说明 + 控件，复用 .card-glass）
 ```
 
-### 3.7.3 Tab Profile（用户基础信息）
+### 3.7.3 账号（1 卡）
 
+**「头像与名称」卡**：
 | 元素 | 样式 |
 |---|---|
-| 头像 | 复用现有 avatar（昵称首字母圆角方块，`--accent` 底白字） |
+| 头像 | 复用现有 avatar（昵称首字母圆角方块，`--accent` 底白字；**无上传**，fallback 首字母） |
 | 名称 | 只读文本 `--text-md`，或可编辑输入 `.form-input` |
 | 邮箱 | 只读 `--text-sm` `--text-secondary` |
 | 保存 | 「保存」`.btn--primary` → toast 成功 |
 
-> 头像 fallback：无头像时显示昵称首字母（复用现有 avatar 逻辑）。
+### 3.7.4 通用（多卡）
 
-### 3.7.4 Tab General（主题 + 引导 + 关于）
-
-| 分组 | 内容 | 样式 |
+**「外观」卡**：两层主题设计
+| 控件 | 内容 | 样式 |
 |---|---|---|
-| 主题切换 | light/dark/system 三选（复用现有 theme-switcher 下拉 `theme` / `designTheme`） | 复用现有主题切换组件 |
-| 重新运行引导 | 「重新运行初始化引导」按钮 | `.btn` 次级 → 跳 `#setup` 向导 Step1 |
-| 关于 | 版本号（`systemVersion` / `kbVersion`） | `.text-tertiary`，`--text-xs` |
+| 主题选择器 | `designTheme`：Raycast / Intercom / Warm Editorial / Mistral / Resend | `.form-input` 下拉（复用现有 theme-switcher） |
+| 亮暗切换 | `theme`：浅色 / 深色 / 跟随系统 | 分段控件或下拉；**仅 Raycast 主题下可用**（对齐现有 `showColorMode` 逻辑） |
 
-### 3.7.5 Tab AI Setting（MCP / hooks / 专用 Agent）
+> **双层主题呈现**：外层「主题风格选择器」（designTheme）+ 内层「亮暗模式」（theme）。亮暗切换仅在 Raycast 主题下有（非 Raycast 主题为纯色无亮暗）。复用现有 `theme` / `designTheme` 变量与 theme-switcher 组件。
 
-复用 §3.6.4 的 `.ai-config-item` 行结构，三平台独立，**必须分平台不做一键全做**：
+**「引导」卡**：「重新运行初始化引导」按钮（`.btn` 次级 → 跳 `#setup`）
 
-| 配置项 | 检测状态 | 操作按钮 | 兜底 |
-|---|---|---|---|
-| MCP | MCP 连接状态 | 「自动配置」 | 「复制 prompt 给 AI」 |
-| hooks | hooks 文件 | 「生成 hooks」 | 「复制 prompt 给 AI」 |
-| 专用 Agent | agents 文件 | 「创建 Agent」 | 「复制 prompt 给 AI」 |
+**「关于」卡**：版本号（`systemVersion` / `kbVersion`），`.text-tertiary`，`--text-xs`
+
+### 3.7.5 AI 协作（按类型 3 卡，卡内各平台列出）
+
+**MCP 卡** / **hooks 卡** / **Agent 卡**：每卡标题 + 卡内各平台状态行。
+
+| 卡 | 平台 | 检测状态 | 操作按钮 | 兜底 |
+|---|---|---|---|---|
+| MCP | Claude / CodeBuddy / Cursor | 各平台 MCP 状态 | 「配置」 | 「复制 prompt 给 AI」 |
+| hooks | 各平台 hooks 状态 | 「生成」 | 「复制 prompt 给 AI」 |
+| Agent | 各平台专用 Agent 状态 | 「创建」 | 「复制 prompt 给 AI」 |
 
 **检测状态**：`已配置`（绿勾 success）/ `未配置`（灰点 muted）/ `检测中`（spinner）
-**操作按钮**：`.btn--sm` accent；失败/非适配 → 「复制 prompt 给 AI」兜底（透明 accent 字）
+**操作按钮**：`.btn--sm` accent；半自动化（`POST /api/client-config`）；失败/非适配 → 「复制 prompt 给 AI」兜底（透明 accent 字）
 
 ### 3.7.6 半自动化交互（跨引导页/配置页共用）
 
@@ -359,40 +368,96 @@
 - 样式：`.btn--sm` 透明 + accent 字（复用 `.btn-lazy-ai` 变体）
 - 语义：非适配平台/自动配置失败时兜底，引导用户交 AI 处理（对齐「不静默修复」原则——配置需语义判断，不强制自动生成）
 
-### 3.7.7 配置页新增样式类
+### 3.7.7 配置 modal 新增样式类
 
 ```css
-/* 配置页 tab 导航（复用现有 .tab-nav 体系，若已有则无需新增） */
-.settings-tabs {
+/* 配置 modal 左侧导航（3 分组） */
+.settings-nav {
   display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  flex-direction: column;
+  gap: 2px;
+  width: 180px;
+  padding: 16px 0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-default);
 }
-.settings-tabs__item {
+.settings-nav__title {
+  padding: 0 16px 12px;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.settings-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 16px;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
   transition: var(--transition-interactive);
 }
-.settings-tabs__item--active {
+.settings-nav__item svg { width: 16px; height: 16px; }
+.settings-nav__item--active {
+  background: var(--accent-subtle);
   color: var(--accent);
-  border-bottom-color: var(--accent);
+}
+.settings-nav__item--active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 4px; bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.settings-nav__version {
+  margin-top: auto;
+  padding: 16px;
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
 }
 
-/* 配置页卡片 */
+/* 配置 modal 右侧内容区 + 卡片 */
+.settings-body { flex: 1; padding: 24px; }
+.settings-body__title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.settings-body__desc {
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* 设置卡片（每卡一项设置） */
 .settings-card {
-  padding: 20px;
+  margin-top: 16px;
+  padding: 16px;
   border-radius: var(--radius-xl);
   background: var(--card-glass-bg);
   border: 1px solid var(--card-glass-border);
   box-shadow: var(--shadow-card);
 }
+.settings-card__title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+.settings-card__desc { margin-top: 4px; font-size: var(--text-2xs); color: var(--text-tertiary); }
+
+/* 外观卡：双层主题 */
+.theme-picker { margin-top: 12px; }
+.color-mode-seg { display: inline-flex; gap: 4px; margin-top: 8px; }
+
+/* AI 协作卡内平台状态行 */
+.ai-platform-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+}
 ```
-> 全部**复用现有 token**（card-glass-bg、card-glass-border、shadow-card、accent、border-color、text-secondary、radius-xl/md），无 design-token 增量。若前端已有 `.tab-nav` 组件，`settings-tabs` 直接复用该体系。
+> 全部**复用现有 token**（bg-secondary、border-default/subtle、accent、accent-subtle、card-glass-bg、card-glass-border、shadow-card、text-primary/secondary/tertiary、radius-xl/md），无 design-token 增量。旧 `.settings-tabs`（顶部 tab）作废，由 `.settings-nav` 取代。
 
 ---
 
@@ -1068,7 +1133,7 @@ ValidationReport.summary:
 | 阶段 B（勾选框/组头按钮/修复弹窗/lazy 按钮） | ✅ 已落地 | 同上 + `frontend/js/store.js:1382+` |
 | 阶段二就绪信号（顶部 status-indicator 替换） | ✅ 已落地 | `frontend/index.html:380-387` + `layout.css:462-483` + `components.css:2029-2043` |
 | 阶段三引导页（3 步向导） | ⏳ **未落地**（当前 setup 为**单步 modal**） | `frontend/index.html:1571-1604` |
-| 阶段三配置页 | ⏳ **未落地**（无 `#settings` 路由；设计已按裁决改为**配置 modal**） | — |
+| 阶段三配置页 | ⏳ **未落地**（无 `#settings` 路由；设计已按裁决改为**配置 modal，Trae/OpenCode 范式：左侧导航 + 右侧多卡片**） | — |
 
 ### 20.2 落地与 SPEC 理想态的差异对照（微调记录）
 
@@ -1078,7 +1143,7 @@ ValidationReport.summary:
 | health-chip 配色 | §4.4 `--tag-bg` 灰底灰字 | **count>0 = `--accent-subtle` 底 + `--accent` 字；count=0 = `--bg-tertiary` 底 + `--text-tertiary` 字 + `opacity:0.5`**（`components.css:1820-1848`） | 以实际为准 |
 | 「重新检查」+lazy 按钮位置 | §4.5/§4.7 概览卡右上 | **页面标题区（page-header）右侧**，与 h1 同一行 flex（`index.html:1098-1120`） | 以实际为准 |
 | 就绪信号容器 | §3.5 复用 status-indicator | **紧凑徽章**：`padding:3px 10px`、`--radius-2xl`(20px)、`--accent-subtle` 底、6px 状态点、`--text-xs`(12px)（`layout.css:462-483`） | 以实际为准；**不画成大卡/无阴影/无注释** |
-| 配置页形态 | §3.7 独立 `#settings` 路由页 | **配置 modal 弹窗**（居中 `.modal`，对齐「编辑个人信息」`openModal('edit-identity')` 交互，`index.html:511`；**不新增 `#settings` 路由**） | 架构师裁决：配置用居中 modal 承载 Profile/General/AI Setting 3 tab |
+| 配置页形态 | §3.7 独立 `#settings` 路由页 / 顶部 3 tab | **配置 modal 弹窗**（居中 `.modal`，对齐「编辑个人信息」`openModal('edit-identity')` 交互，`index.html:511`；**不新增 `#settings` 路由**）；**modal 内部布局 = Trae/OpenCode 范式：左侧导航（6 项分组：账号/用户管理/通用/AI 协作/MCP/关于）+ 右侧多卡片内容（每卡一项设置 + 控件）** | 架构师裁决迭代：保持 modal 不变（不新增路由），布局从「顶部 tab」改为「左导航 + 右卡片」（对齐 Trae/OpenCode 业内主流） |
 | 引导页形态 | §3.6 3 步向导 | **当前为单步 setup modal**（昵称+邮箱+开始使用，`index.html:1571-1604`）；**3 步向导为阶段三未来 AI 协作初始化设计**（待实现） | 3 步向导保留作未来参考 |
 | 配置页入口 | §3.7.1 user-menu「配置」项 | 实际 user-menu 现有「编辑个人信息」(`openModal('edit-identity')`)；**「配置」入口待阶段三实现时加入** | — |
 | 修复弹窗 | §7.6 复用 `.modal` | ✅ 已落地（`index.html:1606+`，`fix-modal__desc`/`fix-modal__paths` 见 `components.css:2045-2067`） | 一致 |
@@ -1086,7 +1151,7 @@ ValidationReport.summary:
 
 ### 20.3 SVG 视觉稿状态（2026-08-15）
 
-- SVG 矢量稿已产出至 `designs/kb-health/export/`（7 个 frame：A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / G 配置弹窗）。
+- SVG 矢量稿已产出至 `designs/kb-health/export/`（7 个 frame：A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / **G 配置 modal（Trae/OpenCode 范式：左导航 6 分组 + 右多卡片）**）。
 - **标注**：A/B/C/D 标注「仅视觉参考 · 以 index.html 实际实现为准」；F 标注「阶段三待实现：当前 setup 为单步 modal，3 步向导为未来 AI 协作初始化设计」。
 - **已知限制**：ardot `export_nodes` 的 SVG 格式将文本节点转为 `<path>`，**不含可读中文 `<text>` 元素**；前端 agent 实施应以 SPEC（语义）+ PNG screenshots（视觉）为准，SVG 仅作矢量视觉参考。
 
