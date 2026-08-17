@@ -153,7 +153,10 @@ def real_http_client(_patched_backend, long_doc):
         thread.start()
 
         base = f"http://127.0.0.1:{port}"
-        client = httpx.Client(base_url=base, timeout=20)
+        # trust_env=False：绕过 macOS 系统代理（httpx 默认 trust_env=True 会读系统代理，
+        # 把 127.0.0.1 本机请求也转发给代理 → 代理连不上本机 uvicorn 返回 502）。
+        # 本测试要直连真实 uvicorn server，走 httpcore→h11 原始网络栈，必须禁代理。
+        client = httpx.Client(base_url=base, timeout=20, trust_env=False)
         try:
             # wait until responsive
             for _ in range(200):
