@@ -180,8 +180,13 @@ const api = {
   },
 
   /* ── 垃圾箱 API ─────────────────────────────────────────────────────── */
-  async getTrash() {
-    return apiRequest("/api/trash");
+
+  /** 分页拉取垃圾箱条目（半懒加载：首页 50，滚动到底 +50）。
+   *  @param {number} offset 偏移
+   *  @param {number} limit 页大小（后端默认 50）
+   *  @returns {Promise<{items, total, has_more}>} */
+  async getTrash(offset = 0, limit = 50) {
+    return apiRequest(`/api/trash?offset=${offset}&limit=${limit}`);
   },
   async restoreTrash(trashPath) {
     return apiRequest("/api/trash/restore", {
@@ -189,8 +194,9 @@ const api = {
       body: JSON.stringify({ trash_path: trashPath }),
     });
   },
+  /** 彻底清空垃圾箱（all=true 清全部；无参后端只 GC 30 天，前端一律彻底清空） */
   async emptyTrash() {
-    return apiRequest("/api/trash/empty", { method: "POST" });
+    return apiRequest("/api/trash/empty?all=true", { method: "POST" });
   },
 
   /* ── 项目 API ────────────────────────────────────────────────────────── */

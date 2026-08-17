@@ -554,6 +554,39 @@ Alpine.data("modalComponent", () => ({
       }
     },
   }))
+
+  /* 垃圾箱视图组件：滚动到底自动加载下一页（scroll 监听 content-panel）。
+     滚动容器为 .content-panel（overflow-y:auto），滚动到底（距底 ≤40px）且
+     还有更多时触发 store.loadMoreTrash()。哨兵仅作「加载中…」提示，非触发源。
+     用 scroll 事件而非 IntersectionObserver——headless 下 IntersectionObserver
+     对内部滚动容器触发不稳定，scroll 事件在真实/无头浏览器一致可靠。 */
+  Alpine.data("trashComponent", () => ({
+    _onScroll: null,
+    _contentPanel: null,
+
+    init() {
+      const store = Alpine.store("app");
+      this._contentPanel = document.querySelector("#content-panel");
+      if (!this._contentPanel) return;
+      this._onScroll = () => {
+        const cp = this._contentPanel;
+        if (!cp) return;
+        // 距底 ≤40px（阈值 ≥40）→ 加载下一页（loadMoreTrash 内部防重入/到底）
+        if (cp.scrollTop + cp.clientHeight >= cp.scrollHeight - 40) {
+          store.loadMoreTrash();
+        }
+      };
+      this._contentPanel.addEventListener("scroll", this._onScroll, { passive: true });
+    },
+
+    destroy() {
+      if (this._contentPanel && this._onScroll) {
+        this._contentPanel.removeEventListener("scroll", this._onScroll);
+      }
+      this._contentPanel = null;
+      this._onScroll = null;
+    },
+  }));
 });
 
 /** 把"当前文档/项目路径"规整为"新建文档的目标目录"：

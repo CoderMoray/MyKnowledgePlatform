@@ -37,6 +37,10 @@ let _tocCollapsedSet = {};
     /** 垃圾箱 */
     trashItems: [],
     trashLoading: false,
+    /** 垃圾箱条目总数（后端 total，用于「加载中…/全部加载完」提示） */
+    trashTotal: 0,
+    /** 是否还有更多（后端 has_more，控制滚动加载） */
+    trashHasMore: false,
 
     /* ── 知识健康检查（#health） ──────────────────────────────────────── */
 
@@ -1492,13 +1496,39 @@ let _tocCollapsedSet = {};
     },
 
     /* ── 垃圾箱 ────────────────────────────────────────────────────────── */
+
+    /** 加载垃圾箱第一页（刷新/恢复/清空后回到首屏）。读 {items,total,has_more} 分页响应。 */
     async loadTrash() {
       this.trashLoading = true;
       try {
-        const data = await api.getTrash();
+        const data = await api.getTrash(0, 50);
         this.trashItems = (data && data.items) || [];
+        this.trashTotal = (data && data.total) || this.trashItems.length;
+        this.trashHasMore = !!(data && data.has_more);
       } catch (e) {
         showToast(e.message || "加载垃圾箱失败", "error");
+      } finally {
+        this.trashLoading = false;
+      }
+    },
+
+    /** 滚动到底自动加载下一页（offset=当前已加载数, limit=50，追加不覆盖）。
+     *  防重入（trashLoading）/ 到底（!trashHasMore）时直接返回。 */
+    async loadMoreTrash() {
+      if (this.trashLoading || !this.trashHasMore) return;
+      const offset = this.trashItems.length;
+      this.trashLoading = true;
+      try {
+        const data = await api.getTrash(offset, 50);
+        const fresh = (data && data.items) || [];
+        // 追加不覆盖；trash_path 唯一天然去重（防滚动竞态重复条目）
+        const known = new Set(this.trashItems.map(i => i.trash_path));
+        const added = fresh.filter(i => !known.has(i.trash_path));
+        this.trashItems = [...this.trashItems, ...added];
+        this.trashTotal = (data && data.total) || this.trashTotal;
+        this.trashHasMore = !!(data && data.has_more);
+      } catch (e) {
+        showToast(e.message || "加载更多失败", "error");
       } finally {
         this.trashLoading = false;
       }
@@ -1522,6 +1552,8 @@ let _tocCollapsedSet = {};
         await api.emptyTrash();
         showToast("垃圾箱已清空", "success");
         this.trashItems = [];
+        this.trashTotal = 0;
+        this.trashHasMore = false;
       } catch (e) {
         showToast(e.message || "清空失败", "error");
       } finally {

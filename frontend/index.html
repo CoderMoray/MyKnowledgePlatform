@@ -65,16 +65,16 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=724358e97e"></script>
+  <script src="js/api.js?v=4ab0fbc513"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=6e152e1aa6"></script>
+  <script src="js/store.js?v=1ec86c2407"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=41eacc7f1f"></script>
+  <script src="js/components/modal.js?v=d8c4e28fe0"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1001,7 +1001,7 @@
 
         <!-- ═══ Status View ═══════════════════════════════════════════════ -->
         <!-- ═══ Trash View（垃圾箱） ══════════════════════════════════════ -->
-        <div x-show="$store.app.currentView === 'trash'" x-cloak>
+        <div x-show="$store.app.currentView === 'trash'" x-cloak x-data="trashComponent">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
             <div>
               <h1 class="page-title">垃圾箱</h1>
@@ -1064,6 +1064,12 @@
                         :disabled="$store.app.isLocked">恢复</button>
               </div>
             </template>
+            <!-- 分页加载提示：未加载完显示「加载中…」；加载完隐藏哨兵不再触发 -->
+            <div x-show="$store.app.trashItems.length < $store.app.trashTotal"
+                 x-ref="trashSentinel"
+                 style="padding:16px 0;text-align:center;color:var(--text-tertiary);font-size:12px">
+              加载中…
+            </div>
           </div>
         </div>
 
