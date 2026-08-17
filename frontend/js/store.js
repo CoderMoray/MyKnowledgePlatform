@@ -41,6 +41,8 @@ let _tocCollapsedSet = {};
     trashTotal: 0,
     /** 是否还有更多（后端 has_more，控制滚动加载） */
     trashHasMore: false,
+    /** 勾选待精准删除的条目 trash_path 集合（多选删除；只作用于已加载的 trashItems） */
+    selectedTrash: [],
 
     /* ── 知识健康检查（#health） ──────────────────────────────────────── */
 
@@ -1543,7 +1545,38 @@ let _tocCollapsedSet = {};
         showToast(e.message || "恢复失败", "error");
       }
     },
-    /** 清空垃圾箱（不可逆，需确认弹窗；后端暂无单条彻底删除 API，只清空全部） */
+    /** 勾选/取消勾选单条（trash_path 为唯一切片键） */
+    toggleTrashSelect(trashPath) {
+      const i = this.selectedTrash.indexOf(trashPath);
+      if (i >= 0) this.selectedTrash.splice(i, 1);
+      else this.selectedTrash.push(trashPath);
+    },
+    /** 全选/取消全选（只作用于当前已加载的 trashItems，分页未加载的不算；再次点击取消） */
+    toggleTrashSelectAll() {
+      const allSelected = this.trashItems.length > 0
+        && this.trashItems.every(i => this.selectedTrash.includes(i.trash_path));
+      if (allSelected) this.clearTrashSelection();
+      else this.selectedTrash = this.trashItems.map(i => i.trash_path);
+    },
+    /** 清空选中 */
+    clearTrashSelection() {
+      this.selectedTrash = [];
+    },
+    /** 精准删除选中条目（后端 body trash_paths）：成功 toast「已删除 N 项」→ 清选中 → 刷新第一页 */
+    async deleteSelectedTrash() {
+      const paths = this.selectedTrash.slice();
+      if (paths.length === 0) return;
+      try {
+        const res = await api.deleteTrashItems(paths);
+        const n = (res && typeof res.removed === "number") ? res.removed : paths.length;
+        showToast(`已删除 ${n} 项`, "success");
+        this.clearTrashSelection();
+        await this.loadTrash();
+      } catch (e) {
+        showToast(e.message || "删除失败", "error");
+      }
+    },
+    /** 清空垃圾箱（不可逆，需确认弹窗；all=true 清全部，与「删除选中」精准删除并存） */
     confirmEmptyTrash() {
       this.openModal("trash-empty", {});
     },
@@ -1554,6 +1587,7 @@ let _tocCollapsedSet = {};
         this.trashItems = [];
         this.trashTotal = 0;
         this.trashHasMore = false;
+        this.clearTrashSelection();
       } catch (e) {
         showToast(e.message || "清空失败", "error");
       } finally {

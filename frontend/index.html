@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=6423cd0be8" />
+  <link rel="stylesheet" href="css/components.css?v=b462fa01f8" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=4ab0fbc513"></script>
+  <script src="js/api.js?v=6c9a05a36b"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=1ec86c2407"></script>
+  <script src="js/store.js?v=21f427a0ab"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1009,6 +1009,10 @@
             </div>
             <div style="display:flex;gap:8px">
               <button class="btn" @click="$store.app.loadTrash()" :disabled="$store.app.trashLoading">刷新</button>
+              <button class="btn btn--danger" @click="$store.app.deleteSelectedTrash()"
+                      :disabled="$store.app.selectedTrash.length === 0 || $store.app.isLocked">
+                删除选中(<span x-text="$store.app.selectedTrash.length">0</span>)
+              </button>
               <button class="btn btn--danger" @click="$store.app.confirmEmptyTrash()"
                       :disabled="$store.app.trashItems.length === 0 || $store.app.isLocked">
                 清空垃圾箱
@@ -1037,8 +1041,22 @@
 
           <!-- 条目列表 -->
           <div class="trash-list" x-show="!$store.app.trashLoading && $store.app.trashItems.length > 0">
+            <!-- 表头工具栏：全选/取消全选（只作用于已加载页）+ 已选计数 -->
+            <div class="trash-list__toolbar">
+              <label class="trash-list__select-all">
+                <input type="checkbox"
+                       :checked="$store.app.trashItems.length > 0 && $store.app.selectedTrash.length === $store.app.trashItems.length"
+                       @change="$store.app.toggleTrashSelectAll()">
+                <span>全选</span>
+              </label>
+              <span class="trash-list__count" x-text="'已选 ' + $store.app.selectedTrash.length + ' 项'"></span>
+            </div>
             <template x-for="item in $store.app.trashItems" :key="item.trash_path">
-              <div class="trash-item">
+              <div class="trash-item"
+                   :class="{ 'trash-item--selected': $store.app.selectedTrash.includes(item.trash_path) }">
+                <input type="checkbox" class="trash-item__checkbox"
+                       :checked="$store.app.selectedTrash.includes(item.trash_path)"
+                       @change="$store.app.toggleTrashSelect(item.trash_path)">
                 <div class="trash-item__icon">
                   <svg x-show="item.type === 'project'" width="20" height="20" viewBox="0 0 24 24" fill="none"
                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-secondary)">

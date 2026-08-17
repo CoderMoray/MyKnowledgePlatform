@@ -198,6 +198,15 @@ const api = {
   async emptyTrash() {
     return apiRequest("/api/trash/empty?all=true", { method: "POST" });
   },
+  /** 精准删除选中条目（body trash_paths；后端只删列出的，其余保留）。
+   *  @param {string[]} trash_paths 勾选的条目 trash_path 集合
+   *  @returns {Promise<{status: "ok", removed: number}>} */
+  async deleteTrashItems(trash_paths) {
+    return apiRequest("/api/trash/empty", {
+      method: "POST",
+      body: JSON.stringify({ trash_paths }),
+    });
+  },
 
   /* ── 项目 API ────────────────────────────────────────────────────────── */
 

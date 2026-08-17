@@ -1340,6 +1340,28 @@
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: var(--shadow-card);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.trash-list__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 2px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.trash-list__select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.trash-list__count { color: var(--text-tertiary); font-size: 12px; }
+.trash-item__checkbox { flex-shrink: 0; cursor: pointer; }
+.trash-item--selected {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
 }
 .trash-item__icon { font-size: 20px; flex-shrink: 0; }
 .trash-item__info { flex: 1; min-width: 0; }
