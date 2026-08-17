@@ -1276,6 +1276,29 @@ def api_client_config_write(platform: str, kind: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Hooks (PreToolUse 管控 AI 裸操作知识库)
+# ══════════════════════════════════════════════════════════════
+
+
+class HookPayload(BaseModel):
+    tool_name: str = ""
+    tool_input: dict = {}
+    cwd: str = ""
+
+
+@app.post("/hooks/pre-tool-use")
+def api_hooks_pre_tool_use(payload: HookPayload):
+    """Decide allow/deny for an AI client tool call on the knowledge base.
+
+    Serves Claude PreToolUse + Cursor preToolUse (mutually compatible).  Judgement:
+    MCP calls → allow; non-KB targets → allow; KB root + write → deny (+ guidance);
+    KB root + read → allow.  Guidance messages are proposals pending confirmation.
+    """
+    from backend.hooks import evaluate
+    return evaluate(payload.model_dump())
+
+
+# ══════════════════════════════════════════════════════════════
 #  Identity (读/写 ~/.myknowledge/config.yaml)
 # ══════════════════════════════════════════════════════════════
 

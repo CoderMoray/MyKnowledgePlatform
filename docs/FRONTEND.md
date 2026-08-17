@@ -186,6 +186,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | POST | `/api/heal/rebuild` | 重建 readme 索引层 + project-status（body: `{layers?, all?}`）→ `{rebuilt, project_status}` |
 | GET | `/api/client-config` | 检测 AI 客户端（Claude/CodeBuddy）的 MyKnowledge 配置状态 → `{claude: {mcp,hooks,agent}, codebuddy: {mcp,hooks,agent}}` |
 | POST | `/api/client-config/:platform/:kind` | 增量写入该平台该 kind 的 MyKnowledge 配置（platform: claude\|codebuddy；kind: mcp\|hooks\|agent）→ `{platform, kind, file, status, detected}` |
+| POST | `/hooks/pre-tool-use` | AI 客户端 PreToolUse hook：判定知识库裸操作 allow/deny（Claude/Cursor 兼容）→ `{hookSpecificOutput, permission, agent_message, user_message}` |
 
 ## 可编辑字段清单
 
