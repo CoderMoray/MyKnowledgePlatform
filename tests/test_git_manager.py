@@ -88,6 +88,66 @@ class TestGitManagerPreciseCommit:
         assert not git_manager.has_uncommitted_changes()
 
 
+class TestGitManagerStagedGuard:
+    """B.2: commit must skip (return None) when nothing is staged, not fail."""
+
+    def test_already_committed_path_returns_none(self, git_manager: GitManager,
+                                                 tmp_path: Path) -> None:
+        """paths point at an already-committed file → no staged change → None."""
+        (tmp_path / "a.md").write_text("a")
+        git_manager.commit("baseline")
+        h = git_manager.commit("noop", paths=[str(tmp_path / "a.md")])
+        assert h is None  # no staged change, no GitError
+
+    def test_filtered_out_paths_returns_none(self, git_manager: GitManager,
+                                             tmp_path: Path) -> None:
+        """paths all filtered out (never existed, untracked) → None, no error."""
+        (tmp_path / "a.md").write_text("a")
+        git_manager.commit("baseline")
+        # ghost path: never existed and not tracked → filtered → nothing staged
+        h = git_manager.commit("noop", paths=[str(tmp_path / "ghost.md")])
+        assert h is None
+
+    def test_untracked_file_alone_does_not_force_precise_commit(
+            self, git_manager: GitManager, tmp_path: Path) -> None:
+        """Precise commit ignores unrelated untracked files (B.2 guard)."""
+        (tmp_path / "a.md").write_text("a")
+        git_manager.commit("baseline")
+        (tmp_path / "untracked.md").write_text("u")
+        # precise-commit a tracked-but-unchanged file → nothing staged despite
+        # the unrelated untracked file present in the working tree
+        h = git_manager.commit("noop", paths=[str(tmp_path / "a.md")])
+        assert h is None
+
+
+class TestGitManagerRepoRelativePaths:
+    """B.3: _filter_commit_paths resolves relative paths against self.repo."""
+
+    def test_relative_path_kept(self, git_manager: GitManager,
+                                tmp_path: Path) -> None:
+        """A repo-relative existing path is kept by _filter_commit_paths."""
+        (tmp_path / "common-knowledge").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "common-knowledge" / "a.md").write_text("a")
+        filtered = git_manager._filter_commit_paths(["common-knowledge/a.md"])
+        assert filtered == ["common-knowledge/a.md"]
+
+    def test_relative_missing_path_filtered(self, git_manager: GitManager,
+                                            tmp_path: Path) -> None:
+        """A repo-relative nonexistent path is dropped (nothing to stage)."""
+        filtered = git_manager._filter_commit_paths(["common-knowledge/ghost.md"])
+        assert filtered == []
+
+    def test_absolute_and_relative_equivalent(self, git_manager: GitManager,
+                                              tmp_path: Path) -> None:
+        """Absolute and repo-relative forms keep the same file."""
+        (tmp_path / "common-knowledge").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "common-knowledge" / "a.md").write_text("a")
+        abs_path = str(tmp_path / "common-knowledge" / "a.md")
+        assert git_manager._filter_commit_paths([abs_path]) == [abs_path]
+        assert git_manager._filter_commit_paths(["common-knowledge/a.md"]) \
+            == ["common-knowledge/a.md"]
+
+
 class TestGitManagerDiff:
     def test_diff_between_commits(self, git_manager: GitManager, tmp_path: Path) -> None:
         (tmp_path / "f.md").write_text("line1\nline2\n")

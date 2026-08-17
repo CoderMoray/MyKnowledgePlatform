@@ -105,6 +105,18 @@ class GitManager:
 
     # ── commit ───────────────────────────────────────────────
 
+    def _resolve(self, p: str) -> Path:
+        """Resolve *p* to an absolute path, treating relative paths as repo-relative.
+
+        git runs with ``cwd=self.repo``, so pathspecs are interpreted relative
+        to the repo; resolving against ``self.repo`` keeps ``_filter_commit_paths``
+        correct even for relative inputs (robustness), while absolute inputs
+        behave identically to before.
+        """
+        path = Path(p)
+        return (self.repo / path).resolve() if not path.is_absolute() \
+            else path.resolve()
+
     def _filter_commit_paths(self, paths: list[str]) -> list[str]:
         """Keep only *paths* that git can stage without aborting the command.
 
@@ -113,9 +125,12 @@ class GitManager:
         since been deleted.  We keep paths that exist on disk (adds/mods) or
         are tracked in git (deleted-but-tracked, so their deletion is staged);
         deleted-and-never-tracked paths are dropped (git has nothing to do).
+
+        Paths are resolved against ``self.repo`` (see :meth:`_resolve`), so both
+        absolute and repo-relative inputs work.
         """
-        existing = [p for p in paths if Path(p).exists()]
-        deleted = [p for p in paths if not Path(p).exists()]
+        existing = [p for p in paths if self._resolve(p).exists()]
+        deleted = [p for p in paths if not self._resolve(p).exists()]
         if not deleted:
             return existing
         try:
@@ -127,7 +142,7 @@ class GitManager:
             return existing
         tracked_abs = {str((self.repo / t).resolve()) for t in tracked_rel}
         return existing + [
-            p for p in deleted if str(Path(p).resolve()) in tracked_abs]
+            p for p in deleted if str(self._resolve(p)) in tracked_abs]
 
     def commit(self, message: str,
                paths: Optional[list[str]] = None) -> Optional[str]:
@@ -150,8 +165,13 @@ class GitManager:
         else:
             self._run("add", "-A")
 
-        status = self._run("status", "--porcelain")
-        if not status:
+        # Only commit if something is actually *staged*.  Checking the whole
+        # working-tree status (incl. untracked files) could report "changes"
+        # while nothing is staged, causing `git commit` to fail with
+        # "no changes added to commit".  `git diff --cached` reflects exactly
+        # what `add` staged.
+        staged = self._run("diff", "--cached", "--name-only")
+        if not staged:
             return None
 
         self._run("commit", "-m", message)
