@@ -61,8 +61,15 @@ def client_factory(tmp_kb_root: Path, storage: Storage):
     from backend.main import get_storage as _orig
     from fastapi.testclient import TestClient
 
+    template = tmp_kb_root / "_templates" / "readme.md"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    shipped = Path(__file__).resolve().parent.parent / "backend" / "templates" / "readme.md"
+    if not template.exists():
+        template.write_text(shipped.read_text(encoding="utf-8"), encoding="utf-8")
+    gen = ReadmeGenerator(storage=storage, template_path=template)
+
     def _test_storage():
-        return storage, None
+        return storage, gen
 
     backend.main.get_storage = _test_storage
     yield TestClient(_app), storage, tmp_kb_root
@@ -341,6 +348,111 @@ class TestTrashPagination:
         data2 = r2.json()
         assert len(data2["items"]) == 2
         assert data2["has_more"] is False
+
+
+# ══════════════════════════════════════════════════════════════
+#  Precise delete (delete_trash_items / /api/trash/empty body)
+# ══════════════════════════════════════════════════════════════
+
+
+class TestDeleteTrashItems:
+    def _mk_and_trash(self, storage: Storage, n: int):
+        from backend.trash import move_doc_to_trash
+        paths = []
+        for i in range(n):
+            p = f"common-knowledge/d{i}.md"
+            _mkdoc(storage, p)
+            move_doc_to_trash(storage, p)
+            paths.append(p)
+        return paths
+
+    def test_single_doc_precise_delete(self, storage: Storage, tmp_kb_root: Path):
+        """Deleting one trash doc removes only that item."""
+        from backend.trash import move_doc_to_trash, delete_trash_items, list_trash
+        p = "common-knowledge/a.md"
+        _mkdoc(storage, p)
+        tp = move_doc_to_trash(storage, p)
+        # another item stays
+        _mkdoc(storage, "common-knowledge/b.md")
+        move_doc_to_trash(storage, "common-knowledge/b.md")
+        n = delete_trash_items(storage, [tp])
+        assert n == 1
+        remaining = list_trash(storage)
+        assert len(remaining) == 1
+        assert remaining[0]["original_path"] == "common-knowledge/b.md"
+        assert not (tmp_kb_root / tp).exists()
+
+    def test_project_rmtree(self, storage: Storage, tmp_kb_root: Path):
+        """Deleting a trashed project removes its whole tree."""
+        from backend.trash import move_project_to_trash, delete_trash_items
+        _mkdoc(storage, "projects/P/common-knowledge/x.md")
+        storage.write_readme("projects/P", {}, dump_frontmatter(
+            {"id": "P", "name": "P", "summary": "p"}, "# P"))
+        tp = move_project_to_trash(storage, "projects/P")
+        n = delete_trash_items(storage, [tp])
+        assert n == 1
+        assert not (tmp_kb_root / tp).exists()
+
+    def test_mixed_existing_and_missing(self, storage: Storage):
+        """Existing deleted, non-existent skipped; count = existing only."""
+        from backend.trash import move_doc_to_trash, delete_trash_items
+        _mkdoc(storage, "common-knowledge/a.md")
+        tp = move_doc_to_trash(storage, "common-knowledge/a.md")
+        n = delete_trash_items(storage, [tp, "trash/documents/ghost.md"])
+        assert n == 1
+
+    def test_illegal_path_rejected(self, storage: Storage):
+        """Traversal / absolute / wrong-prefix paths raise ValueError."""
+        from backend.trash import delete_trash_items
+        for bad in ["../evil", "/etc/passwd", "common-knowledge/x.md",
+                    "trash/other/x.md", "trash/documents/../../x"]:
+            with pytest.raises(ValueError):
+                delete_trash_items(storage, [bad])
+
+    def test_backward_compat_no_body_gc(self, client_factory):
+        """POST /api/trash/empty (no body) → GC: fresh items NOT purged."""
+        client, storage, tmp = client_factory
+        from backend.trash import move_doc_to_trash
+        _mkdoc(storage, "common-knowledge/fresh.md")
+        move_doc_to_trash(storage, "common-knowledge/fresh.md")
+        r = client.post("/api/trash/empty")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok", "removed": 0}  # fresh kept by GC
+        from backend.trash import list_trash
+        assert len(list_trash(storage)) == 1
+
+    def test_backward_compat_all_true(self, client_factory):
+        """POST /api/trash/empty?all=true → clears everything."""
+        client, storage, tmp = client_factory
+        from backend.trash import move_doc_to_trash
+        _mkdoc(storage, "common-knowledge/fresh.md")
+        move_doc_to_trash(storage, "common-knowledge/fresh.md")
+        r = client.post("/api/trash/empty?all=true")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok", "removed": 1}
+        from backend.trash import list_trash
+        assert len(list_trash(storage)) == 0
+
+    def test_api_body_precise_delete(self, client_factory):
+        """POST /api/trash/empty with body trash_paths → 200 + removed."""
+        client, storage, tmp = client_factory
+        from backend.trash import move_doc_to_trash, list_trash
+        _mkdoc(storage, "common-knowledge/a.md")
+        tp_a = move_doc_to_trash(storage, "common-knowledge/a.md")
+        _mkdoc(storage, "common-knowledge/b.md")
+        move_doc_to_trash(storage, "common-knowledge/b.md")
+        r = client.post("/api/trash/empty", json={"trash_paths": [tp_a]})
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok", "removed": 1}
+        remaining = list_trash(storage)
+        assert len(remaining) == 1
+        assert remaining[0]["original_path"] == "common-knowledge/b.md"
+
+    def test_api_body_rejects_bad_path(self, client_factory):
+        """API with an illegal trash_path → 400 ValueError."""
+        client, storage, tmp = client_factory
+        r = client.post("/api/trash/empty", json={"trash_paths": ["../evil"]})
+        assert r.status_code == 400
 
 
 # ══════════════════════════════════════════════════════════════

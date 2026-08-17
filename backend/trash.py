@@ -334,6 +334,55 @@ def empty_trash(storage) -> int:
     return removed
 
 
+def _check_trash_path(trash_path: str) -> None:
+    """Validate a trash-path path is safe to delete.
+
+    Must be prefixed with ``trash/documents/`` or ``trash/projects/`` and must
+    not contain ``..`` traversal or be an absolute path.  Raises ``ValueError``
+    with a readable message otherwise.
+    """
+    if not isinstance(trash_path, str) or not trash_path:
+        raise ValueError("垃圾箱路径为空。")
+    if trash_path.startswith("/") or "\\" in trash_path:
+        raise ValueError(f"非法垃圾箱路径（绝对路径）: {trash_path}")
+    if ".." in trash_path.split("/"):
+        raise ValueError(f"非法垃圾箱路径（含 .. 穿越）: {trash_path}")
+    if not (trash_path.startswith(f"{DOCS}/") or trash_path.startswith(f"{PROJS}/")):
+        raise ValueError(
+            f"垃圾箱路径必须在 {DOCS}/ 或 {PROJS}/ 下: {trash_path}")
+
+
+def delete_trash_items(storage, trash_paths: list[str]) -> int:
+    """Permanently remove the specified trash items (documents or projects).
+
+    Precise deletion for the frontend's checkbox multi-select: only the listed
+    ``trash_path`` entries are removed — never unrelated trash items.
+
+    - Each ``trash_path`` must be a safe path under ``trash/documents/`` or
+      ``trash/projects/`` (validated by :func:`_check_trash_path`); a bad path
+      raises ``ValueError``.
+    - Existing items are physically deleted (document unlink / project rmtree);
+      non-existent ones are silently skipped (idempotent).
+    - Returns the number of items actually removed.
+    """
+    import shutil
+    removed = 0
+    for raw in trash_paths:
+        tp = raw.lstrip("/")
+        _check_trash_path(tp)
+        p = storage.kb_root / tp
+        if not p.exists():
+            continue  # idempotent skip
+        if p.is_dir():
+            shutil.rmtree(str(p))
+        else:
+            p.unlink()
+        removed += 1
+    if removed:
+        _invalidate_trash_index(storage)
+    return removed
+
+
 # ── Trash index (dead-link fast path) ──────────────────────────
 
 

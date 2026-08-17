@@ -123,8 +123,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 503 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 17 个 + hooks 13 个 + trash empty-all/分页 4 个）
-- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...)）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入）、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库）、trash（empty all=true 清空全部 + GET /api/trash 分页）
+- 511 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 17 个 + hooks 13 个 + trash empty-all/分页/精准删除 12 个）
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...)）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入）、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库）、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
 
 ### 前端构建守门（2026-08-09 引入）
 

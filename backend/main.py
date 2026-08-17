@@ -1501,23 +1501,43 @@ def api_trash_restore(payload: TrashRestorePayload):
     return {"status": "restored", "original_path": original}
 
 
+class TrashEmptyPayload(BaseModel):
+    trash_paths: list[str] = []
+
+
 @app.post("/api/trash/empty")
-def api_trash_empty(all: bool = False):
+def api_trash_empty(payload: TrashEmptyPayload = None,
+                    all: bool = False):
     """Empty the trash.
 
-    - no args (``all=false``) → GC: only purge items older than 30 days
-      (backward-compatible, used by auto-cleanup).
-    - ``all=true`` → clear **everything** immediately (frontend "清空垃圾箱"
-      button; user-triggered with a confirmation dialog).
+    Priority:
+      1. body ``trash_paths`` non-empty → precise delete of those items only
+         (frontend checkbox multi-select), returns ``{status, removed}``.
+      2. else ``?all=true`` → clear **everything** immediately (frontend
+         "清空垃圾箱" button; user-triggered with a confirmation dialog).
+      3. else → GC: only purge items older than 30 days (backward-compatible,
+         used by auto-cleanup).
+
+    Always returns ``{"status": "ok", "removed": N}``.
     """
     storage, gen = get_storage()
-    from backend.trash import gc_trash, empty_trash
-    n = empty_trash(storage) if all else gc_trash(storage)
+    from backend.trash import gc_trash, empty_trash, delete_trash_items
+
+    if payload is not None and payload.trash_paths:
+        try:
+            n = delete_trash_items(storage, payload.trash_paths)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    elif all:
+        n = empty_trash(storage)
+    else:
+        n = gc_trash(storage)
+
     gen.rebuild("")
     gen.rebuild_project_status()
     from backend.events import broadcast
     broadcast(storage.kb_root)
-    return {"status": "emptied", "purged": n, "all": all}
+    return {"status": "ok", "removed": n}
 
 
 def _frontend_dir() -> Path:

@@ -113,8 +113,9 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 |------|------|------|------|
 | GET | `/api/trash` | `?offset=0&limit=50` | 分页列出垃圾箱（document/project、original_path、deleted_at、trash_path）→ `{items, total, has_more}`（默认 limit 50，前端半懒加载） |
 | POST | `/api/trash/restore` | `{trash_path}` | 恢复条目到原路径 |
-| POST | `/api/trash/empty` | — | 永久清空超过 30 天的条目（GC，自动清除用） |
-| POST | `/api/trash/empty?all=true` | — | 清空全部垃圾箱（前端「清空垃圾箱」按钮，用户确认后手动触发） |
+| POST | `/api/trash/empty` | — | 永久清空超过 30 天的条目（GC，自动清除用）→ `{status, removed}` |
+| POST | `/api/trash/empty?all=true` | — | 清空全部垃圾箱（前端「清空垃圾箱」按钮，用户确认后手动触发）→ `{status, removed}` |
+| POST | `/api/trash/empty` | body `{trash_paths: [...]}` | 精准删除指定条目（前端 checkbox 多选）→ `{status, removed}`（优先级最高；非法路径 400） |
 
 **`DELETE /api/document/{path}`** 现在将文档移入垃圾箱而非删除，返回 `{"status": "trashed", "trash_path": "..."}`，30 天内可恢复。
 
