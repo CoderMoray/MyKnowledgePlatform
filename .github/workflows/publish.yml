@@ -40,6 +40,22 @@ jobs:
           python3 build.py
           python3 check_build.py
 
+      # 版本一致性守门（L2 CI 兜底，与 .githooks/pre-push 同规则，另加 tag 版本校验）：
+      # 1) backend/__version__.py == desktop/package.json（发版时两侧必须同步）
+      # 2) git tag 版本（去掉 v 前缀）== __version__.py（防止发错版本号的内容）
+      # 本地 hook 可被 --no-verify 跳过，发布前在此强制校验。
+      - name: Version consistency check
+        run: |
+          py_ver="$(sed -n 's/^__version__ *= *"\([^"]*\)" */\1/p' backend/__version__.py | head -1)"
+          js_ver="$(sed -n 's/^  *"version" *: *"\([^"]*\)" *,*$/\1/p' desktop/package.json | head -1)"
+          tag_ver="${GITHUB_REF_NAME#v}"
+          fail=0
+          [ -n "$py_ver" ] || { echo "✗ 无法解析 backend/__version__.py"; fail=1; }
+          [ -n "$js_ver" ] || { echo "✗ 无法解析 desktop/package.json"; fail=1; }
+          [ "$py_ver" = "$js_ver" ] || { echo "✗ 版本不一致: __version__.py=$py_ver vs package.json=$js_ver"; fail=1; }
+          [ "$py_ver" = "$tag_ver" ] || { echo "✗ tag 版本与代码版本不一致: tag=$tag_ver vs __version__.py=$py_ver"; fail=1; }
+          [ "$fail" -eq 0 ] && echo "✓ 版本一致: v$py_ver (tag=$tag_ver)" || exit 1
+
       - name: Install build tools
         run: pip install build
 
