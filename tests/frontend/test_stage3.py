@@ -1,12 +1,13 @@
-"""MyKnowledge 前端 — 阶段三：引导页三步向导 + 配置 modal（3 分组）测试
+"""MyKnowledge 前端 — 阶段三：引导页三步向导 + 配置 modal（5 平级导航 + 5 态开关）测试
 
 覆盖：
 1. 静态结构：api.js client-config 方法；store.js 阶段三状态/方法；
-   index.html 引导向导（guide-steps 3 步）+ 配置 modal（settings-nav 3 分组 + 账号/通用/AI协作卡）
+   index.html 引导向导（guide-steps 3 步）+ 配置 modal（settings-nav 5 平级：
+   账号/通用/MCP/Hooks/Agents，分组页内 5 态 toggle 表达配置状态）
 2. 构建：standalone 含阶段三功能文本/样式
 3. 浏览器渲染（复用 conftest fixtures）：
-   - user-menu「设置」打开配置 modal；左导航 3 分组切换
-   - 账号卡保存；通用卡双层主题；AI 协作卡平台状态 + 配置/复制按钮
+   - user-menu「设置」打开配置 modal；左导航 5 平级切换
+   - 账号卡保存；通用卡双层主题；MCP/Hooks/Agents 页平台状态 + 5 态开关
    - 引导页三步向导（Step1 身份 → Step2 AI 协作 → Step3 完成）
    - console 无报错/警告
 
@@ -57,9 +58,12 @@ class TestStage3StaticStructure:
             assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
-        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy）"""
+        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy），标签定稿 Claude Code/CodeBuddy"""
         js = STORE.read_text(encoding="utf-8")
         assert "claude" in js and "codebuddy" in js, "Missing claude/codebuddy platforms"
+        # 平台标签定稿（SETTINGS_REDESIGN_SPEC：Claude Code（CLI）/ CodeBuddy（IDE））
+        assert "Claude Code" in js, "Missing Claude Code platform label"
+        assert "CodeBuddy" in js, "Missing CodeBuddy platform label"
         # 不应出现 cursor 平台（后端未实现，前端不硬编码）
         assert "cursor" not in js, "cursor 平台不应存在（后端 PLATFORMS 未含 cursor）"
 
@@ -90,23 +94,32 @@ class TestStage3StaticStructure:
         assert "开始使用" in html, "Missing「开始使用」button"
 
     def test_index_settings_modal_markup(self):
-        """配置 modal：settings-nav 3 分组 + settings-body 卡片"""
+        """配置 modal：settings-nav 5 平级 + settings-body 分组页 + 5 态开关"""
         html = INDEX.read_text(encoding="utf-8")
         assert "settings-nav" in html, "Missing settings-nav (left navigation)"
         assert "settingsGroup === 'account'" in html, "Missing account group"
         assert "settingsGroup === 'general'" in html, "Missing general group"
-        assert "settingsGroup === 'ai'" in html, "Missing AI 协作 group"
+        assert "settingsGroup === 'mcp'" in html, "Missing MCP group"
+        assert "settingsGroup === 'hooks'" in html, "Missing Hooks group"
+        assert "settingsGroup === 'agent'" in html, "Missing Agents group"
         assert "settings-card" in html, "Missing settings-card"
         # 账号卡
         assert "saveSettingsIdentity" in html, "Missing account save"
-        # 通用卡：双层主题 + 重新引导 + 关于
+        # 通用卡：双层主题 + 重新引导（一行排布）+ 关于
         assert "designTheme" in html, "Missing designTheme picker"
         assert "showColorMode" in html, "Missing color-mode segmented (双层主题)"
         assert "rerunGuide" in html, "Missing rerun guide button"
+        assert "settings-card__row" in html, "Missing guide card row layout"
         assert "systemVersion" in html, "Missing about version"
-        # AI 协作卡：平台状态 + 配置 + 复制
+        # MCP/Hooks/Agents 分组页：平台行 + 5 态开关 + fallback + 重新检测
         assert "ai-platform-row" in html, "Missing ai-platform-row"
-        assert "configureAi" in html, "Missing configureAi"
+        assert "toggle--failed" in html, "Missing 5-state toggle (failed)"
+        assert "clientInstalled" in html, "Missing clientInstalled (5 态状态机)"
+        assert "clientFallback" in html, "Missing clientFallback (fallback 可交互文本)"
+        assert "重新检测" in html, "Missing 重新检测 button"
+        # 平台标签经 plat.label 动态渲染（"Claude Code" 断言在 store 平台测试中）
+        # 引导页仍保留 configure/copy（Step2 兜底）
+        assert "configureAi" in html, "Missing configureAi (guide Step2)"
         assert "copyAiPrompt" in html, "Missing copyAiPrompt (复制 prompt 兜底)"
 
     def test_stage3_css_classes(self):
@@ -117,13 +130,16 @@ class TestStage3StaticStructure:
                     "ai-config-item", "ai-config-item__status", "ai-config-item__actions",
                     "settings-nav", "settings-nav__item", "settings-nav__item--active",
                     "settings-modal", "settings-body", "settings-card",
-                    "theme-picker", "color-mode-seg", "ai-platform-row"]:
+                    "theme-picker", "color-mode-seg", "ai-platform-row",
+                    "ai-platform-row__name", "ai-platform-row__state",
+                    "toggle", "toggle--on-soft", "toggle--off-soft", "toggle--failed",
+                    "ai-platform-fallback", "settings-card__row"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 
     def test_stage3_css_uses_tokens_not_new_colors(self):
         """阶段三样式必须复用 design token（不引入硬编码十六进制颜色）"""
         css = COMPONENTS_CSS.read_text(encoding="utf-8")
-        marker = "阶段三 · 引导页三步向导 + 配置 modal"
+        marker = "阶段三 · 引导页三步向导 + 配置 modal（5 平级左导航 + 分组页 5 态开关）"
         assert marker in css, f"Missing stage3 CSS section marker: {marker}"
         block = css[css.index(marker):]
         for hexcolor in ["#f00", "#ff0000", "#e74c3c", "#dc3545", "#27ae60", "#f39c12"]:
@@ -150,6 +166,7 @@ class TestStage3Build:
             "guide-steps", "初始化 AI 协作", "初始化完成",
             "settings-nav", "settings-card", "ai-platform-row",
             "复制 prompt 给 AI", "saveSettingsIdentity", "configureAi",
+            "Claude Code", "toggle--failed", "重新检测", "clientInstalled",
         ]
         for c in checks:
             assert c in content, f"Standalone missing stage3 content: {c}"
@@ -174,10 +191,12 @@ class TestStage3Browser:
         page.wait_for_timeout(2500)
         self._open_settings(page)
         expect(page.locator(".settings-modal")).to_be_visible(timeout=5000)
-        # 左侧 3 分组导航 + 账号卡默认显示
+        # 左侧 5 平级导航 + 账号卡默认显示
         expect(page.locator(".settings-nav__item", has_text="账号")).to_be_visible(timeout=3000)
         expect(page.locator(".settings-nav__item", has_text="通用")).to_be_visible(timeout=3000)
-        expect(page.locator(".settings-nav__item", has_text="AI 协作")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-nav__item", has_text="MCP")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-nav__item", has_text="Hooks")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-nav__item", has_text="Agents")).to_be_visible(timeout=3000)
         expect(page.locator(".settings-card", has_text="头像与名称")).to_be_visible(timeout=3000)
 
     def test_settings_nav_switch_groups(self, static_server, page, backend_running):
@@ -190,12 +209,20 @@ class TestStage3Browser:
         expect(page.locator(".settings-card", has_text="外观")).to_be_visible(timeout=3000)
         expect(page.locator(".settings-card", has_text="重新运行初始化引导")).to_be_visible(timeout=3000)
         expect(page.locator(".settings-card", has_text="关于")).to_be_visible(timeout=3000)
-        # 切到「AI 协作」
-        page.locator(".settings-nav__item", has_text="AI 协作").click()
+        # 切到「MCP」：MCP 服务状态卡 + 平台行 toggle
+        page.locator(".settings-nav__item", has_text="MCP").click()
         page.wait_for_timeout(300)
-        expect(page.locator(".settings-card", has_text="MCP")).to_be_visible(timeout=3000)
-        expect(page.locator(".settings-card", has_text="Hooks")).to_be_visible(timeout=3000)
-        expect(page.locator(".settings-card", has_text="Agent")).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-card", has_text="MCP 服务状态")).to_be_visible(timeout=3000)
+        expect(page.locator(".ai-platform-row").first).to_be_visible(timeout=3000)
+        expect(page.locator(".toggle").first).to_be_visible(timeout=3000)
+        # 切到「Hooks」
+        page.locator(".settings-nav__item", has_text="Hooks").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".settings-card", has_text="Hooks 服务状态")).to_be_visible(timeout=3000)
+        # 切到「Agents」（页面标题为 Agent 服务状态）
+        page.locator(".settings-nav__item", has_text="Agents").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".settings-card", has_text="Agent 服务状态")).to_be_visible(timeout=3000)
 
     def test_guide_wizard_three_steps(self, static_server, page, backend_running):
         """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""
@@ -237,7 +264,7 @@ class TestStage3Browser:
         page.goto(f"{static_server}#dashboard")
         page.wait_for_timeout(2500)
         self._open_settings(page)
-        for g in ["通用", "AI 协作", "账号"]:
+        for g in ["通用", "MCP", "Hooks", "Agents", "账号"]:
             page.locator(".settings-nav__item", has_text=g).click()
             page.wait_for_timeout(200)
         real = [e for e in errors if "Failed to load resource" not in e]

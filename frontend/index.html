@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=b462fa01f8" />
+  <link rel="stylesheet" href="css/components.css?v=03aa86c56d" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=21f427a0ab"></script>
+  <script src="js/store.js?v=32eddb730a"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1719,44 +1719,63 @@
       </div>
     </div>
 
-    <!-- 配置 modal（阶段三：左导航 3 分组 + 右多卡片，Trae/OpenCode 范式） -->
+    <!-- 配置 modal（阶段三：左导航 5 平级 + 右分组页，MCP/Hooks/Agents 页内 toggle 表达配置状态） -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'settings'"
          x-cloak
+         style="background:rgba(0,0,0,0.35)"
          @click.self="$store.app.closeModal()">
-      <div class="settings-modal">
-        <!-- 左侧导航 -->
-        <div class="settings-nav">
-          <div class="settings-nav__title">设置</div>
-          <button class="settings-nav__item"
-                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'account' }"
-                  @click="settingsNav('account')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-              <circle cx="8" cy="5" r="2.6"/>
-              <path d="M2.5 13.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/>
-            </svg>
-            账号
-          </button>
-          <button class="settings-nav__item"
-                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'general' }"
-                  @click="settingsNav('general')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-              <circle cx="8" cy="8" r="2.4"/>
-              <path d="M8 2v1.6M8 12.4V14M2 8h1.6M12.4 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/>
-            </svg>
-            通用
-          </button>
-          <button class="settings-nav__item"
-                  :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'ai' }"
-                  @click="settingsNav('ai')">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-              <rect x="3" y="3" width="10" height="10" rx="2"/>
-              <path d="M8 6.5v3M6.5 8h3"/>
-            </svg>
-            AI 协作
-          </button>
-          <div class="settings-nav__version" x-text="'v' + ($store.app.systemVersion || '1.0.0') + ' · MyKnowledge'"></div>
-        </div>
+     <div class="settings-modal">
+       <!-- 左侧导航 -->
+       <div class="settings-nav">
+         <div class="settings-nav__title">设置</div>
+         <button class="settings-nav__item"
+                 :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'account' }"
+                 @click="settingsNav('account')">
+           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+             <circle cx="8" cy="5" r="2.6"/>
+             <path d="M2.5 13.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/>
+           </svg>
+           账号
+         </button>
+         <button class="settings-nav__item"
+                 :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'general' }"
+                 @click="settingsNav('general')">
+           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+             <circle cx="8" cy="8" r="2.4"/>
+             <path d="M8 2v1.6M8 12.4V14M2 8h1.6M12.4 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1"/>
+           </svg>
+           通用
+         </button>
+         <button class="settings-nav__item"
+                 :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'mcp' }"
+                 @click="settingsNav('mcp')">
+           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+             <rect x="3" y="3" width="10" height="10" rx="2"/>
+             <path d="M8 6.5v3M6.5 8h3"/>
+           </svg>
+           MCP
+         </button>
+         <button class="settings-nav__item"
+                 :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'hooks' }"
+                 @click="settingsNav('hooks')">
+           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+             <path d="M5.5 2.5v6.5a3 3 0 0 0 6 0V7.5a1 1 0 0 0-2 0v1.5"/>
+             <path d="M5.5 13.5h5"/>
+           </svg>
+           Hooks
+         </button>
+         <button class="settings-nav__item"
+                 :class="{ 'settings-nav__item--active': $store.app.settingsGroup === 'agent' }"
+                 @click="settingsNav('agent')">
+           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+             <rect x="3" y="4" width="10" height="8" rx="2"/>
+             <path d="M8 4V2.5M5.5 7.5h.01M10.5 7.5h.01M6.5 9.5a1.5 1.5 0 0 0 3 0"/>
+           </svg>
+           Agents
+         </button>
+         <div class="settings-nav__version" x-text="'v' + ($store.app.systemVersion || '1.0.0') + ' · MyKnowledge'"></div>
+       </div>
 
         <!-- 右侧内容区 -->
         <div class="settings-body">
@@ -1823,8 +1842,10 @@
 
             <div class="settings-card">
               <div class="settings-card__title">引导</div>
-              <div class="settings-card__desc">重新运行初始化引导，再次配置身份与 AI 协作</div>
-              <div style="margin-top:12px;">
+              <div class="settings-card__row">
+                <div class="settings-card__row-text">
+                  <div class="settings-card__desc">重新运行初始化引导，再次配置身份与 AI 协作</div>
+                </div>
                 <button class="btn" @click="$store.app.rerunGuide()">重新运行初始化引导</button>
               </div>
             </div>
@@ -1835,34 +1856,63 @@
             </div>
           </div>
 
-          <!-- AI 协作：MCP / hooks / Agent 三卡，卡内各平台 -->
-          <div x-show="$store.app.settingsGroup === 'ai'">
-            <h3 class="settings-body__title">AI 协作</h3>
-            <p class="settings-body__desc">为各 AI 客户端配置 MyKnowledge 的 MCP、Hooks 与专用 Agent</p>
-            <template x-for="kind in $store.app.clientKinds" :key="kind.key">
+          <!-- MCP / Hooks / Agents：三平级分组页（差异仅 kind），页内 toggle 表达配置状态 -->
+          <template x-for="kind in $store.app.clientKinds" :key="'group-' + kind.key">
+            <div x-show="$store.app.settingsGroup === kind.key">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div>
+                  <h3 class="settings-body__title" x-text="kind.label"></h3>
+                  <p class="settings-body__desc" x-text="kind.desc"></p>
+                </div>
+                <button class="btn btn--ghost" style="flex-shrink:0;"
+                        @click="$store.app.loadClientConfig()"
+                        :disabled="$store.app.clientDetecting"
+                        x-text="$store.app.clientDetecting ? '检测中…' : '⟳ 重新检测'"></button>
+              </div>
               <div class="settings-card">
-                <div class="settings-card__title" x-text="kind.label"></div>
-                <div class="settings-card__desc" x-text="kind.desc"></div>
+                <div class="settings-card__title" x-text="kind.label + ' 服务状态'"></div>
+                <div class="settings-card__desc" x-text="'为各 AI 客户端配置 ' + kind.label + '；开关关闭 = 移除配置'"></div>
                 <template x-for="plat in $store.app.clientPlatforms" :key="kind.key + '-' + plat.key">
-                  <div class="ai-platform-row">
-                    <span class="status-indicator__dot"
-                          :class="$store.app.clientStatus(plat.key, kind.key) === true ? 'status-indicator__dot--success'
-                                 : 'status-indicator__dot--muted'"></span>
-                    <span style="font-size:var(--text-xs);color:var(--text-secondary);flex:1;"
-                          x-text="plat.label"></span>
-                    <span style="font-size:var(--text-xs);color:var(--text-tertiary);"
-                          x-text="$store.app.clientStatus(plat.key, kind.key) === true ? '已就绪'
-                                 : $store.app.clientStatus(plat.key, kind.key) === false ? '未配置' : '检测失败'"></span>
-                    <button class="btn btn--sm" style="margin-left:8px;"
-                            @click="configureAi(plat.key, kind.key)"
-                            :disabled="!!$store.app.clientConfiguring || $store.app.clientStatus(plat.key, kind.key) === true"
-                            x-text="$store.app.isClientConfiguring(plat.key, kind.key) ? '配置中…' : ($store.app.clientStatus(plat.key, kind.key) === true ? '已配置' : '配置')"></button>
-                    <button class="btn--sm btn-lazy-ai" @click="copyAiPrompt(plat.key, kind.key)">复制 prompt 给 AI</button>
+                  <div>
+                    <div class="ai-platform-row" :data-platform="plat.key" :data-kind="kind.key">
+                      <span class="status-indicator__dot"
+                            :class="$store.app.clientStatus(plat.key, kind.key) === true ? 'status-indicator__dot--success'
+                                   : $store.app.clientStatus(plat.key, kind.key) === false ? 'status-indicator__dot--muted'
+                                   : 'status-indicator__dot--warning'"
+                            :style="$store.app.clientStatus(plat.key, kind.key) !== null && !$store.app.clientInstalled(plat.key) ? 'opacity:0.5' : ''"></span>
+                      <span class="ai-platform-row__name" x-text="plat.label"></span>
+                      <span class="ai-platform-row__state"
+                            :class="$store.app.clientStatus(plat.key, kind.key) === null ? 'ai-platform-row__state--fail'
+                                   : !$store.app.clientInstalled(plat.key) ? 'ai-platform-row__state--soft'
+                                   : ($store.app.clientStatus(plat.key, kind.key) ? 'ai-platform-row__state--ok' : 'ai-platform-row__state--off')"
+                            x-text="$store.app.clientStatus(plat.key, kind.key) === null
+                                    ? '检测失败 · 重新检测'
+                                    : !$store.app.clientInstalled(plat.key)
+                                      ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
+                                      : ($store.app.clientStatus(plat.key, kind.key) ? '已配置' : '未配置 · 点击开关开启')"></span>
+                      <button class="toggle"
+                              :class="$store.app.clientStatus(plat.key, kind.key) === null ? 'toggle--failed'
+                                     : !$store.app.clientInstalled(plat.key)
+                                       ? ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on-soft' : 'toggle--off-soft')
+                                       : ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on' : 'toggle--off')"
+                              :disabled="$store.app.clientStatus(plat.key, kind.key) === null || $store.app.isClientConfiguring(plat.key, kind.key)"
+                              @click="$store.app.clientStatus(plat.key, kind.key) === null
+                                      ? $store.app.loadClientConfig()
+                                      : $store.app.configureClient(plat.key, kind.key)">
+                        <span class="toggle__knob"></span>
+                      </button>
+                    </div>
+                    <div class="ai-platform-fallback"
+                         x-show="$store.app.clientFallback === plat.key + '-' + kind.key"
+                         @click="$store.app.copyClientPrompt(plat.key, kind.key)">
+                      <span>配置失败 · 一键复制 prompt 给你的 AI</span>
+                      <span class="ai-platform-fallback__hint">（点击复制）</span>
+                    </div>
                   </div>
                 </template>
               </div>
-            </template>
-          </div>
+            </div>
+          </template>
 
         </div>
       </div>

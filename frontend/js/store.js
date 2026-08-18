@@ -69,7 +69,7 @@ let _tocCollapsedSet = {};
 
     /** AI 客户端配置检测状态：{ claude: {mcp, hooks, agent}, codebuddy: {...} }（bool） */
     clientConfig: null,
-    /** 配置 modal 当前左侧分组：account | general | ai */
+    /** 配置 modal 当前左侧分组：account | general | mcp | hooks | agent */
     settingsGroup: "account",
     /** 引导向导当前步骤：1 身份 | 2 AI 协作 | 3 完成 */
     guideStep: 1,
@@ -77,6 +77,10 @@ let _tocCollapsedSet = {};
     guideForce: false,
     /** 正在写入的平台/kind（防重复点击）：{ platform, kind } | null */
     clientConfiguring: null,
+    /** 配置失败的平台-kind 标记（行内 fallback 文本，5 秒自动消失）："claude-mcp" | null */
+    clientFallback: null,
+    /** 重新检测 client-config 的加载态（「⟳ 重新检测」按钮禁用 + spinner） */
+    clientDetecting: false,
 
     /** 404 详情：文档被删除时 {deleted_at}（可在垃圾箱恢复） */
     deletedInfo: null,
@@ -1293,29 +1297,40 @@ let _tocCollapsedSet = {};
 
     /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy） */
     clientPlatforms: [
-      { key: "claude",    label: "Claude",    dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
-      { key: "codebuddy", label: "CodeBuddy", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
+      { key: "claude",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
+      { key: "codebuddy", label: "CodeBuddy",   dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
     ],
 
-    /** 加载各平台配置检测状态（GET /api/client-config） */
+    /** 加载各平台配置检测状态（GET /api/client-config）；加载中 clientDetecting=true（「重新检测」按钮转 spinner） */
     async loadClientConfig() {
+      this.clientDetecting = true;
       try {
         const data = await api.getClientConfig();
         this.clientConfig = data || {};
       } catch (e) {
         // 后端离线/异常：置 null，UI 显示「检测失败」并提供复制兜底
         this.clientConfig = null;
+      } finally {
+        this.clientDetecting = false;
       }
     },
 
     /**
      * 半自动化写入某平台某 kind 配置：POST → 刷新 GET → toast。
+     * 开关 optimistic：点击立即本地翻转；失败 loadClientConfig 回弹真实状态 +
+     * 行内 fallback 可交互文本（5 秒自动消失）。
      * @param {string} platform
      * @param {string} kind - mcp | hooks | agent
      */
     async configureClient(platform, kind) {
       if (this.clientConfiguring) return; // 同一时刻只允许一个写入
       this.clientConfiguring = { platform, kind };
+      this.clientFallback = null;
+      // optimistic：本地先翻转开关（clientConfig 已加载且非 null 时；null 态开关禁用不会走到这里）
+      if (this.clientConfig && this.clientConfig[platform]) {
+        const prev = !!this.clientConfig[platform][kind];
+        this.clientConfig[platform][kind] = !prev;
+      }
       try {
         const res = await api.setClientConfig(platform, kind);
         // 写入后重新检测，更新状态显示「已就绪」
@@ -1327,7 +1342,10 @@ let _tocCollapsedSet = {};
           showToast(`${this._platformLabel(platform)} ${label}配置完成`, "success");
         }
       } catch (e) {
-        showToast(`${this._platformLabel(platform)} 配置失败 · 请复制 prompt 交给 AI`, "error");
+        // 失败：loadClientConfig 用真实状态刷新（开关回弹）+ 行内 fallback 文本
+        await this.loadClientConfig();
+        this.clientFallback = `${platform}-${kind}`;
+        setTimeout(() => { this.clientFallback = null; }, 5000);
       } finally {
         this.clientConfiguring = null;
       }
@@ -1343,6 +1361,7 @@ let _tocCollapsedSet = {};
         `请用 MyKnowledge 的 MCP 工具或手动编辑 ${label} 配置文件完成配置，并告诉我配置位置与状态。`;
       const ok = await this._writeClipboard(prompt);
       if (ok) {
+        this.clientFallback = null; // 复制成功 → 行内 fallback 自动消失
         showToast(`${label} ${kindName}配置 prompt 已复制 · 粘贴到 AI 对话`, "success");
       } else {
         showToast("复制失败，请手动复制", "error");
@@ -1399,6 +1418,13 @@ let _tocCollapsedSet = {};
       const cfg = this.clientConfig;
       if (!cfg || !cfg[platform]) return null;
       return cfg[platform][kind];
+    },
+
+    /** 某平台是否已安装（client_installed 平台级 bool；null=检测失败/未返回） */
+    clientInstalled(platform) {
+      const cfg = this.clientConfig;
+      if (!cfg || !cfg[platform]) return null;
+      return cfg[platform].client_installed;
     },
 
     /** 引导 Step2：平台×kind 配置项行列表（供 x-for 渲染） */

@@ -2089,7 +2089,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   阶段三 · 引导页三步向导 + 配置 modal（3 分组左导航 + 右多卡片）
+   阶段三 · 引导页三步向导 + 配置 modal（5 平级左导航 + 分组页 5 态开关）
    全部复用现有 token，无 design-token 增量
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -2161,7 +2161,7 @@
   flex-shrink: 0;
 }
 
-/* 配置 modal 容器：左侧导航 + 右侧内容（760px 宽）
+/* 配置 modal 容器：左侧导航（5 平级：账号/通用/MCP/Hooks/Agents）+ 右侧内容（760px 宽）
    自包含 .modal 基础视觉（background/border/radius/shadow），不依赖 .modal class，
    避免与其它 modal 的泛化选择器冲突（如 test_health 的 .modal button 复制按钮） */
 .settings-modal {
@@ -2180,7 +2180,7 @@
 }
 .settings-modal .modal__title { margin: 0; }
 
-/* 配置 modal 左侧导航（3 分组） */
+/* 配置 modal 左侧导航（5 平级分组） */
 .settings-nav {
   display: flex;
   flex-direction: column;
@@ -2247,8 +2247,8 @@
 }
 .settings-body__desc {
   margin-top: 4px;
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 /* 设置卡片（每卡一项设置） */
@@ -2267,8 +2267,8 @@
 }
 .settings-card__desc {
   margin-top: 4px;
-  font-size: var(--text-2xs);
-  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
 }
 
 /* 外观卡：双层主题（主题风格下拉 + 亮暗分段） */
@@ -2279,12 +2279,95 @@
   margin-top: 8px;
 }
 
-/* AI 协作卡内平台状态行 */
+/* MCP/Hooks/Agents 分组页内平台状态行（5 态：已就绪/未配置/浅色开/浅色关/检测失败） */
 .ai-platform-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  padding: 12px 0;
   border-top: 1px solid var(--border-subtle);
 }
 .ai-platform-row:first-of-type { border-top: none; }
+.ai-platform-row__name {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 1;
+}
+.ai-platform-row__state {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.ai-platform-row__state--ok   { color: var(--text-secondary); }
+.ai-platform-row__state--off  { color: var(--text-secondary); }
+.ai-platform-row__state--soft { color: var(--text-muted); }
+.ai-platform-row__state--fail { color: var(--color-danger); }
+
+/* 5 态开关：on / off / on-soft（未装但已配）/ off-soft（未装未配）/ failed（检测失败） */
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition-interactive);
+  background: var(--border-default);
+}
+.toggle__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: var(--transition-interactive);
+}
+.toggle--on       { background: var(--accent); }
+.toggle--on-soft  { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.toggle--off-soft { background: color-mix(in srgb, var(--border-default) 60%, transparent); opacity: 0.7; }
+.toggle--failed   { background: var(--border-default); cursor: not-allowed; }
+.toggle--on .toggle__knob,
+.toggle--on-soft .toggle__knob { transform: translateX(16px); }
+.toggle--on .toggle__knob { background: #fff; }
+.toggle--failed .toggle__knob { opacity: 0.5; }
+.toggle:disabled { cursor: not-allowed; }
+
+/* 配置失败行内 fallback 可交互文本（点击复制 prompt 给 AI） */
+.ai-platform-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 10px;
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-interactive);
+}
+.ai-platform-fallback:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.ai-platform-fallback__hint {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+/* 通用页引导卡：一行排布（文本左 + 按钮右） */
+.settings-card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+}
+.settings-card__row-text {
+  flex: 1;
+  min-width: 0;
+}
