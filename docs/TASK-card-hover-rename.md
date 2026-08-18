@@ -48,7 +48,7 @@
 - `hover_docs` fixture（无空格路径根公共知识文档 hover-ref-a/b/c）
 - H1 预览渲染 / H2 ref 可点 / H3 引用行 / H4 编辑保存后预览更新 / H5 删除按钮模态
 - **重命名应补 H6**（hover 重命名 → 输入新标题 → 确认 → 卡片/侧栏更新 + 后端路径变更）
-- 场景矩阵：`doc/test/testing-plan-paste-markdown.md`（粘贴）与 `testing-plan-edit-switch.md`（编辑切换/H1-5）——重命名用例建议加进 hover 测试文件
+- 场景矩阵：`docs/test/testing-plan-paste-markdown.md`（粘贴）与 `testing-plan-edit-switch.md`（编辑切换/H1-5）——重命名用例建议加进 hover 测试文件
 
 ## 四、验收标准
 

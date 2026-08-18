@@ -256,6 +256,6 @@ autosave 的 1s 定时器可能先于锁生效触发保存，导致误报。
 
 ## 8. 关联：粘贴 markdown 解析（P 系列）→ 独立文档
 
-编辑器粘贴 markdown 全量解析（方案 B）的测试设计见 **`doc/test/testing-plan-paste-markdown.md`**
+编辑器粘贴 markdown 全量解析（方案 B）的测试设计见 **`docs/test/testing-plan-paste-markdown.md`**
 （P-A 行内 / P-B 块级 / P-C 组合 / P-D ref / P-E 往返 / P-F 位置上下文 / P-G title-summary，约 40 场景）。
 TDD 流程：先写测试（当前红色）→ 实现 B → 转正。
