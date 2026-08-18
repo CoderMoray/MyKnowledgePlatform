@@ -123,8 +123,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 618 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 72 个 + connection 25 个 + hooks 25 个 + hooks_forward 6 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个）
-- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...) + staged-guard 跳过无变更 + repo-relative 解析）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST/DELETE /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入 + remove_kind 移除 + client_installed 检测 + WorkBuddy 平台支持 + mcp_entry 注入 MYKNOWLEDGE_CLIENT + /api/mcp/heartbeat 心跳连接检测 + connection 字段 + kinds 能力面 + Enchante 平台（SKILL.md + deeplink））、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库 + CodeBuddy 工具名归一化 + hooks_forward 模块调用 + hooks_matcher 平台差异化 + Agent md 模板化 backend/AiClientConfig/agents/ + ClaudeDesktop MCP-only 平台 + frontmatter.json 多平台配置 + PascalCase 平台标识符（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy））、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
+- 671 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 102 个 + connection 25 个 + hooks 29 个 + hooks_forward 6 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个 + config 分享配置 28 个）
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...) + staged-guard 跳过无变更 + repo-relative 解析）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST/DELETE /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入 + remove_kind 移除 + client_installed 检测 + WorkBuddy 平台支持 + mcp_entry 注入 MYKNOWLEDGE_CLIENT + /api/mcp/heartbeat 心跳连接检测 + connection 字段 + kinds 能力面 + Enchante 平台（SKILL.md + deeplink））、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库 + CodeBuddy 工具名归一化 + hooks_forward 模块调用 + hooks_matcher 平台差异化 + Agent md 模板化 backend/AiClientConfig/agents/ + ClaudeDesktop MCP-only 平台 + frontmatter.json 多平台配置 + PascalCase 平台标识符（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Cursor））、Cursor 全能力平台接入（mcp+hooks+agent，hooks 写入 ~/.cursor/hooks.json 的 version:1 + preToolUse + matcher Shell + hooks_forward，agents 写入 ~/.cursor/agents/MyKnowledge-agent.md，client_installed 检测 ~/.cursor）+ Cursor Shell 工具归一化（hooks.py）+ hooks 设计目录 backend/AiClientConfig/hooks/（6 平台 json，schema 一致 + supports_hooks 对齐 kinds）、分享配置（CLI config set/show/unset + 读取优先级 backend/.env→~/.myknowledge/.env + GET /api/config-status + share.py 读来源对齐优先级，不影响分享往返）、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
 
 ### 前端构建守门（2026-08-09 引入）
 
@@ -198,6 +198,64 @@ onedir 打包）下不可行——onedir 无独立 python 可执行（`sys.execu
 - `python <path>/hooks_forward.py` 子进程可独立跑通 mock 输入（fail-open）；
 - `desktop_server --hooks-forward` 转发并 fail-open；
 - `_hooks_command_codebuddy()` 开发/冻结两分支 + 空格路径加引号 + `write_kind` 落盘命令。
+
+### Cursor 平台接入 + hooks 设计目录（2026-08-18）
+
+**背景**：Cursor 是全能力平台（mcp + hooks + agent），全局配置 `~/.cursor/mcp.json`、
+`~/.cursor/hooks.json`、`~/.cursor/agents/`。MCP 已实测通过；hooks 协议（stdin JSON →
+stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容。
+
+**Cursor 接入**（kinds=[mcp, hooks, agent]）：
+- `platforms.json` 新增 Cursor：`config_dir="~/.cursor"`、`mcp_file="~/.cursor/mcp.json"`、
+  `hooks_file="~/.cursor/hooks.json"`、`agents_dir="~/.cursor/agents"`；无 cli_names（无 CLI，
+  config_dir 存在即 installed）。
+- `_platform_paths` 新增 `hooks_file` 键：Cursor 独立映射到 hooks.json，其余平台回退到
+  settings_file（`_resolve_path("")` 返回 `Path('.')` truthy，空串须先判空）。
+- **hooks 写 `~/.cursor/hooks.json`**：`{version:1, hooks:{preToolUse:[{type:command,
+  command: hooks_forward, matcher: Shell, timeout:10000, failClosed:false}]}}`（增量合并，
+  保留 version:1 与已有 hooks）。Cursor 条目 `command` 直接挂在条目上（无嵌套 hooks 列表），
+  `_matcher_is_mine` 增加 direct-command 识别。
+- `hooks.py` `_TOOL_ALIASES` 增加 `"Shell": "Bash"`（Cursor preToolUse 用 Shell 而非 Bash），
+  使对 KB 裸写命令的拦截判定生效。
+- agent 写 `~/.cursor/agents/MyKnowledge-agent.md`（frontmatter name/description + 正文，
+  frontmatter.json 新增 Cursor variant）。
+- `mcp_entry("Cursor")` 注入 `MYKNOWLEDGE_CLIENT=Cursor`（心跳自动上报）。
+
+**hooks 设计目录 `backend/AiClientConfig/hooks/`**（每平台一个 json，平台名当文件名）：
+- 各平台 hooks 设计的**权威记录**（代码生成 hooks 配置以此为参考）。
+- schema：`{platform, display, supports_hooks, event, matcher, matcher_note, command,
+  protocol, exit_code_deny:2, fail_open:true, notes}`；不支持 hooks 的平台
+  （ClaudeDesktop/Enchante）`supports_hooks=false` + notes 说明。
+- 6 文件：ClaudeCode / CodeBuddyIDE / WorkBuddy / ClaudeDesktop / Cursor / Enchante。
+- `AiClientConfig` 整目录已由 spec `datas` 携带，hooks/ 子目录自动进包，无需改 spec。
+
+### CLI config 子命令 + 分享配置状态 API（2026-08-18）
+
+**背景**：分享配置（KNOWLEDGE_SHARE_CODE + SHARE_MAP）原先只能手动编辑 `backend/.env`。
+本轮让 `myknowledge config` 命令把分享配置写入 `~/.myknowledge/.env`（用户级可写），
+并暴露只读状态 API 供前端引导。OSS 键不涉及。
+
+**读取优先级**（`backend/config.py`）：
+- `effective_env_file()`：`backend/.env` 存在优先 → `~/.myknowledge/.env` fallback →
+  none（fallback 目标是用户文件，便于后续写入生效）。
+- `load_share_env()` 返回 `{share_code, share_map}`（share_map 缺省 `"000"`）。
+- `share.py::_load_env()` 改为调 `load_share_env()`（优先级一致）→ publish/import 读取
+  同一生效来源，**分享往返不受影响**（确认不破坏现有分享功能）。
+
+**CLI `myknowledge config`**（`backend/cli.py`）：
+- `config` / `config show`：显示生效来源、脱敏分享码（`mask_share_code`：前 2+后 2，中段
+  `***`，≤4 位全 `****`）、SHARE_MAP；backend/.env 存在时警告「存在且优先」。
+- `config set KEY=VALUE`：写 `~/.myknowledge/.env`（`write_share_env`：首次创建带注释模板，
+  就地更新已有键 / 追加新键，保留无关行）；backend 存在时警告「可能不生效」；改
+  KNOWLEDGE_SHARE_CODE 时提示「旧 .mkpkg 失效」。
+- `config unset KEY`：移除键（`unset_share_env`，幂等）。
+- 仅允许 SHARE_KEYS 两键（KNOWLEDGE_SHARE_CODE / SHARE_MAP）。
+
+**REST `GET /api/config-status`**（`backend/main.py`）：
+- 返回 `{share_configured: bool, env_source: "backend"|"myknowledge"|"none", message}`。
+- `share_configured` 仅当 KNOWLEDGE_SHARE_CODE + SHARE_MAP 均配置；**绝不泄露分享码明文**
+  （message 只含脱敏形式）。
+- 前端用于「未配置 → 引导」（另派前端）。
 
 ---
 

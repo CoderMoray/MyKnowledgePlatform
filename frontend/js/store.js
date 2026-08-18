@@ -1300,7 +1300,7 @@ let _tocCollapsedSet = {};
     /** AI 平台元信息（key 与后端 client_config.PLATFORMS 严格一致：ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Enchante）
      *  key 用 PascalCase（读起来即展示名去空格：CodeBuddyIDE → "CodeBuddy IDE"），URL 无需编码。
      *  kinds: 该平台支持的配置种类（与后端 platforms.json kinds 一致）——
-     *         ClaudeCode/CodeBuddyIDE/WorkBuddy → mcp+hooks+agent；ClaudeDesktop → 仅 mcp；
+     *         ClaudeCode/CodeBuddyIDE/WorkBuddy/Cursor → mcp+hooks+agent；ClaudeDesktop → 仅 mcp；
      *         Enchante → mcp+agent（无 hooks；MCP 无配置文件，走 deeplink，见 usesDeeplink） */
     clientPlatforms: [
       { key: "ClaudeCode",    label: "Claude Code",   dot: "linear-gradient(135deg,#d97706,#f59e0b)", kinds: ["mcp", "hooks", "agent"] },
@@ -1308,6 +1308,7 @@ let _tocCollapsedSet = {};
       { key: "CodeBuddyIDE",  label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)", kinds: ["mcp", "hooks", "agent"] },
       { key: "WorkBuddy",     label: "WorkBuddy",     dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)", kinds: ["mcp", "hooks", "agent"] },
       { key: "Enchante",      label: "Enchanté",      dot: "linear-gradient(135deg,#9333ea,#a855f7)", kinds: ["mcp", "agent"] },
+      { key: "Cursor",        label: "Cursor",        dot: "linear-gradient(135deg,#0891b2,#06b6d4)", kinds: ["mcp", "hooks", "agent"] },
     ],
 
     /** 加载各平台配置检测状态（GET /api/client-config）；加载中 clientDetecting=true（「重新检测」按钮转 spinner） */
