@@ -1295,10 +1295,11 @@ let _tocCollapsedSet = {};
 
     /* ── 阶段三：AI 客户端配置（MCP/hooks/Agent 检测 + 半自动化写入） ── */
 
-    /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy） */
+    /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy/workbuddy） */
     clientPlatforms: [
       { key: "claude",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
       { key: "codebuddy", label: "CodeBuddy",   dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
+      { key: "workbuddy", label: "WorkBuddy",   dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)" },
     ],
 
     /** 加载各平台配置检测状态（GET /api/client-config）；加载中 clientDetecting=true（「重新检测」按钮转 spinner） */
