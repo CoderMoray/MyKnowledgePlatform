@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.client_config import (
     KINDS,
     PLATFORMS,
+    _agent_template,
     _hooks_command_codebuddy,
     _hooks_command_claude,
     _platform_paths,
@@ -212,6 +213,35 @@ class TestWorkBuddy:
             write_kind("cursor", "mcp")
 
 
+class TestAgentTemplate:
+    def test_body_comes_from_template(self, fake_home: Path) -> None:
+        """agent_content body matches the shipped template (content/code separation)."""
+        body = _agent_template()
+        assert "你是 MyKnowledge 知识管理平台的专业 Agent" in body
+        assert body in agent_content("claude")
+        assert body in agent_content("codebuddy")
+
+    def test_frontmatter_differs_by_platform(self, fake_home: Path) -> None:
+        cl = agent_content("claude")
+        cb = agent_content("codebuddy")
+        # frontmatter: codebuddy has agentMode/enabled/mcpServers; claude does not
+        assert "agentMode: manual" in cb.split("---")[1]
+        assert "mcpServers: MyKnowledge" in cb.split("---")[1]
+        assert "agentMode: manual" not in cl.split("---")[1]
+        assert "mcpServers: MyKnowledge" not in cl.split("---")[1]
+
+    def test_missing_template_raises_clear_error(self, fake_home: Path,
+                                                 monkeypatch) -> None:
+        import backend.client_config as cc
+        # point template resolution at a nonexistent file
+        monkeypatch.setattr(
+            cc, "_agent_template",
+            lambda: (_ for _ in ()).throw(
+                RuntimeError("缺失 Agent 模板")))
+        with pytest.raises(RuntimeError, match="缺失 Agent 模板"):
+            cc.agent_content("claude")
+
+
 class TestDetect:
     def test_detect_absent(self, fake_home: Path, monkeypatch) -> None:
         monkeypatch.setattr("shutil.which", lambda *a, **k: None)
@@ -269,7 +299,7 @@ class TestHooksMatcher:
         codebuddy = hooks_matcher("codebuddy")
         assert claude["hooks"][0]["command"] != codebuddy["hooks"][0]["command"]
         assert "$CLAUDE_TOOL_USE_INPUT" in claude["hooks"][0]["command"]
-        assert "hooks_forward.py" in codebuddy["hooks"][0]["command"]
+        assert "backend.hooks_forward" in codebuddy["hooks"][0]["command"]
 
     def test_codebuddy_matcher_all(self, fake_home: Path) -> None:
         """CodeBuddy matcher '*' matches all tools (MCP allowed internally)."""
@@ -284,11 +314,11 @@ class TestHooksMatcher:
             == hooks_matcher("claude")["hooks"][0]["command"]
 
     def test_codebuddy_write_kind_uses_helper(self, fake_home: Path) -> None:
-        """Writing codebuddy hooks stores the helper command."""
+        """Writing codebuddy hooks stores the module-form helper command."""
         write_kind("codebuddy", "hooks")
         data = _read_json(fake_home / ".codebuddy" / "settings.json")
         cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-        assert "hooks_forward.py" in cmd
+        assert "python3 -m backend.hooks_forward" == cmd
 
 
 class TestRemoveKind:

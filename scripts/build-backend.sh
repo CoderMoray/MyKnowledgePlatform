@@ -56,6 +56,8 @@ T1=$(date +%s)
   --add-data "frontend/css:frontend/css" \
   --add-data "frontend/vendor:frontend/vendor" \
   --add-data "frontend/tiptap-bundle.mjs:frontend" \
+  --add-data "backend/hooks_forward.py:backend" \
+  --add-data "backend/templates:backend/templates" \
   --exclude-module matplotlib \
   --exclude-module PIL \
   --exclude-module lxml \

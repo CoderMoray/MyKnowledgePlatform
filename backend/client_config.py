@@ -84,14 +84,18 @@ def _hooks_command_claude() -> str:
 
 
 def _hooks_command_codebuddy() -> str:
-    """CodeBuddy: forward stdin JSON via a helper script (no $CLAUDE_TOOL_USE_INPUT).
+    """CodeBuddy: forward stdin JSON via the ``backend.hooks_forward`` module.
 
     CodeBuddy passes PreToolUse data on **stdin** and uses IDE tool names
     (execute_command / write_to_file / ...); ``hooks_forward.py`` reads stdin,
     POSTs to the hook endpoint, and prints the response JSON.
+
+    We invoke it as ``python3 -m backend.hooks_forward`` (module form) instead
+    of an absolute script path — the module is located by the installed
+    ``backend`` package, so the hook survives moving/copying the KB config to
+    another machine or an installed distribution.
     """
-    helper = Path(__file__).resolve().parent / "hooks_forward.py"
-    return f"python3 {helper}"
+    return "python3 -m backend.hooks_forward"
 
 
 def hooks_matcher(platform: str) -> dict:
@@ -129,45 +133,42 @@ def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
     return isinstance(first, dict) and first.get("command") == cmd
 
 
+def _agent_template() -> str:
+    """Read the agent prompt body from ``backend/templates/MyKnowledge-agent.md``.
+
+    Content is separated from code so edits don't require a code change; the
+    template ships with the package (PyInstaller datas / wheel package-data).
+    Raises a clear ``RuntimeError`` if the template is missing.
+    """
+    tpl = Path(__file__).resolve().parent / "templates" / "MyKnowledge-agent.md"
+    if not tpl.is_file():
+        raise RuntimeError(
+            f"缺失 Agent 模板: {tpl}（backend/templates/MyKnowledge-agent.md）")
+    return tpl.read_text(encoding="utf-8")
+
+
 def agent_content(platform: str) -> str:
-    """MyKnowledge agent markdown body, formatted per platform."""
+    """MyKnowledge agent markdown, body from template + per-platform frontmatter."""
     tools = ("mcp_get_tool_description, mcp_call_tool, "
              "nav__list_dir, nav__get_document, nav__find, write__create_document, "
              "write__update_document, maint__knowledgebase_diagnose")
-    prompt = (
-        "# MyKnowledge Agent\n\n"
-        "你是 MyKnowledge 知识管理平台的专业 Agent。通过 MyKnowledge MCP 服务器操作 "
-        "本地知识库：检索、读写文档、维护结构。\n\n"
-        "## 能力\n"
-        "- 检索：nav__list_dir / nav__get_document / nav__find\n"
-        "- 写入：write__create_document / write__update_document\n"
-        "- 维护：maint__knowledgebase_diagnose 结构诊断\n"
-    )
+    prompt = _agent_template()
+    fm = [
+        "---",
+        "name: MyKnowledge Agent",
+        "description: MyKnowledge 知识管理平台协作 Agent",
+        f"tools: {tools}",
+        "model: inherit",
+    ]
     # WorkBuddy 与 CodeBuddy 同为 IDE/办公智能体、经 MCP 连接，复用同一 agent 格式。
     if platform in ("codebuddy", "workbuddy"):
-        return (
-            "---\n"
-            f"name: MyKnowledge Agent\n"
-            f"description: MyKnowledge 知识管理平台协作 Agent\n"
-            f"model: inherit\n"
-            f"tools: {tools}\n"
-            f"agentMode: manual\n"
-            f"enabled: true\n"
-            f"enabledAutoRun: true\n"
-            f"mcpServers: MyKnowledge\n"
-            "---\n"
-            f"\n{prompt}"
-        )
-    # claude
-    return (
-        "---\n"
-        f"name: MyKnowledge Agent\n"
-        f"description: MyKnowledge 知识管理平台协作 Agent\n"
-        f"tools: {tools}\n"
-        f"model: inherit\n"
-        "---\n"
-        f"\n{prompt}"
-    )
+        fm += [
+            "agentMode: manual",
+            "enabled: true",
+            "enabledAutoRun: true",
+            "mcpServers: MyKnowledge",
+        ]
+    return "\n".join(fm) + "\n---\n\n" + prompt
 
 
 # ══════════════════════════════════════════════════════════════
