@@ -262,6 +262,39 @@ class TestStage3StaticStructure:
         # 不应引用不存在的 --border-color
         assert "--border-color" not in block, "must not use non-existent --border-color token"
 
+    def test_desktop_isolated_markup(self):
+        """桌面壳隔离门控回归保护：桌面专属片段必须 __MYK_APP_MODE__ /
+        data-app-mode 门控，网页端零变化（桌面壳任务验收要求）。"""
+        html = INDEX.read_text(encoding="utf-8")
+        # 关闭询问 modal：双条件门控（__MYK_APP_MODE__ + desktopCloseChoice.show）
+        assert "__MYK_APP_MODE__ && $store.app.desktopCloseChoice.show" in html, \
+            "关闭 modal 必须门控 __MYK_APP_MODE__"
+        # 设置「关闭行为」卡：单条件门控
+        assert 'x-show="window.__MYK_APP_MODE__"' in html, \
+            "设置「关闭行为」卡必须门控 __MYK_APP_MODE__"
+        # sidebar-titlebar 存在（CSS 层门控在 layout.css 断言）
+        assert 'class="sidebar-titlebar"' in html, "Missing sidebar-titlebar"
+
+        layout = (FRONTEND / "css" / "layout.css").read_text(encoding="utf-8")
+        assert ".sidebar-titlebar" in layout, "layout.css 缺 .sidebar-titlebar"
+        assert '[data-app-mode="desktop"] .sidebar-titlebar' in layout, \
+            "sidebar-titlebar 必须 [data-app-mode=desktop] 作用域"
+        # 网页端基础态隐藏（display:none 必须在门控块之外）
+        base = layout[:layout.index(".sidebar-titlebar")]
+        assert "display: none" in layout, "sidebar-titlebar 网页端必须 display:none"
+
+        app_js = (FRONTEND / "js" / "app.js").read_text(encoding="utf-8")
+        assert 'setAttribute("data-app-mode", "desktop")' in app_js, \
+            "app.js 应仅在桌面模式设置 data-app-mode"
+        assert "window.__MYK_APP_MODE__" in app_js, \
+            "app.js data-app-mode 设置必须门控 __MYK_APP_MODE__"
+
+        js = STORE.read_text(encoding="utf-8")
+        assert "desktopCloseChoice" in js, "Missing store desktopCloseChoice state"
+        assert "desktopShowCloseChoice" in js, "Missing store desktopShowCloseChoice()"
+        assert "__mykShowCloseChoice__" in js, "Missing preload 桥订阅 __mykShowCloseChoice__"
+        assert "window.__MYK_APP_MODE__" in js, "store init 桌面订阅必须门控 __MYK_APP_MODE__"
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 构建测试
@@ -282,6 +315,9 @@ class TestStage3Build:
             "connection-tip", "connection-dot",
             "guide-modal", "guideStep1Valid", "guide-platform-row", "guide-progress",
             "⚡ 打开安装链接", "企业名称", "组织代码", "guideExecute", "deeplinkClicked",
+            # 桌面壳隔离片段（sidebar-titlebar / 关闭 modal / 关闭行为卡）
+            "sidebar-titlebar", "desktop-close-modal", "desktopCloseChoice",
+            "关闭行为", "记住我的选择",
         ]
         for c in checks:
             assert c in content, f"Standalone missing stage3 content: {c}"
@@ -528,6 +564,24 @@ class TestStage3Browser:
         page.wait_for_timeout(600)
         expect(page.locator(".guide-modal", has_text="初始化完成")).to_be_visible(timeout=5000)
         expect(page.locator(".guide-modal", has_text="开始使用")).to_be_visible(timeout=3000)
+
+    def test_webview_has_no_desktop_ui(self, static_server, page, backend_running):
+        """回归保护（桌面壳隔离）：普通浏览器（无 __MYK_APP_MODE__）下
+        桌面专属 UI 全部不可见——html 无 data-app-mode、sidebar-titlebar 隐藏、
+        关闭询问 modal 隐藏、设置「关闭行为」卡不显示。防止桌面改动污染网页端。"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        # 1) html 无 data-app-mode 属性（app.js 仅桌面模式设置）
+        assert page.evaluate(
+            "document.documentElement.hasAttribute('data-app-mode')") is False, \
+            "网页端 html 不应有 data-app-mode"
+        # 2) sidebar-titlebar 不可见（CSS 基础态 display:none）
+        expect(page.locator(".sidebar-titlebar")).not_to_be_visible()
+        # 3) 关闭询问 modal 不可见（__MYK_APP_MODE__ 门控恒 false，x-show 元素在 DOM 但隐藏）
+        expect(page.locator(".desktop-close-overlay")).not_to_be_visible()
+        # 4) 设置「关闭行为」卡不显示（打开设置后断言）
+        self._open_settings(page)
+        expect(page.locator(".settings-card", has_text="关闭行为")).not_to_be_visible()
 
     def test_console_clean(self, static_server, page, backend_running):
         """配置 modal 打开 + 分组切换后 console 无前端 JS 报错。
