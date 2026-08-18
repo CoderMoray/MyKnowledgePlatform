@@ -22,6 +22,8 @@ Alpine.data("modalComponent", () => ({
     identityEmail: "",
     setupNickname: "",
     setupEmail: "",
+    setupCompany: "",
+    setupOrgCode: "",
 
     isValidEmail(email) {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || "");
@@ -163,44 +165,75 @@ Alpine.data("modalComponent", () => ({
       }
     },
 
+    /** Step1：保存身份 + 企业名称/组织代码（POST /api/config/share，失败 toast 不阻断）。
+     *  @returns {boolean} 保存是否成功（身份失败返回 false 留页；share 配置失败不阻断返回 true） */
     async saveSetup() {
       const store = Alpine.store("app");
       const nick = this.setupNickname.trim();
       const email = this.setupEmail.trim();
-      if (!nick || !email || !this.isValidEmail(email)) return;
+      const company = store.setupCompany.trim();
+      const orgCode = store.setupOrgCode.trim();
+      if (!nick || !email || !this.isValidEmail(email)) return false;
       try {
         await store.saveIdentity(nick, email);
         showToast("身份已保存", "success");
-        // 阶段三：Step1 身份完成 → 进入 Step2 AI 协作初始化
-        store.guideStep = 2;
       } catch (err) {
         showToast(err.message || "保存失败", "error");
+        return false;
       }
+      // 企业名称 + 组织代码 → 分享配置（部分更新幂等）；失败 toast 不阻断进入下一步
+      if (company && orgCode) {
+        try {
+          await api.setConfigShare(company, orgCode);
+        } catch (err) {
+          showToast(err.message || "分享配置保存失败，可稍后在设置中重试", "error");
+        }
+      }
+      return true;
     },
 
-    /** 引导向导：下一步（Step2→Step3；Step3 完成跳 dashboard） */
+    /** 引导向导：下一步（4 页 3 步：1 身份 → 2 平台多选 → 3 执行+结论 → 4 完成） */
     async guideNext() {
       const store = Alpine.store("app");
       if (store.guideStep === 1) {
-        // Step1 身份未保存则先保存（复用 saveSetup）
+        // Step1：4 字段全有效 + 保存身份/分享配置 → 进入 2.1 平台多选
+        if (!store.guideStep1Valid(this.setupNickname, this.setupEmail)) return;
         if (!store.identitySet) {
-          await this.saveSetup();
-          if (!store.identitySet) return; // 保存失败留在 Step1
+          const ok = await this.saveSetup();
+          if (!ok) return; // 身份保存失败留在 Step1
+        } else if (store.setupCompany || store.setupOrgCode) {
+          // 已设身份（rerunGuide 场景）：企业名称/组织代码已填则补写分享配置，失败不阻断
+          try {
+            if (store.setupCompany.trim() && store.setupOrgCode.trim()) {
+              await api.setConfigShare(store.setupCompany.trim(), store.setupOrgCode.trim());
+            }
+          } catch (err) {
+            showToast(err.message || "分享配置保存失败，可稍后在设置中重试", "error");
+          }
         }
         store.guideStep = 2;
       } else if (store.guideStep === 2) {
+        // Step2.1：至少选 1 平台 → 进入 2.2 执行+结论，自动执行
+        if (!store.guideStep2Valid()) return;
         store.guideStep = 3;
+        store.guideExecute();
+      } else if (store.guideStep === 3) {
+        // Step2.2：执行完成后才可进入 Step3 完成
+        if (!store.guideExecDone) return;
+        store.guideStep = 4;
       } else {
-        // Step3 完成 → 开始使用
+        // Step4 完成 → 开始使用
         window.location.hash = "dashboard";
       }
     },
 
-    /** 引导向导：上一步（Step2→Step1；Step3→Step2） */
+    /** 引导向导：上一步（4 页：4→3→2→1；2.2 执行中不可回退） */
     guidePrev() {
       const store = Alpine.store("app");
+      if (store.guideExecuting) return; // 执行中禁止回退
       if (store.guideStep === 2) store.guideStep = 1;
       else if (store.guideStep === 3) store.guideStep = 2;
+      else if (store.guideStep === 4) store.guideStep = 3;
     },
 
     /** 配置 modal：切换左侧分组 */
@@ -254,6 +287,8 @@ Alpine.data("modalComponent", () => ({
       this.$watch("$store.app.currentView", (val) => {
         if (val === "setup") {
           store.guideStep = 1;
+          // 重置 Step2（2.1 选择集 / 2.2 执行态 / Enchante 按钮态）
+          store.resetGuideExec();
           // 身份已设置时预填（rerunGuide 进入场景；首次进入 setup 身份未设留空待填）
           if (store.identitySet) {
             this.setupNickname = store.nickname || "";

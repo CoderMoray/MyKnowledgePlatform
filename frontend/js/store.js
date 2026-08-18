@@ -73,10 +73,24 @@ let _tocCollapsedSet = {};
     clientConfigAt: 0,
     /** 配置 modal 当前左侧分组：account | general | mcp | hooks | agent */
     settingsGroup: "account",
-    /** 引导向导当前步骤：1 身份 | 2 AI 协作 | 3 完成 */
+    /** 引导向导当前页：1 身份 | 2 平台多选(2.1) | 3 执行+结论(2.2) | 4 完成（4 页 3 步结构） */
     guideStep: 1,
     /** 是否强制重进引导向导（rerunGuide 设置，绕过身份已配置的 setup 拦截） */
     guideForce: false,
+    /** Step1 企业名称（KNOWLEDGE_SHARE_CODE） */
+    setupCompany: "",
+    /** Step1 组织代码（SHARE_MAP，三位正整数） */
+    setupOrgCode: "",
+    /** Step2.1 已选平台 key 数组（多选） */
+    guideSelected: [],
+    /** Step2.2 执行中标志（进度条控制） */
+    guideExecuting: false,
+    /** Step2.2 执行完成（结论显示） */
+    guideExecDone: false,
+    /** Step2.2 进度值 0-100 */
+    guideExecPercent: 0,
+    /** Step2.2 结论页 Enchante 按钮已点击标记（会话内 UX 态，不持久化） */
+    deeplinkClicked: false,
     /** 正在写入的平台/kind（防重复点击）：{ platform, kind } | null */
     clientConfiguring: null,
     /** 配置失败的平台-kind 标记（行内 fallback 文本，5 秒自动消失）："claude-mcp" | null */
@@ -1414,6 +1428,104 @@ let _tocCollapsedSet = {};
       window.location.hash = "setup";
     },
 
+    /* ── 引导页（4 页 3 步）页序辅助 ────────────────────────────── */
+    /** 页序→显示步骤号（4 页 3 步：页 1→Step1，页 2/3→Step2，页 4→Step3） */
+    guideDisplayStep(page) {
+      const p = page == null ? this.guideStep : page;
+      if (p <= 1) return 1;
+      if (p >= 4) return 3;
+      return 2;
+    },
+    /** 当前显示步骤文案：Step X of 3 */
+    guideStepLabel() {
+      return `Step ${this.guideDisplayStep()} of 3`;
+    },
+    /** 步骤指示点第 N 个是否 active（N=1/2/3） */
+    guideDotActive(n) {
+      return this.guideDisplayStep() === n;
+    },
+    /** 步骤指示点第 N 个是否 done（N=1/2/3） */
+    guideDotDone(n) {
+      return this.guideDisplayStep() > n;
+    },
+
+    /** Step1 校验：4 字段全有效（昵称非空 / 邮箱格式 / 企业名称非空 / 组织代码三位正整数）。
+     *  nickname/email 属 modal 组件 scope，由调用方（index.html Alpine 表达式）传入。 */
+    guideStep1Valid(nickname, email) {
+      return !!((nickname && nickname.trim()) && (email && email.trim())
+        && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        && this.setupCompany.trim()
+        && /^\d{3}$/.test(this.setupOrgCode.trim()));
+    },
+    /** 组织代码格式（三位正整数）校验错误提示（空/非三位数字时返回文案，否则空串） */
+    guideOrgCodeError() {
+      const v = this.setupOrgCode.trim();
+      if (!v) return "";
+      return /^\d{3}$/.test(v) ? "" : "组织代码为三位正整数";
+    },
+    /** 企业名称格式校验（非空即有效；前端按 FRONTEND 接口规范，具体格式后端校验） */
+    guideCompanyError() {
+      return this.setupCompany.trim() ? "" : "请输入企业名称";
+    },
+
+    /** Step2.1：是否已选至少 1 个平台（未安装平台不可选，不计入可选） */
+    guideStep2Valid() {
+      return this.guideSelected.length > 0;
+    },
+    /** Step2.1 已选计数（未安装平台不可选） */
+    guideSelectedCount() {
+      return this.guideSelected.length;
+    },
+    /** Step2.1 切换平台选中态（未安装平台禁止切换） */
+    toggleGuideSelect(platform) {
+      if (!this.clientInstalled(platform)) return;
+      const i = this.guideSelected.indexOf(platform);
+      if (i >= 0) this.guideSelected.splice(i, 1);
+      else this.guideSelected.push(platform);
+    },
+    /** Step2.1 平台是否已选 */
+    guideIsSelected(platform) {
+      return this.guideSelected.includes(platform);
+    },
+
+    /** Step2.2 执行：进入即自动为已选平台按 kinds 开启协作（写 MCP/Hooks/Agent）。
+     *  Enchante MCP 走 deeplink（需用户手动安装，避免批量执行时自动唤起外部应用打扰），
+     *  由结论页专属按钮触发，执行阶段仅跳过。
+     *  进度条最少播放 0.42s（0.06 整数倍）。返回 Promise。 */
+    async guideExecute() {
+      if (this.guideExecuting) return;
+      this.guideExecuting = true;
+      this.guideExecDone = false;
+      this.guideExecPercent = 0;
+      const t0 = performance.now();
+      const selected = this.guideSelected.filter(p => this.clientInstalled(p));
+      // 并行执行已选非 Enchante 平台的各 kind 写入（Enchante 由结论页按钮手动生成 deeplink）
+      const jobs = [];
+      for (const platform of selected) {
+        if (platform === "Enchante") continue; // deeplink 手动安装，结论页处理
+        for (const kind of this.platformKinds(platform)) {
+          jobs.push(this.configureClient(platform, kind).catch(() => {}));
+        }
+      }
+      // 进度条 0→100 由 CSS transition 播放（0.42s）；先置 100 让动画与执行并行进行
+      this.guideExecPercent = 100;
+      if (jobs.length) await Promise.allSettled(jobs);
+      // 保证最小播放时长 0.42s（后端实际更快则补足，让用户感知"正在执行"）
+      const elapsed = performance.now() - t0;
+      const min = 420;
+      if (elapsed < min) await new Promise(r => setTimeout(r, min - elapsed));
+      this.guideExecuting = false;
+      this.guideExecDone = true;
+    },
+    /** 重置引导页 Step2 执行状态（进入 setup / 重新引导时调用） */
+    resetGuideExec() {
+      this.guideSelected = [];
+      this.guideExecuting = false;
+      this.guideExecDone = false;
+      this.guideExecPercent = 0;
+      this.deeplinkClicked = false;
+    },
+
     /** 平台 key → 显示名 */
     _platformLabel(key) {
       const p = this.clientPlatforms.find(p => p.key === key);
@@ -1554,6 +1666,7 @@ let _tocCollapsedSet = {};
         document.body.appendChild(a);
         a.click();
         setTimeout(() => a.remove(), 100);
+        this.deeplinkClicked = true; // 结论页按钮态「已生成链接 · 可再次点击」（会话内，不持久化）
         showToast("已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏", "success");
       } catch (e) {
         showToast(e.message || "生成专属链接失败，请稍后重试", "error");

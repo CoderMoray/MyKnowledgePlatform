@@ -2186,6 +2186,172 @@
   flex-shrink: 0;
 }
 
+/* ── 引导页重设计（4 页 3 步 + 大 modal）──── 复用现有 token，无 design-token 增量 ── */
+/* 大 modal（引导页）：840×640，> 设置 modal（760×540）；小屏兜底 + 内容超高内部滚动 */
+.guide-modal {
+  width: 840px;
+  max-width: 840px;
+  height: 640px;
+  max-height: 640px;
+  padding: 24px 28px;
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+  /* 小屏兜底：<1024px 高度屏可用，内容超高内部滚动 */
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.guide-modal .guide-steps { margin-bottom: 20px; }
+/* 步骤子文案（"Step X of 3"） */
+.guide-step-sub {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Step1 身份：4 字段表单（复用 .modal__input / .modal__hint） */
+.guide-field { margin-bottom: 14px; }
+.guide-field__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.guide-field__hint {
+  margin-top: 4px;
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+.guide-field__hint--error { color: var(--color-danger); }
+
+/* Step2.1 平台多选行 */
+.guide-platform-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.guide-platform-row__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.guide-platform-row__name { flex: 1; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+.guide-platform-row__not-installed {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.guide-platform-row .toggle--off { opacity: 0.4; }
+.guide-platform-row .toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Step2.1 选中数提示 */
+.guide-selection-count {
+  margin-top: 12px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.guide-selection-count__hint { color: var(--color-danger); margin-left: 8px; }
+
+/* Step2.2 进度条（0.42s = 0.06 × 7） */
+.guide-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+  margin: 16px 0;
+}
+.guide-progress__bar {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  width: 0;
+  transition: width 0.42s ease-out;
+  animation: guide-progress 0.42s ease-out forwards;
+}
+@keyframes guide-progress { from { width: 0; } }
+.guide-progress__label {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Step2.2 结论行 */
+.guide-conclusion-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+.guide-conclusion-row__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.guide-conclusion-row__dot--skip { opacity: 0.35; }
+.guide-conclusion-row__name { flex-shrink: 0; }
+.guide-conclusion-row__body { display: inline-flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+.guide-conclusion-row__action { color: var(--text-secondary); flex: 1; text-align: right; }
+.guide-conclusion-row__action--skip { color: var(--text-tertiary); }
+.guide-conclusion-row__deeplink { flex-shrink: 0; }
+.guide-conclusion-row__hint {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+.guide-conclusion-hint {
+  margin-top: 16px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+.guide-conclusion-sub {
+  margin-top: 4px;
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+/* Enchante 专属按钮禁用态（防御态：2.1 未安装已拦截，正常不触发） */
+.btn--deeplink:disabled { opacity: 0.45; }
+
+/* 步骤切换过渡（0.06 倍数：enter 0.42s / leave 0.36s；缓动统一 cubic-bezier(0.4,0,0.2,1)） */
+.guide-step-enter {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1), transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.guide-step-enter-active { opacity: 1; transform: translateY(0); }
+.guide-step-leave {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.guide-step-leave-active { opacity: 0; transform: translateY(-8px); }
+/* Step2.2 执行中 → 结论（opacity + scale，0.48s = 0.06 × 8，ease-out） */
+.guide-conclusion-enter {
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 0.48s ease-out, transform 0.48s ease-out;
+}
+.guide-conclusion-enter-active { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  .guide-step-enter, .guide-step-leave, .guide-conclusion-enter {
+    transition-duration: 0.18s;
+  }
+}
+
 /* 配置 modal 容器：左侧导航（5 平级：账号/通用/MCP/Hooks/Agents）+ 右侧内容（760px 宽）
    自包含 .modal 基础视觉（background/border/radius/shadow），不依赖 .modal class，
    避免与其它 modal 的泛化选择器冲突（如 test_health 的 .modal button 复制按钮） */

@@ -267,6 +267,21 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 - 前端引导页 Step1（企业名称 + 组织代码）保存用；测试 `tests/test_main.py`
   `TestApiConfigShareWrite`（9 个）。
 
+**前端引导页重设计（4 页 3 步 + 大 modal，2026-08-18，纯前端不改后端）**：
+- 引导向导从「3 步（身份 / AI 协作全列表 / 完成）」改为「4 页 3 步」：
+  Step1 身份（昵称/邮箱/企业名称/组织代码 4 字段全必填，企业名称非空、组织代码三位正整数，
+  后两字段经 `POST /api/config/share` 保存，失败 toast 不阻断）→ Step2.1 平台多选
+  （`clientPlatforms` 数据驱动 6 平台，未安装灰禁用+「未安装」标注，至少选 1）→
+  Step2.2 执行+结论（进度条 0.42s；Enchante 行专属「⚡ 打开安装链接」按钮四态：
+  初始/点击后「已生成链接」/生成中/未安装防御态）→ Step3 完成（延续 guideSummary）。
+- 大 modal `.guide-modal` 840×640 + 小屏兜底（max-width/max-height calc）+ overflow-y:auto；
+  步骤过渡动画时长 ≥0.36s 且为 0.06 整数倍（enter 0.42s / leave 0.36s / 结论 0.48s），
+  统一 cubic-bezier(0.4,0,0.2,1)，prefers-reduced-motion 减半。
+- 设计权威：`docs/designs/引导页重设计/SPEC.md`（§1-§10 + §10.4 裁决）；
+  前端改动 `frontend/index.html`(引导段) + `store.js`(guide* 状态/方法 + deeplinkClicked) +
+  `modal.js`(guideNext/Prev 4 页流 + saveSetup 写分享) + `api.js`(setConfigShare) +
+  `css/components.css`(.guide-*)。test_stage3 19 用例全绿。
+
 **doctor 分享配置检查项**（`backend/cli.py` `cmd_doctor`，2026-08-18）：
 - 新增第 7 项「分享配置」：显示来源（backend/.env / ~/.myknowledge/.env / 未配置）、脱敏分享码、SHARE_MAP。
 - **非阻塞**：分享是可选项，`checks.append(..., True)` 恒 ok，不因未配置判 doctor 失败。

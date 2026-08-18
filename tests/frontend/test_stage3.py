@@ -62,8 +62,13 @@ class TestStage3StaticStructure:
                      "connectionValue", "connectionClass", "connectionLabel",
                      "connectionTooltip", "clientInstalled",
                      "refreshClientConfigIfStale",
-                     "usesDeeplink", "generateEnchanteDeeplink", "deeplinkBusy"]:
-            assert name in js, f"Missing store symbol: {name}"
+                     "usesDeeplink", "generateEnchanteDeeplink", "deeplinkBusy",
+                     "setupCompany", "setupOrgCode", "guideSelected",
+                     "guideExecuting", "guideExecDone", "guideExecPercent", "deeplinkClicked",
+                     "guideStep1Valid", "guideStep2Valid", "guideExecute", "resetGuideExec",
+                     "toggleGuideSelect", "guideIsSelected", "guideStepLabel", "guideDotActive", "guideDotDone",
+                     "guideDisplayStep", "guideOrgCodeError", "guideCompanyError"]:
+                     assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
         """平台列表与后端 client_config.PLATFORMS 严格一致（PascalCase 平台标识符）：
@@ -103,8 +108,9 @@ class TestStage3StaticStructure:
         """modal.js 暴露向导与配置 modal 逻辑"""
         js = MODAL.read_text(encoding="utf-8")
         for name in ["guideNext", "guidePrev", "settingsNav",
-                     "saveSettingsIdentity", "configureAi", "copyAiPrompt"]:
-            assert name in js, f"Missing modal method: {name}"
+                     "saveSettingsIdentity", "configureAi", "copyAiPrompt", "saveSetup",
+                     "setupNickname", "setupEmail", "setupCompany", "setupOrgCode"]:
+            assert name in js, f"Missing modal symbol: {name}"
 
     def test_index_settings_entry(self):
         """user-menu 含「设置」入口，点击 openSettings()"""
@@ -113,17 +119,41 @@ class TestStage3StaticStructure:
         assert "设置" in html, "Missing「设置」menu item"
 
     def test_index_guide_wizard(self):
-        """引导页为三步向导：guide-steps + Step1 身份 / Step2 AI 协作 / Step3 完成"""
+        """引导页为 4 页 3 步 + 大 modal：guide-steps + Step1 身份(4 字段) / 2.1 平台多选 / 2.2 执行+结论 / Step3 完成"""
         html = INDEX.read_text(encoding="utf-8")
         assert "guide-steps" in html, "Missing guide-steps (3-step indicator)"
+        # 大 modal（840×640）替换普通 modal--setup
+        assert "guide-modal" in html, "Missing guide-modal (large 840×640 modal)"
+        assert "modal--setup" not in html, "modal--setup 应替换为 guide-modal"
+        # 4 页 3 步：guideStep === 1/2/3/4（2.1/2.2 各占一页）
         assert "guideStep === 1" in html, "Missing Step1 身份"
-        assert "guideStep === 2" in html, "Missing Step2 AI 协作"
-        assert "guideStep === 3" in html, "Missing Step3 完成"
+        assert "guideStep === 2" in html, "Missing Step2.1 平台多选"
+        assert "guideStep === 3" in html, "Missing Step2.2 执行+结论"
+        assert "guideStep === 4" in html, "Missing Step3 完成"
         assert "guideNext" in html, "Missing guideNext()"
         assert "guidePrev" in html, "Missing guidePrev()"
         assert "初始化 AI 协作" in html, "Missing Step2 title「初始化 AI 协作」"
         assert "初始化完成" in html, "Missing Step3 title「初始化完成」"
         assert "开始使用" in html, "Missing「开始使用」button"
+        # Step1 4 字段全必填 + 分享配置说明
+        assert "企业名称" in html, "Missing 企业名称 field (KNOWLEDGE_SHARE_CODE)"
+        assert "组织代码" in html, "Missing 组织代码 field (SHARE_MAP)"
+        assert "guideStep1Valid" in html, "Missing guideStep1Valid (4 字段校验)"
+        assert "guideOrgCodeError" in html, "Missing guideOrgCodeError (三位正整数校验)"
+        assert "分享鉴权" in html, "Missing 分享鉴权说明文案"
+        # Step2.1 平台多选：未安装禁用 + 至少选 1
+        assert "guide-platform-row" in html, "Missing guide-platform-row (平台多选行)"
+        assert "未安装" in html, "Missing「未安装」标注"
+        assert "guideStep2Valid" in html, "Missing guideStep2Valid (至少选 1)"
+        assert "请至少选择 1 个平台" in html, "Missing 至少选 1 提示"
+        # Step2.2 进度条 + 结论 + Enchante 专属按钮（四态）
+        assert "guide-progress" in html, "Missing guide-progress (执行进度条)"
+        assert "正在为" in html, "Missing 执行文案"
+        assert "guide-conclusion-row" in html, "Missing guide-conclusion-row (结论行)"
+        assert "⚡ 打开安装链接" in html, "Missing Enchante 专属按钮「⚡ 打开安装链接」"
+        assert "deeplinkClicked" in html, "Missing deeplinkClicked (Enchante 点击后态)"
+        assert "MCP 需手动安装" in html, "Missing Enchante「MCP 需手动安装」说明"
+        assert "请先安装 Enchanté" in html, "Missing Enchante 未安装防御提示"
 
     def test_index_settings_modal_markup(self):
         """配置 modal：settings-nav 5 平级 + settings-body 分组页 + 5 态开关"""
@@ -161,9 +191,12 @@ class TestStage3StaticStructure:
         assert "generateEnchanteDeeplink" in html, "Missing generateEnchanteDeeplink handler"
         assert "kind.key === 'mcp'" in html, "连接态应仅在 MCP 卡展示 (x-show kind.key === 'mcp')"
         # 平台标签经 plat.label 动态渲染（"Claude Code" 断言在 store 平台测试中）
-        # 引导页仍保留 configure/copy（Step2 兜底）
-        assert "configureAi" in html, "Missing configureAi (guide Step2)"
-        assert "copyAiPrompt" in html, "Missing copyAiPrompt (复制 prompt 兜底)"
+        # 引导页重设计后 Step2.1 为平台多选（自动执行），不再用 configure/copy；
+        # 配置失败 fallback 走 settings 卡内的 configureClient / copyClientPrompt
+        assert "configureClient" in html, "Missing configureClient (settings toggle)"
+        assert "copyClientPrompt" in html, "Missing copyClientPrompt (复制 prompt 兜底)"
+        assert "guideExecDone" in html, "Missing guideExecDone (Step2.2 结论展示条件)"
+        assert "guideExecuting" in html, "Missing guideExecuting (Step2.2 执行进度条条件)"
 
     def test_stage3_css_classes(self):
         """阶段三新增样式类在 components.css"""
@@ -185,7 +218,21 @@ class TestStage3StaticStructure:
                     "connection-text--connected", "connection-text--inactive",
                     "connection-text--lost", "connection-text--disabled",
                     "connection-tip__bubble",
-                    "btn--deeplink"]:
+                    "btn--deeplink",
+                    # 引导页重设计（4 页 3 步 + 大 modal）
+                    "guide-modal", "guide-field", "guide-field__label", "guide-field__hint",
+                    "guide-field__hint--error", "guide-platform-row", "guide-platform-row__dot",
+                    "guide-platform-row__name", "guide-platform-row__not-installed",
+                    "guide-selection-count", "guide-selection-count__hint",
+                    "guide-progress", "guide-progress__bar", "guide-progress__label",
+                    "guide-conclusion-row", "guide-conclusion-row__dot",
+                    "guide-conclusion-row__name", "guide-conclusion-row__action",
+                    "guide-conclusion-row__action--skip", "guide-conclusion-row__deeplink",
+                    "guide-conclusion-row__hint", "guide-conclusion-hint", "guide-conclusion-sub",
+                    "guide-step-enter", "guide-step-enter-active",
+                    "guide-step-leave", "guide-step-leave-active",
+                    "guide-conclusion-enter", "guide-conclusion-enter-active",
+                    "guide-step-sub"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 
     def test_stage3_css_toggle_knob_slides(self):
@@ -227,10 +274,12 @@ class TestStage3Build:
             "getClientConfig", "setClientConfig", "deleteClientConfig", "clientConfig",
             "guide-steps", "初始化 AI 协作", "初始化完成",
             "settings-nav", "settings-card", "ai-platform-row",
-            "复制 prompt 给 AI", "saveSettingsIdentity", "configureAi",
+            "saveSettingsIdentity", "copyClientPrompt", "configureClient",
             "Claude Code", "toggle--failed", "重新检测", "clientInstalled",
             "connectionClass", "connectionLabel", "connectionTooltip",
             "connection-tip", "connection-dot",
+            "guide-modal", "guideStep1Valid", "guide-platform-row", "guide-progress",
+            "⚡ 打开安装链接", "企业名称", "组织代码", "guideExecute", "deeplinkClicked",
         ]
         for c in checks:
             assert c in content, f"Standalone missing stage3 content: {c}"
@@ -277,8 +326,9 @@ class TestStage3Browser:
         page.locator(".settings-nav__item", has_text="MCP").click()
         page.wait_for_timeout(300)
         expect(page.locator(".settings-card", has_text="MCP 服务状态")).to_be_visible(timeout=3000)
-        expect(page.locator(".ai-platform-row").first).to_be_visible(timeout=3000)
-        expect(page.locator(".toggle").first).to_be_visible(timeout=3000)
+        expect(page.locator(".settings-modal .ai-platform-row").first).to_be_visible(timeout=3000)
+        # 注意 scope 到 settings-modal：引导页 Step2.1 平台多选也用 .toggle（隐藏时 `.first` 会命中它）
+        expect(page.locator(".settings-modal .toggle").first).to_be_visible(timeout=3000)
         # 切到「Hooks」
         page.locator(".settings-nav__item", has_text="Hooks").click()
         page.wait_for_timeout(300)
@@ -296,11 +346,11 @@ class TestStage3Browser:
         self._open_settings(page)
         page.locator(".settings-nav__item", has_text="MCP").click()
         page.wait_for_timeout(300)
-        expect(page.locator(".toggle__knob").first).to_be_visible(timeout=3000)
-        props = page.locator(".toggle__knob").first.evaluate(
+        expect(page.locator(".settings-modal .toggle__knob").first).to_be_visible(timeout=3000)
+        props = page.locator(".settings-modal .toggle__knob").first.evaluate(
             "el => getComputedStyle(el).transitionProperty")
         assert "transform" in props, f"knob transition-property 缺 transform: {props}"
-        dur = page.locator(".toggle__knob").first.evaluate(
+        dur = page.locator(".settings-modal .toggle__knob").first.evaluate(
             "el => getComputedStyle(el).transitionDuration")
         assert "0.42" in dur, f"knob transition-duration 应为 0.42s: {dur}"
 
@@ -389,8 +439,15 @@ class TestStage3Browser:
         # ClaudeDesktop 仅 MCP：Hooks 卡内不出现（kinds=["mcp"]）
         expect(hooks_card.locator(".ai-platform-row[data-platform='ClaudeDesktop']")).to_have_count(0)
 
-    def test_guide_wizard_three_steps(self, static_server, page, backend_running):
-        """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""
+    def test_guide_wizard_four_pages(self, static_server, page, backend_running):
+        """引导页重设计（4 页 3 步 + 大 modal）：从配置 modal「重新运行初始化引导」进入。
+        Step1 四字段校验 → 2.1 平台多选（未安装禁用/至少选 1）→ 2.2 执行+结论（stub 配置写入防真实 POST）→ Step3 完成。
+        注意：只 GET + 渲染 + 本地 stub，不实际 POST 写入用户全局配置。
+        注：各页「下一步」button 均在 DOM（x-show 显隐），用 :visible 只命中当前页可见按钮。"""
+        # 当前可见页的「下一步」按钮（guide-modal 内 :visible 过滤隐藏页按钮）
+        def vnext():
+            return page.locator(".guide-modal button:visible", has_text="下一步")
+
         page.goto(f"{static_server}#dashboard")
         page.wait_for_timeout(2500)
         # 通过配置 modal 通用卡「重新运行初始化引导」进入（身份已设置时唯一入口）
@@ -399,21 +456,74 @@ class TestStage3Browser:
         page.wait_for_timeout(300)
         page.locator("button", has_text="重新运行初始化引导").click()
         page.wait_for_timeout(800)
-        # Step1 身份（重新引导后身份已有值，直接可下一步）
-        setup = page.locator(".modal--setup")
-        expect(setup).to_be_visible(timeout=5000)
-        expect(page.locator(".modal--setup", has_text="设置你的昵称和邮箱")).to_be_visible(timeout=5000)
-        setup.locator("input[placeholder='如：张三']").fill("测试用户")
-        setup.locator("input[placeholder='如：zhangsan@example.com']").fill("test@example.com")
-        setup.locator("button", has_text="下一步").first.click()
-        page.wait_for_timeout(800)
-        expect(page.locator(".modal--setup", has_text="初始化 AI 协作")).to_be_visible(timeout=5000)
-        expect(page.locator(".ai-config-item").first).to_be_visible(timeout=3000)
-        # 进入 Step3（Step2 的「下一步」在 DOM 中位于 Step1 之后，用 .last）
-        page.locator(".modal--setup button", has_text="下一步").last.click()
-        page.wait_for_timeout(800)
-        expect(page.locator(".modal--setup", has_text="初始化完成")).to_be_visible(timeout=5000)
-        expect(page.locator(".modal--setup", has_text="开始使用")).to_be_visible(timeout=3000)
+        # 大 modal（840×640）
+        expect(page.locator(".guide-modal")).to_be_visible(timeout=5000)
+        expect(page.locator(".guide-modal", has_text="设置你的身份信息")).to_be_visible(timeout=5000)
+        # Step1 四字段全必填：企业名称/组织代码未填时「下一步」disabled
+        next_btn = vnext().first
+        expect(next_btn).to_be_disabled(timeout=5000)
+        # 组织代码非三位正整数时仍 disabled + 红字 hint
+        page.locator(".guide-modal input[placeholder='如：123']").fill("12x")
+        expect(page.locator(".guide-modal", has_text="组织代码为三位正整数")).to_be_visible(timeout=3000)
+        expect(next_btn).to_be_disabled(timeout=3000)
+        # 填对企业名称 + 三位组织代码 → 下一步 enabled；stub 分享配置写入防真实 POST
+        page.evaluate("() => { api.setConfigShare = async (c, m) => ({ share_configured: true, env_source: 'myknowledge', message: 'ok' }); }")
+        page.locator(".guide-modal input[placeholder='如：Acme 科技']").fill("Acme 科技")
+        page.locator(".guide-modal input[placeholder='如：123']").fill("123")
+        expect(next_btn).to_be_enabled(timeout=3000)
+        next_btn.click()
+        page.wait_for_timeout(500)
+        # Step2.1 平台多选：未安装平台开关禁用 + 「未安装」标注；已装平台可切换
+        expect(page.locator(".guide-modal", has_text="选择要初始化的 AI 客户端")).to_be_visible(timeout=5000)
+        rows = page.locator(".guide-platform-row")
+        expect(rows.first).to_be_visible(timeout=3000)
+        # 至少选 1：未选时「下一步」disabled
+        expect(vnext()).to_be_disabled(timeout=3000)
+        expect(page.locator(".guide-modal", has_text="请至少选择 1 个平台")).to_be_visible(timeout=3000)
+        # 选一个已安装平台（ClaudeCode 通常已装；若未装则选第一个可用 toggle）→ 下一步 enabled
+        selected_key = "ClaudeCode"
+        claude = page.locator(".guide-platform-row", has_text="Claude Code")
+        claude_toggle = claude.locator(".toggle")
+        if claude_toggle.is_disabled():
+            for r in rows.all():
+                t = r.locator(".toggle")
+                if not t.is_disabled():
+                    # 由行内平台名反查 key（与 clientPlatforms 标签一致）
+                    name = r.locator(".guide-platform-row__name").inner_text()
+                    selected_key = { "Claude Code": "ClaudeCode", "Claude Desktop": "ClaudeDesktop",
+                                     "CodeBuddy IDE": "CodeBuddyIDE", "WorkBuddy": "WorkBuddy",
+                                     "Enchanté": "Enchante", "Cursor": "Cursor" }.get(name, "ClaudeCode")
+                    t.click()
+                    break
+        else:
+            claude_toggle.click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".guide-modal", has_text="已选 1/6")).to_be_visible(timeout=3000)
+        expect(vnext()).to_be_enabled(timeout=3000)
+        # 进入 2.2 前 stub 配置写入（防真实 POST 用户全局配置）
+        page.evaluate("() => { const s = Alpine.store('app'); s.configureClient = async (p, k) => ({ status: 'ok', platform: p, kind: k }); s.generateEnchanteDeeplink = async () => {}; }")
+        vnext().click()
+        # Step2.2 执行+结论
+        page.wait_for_timeout(300)
+        expect(page.locator(".guide-modal", has_text="正在为")).to_be_visible(timeout=5000)
+        expect(page.locator(".guide-progress").first).to_be_visible(timeout=3000)
+        # 等待执行完成（最小 0.42s）→ 结论
+        page.wait_for_timeout(900)
+        expect(page.locator(".guide-modal", has_text="初始化完成，已为所选平台开启协作能力")).to_be_visible(timeout=5000)
+        # 被选平台的结论行可见（未选平台行隐藏，仅 selected 平台 x-show 显示）
+        expect(page.locator(".guide-conclusion-row:visible").first).to_be_visible(timeout=3000)
+        expect(page.locator(".guide-modal", has_text="你可以在 设置 → MCP / Hooks / Agent 中查看或调整")).to_be_visible(timeout=3000)
+        # 若选了 Enchante，结论行显示专属按钮「⚡ 打开安装链接」
+        enchante_row = page.locator(".guide-conclusion-row", has_text="Enchanté")
+        if selected_key == "Enchante":
+            expect(enchante_row.locator(".btn--deeplink")).to_be_visible(timeout=3000)
+            expect(enchante_row.locator(".btn--deeplink")).to_contain_text("⚡ 打开安装链接")  # 初始态（未点击）
+        # 2.2 完成后「下一步」enabled → Step3 完成
+        expect(vnext()).to_be_enabled(timeout=3000)
+        vnext().click()
+        page.wait_for_timeout(600)
+        expect(page.locator(".guide-modal", has_text="初始化完成")).to_be_visible(timeout=5000)
+        expect(page.locator(".guide-modal", has_text="开始使用")).to_be_visible(timeout=3000)
 
     def test_console_clean(self, static_server, page, backend_running):
         """配置 modal 打开 + 分组切换后 console 无前端 JS 报错。

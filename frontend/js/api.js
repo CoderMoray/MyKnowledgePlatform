@@ -321,6 +321,19 @@ const api = {
     });
   },
 
+  /**
+   * 写分享配置到 ~/.myknowledge/.env（body: {share_code?, share_map?}，部分更新幂等）
+   * @param {string} shareCode - 企业名称（KNOWLEDGE_SHARE_CODE）
+   * @param {string} shareMap - 组织代码（SHARE_MAP，三位正整数）
+   * @returns {Promise<{share_configured, env_source, message}>} 不泄露明文
+   */
+  async setConfigShare(shareCode, shareMap) {
+    return apiRequest("/api/config/share", {
+      method: "POST",
+      body: JSON.stringify({ share_code: shareCode, share_map: shareMap }),
+    });
+  },
+
   /* ── AI 客户端配置 API（阶段三：MCP/hooks/Agent 检测与增量写入） ────── */
 
   /**
