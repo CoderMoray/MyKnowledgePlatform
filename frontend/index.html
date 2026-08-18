@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=e89e205649" />
+  <link rel="stylesheet" href="css/components.css?v=6b9b1863a7" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=f854b5cbc8"></script>
+  <script src="js/api.js?v=1b5ccb8f89"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=3724b80e1a"></script>
+  <script src="js/store.js?v=7d785f2568"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1655,7 +1655,7 @@
         <div x-show="$store.app.guideStep === 2">
           <h2 class="modal__title" style="text-align:center;">初始化 AI 协作</h2>
           <p class="modal__description" style="text-align:center;">为每个 AI 客户端配置 MyKnowledge 协作能力，可稍后在设置中调整</p>
-          <div>
+          <div class="guide-config-list">
             <template x-for="item in $store.app.guideConfigItems" :key="item.platform + '-' + item.kind">
               <div class="ai-config-item">
                 <span class="ai-config-item__status">
@@ -1670,10 +1670,18 @@
                         x-text="$store.app.clientStatus(item.platform, item.kind) === true ? '已就绪'
                                : $store.app.clientStatus(item.platform, item.kind) === false ? '未配置' : '—'"></span>
                   <button class="btn btn--sm"
+                          x-show="!$store.app.usesDeeplink(item.platform, item.kind)"
                           @click="configureAi(item.platform, item.kind)"
                           :disabled="!!$store.app.clientConfiguring || $store.app.clientStatus(item.platform, item.kind) === true"
                           x-text="$store.app.clientStatus(item.platform, item.kind) === true ? '已配置' : '自动配置'"></button>
-                  <button class="btn--sm btn-lazy-ai" @click="copyAiPrompt(item.platform, item.kind)">复制 prompt 给 AI</button>
+                  <button class="btn btn--sm btn--deeplink"
+                          x-show="$store.app.usesDeeplink(item.platform, item.kind)"
+                          :disabled="$store.app.deeplinkBusy"
+                          @click="$store.app.generateEnchanteDeeplink(item.platform)"
+                          x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成专属链接'"></button>
+                  <button class="btn--sm btn-lazy-ai"
+                          x-show="!$store.app.usesDeeplink(item.platform, item.kind)"
+                          @click="copyAiPrompt(item.platform, item.kind)">复制 prompt 给 AI</button>
                 </span>
               </div>
             </template>
@@ -1889,8 +1897,17 @@
                                     ? '检测失败 · 重新检测'
                                     : !$store.app.clientInstalled(plat.key)
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
-                                      : ($store.app.clientStatus(plat.key, kind.key) ? '已配置' : '未配置 · 点击开关开启')"></span>
+                                      : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
+                                         : ($store.app.usesDeeplink(plat.key, kind.key) ? '未配置 · 生成专属链接' : '未配置 · 点击开关开启'))"></span>
+                      <!-- deeplink 平台（当前 Enchante MCP）：单按钮「生成专属链接」，不走 toggle -->
+                      <button class="btn btn--sm btn--deeplink"
+                              x-show="$store.app.usesDeeplink(plat.key, kind.key)"
+                              :disabled="$store.app.deeplinkBusy"
+                              @click="$store.app.generateEnchanteDeeplink(plat.key)">
+                        <span x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成专属链接'"></span>
+                      </button>
                       <button class="toggle"
+                              x-show="!$store.app.usesDeeplink(plat.key, kind.key)"
                               :class="$store.app.clientStatus(plat.key, kind.key) === null ? 'toggle--failed'
                                      : !$store.app.clientInstalled(plat.key)
                                        ? ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on-soft' : 'toggle--off-soft')

@@ -70,6 +70,24 @@
   border-radius: var(--radius-sm);
 }
 
+/* Enchante MCP：deeplink 安装按钮（区别于 toggle，紫色描边标记「deeplink 安装」） */
+.btn--deeplink {
+  border: 1px solid #a855f7;
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.08);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.btn--deeplink:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.16);
+  border-color: #9333ea;
+  color: #9333ea;
+}
+.btn--deeplink:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn--xs {
   padding: 2px var(--space-2);
   font-size: var(--text-2xs);
@@ -2128,6 +2146,13 @@
   flex: 1;
   height: 1px;
   background: var(--border-default);
+}
+
+/* 引导/配置：Step2 AI 协作配置项列表（max-height 滚动，防平台行增多后 modal 超高、按钮出视口） */
+.guide-config-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 12px;
 }
 
 /* 引导/配置：AI 协作配置项行（平台 · 类型 + 状态 + 操作按钮） */

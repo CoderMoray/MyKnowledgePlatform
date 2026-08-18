@@ -1297,14 +1297,17 @@ let _tocCollapsedSet = {};
 
     /* ── 阶段三：AI 客户端配置（MCP/hooks/Agent 检测 + 半自动化写入） ── */
 
-    /** AI 平台元信息（key 与后端 client_config.PLATFORMS 严格一致：ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy）
+    /** AI 平台元信息（key 与后端 client_config.PLATFORMS 严格一致：ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Enchante）
      *  key 用 PascalCase（读起来即展示名去空格：CodeBuddyIDE → "CodeBuddy IDE"），URL 无需编码。
-     *  mcpOnly: 该平台仅支持 MCP（如 Claude Desktop 不支持 hooks/专用 Agent） */
+     *  kinds: 该平台支持的配置种类（与后端 platforms.json kinds 一致）——
+     *         ClaudeCode/CodeBuddyIDE/WorkBuddy → mcp+hooks+agent；ClaudeDesktop → 仅 mcp；
+     *         Enchante → mcp+agent（无 hooks；MCP 无配置文件，走 deeplink，见 usesDeeplink） */
     clientPlatforms: [
-      { key: "ClaudeCode",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
-      { key: "ClaudeDesktop", label: "Claude Desktop", dot: "linear-gradient(135deg,#b45309,#f59e0b)", mcpOnly: true },
-      { key: "CodeBuddyIDE",  label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
-      { key: "WorkBuddy",     label: "WorkBuddy",     dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)" },
+      { key: "ClaudeCode",    label: "Claude Code",   dot: "linear-gradient(135deg,#d97706,#f59e0b)", kinds: ["mcp", "hooks", "agent"] },
+      { key: "ClaudeDesktop", label: "Claude Desktop", dot: "linear-gradient(135deg,#b45309,#f59e0b)", kinds: ["mcp"] },
+      { key: "CodeBuddyIDE",  label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)", kinds: ["mcp", "hooks", "agent"] },
+      { key: "WorkBuddy",     label: "WorkBuddy",     dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)", kinds: ["mcp", "hooks", "agent"] },
+      { key: "Enchante",      label: "Enchanté",      dot: "linear-gradient(135deg,#9333ea,#a855f7)", kinds: ["mcp", "agent"] },
     ],
 
     /** 加载各平台配置检测状态（GET /api/client-config）；加载中 clientDetecting=true（「重新检测」按钮转 spinner） */
@@ -1501,21 +1504,61 @@ let _tocCollapsedSet = {};
         ClaudeDesktop: "not_connected",
         CodeBuddyIDE: "connected",
         WorkBuddy: "inactive",
+        Enchante: "not_connected",
       };
       return MOCK[platform] || "not_connected";
     },
 
-    /** 某平台适用的 kind 列表（mcpOnly 平台仅 mcp，与后端 client_config._kinds_for 一致） */
+    /** 某平台适用的 kind 列表（按 clientPlatforms[].kinds 数组过滤，与后端 platforms.json 一致） */
     platformKinds(platform) {
       const plat = this.clientPlatforms.find(p => p.key === platform);
-      if (plat && plat.mcpOnly) return this.clientKinds.filter(k => k.key === "mcp");
-      return this.clientKinds;
+      const kinds = plat && Array.isArray(plat.kinds) ? plat.kinds : [];
+      return this.clientKinds.filter(k => kinds.includes(k.key));
     },
 
-    /** 某 kind 适用的平台列表（仅含支持该 kind 的平台，用于 settings 矩阵渲染） */
+    /** 某 kind 适用的平台列表（按各平台 kinds 数组过滤，用于 settings 矩阵渲染） */
     platformsForKind(kindKey) {
       return this.clientPlatforms.filter(p =>
-        !p.mcpOnly || kindKey === "mcp");
+        Array.isArray(p.kinds) && p.kinds.includes(kindKey));
+    },
+
+    /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP：无配置文件，客户端捕获链接） */
+    usesDeeplink(platform, kind) {
+      return platform === "Enchante" && kind === "mcp";
+    },
+
+    /** 正在生成 deeplink（Enchante MCP 按钮 spinner / 防重复点击） */
+    deeplinkBusy: false,
+
+    /**
+     * Enchante MCP 专属链接流程：GET deeplink → 复制剪贴板 → 隐藏 <a target=_blank> 触发唤起
+     * （避免 SPA location.href 跳转中断）→ toast。失败给出可读提示。
+     * @param {string} platform - Enchante
+     */
+    async generateEnchanteDeeplink(platform) {
+      if (this.deeplinkBusy || !this.usesDeeplink(platform, "mcp")) return;
+      this.deeplinkBusy = true;
+      try {
+        const data = await api.getClientConfigDeeplink(platform);
+        const link = data && data.deeplink;
+        if (!link) throw new Error("后端未返回 deeplink");
+        const copied = await this._writeClipboard(link);
+        if (!copied) showToast("复制失败，请手动复制链接", "error");
+        // 隐藏 a 触发打开（用户浏览器对 enchante:// 的注册应用接管；SPA 不跳转）
+        const a = document.createElement("a");
+        a.href = link;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 100);
+        showToast("已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏", "success");
+      } catch (e) {
+        showToast(e.message || "生成专属链接失败，请稍后重试", "error");
+      } finally {
+        this.deeplinkBusy = false;
+      }
     },
 
     /** 引导 Step2：平台×kind 配置项行列表（供 x-for 渲染） */

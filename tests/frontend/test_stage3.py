@@ -48,6 +48,8 @@ class TestStage3StaticStructure:
         assert "deleteClientConfig" in js, "Missing api.deleteClientConfig(platform, kind)"
         assert 'method: "DELETE"' in js, "Missing DELETE request (remove client config)"
         assert "/api/client-config" in js, "Missing /api/client-config endpoint"
+        assert "getClientConfigDeeplink" in js, "Missing api.getClientConfigDeeplink()"
+        assert "/deeplink" in js, "Missing deeplink endpoint (Enchante MCP)"
 
     def test_store_stage3_state_and_methods(self):
         """store.js 暴露阶段三状态与方法"""
@@ -59,23 +61,43 @@ class TestStage3StaticStructure:
                      "guideConfigItems", "guideSummary", "deleteClientConfig",
                      "connectionValue", "connectionClass", "connectionLabel",
                      "connectionTooltip", "clientInstalled",
-                     "refreshClientConfigIfStale"]:
+                     "refreshClientConfigIfStale",
+                     "usesDeeplink", "generateEnchanteDeeplink", "deeplinkBusy"]:
             assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
         """平台列表与后端 client_config.PLATFORMS 严格一致（PascalCase 平台标识符）：
-        ClaudeCode / ClaudeDesktop(MCP-only) / CodeBuddyIDE / WorkBuddy；标签定稿 Claude Code / CodeBuddy IDE"""
+        ClaudeCode / ClaudeDesktop(MCP-only) / CodeBuddyIDE / WorkBuddy / Enchante；
+        标签定稿 Claude Code / CodeBuddy IDE / Enchanté；kinds 数组与后端 platforms.json 一致"""
         js = STORE.read_text(encoding="utf-8")
-        for key in ["ClaudeCode", "ClaudeDesktop", "CodeBuddyIDE", "WorkBuddy"]:
+        for key in ["ClaudeCode", "ClaudeDesktop", "CodeBuddyIDE", "WorkBuddy", "Enchante"]:
             assert f'key: "{key}"' in js, f"Missing platform key: {key}"
-        # mcpOnly 平台（ClaudeDesktop）仅 MCP
-        assert "mcpOnly" in js, "Missing mcpOnly flag (ClaudeDesktop)"
-        # 平台标签定稿（Claude Code（CLI）/ CodeBuddy IDE（IDE））
+        # 平台标签定稿（Claude Code（CLI）/ CodeBuddy IDE（IDE）/ Enchanté）
         assert "Claude Code" in js, "Missing Claude Code platform label"
         assert "CodeBuddy IDE" in js, "Missing CodeBuddy IDE platform label"
         assert "WorkBuddy" in js, "Missing WorkBuddy platform label"
+        assert "Enchanté" in js, "Missing Enchante platform label"
+        # kinds 数组（替代 mcpOnly 二值）：ClaudeDesktop 仅 mcp、Enchante mcp+agent、其余 mcp+hooks+agent
+        assert "kinds: [\"mcp\", \"hooks\", \"agent\"]" in js, "Missing 3-kind platform kinds array"
+        assert "kinds: [\"mcp\"]" in js, "Missing ClaudeDesktop kinds (mcp only)"
+        assert "kinds: [\"mcp\", \"agent\"]" in js, "Missing Enchante kinds (mcp+agent)"
+        assert "mcpOnly" not in js, "mcpOnly 二值已移除，应改用 kinds 数组"
         # 不应出现 cursor 平台（后端未实现，前端不硬编码）
         assert "cursor" not in js, "cursor 平台不应存在（后端 PLATFORMS 未含 cursor）"
+
+    def test_store_kind_filter_upgrade(self):
+        """kind 过滤升级：platformsForKind/platformKinds 按每平台 kinds 数组过滤（与后端 platforms.json 一致）：
+        Enchante 出现在 MCP + Agent，Hooks 不出现；现有 4 平台分组不回归"""
+        js = STORE.read_text(encoding="utf-8")
+        # usesDeeplink 判定（当前仅 Enchante MCP）
+        assert 'return platform === "Enchante" && kind === "mcp"' in js, "Missing usesDeeplink Enchante-MCP rule"
+        # deeplink 流程 + 状态
+        assert "generateEnchanteDeeplink" in js, "Missing generateEnchanteDeeplink"
+        assert "deeplinkBusy" in js, "Missing deeplinkBusy state"
+        # 过滤实现：kinds 数组而非 mcpOnly 二值
+        assert "kinds.includes(kindKey)" in js, "platformsForKind 应按 kinds 数组过滤"
+        assert "p.kinds.includes(kindKey)" in js, "platformsForKind 过滤应基于 p.kinds"
+        assert "Array.isArray(p.kinds)" in js, "platformsForKind 应防御非数组 kinds"
 
     def test_modal_stage3_methods(self):
         """modal.js 暴露向导与配置 modal 逻辑"""
@@ -133,6 +155,10 @@ class TestStage3StaticStructure:
         assert "connectionClass" in html, "Missing connectionClass (连接态样式类)"
         assert "connectionLabel" in html, "Missing connectionLabel (连接态文本)"
         assert "connectionTooltip" in html, "Missing connectionTooltip (四态文案)"
+        # Enchante MCP：单按钮「生成专属链接」不走 toggle（usesDeeplink 条件渲染）
+        assert "usesDeeplink" in html, "Missing usesDeeplink (Enchante MCP deeplink 判定)"
+        assert "生成专属链接" in html, "Missing「生成专属链接」button (Enchante MCP)"
+        assert "generateEnchanteDeeplink" in html, "Missing generateEnchanteDeeplink handler"
         assert "kind.key === 'mcp'" in html, "连接态应仅在 MCP 卡展示 (x-show kind.key === 'mcp')"
         # 平台标签经 plat.label 动态渲染（"Claude Code" 断言在 store 平台测试中）
         # 引导页仍保留 configure/copy（Step2 兜底）
@@ -158,7 +184,8 @@ class TestStage3StaticStructure:
                     "connection-text", "connection-text--not_connected",
                     "connection-text--connected", "connection-text--inactive",
                     "connection-text--lost", "connection-text--disabled",
-                    "connection-tip__bubble"]:
+                    "connection-tip__bubble",
+                    "btn--deeplink"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 
     def test_stage3_css_toggle_knob_slides(self):
@@ -313,6 +340,54 @@ class TestStage3Browser:
         page.locator(".settings-nav__item", has_text="MCP").click()
         page.wait_for_timeout(300)
         expect(page.locator(".ai-platform-row__connection").first).to_be_visible(timeout=3000)
+
+    def test_enchante_grouping_and_deeplink(self, static_server, page, backend_running):
+        """Enchante 分组归属 + MCP 卡 deeplink 按钮（kind 过滤升级回归）：
+        Enchante 出现在 MCP + Agent 分组（MCP 行=生成专属链接按钮、Agent 行=toggle），Hooks 分组不出现；
+        连接态对 Enchante 正常显示。"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        # 打开设置 → MCP
+        page.click(".user-menu__trigger")
+        page.wait_for_timeout(200)
+        page.locator(".user-menu__item", has_text="设置").click()
+        page.wait_for_timeout(800)
+        page.locator(".settings-nav__item", has_text="MCP").click()
+        page.wait_for_timeout(400)
+        # MCP 分组：Enchante 行存在，且显示 deeplink 按钮（无 toggle）
+        enchante_mcp = page.locator(".ai-platform-row[data-platform='Enchante'][data-kind='mcp']")
+        expect(enchante_mcp).to_be_visible(timeout=3000)
+        expect(enchante_mcp.locator(".btn--deeplink")).to_be_visible(timeout=3000)
+        expect(enchante_mcp.locator(".toggle")).not_to_be_visible(timeout=3000)
+        # MCP 分组：现有 4 平台仍显示 toggle（不回归）
+        for plat in ["ClaudeCode", "ClaudeDesktop", "CodeBuddyIDE", "WorkBuddy"]:
+            row = page.locator(f".ai-platform-row[data-platform='{plat}'][data-kind='mcp']")
+            expect(row).to_be_visible(timeout=3000)
+            expect(row.locator(".toggle")).to_be_visible(timeout=3000)
+        # Enchante MCP 行连接态正常显示（connection 字段含 Enchante）
+        expect(enchante_mcp.locator(".connection-tip")).to_be_visible(timeout=3000)
+        # Agent 分组：Enchante 行存在且为普通 toggle（write_kind agent 写 SKILL.md）
+        page.locator(".settings-nav__item", has_text="Agents").click()
+        page.wait_for_timeout(400)
+        enchante_agent = page.locator(".ai-platform-row[data-platform='Enchante'][data-kind='agent']")
+        expect(enchante_agent).to_be_visible(timeout=3000)
+        expect(enchante_agent.locator(".toggle")).to_be_visible(timeout=3000)
+        expect(enchante_agent.locator(".btn--deeplink")).not_to_be_visible(timeout=3000)
+        # Hooks 分组：Enchante 不出现（kinds=["mcp","agent"] 无 hooks）。
+        # 注意 settings 三卡（MCP/Hooks/Agents）均在 DOM，x-show 切显隐——故断言 Hooks 卡内无 Enchante 行，
+        # 且所有 Enchante 行（MCP/Agents 卡里的）当前均不可见
+        page.locator(".settings-nav__item", has_text="Hooks").click()
+        page.wait_for_timeout(400)
+        hooks_card = page.locator(".settings-card", has_text="Hooks 服务状态")
+        expect(hooks_card.locator(".ai-platform-row[data-platform='Enchante']")).to_have_count(0)
+        enchante_rows = page.locator(".ai-platform-row[data-platform='Enchante']")
+        expect(enchante_rows.first).not_to_be_visible(timeout=3000)
+        # 现有平台在 Hooks 分组仍显示（不回归）
+        expect(page.locator(".ai-platform-row[data-platform='CodeBuddyIDE'][data-kind='hooks']")).to_be_visible(timeout=3000)
+        expect(page.locator(".ai-platform-row[data-platform='ClaudeCode'][data-kind='hooks']")).to_be_visible(timeout=3000)
+        expect(page.locator(".ai-platform-row[data-platform='WorkBuddy'][data-kind='hooks']")).to_be_visible(timeout=3000)
+        # ClaudeDesktop 仅 MCP：Hooks 卡内不出现（kinds=["mcp"]）
+        expect(hooks_card.locator(".ai-platform-row[data-platform='ClaudeDesktop']")).to_have_count(0)
 
     def test_guide_wizard_three_steps(self, static_server, page, backend_running):
         """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""
