@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=23223be4ed" />
+  <link rel="stylesheet" href="css/components.css?v=cd72a872f1" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=aaad24e6d2"></script>
+  <script src="js/store.js?v=24490d6c81"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1602,7 +1602,8 @@
     <!-- 首次登录初始化引导（阶段三：4 页 3 步 身份 → 2.1 平台多选 → 2.2 执行+结论 → 完成；大 modal） -->
     <div class="modal-overlay"
          x-show="$store.app.currentView === 'setup'"
-         x-cloak>
+         x-cloak
+         style="background:rgba(0,0,0,0.35)">
       <div class="modal guide-modal">
 
         <!-- 步骤指示条（3 步：● 身份 → ● AI 协作 → ○ 完成） -->
@@ -1629,12 +1630,11 @@
 
           <!-- Step 1：身份（4 字段全必填 + 校验） -->
           <div x-show="$store.app.guideStep === 1"
-               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
-               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
-            <div style="text-align:center;margin-bottom:20px;">
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end">
+            <div style="text-align:center;margin-bottom:14px;">
               <div class="avatar avatar--fallback avatar--lg"
                    x-text="setupNickname ? setupNickname[0] : '?'"
-                   style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;"></div>
+                   style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;"></div>
               <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
               <p class="modal__description" style="margin-bottom:0;">设置你的身份信息，开始初始化 AI 协作</p>
             </div>
@@ -1663,8 +1663,7 @@
 
           <!-- Step 2.1：平台多选（6 平台开关，未安装禁用，至少选 1） -->
           <div x-show="$store.app.guideStep === 2"
-               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
-               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end">
             <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
             <p class="modal__description" style="text-align:center;margin-bottom:8px;">选择要初始化的 AI 客户端</p>
             <div>
@@ -1690,8 +1689,7 @@
 
           <!-- Step 2.2：执行 + 结论（进入即自动执行；Enchante 专属按钮四态） -->
           <div x-show="$store.app.guideStep === 3"
-               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
-               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end">
             <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
             <!-- 执行中：进度条 -->
             <div x-show="$store.app.guideExecuting">
@@ -1742,8 +1740,7 @@
 
           <!-- Step 3：完成（延续现有 guideSummary） -->
           <div x-show="$store.app.guideStep === 4"
-               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
-               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end">
             <div style="text-align:center;margin-bottom:20px;">
               <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.9;margin:0 auto 12px;">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>

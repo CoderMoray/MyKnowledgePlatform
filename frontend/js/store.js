@@ -1420,11 +1420,13 @@ let _tocCollapsedSet = {};
       this.loadClientConfig().catch(() => {});
     },
 
-    /** 重新运行初始化引导：强制进入 #setup + 重置到 Step1（绕过身份已配置的 setup 拦截） */
+    /** 重新运行初始化引导：强制进入 #setup + 重置到 Step1（绕过身份已配置的 setup 拦截）。
+     *  同步设 currentView="setup" 使引导遮罩立即出现，避免 settings 关闭后到 setup 出现前的无遮罩空帧（"亮一下再暗"）。 */
     rerunGuide() {
       this.closeModal();
       this.guideStep = 1;
       this.guideForce = true;
+      this.currentView = "setup";
       window.location.hash = "setup";
     },
 
@@ -1686,7 +1688,8 @@ let _tocCollapsedSet = {};
       return items;
     },
 
-    /** 引导 Step3：总结列表 [{label, done}]（身份 + 各平台 mcp/hooks/agent） */
+    /** 引导 Step3：总结列表 [{label, done}]（身份 + 各平台 mcp/hooks/agent）。
+     *  仅返回已完成项（done=true）——待配置项不显示，完成页只展示"已就绪"的能力。 */
     get guideSummary() {
       const list = [{ label: "身份信息", done: this.identitySet }];
       for (const plat of this.clientPlatforms) {
@@ -1696,7 +1699,7 @@ let _tocCollapsedSet = {};
           done: !!(p && (p.mcp || p.hooks || p.agent)),
         });
       }
-      return list;
+      return list.filter(s => s.done);
     },
 
     /* ── 版本管理 ─────────────────────────────────────────────────── */

@@ -461,7 +461,9 @@ class TestStage3Browser:
         # 大 modal（840×640）
         expect(page.locator(".guide-modal")).to_be_visible(timeout=5000)
         expect(page.locator(".guide-modal", has_text="设置你的身份信息")).to_be_visible(timeout=5000)
-        # Step1 四字段全必填：企业名称/组织代码未填时「下一步」disabled
+        # Step1 四字段全必填：先清空企业名称/组织代码（若 .env 有分享配置会预填，确保从未填状态测校验）
+        page.locator(".guide-modal input[placeholder='如：Acme 科技']").fill("")
+        page.locator(".guide-modal input[placeholder='如：123']").fill("")
         next_btn = vnext().first
         expect(next_btn).to_be_disabled(timeout=5000)
         # 组织代码非三位正整数时仍 disabled + 红字 hint

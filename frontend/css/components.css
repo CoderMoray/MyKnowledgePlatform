@@ -2234,7 +2234,7 @@
 }
 
 /* Step1 身份：4 字段表单（复用 .modal__input / .modal__hint） */
-.guide-field { margin-bottom: 14px; }
+.guide-field { margin-bottom: 11px; }
 .guide-field__label {
   display: block;
   margin-bottom: 4px;
@@ -2349,15 +2349,15 @@
  * enter/leave 类只放 transition；enter-start/leave-start 为起始视觉；enter-end/leave-end 为终态。
  * 避免旧版 enter 与 enter-start 同类的错乱时序（"先渲染下端再瞬移顶部"）。 */
 .guide-step-enter {
-  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1), transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.guide-step-enter-start { opacity: 0; transform: translateY(10px); }
-.guide-step-enter-end { opacity: 1; transform: translateY(0); }
+.guide-step-enter-start { opacity: 0; }
+.guide-step-enter-end { opacity: 1; }
 .guide-step-leave {
-  transition: opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.guide-step-leave-start { opacity: 1; transform: translateY(0); }
-.guide-step-leave-end { opacity: 0; transform: translateY(-10px); }
+.guide-step-leave-start { opacity: 1; }
+.guide-step-leave-end { opacity: 0; }
 /* Step2.2 执行中 → 结论（opacity + scale，0.48s = 0.06 × 8，ease-out） */
 .guide-conclusion-enter {
   transition: opacity 0.48s ease-out, transform 0.48s ease-out;
