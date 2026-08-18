@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from backend.client_config import (
     KINDS,
     PLATFORMS,
+    _platform_paths,
     agent_content,
     client_installed,
     detect_all,
@@ -166,14 +167,58 @@ class TestClientInstalled:
         assert client_installed("codebuddy") is False
 
 
+class TestWorkBuddy:
+    def test_platform_paths(self, fake_home: Path) -> None:
+        p = _platform_paths("workbuddy")
+        assert p["mcp_file"] == fake_home / ".workbuddy" / "mcp.json"
+        assert p["settings_file"] == fake_home / ".workbuddy" / "settings.json"
+        assert p["agents_dir"] == fake_home / ".workbuddy" / "agents"
+
+    def test_client_installed_dir_exists(self, fake_home: Path) -> None:
+        (fake_home / ".workbuddy").mkdir(parents=True)
+        assert client_installed("workbuddy") is True
+
+    def test_client_installed_absent(self, fake_home: Path) -> None:
+        assert client_installed("workbuddy") is False
+
+    def test_detect_all_includes_workbuddy(self, fake_home: Path,
+                                           monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        res = detect_all()
+        assert "workbuddy" in res
+        assert set(res["workbuddy"].keys()) == {
+            "client_installed", "mcp", "hooks", "agent"}
+        assert res["workbuddy"]["client_installed"] is False
+
+    def test_write_kind_workbuddy(self, fake_home: Path) -> None:
+        write_kind("workbuddy", "mcp")
+        assert (fake_home / ".workbuddy" / "mcp.json").exists()
+
+    def test_agent_content_reuses_codebuddy_format(self, fake_home: Path) -> None:
+        """WorkBuddy reuses the CodeBuddy (MCP-based) agent format."""
+        assert agent_content("workbuddy") == agent_content("codebuddy")
+        assert "mcpServers: MyKnowledge" in agent_content("workbuddy")
+
+    def test_unknown_platform_still_rejected(self, fake_home: Path) -> None:
+        with pytest.raises(ValueError, match="不支持的平台"):
+            _platform_paths("cursor")
+        with pytest.raises(ValueError, match="不支持的平台"):
+            client_installed("cursor")
+        with pytest.raises(ValueError, match="不支持的平台"):
+            write_kind("cursor", "mcp")
+
+
 class TestDetect:
     def test_detect_absent(self, fake_home: Path, monkeypatch) -> None:
         monkeypatch.setattr("shutil.which", lambda *a, **k: None)
         res = detect_all()
-        assert res == {
-            "claude": {"client_installed": False, "mcp": False, "hooks": False, "agent": False},
-            "codebuddy": {"client_installed": False, "mcp": False, "hooks": False, "agent": False},
-        }
+        # every platform is absent (not installed, no MyKnowledge entries)
+        assert set(res.keys()) == set(PLATFORMS)
+        for pl in PLATFORMS:
+            assert res[pl] == {
+                "client_installed": False, "mcp": False,
+                "hooks": False, "agent": False,
+            }
 
     def test_detect_present(self, fake_home: Path, monkeypatch) -> None:
         monkeypatch.setattr("shutil.which", lambda *a, **k: None)
@@ -206,7 +251,7 @@ class TestDetect:
 class TestInvalidInput:
     def test_bad_platform(self, fake_home: Path) -> None:
         with pytest.raises(ValueError, match="不支持的平台"):
-            write_kind("workbuddy", "mcp")
+            write_kind("cursor", "mcp")
 
     def test_bad_kind(self, fake_home: Path) -> None:
         with pytest.raises(ValueError, match="不支持的配置类型"):
@@ -238,7 +283,7 @@ class TestREST:
     def test_write_endpoint_bad_platform(self, fake_home: Path) -> None:
         from backend.main import app
         c = TestClient(app)
-        r = c.post("/api/client-config/workbuddy/mcp")
+        r = c.post("/api/client-config/cursor/mcp")
         assert r.status_code == 400
 
     def test_mcp_entry_has_kb_root(self) -> None:

@@ -48,10 +48,16 @@ def _platform_paths(platform: str) -> dict:
             "settings_file": home / ".codebuddy" / "settings.json",  # hooks
             "agents_dir": home / ".codebuddy" / "agents",
         }
-    raise ValueError(f"不支持的平台: {platform}（仅 claude/codebuddy，WorkBuddy 未实现）")
+    if platform == "workbuddy":
+        return {
+            "mcp_file": home / ".workbuddy" / "mcp.json",   # mcpServers
+            "settings_file": home / ".workbuddy" / "settings.json",  # hooks
+            "agents_dir": home / ".workbuddy" / "agents",
+        }
+    raise ValueError(f"不支持的平台: {platform}（仅 claude/codebuddy/workbuddy）")
 
 
-PLATFORMS = ("claude", "codebuddy")
+PLATFORMS = ("claude", "codebuddy", "workbuddy")
 KINDS = ("mcp", "hooks", "agent")
 
 
@@ -99,7 +105,8 @@ def agent_content(platform: str) -> str:
         "- 写入：write__create_document / write__update_document\n"
         "- 维护：maint__knowledgebase_diagnose 结构诊断\n"
     )
-    if platform == "codebuddy":
+    # WorkBuddy 与 CodeBuddy 同为 IDE/办公智能体、经 MCP 连接，复用同一 agent 格式。
+    if platform in ("codebuddy", "workbuddy"):
         return (
             "---\n"
             f"name: MyKnowledge Agent\n"
@@ -154,14 +161,15 @@ def client_installed(platform: str) -> bool:
     Platform-level (shared across mcp/hooks/agent kinds):
       - Claude Code: ``~/.claude`` dir exists, or the ``claude`` CLI is on PATH.
       - CodeBuddy: ``~/.codebuddy`` dir exists.
+      - WorkBuddy: ``~/.workbuddy`` dir exists.
     Read-only detection — never writes anything.
     """
     import shutil
     home = Path.home()
     if platform == "claude":
         return (home / ".claude").exists() or shutil.which("claude") is not None
-    if platform == "codebuddy":
-        return (home / ".codebuddy").exists()
+    if platform in ("codebuddy", "workbuddy"):
+        return (home / f".{platform}").exists()
     raise ValueError(f"不支持的平台: {platform}")
 
 
