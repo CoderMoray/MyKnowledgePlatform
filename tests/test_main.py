@@ -945,3 +945,57 @@ class TestDesktopServer:
         with pytest.raises(SystemExit) as exc:
             ds.main(["--help"])
         assert exc.value.code == 0
+
+
+# ══════════════════════════════════════════════════════════════
+#  /api/config-status — 分享配置状态（只读，不泄露分享码）
+# ══════════════════════════════════════════════════════════════
+
+
+class TestApiConfigStatus:
+    """share_configured / env_source / message with each config combination."""
+
+    def _set(self, tmp_path: Path, monkeypatch, *, backend: str | None = None,
+             user: str | None = None) -> None:
+        b_env = tmp_path / "backend" / ".env"
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        monkeypatch.setattr("backend.config.backend_env_file", lambda: b_env)
+        monkeypatch.setattr("backend.config.user_env_file", lambda: u_env)
+        if backend is not None:
+            b_env.parent.mkdir(parents=True, exist_ok=True)
+            b_env.write_text(backend)
+        if user is not None:
+            u_env.parent.mkdir(parents=True, exist_ok=True)
+            u_env.write_text(user)
+
+    def test_configured_from_backend(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch,
+                  backend="KNOWLEDGE_SHARE_CODE = Code\nSHARE_MAP = 365\n")
+        r = client.get("/api/config-status")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["share_configured"] is True
+        assert d["env_source"] == "backend"
+        assert "Code" not in d["message"]  # never leak plaintext
+
+    def test_configured_from_user(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch,
+                  user="KNOWLEDGE_SHARE_CODE = MyCode\nSHARE_MAP = 111\n")
+        d = client.get("/api/config-status").json()
+        assert d["share_configured"] is True
+        assert d["env_source"] == "myknowledge"
+        assert "MyCode" not in d["message"]
+
+    def test_not_configured_none(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        d = client.get("/api/config-status").json()
+        assert d["share_configured"] is False
+        assert d["env_source"] == "none"
+        assert "未设置" in d["message"]
+
+    def test_partial_config(self, client, tmp_path, monkeypatch) -> None:
+        # share_map present but share_code missing → not configured
+        self._set(tmp_path, monkeypatch, user="SHARE_MAP = 365\n")
+        d = client.get("/api/config-status").json()
+        assert d["share_configured"] is False
+        assert d["env_source"] == "myknowledge"

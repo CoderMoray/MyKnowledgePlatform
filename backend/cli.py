@@ -643,6 +643,98 @@ def cmd_import_share(args: argparse.Namespace) -> int:
 
 
 # ══════════════════════════════════════════════════════════════
+#  config — 查看/设置分享配置（KNOWLEDGE_SHARE_CODE / SHARE_MAP）
+# ══════════════════════════════════════════════════════════════
+
+
+def _print_share_config() -> int:
+    """Print the effective share config (priority-resolved, masked)."""
+    from backend.config import (
+        backend_env_file,
+        load_share_env,
+        mask_share_code,
+        share_env_source,
+        user_env_file,
+    )
+    env = load_share_env()
+    source = share_env_source()
+    print("分享配置：")
+    print(f"  来源:      {'backend/.env' if source == 'backend' else '~/.myknowledge/.env' if source == 'myknowledge' else '(未配置)'}")
+    print(f"  KNOWLEDGE_SHARE_CODE: {mask_share_code(env['share_code'])}")
+    print(f"  SHARE_MAP: {env['share_map']}")
+    if source == "backend":
+        print(f"\n⚠ backend/.env 存在且优先（{backend_env_file()}），"
+              f"~/.myknowledge/.env 的配置可能不生效。")
+    if source == "none":
+        print("\n⚠ 分享配置未设置。请运行:")
+        print("  myknowledge config set KNOWLEDGE_SHARE_CODE=<鉴权码>")
+        print("  myknowledge config set SHARE_MAP=<三位正整数>")
+    print(f"\n（写路径: {user_env_file()}）")
+    return 0
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    """Manage share configuration (KNOWLEDGE_SHARE_CODE / SHARE_MAP).
+
+    Sub-forms: ``config`` / ``config show`` / ``config set KEY=VALUE`` /
+    ``config unset KEY``.  Writes go to ``~/.myknowledge/.env``.
+    """
+    from backend.config import (
+        backend_env_file,
+        SHARE_KEYS,
+        user_env_file,
+        write_share_env,
+        unset_share_env,
+    )
+
+    # 未配置 backend/.env 时，若 backend/.env 存在先警告（方案 A）。
+    backend_present = backend_env_file().is_file()
+
+    action = args.action
+    if action in ("show", None):
+        return _print_share_config()
+
+    if action == "set":
+        kv = args.kv
+        if "=" not in kv:
+            print(f"✗ 格式应为 KEY=VALUE，收到: {kv}", file=sys.stderr)
+            return 1
+        key, _, value = kv.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if key not in SHARE_KEYS:
+            print(f"✗ 不支持的键: {key}（仅 {'/'.join(SHARE_KEYS)}）", file=sys.stderr)
+            return 1
+        try:
+            write_share_env(key, value)
+        except ValueError as exc:
+            print(f"✗ {exc}", file=sys.stderr)
+            return 1
+        path = user_env_file()
+        print(f"✓ 已写入 {path}: {key} = {value}")
+        if backend_present:
+            print(f"⚠ backend/.env 存在且优先（{backend_env_file()}），"
+                  f"你的配置可能不生效。")
+        if key == "KNOWLEDGE_SHARE_CODE":
+            print("⚠ 改分享码后，之前导出的 .mkpkg 将无法再解密（旧包失效）。")
+        return 0
+
+    if action == "unset":
+        key = args.kv
+        if key not in SHARE_KEYS:
+            print(f"✗ 不支持的键: {key}（仅 {'/'.join(SHARE_KEYS)}）", file=sys.stderr)
+            return 1
+        unset_share_env(key)
+        print(f"✓ 已移除 {key}（{user_env_file()}）")
+        if backend_present:
+            print(f"⚠ backend/.env 存在且优先，移除后仍可能读到 backend/.env 的值。")
+        return 0
+
+    print(f"✗ 未知子命令: {action}", file=sys.stderr)
+    return 1
+
+
+# ══════════════════════════════════════════════════════════════
 #  argparse
 # ══════════════════════════════════════════════════════════════
 
@@ -735,6 +827,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path", nargs="?", default="",
                    help="目标路径：空=根，或 projects/项目名")
     p.set_defaults(func=cmd_rebuild)
+
+    # config — 查看/设置分享配置（KNOWLEDGE_SHARE_CODE / SHARE_MAP）
+    p = sub.add_parser("config", help="查看/设置分享配置（写入 ~/.myknowledge/.env）")
+    p.add_argument("action", nargs="?", default=None,
+                   choices=["show", "set", "unset"],
+                   help="show（默认）=查看；set KEY=VALUE；unset KEY")
+    p.add_argument("kv", nargs="?", default="",
+                   help="set: KEY=VALUE；unset: KEY")
+    p.set_defaults(func=cmd_config)
 
     return parser
 

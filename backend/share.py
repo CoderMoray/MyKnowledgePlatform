@@ -45,8 +45,14 @@ _KEY_LEN = 32
 
 
 def _load_env() -> dict:
-    from backend.config import load_oss_env
-    return load_oss_env()
+    """Load the effective env for key derivation (share keys only).
+
+    Uses the priority-resolved source (``backend/.env`` → ``~/.myknowledge/.env``)
+    so publish and import both read the same effective share config — the
+    ``backend/.env`` priority must not break round-trip sharing.
+    """
+    from backend.config import load_share_env
+    return load_share_env()
 
 
 def _build_pool(m: dict, share_map: str, share_code: str) -> list[str]:

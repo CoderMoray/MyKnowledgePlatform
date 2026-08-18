@@ -1392,6 +1392,43 @@ def api_set_identity(payload: IdentityPayload):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Share config status（只读，不泄露分享码明文）
+# ══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/config-status")
+def api_config_status():
+    """Report the share-config status for the frontend guidance.
+
+    Returns ``{share_configured, env_source, message}``.  ``share_configured``
+    is true only when both KNOWLEDGE_SHARE_CODE and SHARE_MAP are configured in
+    the effective env source.  Never leaks the share code value.
+    """
+    from backend.config import (
+        load_share_env,
+        mask_share_code,
+        share_env_source,
+    )
+    env = load_share_env()
+    source = share_env_source()
+    configured = bool(env["share_code"]) and bool(env["share_map"])
+    if configured:
+        message = ("分享配置已就绪（来源: "
+                   + ("backend/.env" if source == "backend"
+                      else "~/.myknowledge/.env")
+                   + f"）。分享码: {mask_share_code(env['share_code'])}")
+    elif source == "none":
+        message = "分享配置未设置。请运行: myknowledge config set KNOWLEDGE_SHARE_CODE=<鉴权码> 与 SHARE_MAP=<三位正整数>，或在设置页完成。"
+    else:
+        message = "分享配置不完整（缺 KNOWLEDGE_SHARE_CODE 或 SHARE_MAP）。请用 myknowledge config 补全。"
+    return {
+        "share_configured": configured,
+        "env_source": source,
+        "message": message,
+    }
+
+
+# ══════════════════════════════════════════════════════════════
 #  Static frontend (mount after all API routes)
 # ══════════════════════════════════════════════════════════════
 
