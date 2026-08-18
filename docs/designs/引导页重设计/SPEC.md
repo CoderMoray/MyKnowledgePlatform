@@ -437,6 +437,11 @@ async guideExecute() {
   -webkit-backdrop-filter: blur(24px);
   border: 0.5px solid rgba(0, 0, 0, 0.06);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* 小屏兜底（架构师裁决 1）：<1024px 高度屏可用 */
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;  /* 内容超高时内部滚动 */
 }
 ```
 
@@ -459,7 +464,9 @@ async guideExecute() {
 | **初始** | 结论页首次显示 | 「⚡ 打开安装链接」 | accent 实色 `.btn--sm btn--deeplink` |
 | **点击后** | 生成 deeplink 成功 | 「已生成链接 · 可再次点击」 | accent 实色（保持可点） |
 | **生成中** | `deeplinkBusy` | 「生成中…」 | disabled + spinner |
-| **未安装** | `clientInstalled=false` | 「⚡ 打开安装链接」 | **置灰禁用**（opacity 0.45）+ 旁提示「请先安装 Enchanté」 |
+| **未安装（防御态）** | `clientInstalled=false` | 「⚡ 打开安装链接」 | **置灰禁用**（opacity 0.45）+ 旁提示「请先安装 Enchanté」 |
+
+> **逻辑澄清（架构师裁决 4）**：2.1 未安装平台已灰禁用、不可选中，因此结论页出现 Enchante 行意味着用户已安装（`.app` 检测通过）。**「未安装」态逻辑上不触发**，仅作**防御态保留**（防 2.1→2.2 之间状态变化）。按钮常态应为**可用**。
 
 **结论页 Enchante 行说明**（按钮旁/下方小字）：
 > 「MCP 需手动安装完成：点击按钮生成专属链接并打开」
@@ -487,7 +494,7 @@ async guideExecute() {
 ### 10.3 新增/调整样式类
 
 ```css
-/* 大 modal（引导页） */
+/* 大 modal（引导页，含小屏兜底 max-width/max-height/overflow 见 §10.1） */
 .guide-modal { /* 见 §10.1 */ }
 
 /* Enchante 专属按钮（复用 .btn--deeplink）+ 禁用态 */
@@ -508,3 +515,15 @@ async guideExecute() {
 ```
 
 **无 design-token 增量**（复用 card-bg、radius-xl、btn--deeplink、accent、text-tertiary）。
+
+### 10.4 架构师裁决记录（2026-08-18）
+
+| # | 决策点 | 裁决 |
+|---|---|---|
+| 1 | 大 modal 840×640 | ✅ 采纳 + 小屏兜底（`max-width: calc(100vw - 32px)` / `max-height: calc(100vh - 48px)` / `overflow-y: auto`，<1024px 高度屏可用） |
+| 2 | 按钮文案「⚡ 打开安装链接」 | ✅ 采纳（保留 ⚡，与现有 deeplink 引导一致） |
+| 3 | 点击后态「已生成链接 · 可再次点击」 | ✅ 采纳（语义清晰） |
+| 4 | 未安装禁用文案「请先安装 Enchanté」 | ✅ 采纳，标注**防御态**（2.1 已拦截未安装平台，正常不触发；按钮常态可用） |
+| 5 | `deeplinkClicked` 持久化 | ❌ **不持久化**（会话内 UX 状态，引导流程结束/刷新即重置，无 localStorage） |
+
+设计 agent 已按裁决完成 3 处微调：§10.1 小屏兜底、§10.2 防御态标注 + 逻辑澄清、§10.3 兜底同步。
