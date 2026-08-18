@@ -16,6 +16,7 @@ from backend.client_config import (
     KINDS,
     PLATFORMS,
     agent_content,
+    client_installed,
     detect_all,
     detect_platform,
     mcp_entry,
@@ -138,15 +139,44 @@ class TestAgent:
         assert "mcpServers: MyKnowledge" not in cl  # Claude doesn't use it
 
 
+class TestClientInstalled:
+    def test_claude_dir_exists(self, fake_home: Path, monkeypatch) -> None:
+        """~/.claude exists → claude installed even if which() is empty."""
+        (fake_home / ".claude").mkdir(parents=True)
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        assert client_installed("claude") is True
+
+    def test_claude_which_only(self, fake_home: Path, monkeypatch) -> None:
+        """~/.claude absent but claude CLI on PATH → installed."""
+        monkeypatch.setattr("shutil.which",
+                            lambda name: "/usr/local/bin/claude" if name == "claude" else None)
+        assert client_installed("claude") is True
+
+    def test_claude_neither(self, fake_home: Path, monkeypatch) -> None:
+        """Neither dir nor CLI → not installed."""
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        assert client_installed("claude") is False
+
+    def test_codebuddy_dir(self, fake_home: Path) -> None:
+        (fake_home / ".codebuddy").mkdir(parents=True)
+        assert client_installed("codebuddy") is True
+        assert client_installed("codebuddy") is True
+
+    def test_codebuddy_absent(self, fake_home: Path) -> None:
+        assert client_installed("codebuddy") is False
+
+
 class TestDetect:
-    def test_detect_absent(self, fake_home: Path) -> None:
+    def test_detect_absent(self, fake_home: Path, monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
         res = detect_all()
         assert res == {
-            "claude": {"mcp": False, "hooks": False, "agent": False},
-            "codebuddy": {"mcp": False, "hooks": False, "agent": False},
+            "claude": {"client_installed": False, "mcp": False, "hooks": False, "agent": False},
+            "codebuddy": {"client_installed": False, "mcp": False, "hooks": False, "agent": False},
         }
 
-    def test_detect_present(self, fake_home: Path) -> None:
+    def test_detect_present(self, fake_home: Path, monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
         write_kind("claude", "mcp")
         write_kind("claude", "hooks")
         write_kind("codebuddy", "mcp")
@@ -155,6 +185,22 @@ class TestDetect:
         assert res["claude"]["hooks"] is True
         assert res["claude"]["agent"] is False
         assert res["codebuddy"]["mcp"] is True
+
+    def test_client_installed_independent_of_kinds(self, fake_home: Path,
+                                                   monkeypatch) -> None:
+        """Dir present but no MCP configured → installed=true, mcp=false."""
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        (fake_home / ".codebuddy").mkdir(parents=True)  # installed, no config
+        res = detect_platform("codebuddy")
+        assert res["client_installed"] is True
+        assert res["mcp"] is False
+
+    def test_detect_all_includes_client_installed(self, fake_home: Path,
+                                                  monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        res = detect_all()
+        for pl in PLATFORMS:
+            assert "client_installed" in res[pl]
 
 
 class TestInvalidInput:
@@ -175,7 +221,8 @@ class TestREST:
         assert r.status_code == 200
         data = r.json()
         for pl in PLATFORMS:
-            assert set(data[pl].keys()) == {"mcp", "hooks", "agent"}
+            assert set(data[pl].keys()) == {
+                "client_installed", "mcp", "hooks", "agent"}
 
     def test_write_endpoint(self, fake_home: Path) -> None:
         from backend.main import app

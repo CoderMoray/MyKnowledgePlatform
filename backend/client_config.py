@@ -148,8 +148,29 @@ def _save_json(path: Path, data: dict) -> None:
 # ══════════════════════════════════════════════════════════════
 #  检测
 # ══════════════════════════════════════════════════════════════
+def client_installed(platform: str) -> bool:
+    """Is the AI client installed / has a config environment?
+
+    Platform-level (shared across mcp/hooks/agent kinds):
+      - Claude Code: ``~/.claude`` dir exists, or the ``claude`` CLI is on PATH.
+      - CodeBuddy: ``~/.codebuddy`` dir exists.
+    Read-only detection — never writes anything.
+    """
+    import shutil
+    home = Path.home()
+    if platform == "claude":
+        return (home / ".claude").exists() or shutil.which("claude") is not None
+    if platform == "codebuddy":
+        return (home / ".codebuddy").exists()
+    raise ValueError(f"不支持的平台: {platform}")
+
+
 def detect_platform(platform: str) -> dict:
-    """Return ``{mcp, hooks, agent}`` detection for one platform."""
+    """Return ``{client_installed, mcp, hooks, agent}`` detection for one platform.
+
+    ``client_installed`` is platform-level (whether the client is installed);
+    ``mcp``/``hooks``/``agent`` report whether our MyKnowledge entries exist.
+    """
     p = _platform_paths(platform)
     mcp_data = _load_json(p["mcp_file"])
     mcp = "MyKnowledge" in (mcp_data.get("mcpServers") or {})
@@ -164,7 +185,12 @@ def detect_platform(platform: str) -> dict:
     )
 
     agent = (p["agents_dir"] / "MyKnowledge-agent.md").exists()
-    return {"mcp": mcp, "hooks": hooks, "agent": agent}
+    return {
+        "client_installed": client_installed(platform),
+        "mcp": mcp,
+        "hooks": hooks,
+        "agent": agent,
+    }
 
 
 def detect_all() -> dict:
