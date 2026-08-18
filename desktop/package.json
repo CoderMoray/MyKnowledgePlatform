@@ -8,7 +8,7 @@
     "start": "electron .",
     "start:dev": "MYKNOWLEDGE_DEV_BACKEND_URL=http://127.0.0.1:8080 electron .",
     "build:backend": "../scripts/build-backend.sh",
-    "build:app": "ELECTRON_BUILDER_BINARIES_MIRROR=${ELECTRON_BUILDER_BINARIES_MIRROR:-https://npmmirror.com/mirrors/electron-builder-binaries/} electron-builder --mac",
+    "build:app": "bash ../scripts/build-desktop.sh",
     "release": "npm run build:backend && npm run build:app"
   },
   "devDependencies": {
