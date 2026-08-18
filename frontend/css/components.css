@@ -2341,14 +2341,17 @@
 .connection-text--inactive      { color: var(--color-warning); }
 .connection-text--lost          { color: var(--color-danger); }
 .connection-text--disabled      { color: var(--text-muted); opacity: 0.4; }
-/* tooltip 气泡（纯 CSS hover/focus，200ms 延迟防误触） */
+/* tooltip 气泡（纯 CSS hover/focus，200ms 延迟防误触）
+ * right: 0 对齐目标右缘向左展开，防长文案在 Modal 最右平台行溢出（.settings-body overflow 裁剪）；
+ * max-width + 换行保证完整显示 */
 .connection-tip__bubble {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: auto;
+  right: 0;
   width: max-content;
-  max-width: 260px;
+  max-width: 240px;
+  white-space: normal;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   background: #111827;
@@ -2369,13 +2372,13 @@
   opacity: 1;
   visibility: visible;
 }
-/* 箭头：指向目标的小三角 */
+/* 箭头：指向目标的小三角（右 24px 处，目标中右部，随气泡右缘不偏出目标） */
 .connection-tip__bubble::after {
   content: "";
   position: absolute;
   top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+  left: auto;
+  right: 24px;
   border: 6px solid transparent;
   border-top-color: #111827;
 }

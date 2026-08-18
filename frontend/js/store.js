@@ -69,6 +69,8 @@ let _tocCollapsedSet = {};
 
     /** AI 客户端配置检测状态：{ ClaudeCode: {mcp, hooks, agent}, CodeBuddyIDE: {...} }（bool） */
     clientConfig: null,
+    /** 上次成功加载 client-config 的时间戳（refreshClientConfigIfStale 判定旧缓存用） */
+    clientConfigAt: 0,
     /** 配置 modal 当前左侧分组：account | general | mcp | hooks | agent */
     settingsGroup: "account",
     /** 引导向导当前步骤：1 身份 | 2 AI 协作 | 3 完成 */
@@ -1311,12 +1313,25 @@ let _tocCollapsedSet = {};
       try {
         const data = await api.getClientConfig();
         this.clientConfig = data || {};
+        this.clientConfigAt = Date.now();
       } catch (e) {
         // 后端离线/异常：置 null，UI 显示「检测失败」并提供复制兜底
         this.clientConfig = null;
       } finally {
         this.clientDetecting = false;
       }
+    },
+
+    /**
+     * 旧缓存刷新（轻量）：clientConfig 缺失或超过 maxAgeMs 未刷新时才重新拉取，
+     * 避免切分组等高频入口反复 GET；打开 Modal 仍走 loadClientConfig 无条件刷新。
+     * @param {number} maxAgeMs - 缓存最长存活时间（默认 5s）
+     */
+    refreshClientConfigIfStale(maxAgeMs = 5000) {
+      if (!this.clientConfig || Date.now() - this.clientConfigAt > maxAgeMs) {
+        return this.loadClientConfig().catch(() => {});
+      }
+      return Promise.resolve();
     },
 
     /**
@@ -1467,14 +1482,14 @@ let _tocCollapsedSet = {};
       return LABELS[this.connectionClass(platform)] || "未连接";
     },
 
-    /** 连接态 tooltip 完整文案（SPEC §2.2 定稿；集中映射，无散落硬编码） */
+    /** 连接态 tooltip 文案（精简版，SPEC §2.2 修订；集中映射，无散落硬编码） */
     connectionTooltip(platform) {
       const TIPS = {
-        not_connected: "该平台从未连接过 MyKnowledge，配置后在此显示实时连接状态",
-        connected: "平台近期正在使用 MyKnowledge 的 MCP，可正常调用知识库工具",
-        inactive: "平台较长时间未调用 MCP，可能处于空闲或已停用；到平台使用一次 MyKnowledge 即可确认",
-        lost: "已判定断联（可能平台退出或 MCP 被关闭）；请到该平台重新使用一次 MyKnowledge 以重新激活",
-        disabled: "该平台客户端未安装，安装并配置后在此显示实时连接状态",
+        not_connected: "从未连接，配置后显示实时连接状态",
+        connected: "已连接，可正常调用知识库工具",
+        inactive: "长时间未调用 MCP，可能已停用；到平台用一次 MyKnowledge 确认",
+        lost: "已断联；到平台重新使用一次 MyKnowledge 激活",
+        disabled: "客户端未安装，安装后显示实时连接状态",
       };
       return TIPS[this.connectionClass(platform)] || TIPS.not_connected;
     },

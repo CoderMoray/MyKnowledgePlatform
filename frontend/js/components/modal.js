@@ -205,7 +205,10 @@ Alpine.data("modalComponent", () => ({
 
     /** 配置 modal：切换左侧分组 */
     settingsNav(group) {
-      Alpine.store("app").settingsGroup = group;
+      const store = Alpine.store("app");
+      store.settingsGroup = group;
+      // 切到 MCP 分组时若 clientConfig 是旧缓存则轻量刷新 connection（避免显示过期连接态）
+      if (group === "mcp") store.refreshClientConfigIfStale();
     },
 
     /** 配置 modal · 账号卡：保存昵称/邮箱 */

@@ -58,7 +58,8 @@ class TestStage3StaticStructure:
                      "rerunGuide", "isClientConfiguring", "clientStatus",
                      "guideConfigItems", "guideSummary", "deleteClientConfig",
                      "connectionValue", "connectionClass", "connectionLabel",
-                     "connectionTooltip", "clientInstalled"]:
+                     "connectionTooltip", "clientInstalled",
+                     "refreshClientConfigIfStale"]:
             assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
