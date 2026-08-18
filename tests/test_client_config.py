@@ -641,6 +641,172 @@ class TestDeeplinkEndpoint:
         assert data["deeplink"] == enchante_deeplink()
 
 
+class TestCursor:
+    """Cursor is a full-surface platform (mcp + hooks + agent), hooks.json-based."""
+
+    def test_platform_paths(self, fake_home: Path) -> None:
+        p = _platform_paths("Cursor")
+        assert p["mcp_file"] == fake_home / ".cursor" / "mcp.json"
+        assert p["hooks_file"] == fake_home / ".cursor" / "hooks.json"
+        assert p["agents_dir"] == fake_home / ".cursor" / "agents"
+
+    def test_kinds_full(self, fake_home: Path) -> None:
+        assert _kinds_for("Cursor") == ("mcp", "hooks", "agent")
+
+    def test_client_installed_dir_exists(self, fake_home: Path) -> None:
+        (fake_home / ".cursor").mkdir(parents=True)
+        assert client_installed("Cursor") is True
+
+    def test_client_installed_absent(self, fake_home: Path) -> None:
+        assert client_installed("Cursor") is False
+
+    def test_mcp_entry_injects_client_env(self, fake_home: Path) -> None:
+        entry = mcp_entry("Cursor")
+        assert entry["env"]["MYKNOWLEDGE_CLIENT"] == "Cursor"
+        assert "MYKNOWLEDGE_ROOT" in entry["env"]
+
+    def test_write_mcp(self, fake_home: Path) -> None:
+        write_kind("Cursor", "mcp")
+        data = _read_json(fake_home / ".cursor" / "mcp.json")
+        assert "MyKnowledge" in data["mcpServers"]
+
+    def test_remove_mcp(self, fake_home: Path) -> None:
+        write_kind("Cursor", "mcp")
+        remove_kind("Cursor", "mcp")
+        assert "MyKnowledge" not in \
+            _read_json(fake_home / ".cursor" / "mcp.json")["mcpServers"]
+
+    def test_hooks_matcher_shell(self, fake_home: Path) -> None:
+        """Cursor uses matcher Shell + hooks_forward command (hooks.json format)."""
+        m = hooks_matcher("Cursor")
+        assert m["matcher"] == "Shell"
+        assert m["type"] == "command"
+        assert "backend.hooks_forward" in m["command"]
+        assert m["failClosed"] is False
+        assert m["timeout"] == 10000
+
+    def test_write_hooks_keeps_version_and_existing(self, fake_home: Path) -> None:
+        """Cursor hooks.json: version:1 preserved, user hooks preserved, ours appended."""
+        hj = fake_home / ".cursor" / "hooks.json"
+        _write_json(hj, {
+            "version": 1,
+            "hooks": {
+                "preToolUse": [
+                    {"type": "command", "command": "user-hook",
+                     "matcher": "Read", "timeout": 5000, "failClosed": True},
+                ],
+            },
+        })
+        write_kind("Cursor", "hooks")
+        data = _read_json(hj)
+        assert data["version"] == 1
+        hk = data["hooks"]["preToolUse"]
+        assert any(m.get("command") == "user-hook" for m in hk)  # preserved
+        our = [m for m in hk if "backend.hooks_forward" in m.get("command", "")]
+        assert len(our) == 1
+        assert our[0]["matcher"] == "Shell"
+
+    def test_write_hooks_idempotent(self, fake_home: Path) -> None:
+        write_kind("Cursor", "hooks")
+        write_kind("Cursor", "hooks")
+        data = _read_json(fake_home / ".cursor" / "hooks.json")
+        our = [m for m in data["hooks"]["preToolUse"]
+               if "backend.hooks_forward" in m.get("command", "")]
+        assert len(our) == 1
+
+    def test_remove_hooks_keeps_others(self, fake_home: Path) -> None:
+        hj = fake_home / ".cursor" / "hooks.json"
+        _write_json(hj, {
+            "version": 1,
+            "hooks": {"preToolUse": [
+                {"type": "command", "command": "user-hook",
+                 "matcher": "Read", "timeout": 5000, "failClosed": True},
+            ]},
+        })
+        write_kind("Cursor", "hooks")
+        remove_kind("Cursor", "hooks")
+        data = _read_json(hj)
+        cmds = [m.get("command") for m in data["hooks"]["preToolUse"]]
+        assert "user-hook" in cmds  # user's own preserved
+        assert not any("backend.hooks_forward" in (c or "") for c in cmds)
+
+    def test_write_agent(self, fake_home: Path) -> None:
+        write_kind("Cursor", "agent")
+        path = fake_home / ".cursor" / "agents" / "MyKnowledge-agent.md"
+        assert path.exists()
+        text = path.read_text(encoding="utf-8")
+        fm = text.split("---")[1]
+        assert "name: MyKnowledge Agent" in fm
+        assert "description:" in fm
+
+    def test_remove_agent_deletes_file(self, fake_home: Path) -> None:
+        write_kind("Cursor", "agent")
+        path = fake_home / ".cursor" / "agents" / "MyKnowledge-agent.md"
+        assert path.exists()
+        remove_kind("Cursor", "agent")
+        assert not path.exists()
+
+    def test_detect_all_includes_cursor(self, fake_home: Path,
+                                        monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        res = detect_all()
+        assert "Cursor" in res
+        assert set(res["Cursor"].keys()) == {
+            "client_installed", "connection", "mcp", "hooks", "agent"}
+        assert res["Cursor"]["client_installed"] is False
+
+    def test_detect_present(self, fake_home: Path, monkeypatch) -> None:
+        monkeypatch.setattr("shutil.which", lambda *a, **k: None)
+        write_kind("Cursor", "mcp")
+        write_kind("Cursor", "hooks")
+        write_kind("Cursor", "agent")
+        res = detect_platform("Cursor")
+        assert res["mcp"] is True
+        assert res["hooks"] is True
+        assert res["agent"] is True
+
+
+class TestHooksDesignDir:
+    """backend/AiClientConfig/hooks/ — authoritative per-platform hooks design."""
+
+    def test_all_supported_platforms_have_a_file(self, fake_home: Path) -> None:
+        import backend.client_config as cc
+        hdir = cc._aiclient_config_dir() / "hooks"
+        files = {p.stem for p in hdir.glob("*.json")}
+        assert files == set(PLATFORMS)
+
+    def test_schema_consistent(self, fake_home: Path) -> None:
+        import backend.client_config as cc
+        hdir = cc._aiclient_config_dir() / "hooks"
+        schema_keys = {
+            "platform", "display", "supports_hooks", "event", "matcher",
+            "matcher_note", "command", "protocol", "exit_code_deny",
+            "fail_open", "notes"}
+        for p in hdir.glob("*.json"):
+            d = json.loads(p.read_text(encoding="utf-8"))
+            assert set(d.keys()) == schema_keys
+            assert d["platform"] == p.stem
+            assert d["exit_code_deny"] == 2
+            assert d["fail_open"] is True
+
+    def test_support_flags_match_kinds(self, fake_home: Path) -> None:
+        """supports_hooks aligns with platforms.json kinds."""
+        import backend.client_config as cc
+        hdir = cc._aiclient_config_dir() / "hooks"
+        for p in hdir.glob("*.json"):
+            d = json.loads(p.read_text(encoding="utf-8"))
+            has_hooks = "hooks" in _kinds_for(d["platform"])
+            assert d["supports_hooks"] == has_hooks, p.stem
+
+    def test_hooks_forward_platforms_reference_it(self, fake_home: Path) -> None:
+        """Cursor/CodeBuddy reference the hooks_forward helper in command."""
+        import backend.client_config as cc
+        hdir = cc._aiclient_config_dir() / "hooks"
+        for name in ("Cursor", "CodeBuddyIDE"):
+            d = json.loads((hdir / f"{name}.json").read_text(encoding="utf-8"))
+            assert "backend.hooks_forward" in d["command"]
+
+
 class TestREST:
     def test_detect_endpoint(self, fake_home: Path) -> None:
         from backend.main import app
@@ -674,6 +840,28 @@ class TestREST:
         entry = mcp_entry("CodeBuddyIDE")
         assert "MYKNOWLEDGE_ROOT" in entry["env"]
         assert entry["env"]["MYKNOWLEDGE_CLIENT"] == "CodeBuddyIDE"
+
+    def test_cursor_hooks_endpoint_writes_hooks_json(self, fake_home: Path) -> None:
+        """POST Cursor/hooks writes ~/.cursor/hooks.json (version:1 + preToolUse)."""
+        from backend.main import app
+        c = TestClient(app)
+        r = c.post("/api/client-config/Cursor/hooks")
+        assert r.status_code == 200
+        assert r.json()["kind"] == "hooks"
+        hj = fake_home / ".cursor" / "hooks.json"
+        data = json.loads(hj.read_text(encoding="utf-8"))
+        assert data["version"] == 1
+        assert data["hooks"]["preToolUse"][0]["matcher"] == "Shell"
+
+    def test_cursor_hooks_endpoint_detect_reflects(self, fake_home: Path) -> None:
+        """Write/remove Cursor hooks reflects in /api/client-config detect."""
+        from backend.main import app
+        c = TestClient(app)
+        assert c.get("/api/client-config").json()["Cursor"]["hooks"] is False
+        c.post("/api/client-config/Cursor/hooks")
+        assert c.get("/api/client-config").json()["Cursor"]["hooks"] is True
+        c.delete("/api/client-config/Cursor/hooks")
+        assert c.get("/api/client-config").json()["Cursor"]["hooks"] is False
 
 
 class TestPlatformSpecJson:

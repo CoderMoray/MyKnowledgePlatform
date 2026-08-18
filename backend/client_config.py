@@ -11,7 +11,9 @@ matcher, and our ``MyKnowledge-agent.md`` agent file.  Existing servers
 
 MVP platforms: ClaudeCode + CodeBuddyIDE. WorkBuddy is the fallback (not built).
 ``ClaudeDesktop`` is MCP-only (Claude Desktop does not support hooks / custom
-agents), so its KINDS are restricted to ``mcp``.
+agents), so its KINDS are restricted to ``mcp``. ``Cursor`` is a full-surface
+platform (mcp + hooks + agent); its hooks live in ``~/.cursor/hooks.json``
+(``version:1`` + ``preToolUse``, matcher ``Shell``, reusing ``hooks_forward``).
 
 The webserver runs on ``127.0.0.1:8080`` (``cli.py serve``); the generated
 hook points at its ``/hooks/pre-tool-use`` handler.
@@ -139,9 +141,15 @@ def _platform_paths(platform: str) -> dict:
     entry = paths.get(os_key) or paths.get("macos") or {}
     # 平台可能不提供某类路径（如 Enchante 无 mcp_file/settings_file/agents_dir，
     # 其 MCP 走 deeplink、skill 走 skills_dir）——缺省为空 Path。
+    settings = _resolve_path(entry.get("settings_file", ""))
+    # Cursor 的 hooks 配置独立成 hooks.json（非 settings.json）；其余平台
+    # hooks 写在 settings.json 里，未显式配置 hooks_file 时回退到 settings_file。
+    # 注意：_resolve_path("") 返回 Path('.')（truthy），故空串须先判空。
+    hooks_tpl = entry.get("hooks_file", "")
     return {
         "mcp_file": _resolve_path(entry.get("mcp_file", "")),
-        "settings_file": _resolve_path(entry.get("settings_file", "")),
+        "settings_file": settings,
+        "hooks_file": _resolve_path(hooks_tpl) if hooks_tpl else settings,
         "agents_dir": _resolve_path(entry.get("agents_dir", "")),
     }
 
@@ -256,6 +264,36 @@ def _hooks_command_codebuddy() -> str:
     return "python3 -m backend.hooks_forward"
 
 
+def _cursor_hooks_entry() -> dict:
+    """The Cursor ``preToolUse`` hook entry (hooks.json format).
+
+    Cursor's hooks.json shape differs from Claude/CodeBuddy's settings.json:
+    the event key is ``preToolUse`` (lowercase) and each entry carries its
+    ``command`` / ``matcher`` / ``timeout`` / ``failClosed`` directly on the
+    entry (no nested ``hooks`` list).  We reuse the ``hooks_forward`` helper
+    (same as CodeBuddy, matching the ``Shell`` tool) and default to
+    ``failClosed: false`` to stay fail-open.
+    """
+    return {
+        "type": "command",
+        "command": _hooks_command_codebuddy(),
+        "matcher": "Shell",
+        "timeout": 10000,
+        "failClosed": False,
+    }
+
+
+def _hooks_cmd_for(platform: str) -> str:
+    """The hooks command signature for a platform (idempotency key).
+
+    Used to recognise *our* hook entry when merging / removing.  Cursor entries
+    carry the command directly; Claude/CodeBuddy nest it under ``hooks[0]``.
+    """
+    if platform == "Cursor":
+        return _cursor_hooks_entry()["command"]
+    return hooks_matcher(platform)["hooks"][0]["command"]
+
+
 def hooks_matcher(platform: str) -> dict:
     """The PreToolUse hook matcher (guards bare AI operations via HTTP).
 
@@ -263,7 +301,10 @@ def hooks_matcher(platform: str) -> dict:
       - ClaudeCode / WorkBuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher ``Bash``.
       - CodeBuddyIDE: helper script reading stdin, matcher ``*`` (match all tools —
         ``hooks.py`` allows MCP calls internally, so a broad matcher is safe).
+      - Cursor: helper script reading stdin, matcher ``Shell`` (hooks.json format).
     """
+    if platform == "Cursor":
+        return _cursor_hooks_entry()
     if platform == "CodeBuddyIDE":
         return {
             "matcher": "*",
@@ -279,11 +320,16 @@ def hooks_matcher(platform: str) -> dict:
 def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
     """True if a PreToolUse matcher is the MyKnowledge hook (by command signature).
 
-    Recognises our hook by its command (claude/curl-$CLAUDE_TOOL_USE_INPUT or
-    codebuddy/hooks_forward.py) so we never mistake a user's own hook for ours.
+    Recognises our hook by its command (claude/curl-$CLAUDE_TOOL_USE_INPUT,
+    codebuddy/hooks_forward.py, or cursor's direct-entry form) so we never
+    mistake a user's own hook for ours.  Handles both the Claude/CodeBuddy
+    nested ``hooks[0].command`` shape and Cursor's direct ``command`` entry.
     """
     if not isinstance(matcher, dict):
         return False
+    # Cursor entries carry the command directly on the entry.
+    if matcher.get("command") == cmd:
+        return True
     hooks = matcher.get("hooks")
     if not isinstance(hooks, list) or not hooks:
         return False
@@ -496,9 +542,8 @@ def detect_platform(platform: str) -> dict:
         result["mcp"] = "MyKnowledge" in (mcp_data.get("mcpServers") or {})
 
     if "hooks" in kinds:
-        settings = _load_json(p["settings_file"])
-        hk = settings.get("hooks") or {}
-        cmd = hooks_matcher(platform)["hooks"][0]["command"]
+        hk = _load_json(p["hooks_file"]).get("hooks") or {}
+        cmd = _hooks_cmd_for(platform)
         result["hooks"] = any(
             _matcher_is_mine(m, cmd)
             for lst in hk.values()
@@ -545,16 +590,26 @@ def write_kind(platform: str, kind: str) -> dict:
                 "status": "written", "detected": True}
 
     if kind == "hooks":
-        path = p["settings_file"]
+        path = p["hooks_file"]
         data = _load_json(path)
         hooks = data.setdefault("hooks", {})
-        existing = hooks.get("PreToolUse") or []
-        matcher = hooks_matcher(platform)
-        cmd = matcher["hooks"][0]["command"]
-        # 幂等：若已存在本平台的 MyKnowledge 钩子（按 command 签名识别），不重复追加。
-        if not any(_matcher_is_mine(m, cmd) for m in existing):
-            existing.append(matcher)
-        hooks["PreToolUse"] = existing
+        cmd = _hooks_cmd_for(platform)
+        if platform == "Cursor":
+            # Cursor hooks.json: 增量合并，保留 version:1 与已有 hooks。
+            data.setdefault("version", 1)
+            existing = hooks.get("preToolUse") or []
+            entry = _cursor_hooks_entry()
+            if not any(_matcher_is_mine(m, cmd) for m in existing):
+                existing.append(entry)
+            hooks["preToolUse"] = existing
+        else:
+            # Claude/CodeBuddy settings.json: 事件键 PreToolUse + 嵌套 hooks 列表。
+            existing = hooks.get("PreToolUse") or []
+            matcher = hooks_matcher(platform)
+            # 幂等：若已存在本平台的 MyKnowledge 钩子（按 command 签名识别），不重复追加。
+            if not any(_matcher_is_mine(m, cmd) for m in existing):
+                existing.append(matcher)
+            hooks["PreToolUse"] = existing
         _save_json(path, data)
         return {"platform": platform, "kind": "hooks", "file": str(path),
                 "status": "written", "detected": True}
@@ -599,16 +654,17 @@ def remove_kind(platform: str, kind: str) -> dict:
                 "status": "removed"}
 
     if kind == "hooks":
-        path = p["settings_file"]
+        path = p["hooks_file"]
         data = _load_json(path)
         hooks = data.get("hooks")
         if isinstance(hooks, dict):
-            existing = hooks.get("PreToolUse") or []
-            cmd = hooks_matcher(platform)["hooks"][0]["command"]
+            cmd = _hooks_cmd_for(platform)
+            key = "preToolUse" if platform == "Cursor" else "PreToolUse"
+            existing = hooks.get(key) or []
             # 只移除 MyKnowledge 的钩子（按 command 签名识别），保留用户其他 matcher/hook
             kept = [m for m in existing if not _matcher_is_mine(m, cmd)]
             if len(kept) != len(existing):
-                hooks["PreToolUse"] = kept
+                hooks[key] = kept
                 _save_json(path, data)
         return {"platform": platform, "kind": "hooks", "file": str(path),
                 "status": "removed"}

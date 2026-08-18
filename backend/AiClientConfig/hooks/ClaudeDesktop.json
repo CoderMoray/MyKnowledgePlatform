@@ -1,0 +1,13 @@
+{
+  "platform": "ClaudeDesktop",
+  "display": "Claude Desktop",
+  "supports_hooks": false,
+  "event": "",
+  "matcher": "",
+  "matcher_note": "",
+  "command": "",
+  "protocol": "",
+  "exit_code_deny": 2,
+  "fail_open": true,
+  "notes": "Claude Desktop 仅支持 MCP（kinds=[mcp]），无 hooks / 自定义 agent 能力。本平台不生成 hooks 配置。"
+}

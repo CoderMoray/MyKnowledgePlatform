@@ -156,6 +156,42 @@ class TestCodeBuddyAliases:
         assert r.json()["permission"] == "allow"
 
 
+class TestCursorShellTool:
+    """Cursor preToolUse reports the ``Shell`` tool (its matcher type) for shell
+    commands; it must be normalized to ``Bash`` so KB bare-write interception
+    applies (same judgement as execute_command)."""
+
+    def test_shell_rm_kb_deny(self, kb_root: Path, client) -> None:
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Shell",
+            "tool_input": {"command": f"rm -rf {kb_root}/projects/P"},
+            "cwd": str(kb_root),
+        })
+        d = r.json()
+        assert d["permission"] == "deny"
+        assert "write__delete_document" in d["agent_message"]
+
+    def test_shell_redirect_kb_deny(self, kb_root: Path, client) -> None:
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Shell",
+            "tool_input": {"command": f"echo x > {kb_root}/common-knowledge/a.md"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_shell_non_kb_allow(self, kb_root: Path, client) -> None:
+        """Cursor Shell command not referencing KB → allow."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Shell",
+            "tool_input": {"command": "ls -la /tmp"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "allow"
+
+    def test_normalize_shell_to_bash(self) -> None:
+        assert hooks._normalize_tool_name("Shell") == "Bash"
+
+
 class TestRedirectionPrecision:
     """'>' is precise: only a KB-inside redirection target is a KB write."""
 

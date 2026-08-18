@@ -84,23 +84,28 @@ def _tool_name_is_mcp(tool_name: str) -> bool:
     return tool_name.startswith("mcp:") or tool_name.startswith("mcp__")
 
 
-# CodeBuddy IDE tool names → internal canonical names (reused by the judgement).
+# IDE/客户端工具名 → 内部规范名（复用同一套判定逻辑）。
+#  - CodeBuddy 报告 IDE 工具名（execute_command / write_to_file / …）。
+#  - Cursor 的 preToolUse 用 ``Shell``（而非 Claude 的 ``Bash``）表示 shell 命令。
 _TOOL_ALIASES = {
     "execute_command": "Bash",
     "write_to_file": "Write",
     "edit_file": "Edit",
     "apply_patch": "Edit",
     "delete_file": "Delete",
+    "Shell": "Bash",  # Cursor
 }
 
 
 def _normalize_tool_name(tool_name: str) -> str:
-    """Map CodeBuddy IDE tool names to the internal canonical names.
+    """Map client-specific tool names to the internal canonical names.
 
     CodeBuddy's PreToolUse reports IDE tool names (``execute_command`` /
     ``write_to_file`` / ``edit_file`` / ``delete_file``) instead of Claude's
-    ``Bash`` / ``Write`` / ``Edit`` / ``Delete``.  Normalizing lets the existing
-    judgement logic reuse the same Bash/file_write classification unchanged.
+    ``Bash`` / ``Write`` / ``Edit`` / ``Delete``; Cursor's preToolUse reports
+    ``Shell`` for shell commands (its matcher type) instead of ``Bash``.
+    Normalizing lets the existing judgement logic reuse the same
+    Bash/file_write classification unchanged.
     """
     return _TOOL_ALIASES.get(tool_name, tool_name)
 

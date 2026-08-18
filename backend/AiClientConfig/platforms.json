@@ -82,6 +82,19 @@
           "skills_dir": "~/.agents/skills/myknowledge"
         }
       }
+    },
+    "Cursor": {
+      "display": "Cursor",
+      "kinds": ["mcp", "hooks", "agent"],
+      "cli_names": {},
+      "paths": {
+        "macos": {
+          "config_dir": "~/.cursor",
+          "mcp_file": "~/.cursor/mcp.json",
+          "hooks_file": "~/.cursor/hooks.json",
+          "agents_dir": "~/.cursor/agents"
+        }
+      }
     }
   }
 }

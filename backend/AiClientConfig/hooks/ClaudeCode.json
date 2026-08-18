@@ -1,0 +1,13 @@
+{
+  "platform": "ClaudeCode",
+  "display": "Claude Code",
+  "supports_hooks": true,
+  "event": "PreToolUse",
+  "matcher": "Bash",
+  "matcher_note": "只拦截 Bash 工具（裸 shell 命令）；MCP 调用由 hooks.py 内部放行，因此窄 matcher 已足够。",
+  "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use -H 'Content-Type: application/json' -d '$CLAUDE_TOOL_USE_INPUT'",
+  "protocol": "Claude 通过环境变量 $CLAUDE_TOOL_USE_INPUT 传入 JSON；stdout 输出 JSON 决策（hookSpecificOutput.permissionDecision）。",
+  "exit_code_deny": 2,
+  "fail_open": true,
+  "notes": "写入 ~/.claude/settings.json 的 hooks.PreToolUse。命令用 curl 直接 POST，非零退出/端点不可达时 Claude 默认放行（fail-open）。"
+}

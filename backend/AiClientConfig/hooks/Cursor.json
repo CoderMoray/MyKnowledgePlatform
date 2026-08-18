@@ -1,0 +1,13 @@
+{
+  "platform": "Cursor",
+  "display": "Cursor",
+  "supports_hooks": true,
+  "event": "preToolUse",
+  "matcher": "Shell",
+  "matcher_note": "Cursor hooks 的 matcher 匹配工具类型（Shell/Read/Write/Grep/Delete/Task/MCP:<name>）；用 Shell 拦截对 KB 的裸 shell 命令。hooks.py 对 MCP 调用内部放行。",
+  "command": "python3 -m backend.hooks_forward",
+  "protocol": "Cursor 在 stdin 传入 preToolUse JSON（{tool_name, tool_input, cwd, ...}）；hooks_forward 读取 stdin、POST 到后端 /hooks/pre-tool-use、把响应 JSON 写回 stdout（permission allow|deny + user_message/agent_message）。退出码 2=阻止，其他 fail-open。",
+  "exit_code_deny": 2,
+  "fail_open": true,
+  "notes": "写入 ~/.cursor/hooks.json：{version:1, hooks:{preToolUse:[{type:command, command, matcher:Shell, timeout:10000, failClosed:false}]}}（增量合并，保留已有 hooks）。PyInstaller 冻结版命令为 <binary> --hooks-forward。Cursor 无 CLI 检测，config_dir ~/.cursor 存在即 installed。"
+}

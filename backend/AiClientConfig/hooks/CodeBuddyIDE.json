@@ -1,0 +1,13 @@
+{
+  "platform": "CodeBuddyIDE",
+  "display": "CodeBuddy IDE",
+  "supports_hooks": true,
+  "event": "PreToolUse",
+  "matcher": "*",
+  "matcher_note": "匹配全部工具（IDE 工具名 execute_command/write_to_file/...）；hooks.py 内部对 MCP 调用放行，因此宽 matcher 安全。",
+  "command": "python3 -m backend.hooks_forward",
+  "protocol": "CodeBuddy 在 stdin 传入 PreToolUse JSON；hooks_forward 读取 stdin、POST 到后端 /hooks/pre-tool-use、把响应 JSON 写回 stdout。",
+  "exit_code_deny": 2,
+  "fail_open": true,
+  "notes": "写入 ~/.codebuddy/settings.json 的 hooks.PreToolUse。PyInstaller 冻结版命令为 <binary> --hooks-forward（复用后端二进制）。"
+}

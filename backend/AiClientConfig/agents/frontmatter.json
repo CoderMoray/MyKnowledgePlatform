@@ -23,6 +23,13 @@
         "enabledAutoRun": true,
         "mcpServers": "MyKnowledge"
       }
+    },
+    {
+      "platforms": ["Cursor"],
+      "frontmatter": {
+        "name": "MyKnowledge Agent",
+        "description": "MyKnowledge 知识管理平台协作 Agent：通过 MCP 检索与维护本地知识库"
+      }
     }
   ]
 }
