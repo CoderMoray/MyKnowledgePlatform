@@ -179,6 +179,30 @@ md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变�
 **发版流程（更新后）**：只改 `backend/__version__.py`（桌面发版再加
 `desktop/package.json`）→ pre-push 校验一致 → 打 tag → push。
 
+### PyPI 打包范围（2026-08-18 修复）
+
+**背景**：`0.7.5` 的 wheel 只带 `frontend` package-data，`backend/templates`（init 模板）与
+`backend/AiClientConfig`（platforms.json/agents/hooks）**缺失** → `pip install` 后
+`myknowledge init` 无模板、`/api/client-config` 直接崩。且 `packages.find` 无白名单，
+`dist-backend/`（PyInstaller onedir 产物）被误当包收进 wheel（261 文件 / 2.78MB 冗余）。
+
+**修复**：
+
+| 项 | 配置 |
+|---|---|
+| backend 数据文件 | `[tool.setuptools.package-data] backend = ["templates/*", "AiClientConfig/*.json", "AiClientConfig/agents/*", "AiClientConfig/hooks/*"]` |
+| 包白名单 | `[tool.setuptools.packages.find] include = ["backend*", "frontend*"]`（防 dist-backend/build/desktop 再混入） |
+
+**验证**（wheel 实测）：AiClientConfig 10 文件 ✅ / templates 2 文件 ✅ / standalone ✅ /
+dist-backend **0** ✅ / 74 文件 **781K**（原 438 文件 8.09MB）。构建后若出现
+`File exists: build/bdist...` 报错，是构建缓存冲突：`rm -rf build myknowledge.egg-info` 再跑。
+
+**wheel 构建命令**：`python3 -m pip wheel . --no-deps --no-build-isolation -w /tmp/wheeltest`
+
+**桌面打包（PyInstaller）对照**：`scripts/build-backend.sh` 已含
+`--add-data backend/templates` + `backend/AiClientConfig` + `backend/hooks_forward.py`，
+桌面侧无需改动。
+
 
 **前端分发（2026-08-10 修复）**：
 

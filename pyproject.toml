@@ -35,10 +35,23 @@ version = {attr = "backend.__version__.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]
+# 白名单：只收 backend + frontend 两个包。2026-08-18 修复：此前无 include，
+# packages.find 把 dist-backend/（PyInstaller onedir 产物）误当包收进 wheel
+# （261 文件 / 2.78MB 冗余）；include 白名单防未来新目录再次混入。
+include = ["backend*", "frontend*"]
 
 # 前端资源进 wheel：后端 serve 依赖 index.standalone.html（构建产物）+ vendor/（运行时加载）
 # + tiptap-bundle.mjs（importmap）；index.html/js/css 一并携带，便于安装后重建产物。
+# backend 数据文件进 wheel：templates（myknowledge init 复制默认模板）+ AiClientConfig
+# （platforms.json/agents/hooks，client_config 运行时读取，缺失则平台配置崩）。
+# 2026-08-18 修复：0.7.5 曾漏带这两处（PyPI 安装后 init 无模板 / client-config 缺配置）。
 [tool.setuptools.package-data]
+backend = [
+    "templates/*",
+    "AiClientConfig/*.json",
+    "AiClientConfig/agents/*",
+    "AiClientConfig/hooks/*",
+]
 frontend = [
     "index.standalone.html",
     "index.html",
