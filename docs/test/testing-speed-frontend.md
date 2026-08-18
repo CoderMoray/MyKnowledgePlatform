@@ -69,20 +69,107 @@
 
 ### 选定 A（sleep → 条件等待）——分两类处理
 
-**(A1) 可安全改的"过渡/动画等待"（低风险，优先做）**
-- 模态过渡 600–700ms（`test_h5` 删除模态取消：`wait_for_timeout(600/700)` → 改 `expect(modal).not_to_be_visible()`）
-- 跳转后等待（`navigate()` 末尾 `1500` → 改 `expect(目标选择器).to_be_visible()`）
-- `_open_dashboard` 的 `1000`、click 后 `1000`（`test_h2` 跳转后）→ 改 `expect(目标元素)`
-- `open_doc` 的 `600`、`enter_edit` 的 `250` → 已有 `wait_for_selector`，后续可删
+核心原则：**固定 `wait_for_timeout(N)` 永远等满 N（含为最慢机器预支的余量）；条件等待"等到真实状态就停"，只回收余量、不删必要等待**。改造不是删等待，是把"等 N 毫秒"换成"等某状态出现"。
 
-不涉"懒加载时序敏感"，改条件等待**只会更稳不会更 flaky**。
+#### A0. 四类标准改写范式（全测试文件统一套用）
 
-**(A2) 时序敏感、暂缓（高风险，需小步验证）**
-- hover 预览懒加载 `1300ms`（`_hover_card_by_title` L56，注释"连续 hover 时序敏感"）
-- 自动保存 debounce `1000/1200`（`exit_inplace` L62、`apply_mod` 后）
-- 异步退出编辑 `2500`（`edit_switch_helpers` L239 DELETE+toast+倒计时）
+**范式 1 — 等元素/状态出现（替代"过渡等待"）**
+```python
+# 改造前（过渡等待，永远等满 600ms）
+page.wait_for_timeout(600)
+assert modal.is_visible()
+# 改造后（Playwright expect 自带轮询，默认 5s/100ms，元素一出现即停）
+expect(modal).to_be_visible(timeout=5000)   # 注释：等删除确认模态出现
+```
 
-历史"批量跑偶发失败"坑。改造方向应**轮询真实状态**（如 `wait_for_backend(path, 200)` 已验证可行，见 `edit_switch_helpers.py:115`），非简单 `expect`。**必须小步 + 反复跑 3 轮以上验证无 flaky 才合并**，每文件独立 PR。
+**范式 2 — 等 DOM 事件/动画结束（替代"动画/跳转等待"）**
+```python
+# 改造前
+del_btn.click(); page.wait_for_timeout(700)
+# 改造后：等模态出现，取消后等它消失
+expect(modal).to_be_visible()
+page.get_by_role("button", name="取消").first.click()
+expect(modal).not_to_be_visible()            # 注释：等模态关闭动画结束
+```
+
+**范式 3 — 轮询后端真实状态（替代"异步操作等待"，A2 核心，复用 `wait_for_backend`）**
+```python
+# edit_switch_helpers.py:115 已有范本
+def wait_for_backend(path, expect_status=200, timeout=8.0, interval=0.2):
+    """轮询 GET /api/document/{path} 直到返回 expect_status（默认 200）。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        resp = requests.get(f"{API_BASE}/api/document/{path}", headers=AUTH)
+        if resp.status_code == expect_status:
+            return resp
+        time.sleep(interval)                  # 短轮询，不白等
+    raise AssertionError(f"后端 {path} 未在 {timeout}s 内达到 {expect_status}")
+
+# 改造前（exit_inplace 后等 autosave 落库）
+page.wait_for_timeout(1200)
+assert_backend_content(DOC_MAIN, marker)
+# 改造后：等保存真正落库
+wait_for_backend(DOC_MAIN, 200)              # 注释：等自动保存 debounce 后内容落库
+assert_backend_content(DOC_MAIN, marker)
+```
+
+**范式 4 — 前端状态信号轮询（替代"懒加载/前端内部异步等待"，A2 用）**
+```python
+def wait_for_preview_update(page, card, expect_text, timeout=5.0):
+    """轮询卡片预览 body，直到含预期内容（替代固定 1500ms）。"""
+    body = card.locator(".doc-card__preview__body")
+    expect(body).to_be_visible(timeout=timeout)   # 先等元素进 DOM
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if expect_text in body.inner_text():
+            return
+        page.wait_for_timeout(100)                # 短轮询间隔
+    raise AssertionError(f"预览未更新为 {expect_text!r}")
+```
+
+#### (A1) 可安全改的"过渡/动画等待"（低风险，优先做）
+
+不涉"懒加载时序敏感"，改条件等待**只会更稳不会更 flaky**。逐文件清单：
+
+- **`test_doc_card_hover.py`**（PR1）
+  - L46 `_open_dashboard` 的 `wait_for_timeout(1000)` → 已有 `wait_for_selector(".doc_card")`；删 sleep，改 `expect(page.locator(".doc-card").first).to_be_visible()`
+  - L83 `test_h2` click ref 后 `1000` → `expect(page).to_have_url(re.compile(r"#doc/.*"))` 或等目标文档标题出现
+  - L97/L116 `page.mouse.move(5,5)` 后 `400` → 删（`mouse.move` 瞬时；如需等 hover 态消失，改 `expect(hover_preview).not_to_be_visible()`）
+  - L140/L144/L152/L159/L168/L173 模态 `600/700` → 范式 2（`to_be_visible()` / `not_to_be_visible()`）
+  - **保留** L56 `_hover_card_by_title` 的 `1300`（见 A2①）
+- **`edit_switch_helpers.py` + `test_edit_switch.py`**（PR2，已有 `wait_for_backend` 范本）
+  - `open_doc` L31 `600` → 已有 `wait_for_selector(".ProseMirror")`；删 sleep
+  - `enter_edit` L43 `250` → 已有 `wait_for_selector(".viewer__title-input")`；删 sleep
+  - `navigate` L101 `1500` → 按 target 等对应元素（如 `expect(page.locator(".ProseMirror")).to_be_visible()`）
+- **`test_smoke` / `test_paste_markdown` / `test_refwarn_toast`**（PR3）
+  - 各 transition 类 sleep → 范式 1/2；paste 的 `wait_for_timeout(600)` 等渲染 → `expect(编辑器内容含粘贴标记)`
+
+#### (A2) 时序敏感、暂缓（高风险，需小步验证，每处单独 PR4）
+
+历史"批量跑偶发失败"坑。改造方向是**轮询真实状态 / 串接异步链路**，非简单 `expect`。**必须小步 + 反复跑 3 轮以上验证无 flaky 才合并**。
+
+- **① hover 预览懒加载 `1300ms`（`_hover_card_by_title` L56，注释"连续 hover 时序敏感"）**
+  风险：hover 触发异步 fetch，预览元素未进 DOM 就 `expect` 会失败。
+  改造：先 `expect(card.locator(".doc-card__preview__body")).to_be_visible()`（等元素出现），再用范式 4 `wait_for_preview_update` 等内容填充。**连续 hover 必须等前一个预览消失再 hover 下一个**（现靠 `400ms + mouse.move(5,5)`）→ 改 `expect(前一个 preview).not_to_be_visible()` 后再 hover 下一个。
+- **② 自动保存 debounce `1000/1200ms`（`exit_inplace` L62、`apply_mod` 后）**
+  改造：`exit_inplace` 后不 sleep，改 `wait_for_backend(DOC_MAIN, 200)`（等后端 GET 返回 200 + 内容含 marker）。若前端暴露保存态（如 `Alpine.store('app').saving`），可加 `wait_for_saving_done(page)` 双保险；否则只用后端轮询。
+- **③ 异步退出编辑 `2500ms`（`edit_switch_helpers` L239 DELETE + toast + 倒计时跳转）**
+  改造：DELETE 后 `expect(toast).to_contain_text(...)`（等 toast 出现）→ `expect(page).to_have_url("#dashboard")` 或等目标视图出现（替代"等倒计时跳转完成"的固定 2500ms）。
+
+#### 新增 helper 建议（放 `edit_switch_helpers.py`，不新建文件）
+
+- `wait_for_preview_update(page, card, text, timeout=5)` — 范式 4，轮询预览内容
+- `wait_for_view(page, hash_or_locator, timeout=5)` — 等视图切换完成（dashboard/doc 互跳）
+- （可选）`wait_for_saving_done(page, timeout=5)` — 等前端保存态结束（需确认 `Alpine.store('app').saving` 可用）
+
+#### 防 flaky 规则（写入 conftest / helpers 约定，纳入 code review）
+
+1. **禁止新增裸 `wait_for_timeout` 防竞态**：任何"等异步"必须用语义化等待（expect / `wait_for_backend` / 自定义 `wait_for_*`）。
+2. **新增等待必须注释"等什么状态"**：如 `expect(modal).to_be_visible()  # 等删除确认模态出现`。
+3. **选对信号**：等"内容/状态"而非"元素存在"；懒加载先等元素出现再等内容（范式 4）。
+4. **异步链路按顺序串条件**：A2 的 fetch→填充→消失必须逐步 `expect`，不可只等一步。
+5. **`wait_for_backend` 为唯一后端轮询入口**，各处不得重写轮询逻辑。
+6. **每 PR 合并前连跑 3 次**该文件（或全量），任一次失败即退回。
 
 ### 否决 D（不做）
 
