@@ -1438,6 +1438,58 @@ let _tocCollapsedSet = {};
       return cfg[platform].client_installed;
     },
 
+    /** 某平台连接态原始值：优先后端 clientConfig[platform].connection（数据驱动）；
+     *  后端未返回 connection（mock 阶段/旧后端）时回退本地演示假数据。 */
+    connectionValue(platform) {
+      const cfg = this.clientConfig && this.clientConfig[platform];
+      if (cfg && cfg.connection) return cfg.connection;
+      return this._mockConnection(platform);
+    },
+
+    /** 连接态样式类：not_connected / connected / inactive / lost / disabled。
+     *  置灰唯一依据 = clientInstalled(platform)：!installed（含 null/undefined）→ disabled；
+     *  installed 平台无论 configured on/off/null 都显示真实 connection（SPEC §3.5 架构修订）。 */
+    connectionClass(platform) {
+      if (!this.clientInstalled(platform)) return "disabled";
+      const conn = this.connectionValue(platform);
+      return ["not_connected", "connected", "inactive", "lost"].includes(conn) ? conn : "not_connected";
+    },
+
+    /** 连接态行内文本（四态 + disabled；集中映射，无散落硬编码） */
+    connectionLabel(platform) {
+      const LABELS = {
+        not_connected: "未连接",
+        connected: "已连接",
+        inactive: "未激活",
+        lost: "已断联",
+        disabled: "未连接",
+      };
+      return LABELS[this.connectionClass(platform)] || "未连接";
+    },
+
+    /** 连接态 tooltip 完整文案（SPEC §2.2 定稿；集中映射，无散落硬编码） */
+    connectionTooltip(platform) {
+      const TIPS = {
+        not_connected: "该平台从未连接过 MyKnowledge，配置后在此显示实时连接状态",
+        connected: "平台近期正在使用 MyKnowledge 的 MCP，可正常调用知识库工具",
+        inactive: "平台较长时间未调用 MCP，可能处于空闲或已停用；到平台使用一次 MyKnowledge 即可确认",
+        lost: "已判定断联（可能平台退出或 MCP 被关闭）；请到该平台重新使用一次 MyKnowledge 以重新激活",
+        disabled: "该平台客户端未安装，安装并配置后在此显示实时连接状态",
+      };
+      return TIPS[this.connectionClass(platform)] || TIPS.not_connected;
+    },
+
+    /** mock 阶段本地演示连接数据（后端 client_config 返回 connection 后自动被真实值覆盖） */
+    _mockConnection(platform) {
+      const MOCK = {
+        ClaudeCode: "not_connected",
+        ClaudeDesktop: "not_connected",
+        CodeBuddyIDE: "connected",
+        WorkBuddy: "inactive",
+      };
+      return MOCK[platform] || "not_connected";
+    },
+
     /** 某平台适用的 kind 列表（mcpOnly 平台仅 mcp，与后端 client_config._kinds_for 一致） */
     platformKinds(platform) {
       const plat = this.clientPlatforms.find(p => p.key === platform);

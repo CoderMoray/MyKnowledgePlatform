@@ -56,16 +56,23 @@ class TestStage3StaticStructure:
                      "clientPlatforms", "clientKinds", "loadClientConfig",
                      "configureClient", "copyClientPrompt", "openSettings",
                      "rerunGuide", "isClientConfiguring", "clientStatus",
-                     "guideConfigItems", "guideSummary", "deleteClientConfig"]:
+                     "guideConfigItems", "guideSummary", "deleteClientConfig",
+                     "connectionValue", "connectionClass", "connectionLabel",
+                     "connectionTooltip", "clientInstalled"]:
             assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
-        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy），标签定稿 Claude Code/CodeBuddy IDE"""
+        """平台列表与后端 client_config.PLATFORMS 严格一致（PascalCase 平台标识符）：
+        ClaudeCode / ClaudeDesktop(MCP-only) / CodeBuddyIDE / WorkBuddy；标签定稿 Claude Code / CodeBuddy IDE"""
         js = STORE.read_text(encoding="utf-8")
-        assert "claude" in js and "codebuddy" in js, "Missing claude/codebuddy platforms"
-        # 平台标签定稿（SETTINGS_REDESIGN_SPEC：Claude Code（CLI）/ CodeBuddy IDE（IDE））
+        for key in ["ClaudeCode", "ClaudeDesktop", "CodeBuddyIDE", "WorkBuddy"]:
+            assert f'key: "{key}"' in js, f"Missing platform key: {key}"
+        # mcpOnly 平台（ClaudeDesktop）仅 MCP
+        assert "mcpOnly" in js, "Missing mcpOnly flag (ClaudeDesktop)"
+        # 平台标签定稿（Claude Code（CLI）/ CodeBuddy IDE（IDE））
         assert "Claude Code" in js, "Missing Claude Code platform label"
         assert "CodeBuddy IDE" in js, "Missing CodeBuddy IDE platform label"
+        assert "WorkBuddy" in js, "Missing WorkBuddy platform label"
         # 不应出现 cursor 平台（后端未实现，前端不硬编码）
         assert "cursor" not in js, "cursor 平台不应存在（后端 PLATFORMS 未含 cursor）"
 
@@ -119,6 +126,13 @@ class TestStage3StaticStructure:
         assert "clientInstalled" in html, "Missing clientInstalled (5 态状态机)"
         assert "clientFallback" in html, "Missing clientFallback (fallback 可交互文本)"
         assert "重新检测" in html, "Missing 重新检测 button"
+        # 连接态（MCP 卡平台行右，平台级四态）：仅 MCP 卡展示（kind.key === 'mcp'）
+        assert "ai-platform-row__connection" in html, "Missing connection area"
+        assert "connection-tip" in html, "Missing connection-tip (dot+text+tooltip)"
+        assert "connectionClass" in html, "Missing connectionClass (连接态样式类)"
+        assert "connectionLabel" in html, "Missing connectionLabel (连接态文本)"
+        assert "connectionTooltip" in html, "Missing connectionTooltip (四态文案)"
+        assert "kind.key === 'mcp'" in html, "连接态应仅在 MCP 卡展示 (x-show kind.key === 'mcp')"
         # 平台标签经 plat.label 动态渲染（"Claude Code" 断言在 store 平台测试中）
         # 引导页仍保留 configure/copy（Step2 兜底）
         assert "configureAi" in html, "Missing configureAi (guide Step2)"
@@ -135,7 +149,15 @@ class TestStage3StaticStructure:
                     "theme-picker", "color-mode-seg", "ai-platform-row",
                     "ai-platform-row__name", "ai-platform-row__state",
                     "toggle", "toggle--on-soft", "toggle--off-soft", "toggle--failed",
-                    "ai-platform-fallback", "settings-card__row"]:
+                    "ai-platform-fallback", "settings-card__row",
+                    "ai-platform-row__connection", "connection-tip",
+                    "connection-dot", "connection-dot--not_connected",
+                    "connection-dot--connected", "connection-dot--inactive",
+                    "connection-dot--lost", "connection-dot--disabled",
+                    "connection-text", "connection-text--not_connected",
+                    "connection-text--connected", "connection-text--inactive",
+                    "connection-text--lost", "connection-text--disabled",
+                    "connection-tip__bubble"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 
     def test_stage3_css_toggle_knob_slides(self):
@@ -179,6 +201,8 @@ class TestStage3Build:
             "settings-nav", "settings-card", "ai-platform-row",
             "复制 prompt 给 AI", "saveSettingsIdentity", "configureAi",
             "Claude Code", "toggle--failed", "重新检测", "clientInstalled",
+            "connectionClass", "connectionLabel", "connectionTooltip",
+            "connection-tip", "connection-dot",
         ]
         for c in checks:
             assert c in content, f"Standalone missing stage3 content: {c}"
@@ -251,6 +275,43 @@ class TestStage3Browser:
         dur = page.locator(".toggle__knob").first.evaluate(
             "el => getComputedStyle(el).transitionDuration")
         assert "0.42" in dur, f"knob transition-duration 应为 0.42s: {dur}"
+
+    def test_settings_mcp_connection_ui(self, static_server, page, backend_running):
+        """连接态 UI：MCP 卡平台行右显示 10px dot + 文本 + tooltip（仅 MCP 卡）；
+        置灰仅 !installed（ClaudeCode 未安装 → disabled）；Hooks/Agents 页不显示连接态。
+        只读不写，不触达用户全局配置。"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        self._open_settings(page)
+        # MCP 页：连接态区可见（每平台一行，platformsForKind('mcp') = 4 平台）
+        page.locator(".settings-nav__item", has_text="MCP").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".ai-platform-row__connection").first).to_be_visible(timeout=3000)
+        expect(page.locator(".connection-tip").first).to_be_visible(timeout=3000)
+        expect(page.locator(".connection-dot").first).to_be_visible(timeout=3000)
+        # 连接文本非空（未连接/已连接/未激活/已断联 之一）
+        texts = page.locator(".connection-text").all_inner_texts()
+        assert texts and all(t.strip() for t in texts), f"连接文本不应为空: {texts}"
+        # 置灰仅 !installed：所有平台行 dot class 必须属于连接态类；未装平台（disabled）与
+        # 已装平台（真实四态）并存——未安装的 ClaudeCode/ClaudeDesktop → disabled，已安装
+        # 的 CodeBuddyIDE/WorkBuddy → 非 disabled（显示真实 connection）
+        dot_classes = page.locator(".connection-dot").evaluate_all(
+            "els => els.map(e => e.className)")
+        valid = ["not_connected", "connected", "inactive", "lost", "disabled"]
+        for cls in dot_classes:
+            assert any(f"connection-dot--{s}" in cls for s in valid), f"连接态 dot 类非法: {cls}"
+        assert any("connection-dot--disabled" in c for c in dot_classes), \
+            f"应有未安装平台置灰(disabled): {dot_classes}"
+        assert any("connection-dot--disabled" not in c for c in dot_classes), \
+            f"已安装平台应显示真实 connection（非 disabled）: {dot_classes}"
+        # Hooks 页：连接态不显示（x-show kind.key === 'mcp' 隐藏）
+        page.locator(".settings-nav__item", has_text="Hooks").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".ai-platform-row__connection").first).not_to_be_visible(timeout=3000)
+        # 回到 MCP 页连接态恢复可见（x-show 切换正常）
+        page.locator(".settings-nav__item", has_text="MCP").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".ai-platform-row__connection").first).to_be_visible(timeout=3000)
 
     def test_guide_wizard_three_steps(self, static_server, page, backend_running):
         """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""

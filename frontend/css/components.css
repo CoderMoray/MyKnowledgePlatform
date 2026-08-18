@@ -2303,6 +2303,83 @@
 .ai-platform-row__state--soft { color: var(--text-muted); }
 .ai-platform-row__state--fail { color: var(--color-danger); }
 
+/* ── 连接态（MCP 卡平台行右，平台级四态：not_connected/connected/inactive/lost；置灰仅 !installed） ── */
+.ai-platform-row__connection {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border-subtle);
+}
+.connection-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: help;
+}
+/* 连接态 dot：10px + 白描边（区分配置态实心 8px） */
+.connection-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--card-glass-bg);
+  flex-shrink: 0;
+}
+.connection-dot--not_connected { background: var(--text-muted); }
+.connection-dot--connected     { background: var(--color-success); }
+.connection-dot--inactive      { background: var(--color-warning); }
+.connection-dot--lost          { background: var(--color-danger); }
+.connection-dot--disabled      { background: var(--text-muted); opacity: 0.4; }  /* 仅 !installed 置灰 */
+/* 连接态文本 */
+.connection-text {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.connection-text--not_connected { color: var(--text-muted); }
+.connection-text--connected     { color: var(--color-success); }
+.connection-text--inactive      { color: var(--color-warning); }
+.connection-text--lost          { color: var(--color-danger); }
+.connection-text--disabled      { color: var(--text-muted); opacity: 0.4; }
+/* tooltip 气泡（纯 CSS hover/focus，200ms 延迟防误触） */
+.connection-tip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: #111827;
+  color: #fff;
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: var(--shadow-card);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-interactive), visibility var(--transition-interactive);
+  transition-delay: 200ms;
+  z-index: 20;
+  pointer-events: none;
+}
+.connection-tip:hover .connection-tip__bubble,
+.connection-tip:focus .connection-tip__bubble {
+  opacity: 1;
+  visibility: visible;
+}
+/* 箭头：指向目标的小三角 */
+.connection-tip__bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #111827;
+}
+
 /* 5 态开关：on / off / on-soft（未装但已配）/ off-soft（未装未配）/ failed（检测失败） */
 .toggle {
   position: relative;

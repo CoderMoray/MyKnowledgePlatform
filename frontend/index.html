@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=758572e7f8" />
+  <link rel="stylesheet" href="css/components.css?v=eae406aca6" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=15b6ac8bd6"></script>
+  <script src="js/store.js?v=c96113a2ae"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1901,6 +1901,19 @@
                                       : $store.app.configureClient(plat.key, kind.key)">
                         <span class="toggle__knob"></span>
                       </button>
+                      <!-- 连接态（平台级，仅 MCP 卡展示）：10px 白描边 dot + 文本 + 纯 CSS tooltip；置灰仅 !installed -->
+                      <div class="ai-platform-row__connection" x-show="kind.key === 'mcp'">
+                        <div class="connection-tip" tabindex="0" role="status"
+                             :title="$store.app.connectionTooltip(plat.key)"
+                             :aria-label="$store.app.connectionTooltip(plat.key)">
+                          <span class="connection-dot"
+                                :class="'connection-dot--' + $store.app.connectionClass(plat.key)"></span>
+                          <span class="connection-text"
+                                :class="'connection-text--' + $store.app.connectionClass(plat.key)"
+                                x-text="$store.app.connectionLabel(plat.key)"></span>
+                          <div class="connection-tip__bubble" x-text="$store.app.connectionTooltip(plat.key)"></div>
+                        </div>
+                      </div>
                     </div>
                     <div class="ai-platform-fallback"
                          x-show="$store.app.clientFallback === plat.key + '-' + kind.key"
