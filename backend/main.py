@@ -1275,6 +1275,25 @@ def api_client_config_write(platform: str, kind: str):
         raise HTTPException(400, str(e))
 
 
+@app.delete("/api/client-config/{platform}/{kind}")
+def api_client_config_remove(platform: str, kind: str):
+    """Remove the MyKnowledge config entry for one platform/kind.
+
+    ``platform``: ``claude`` | ``codebuddy`` | ``workbuddy``;
+    ``kind``: ``mcp`` | ``hooks`` | ``agent``.
+    Removes **only** the MyKnowledge entries (the user's other mcpServers /
+    hooks / settings are preserved).  Idempotent — removing an already-absent
+    entry succeeds.
+
+    Returns ``{platform, kind, file, status: "removed"}``.
+    """
+    from backend.client_config import remove_kind
+    try:
+        return remove_kind(platform, kind)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 # ══════════════════════════════════════════════════════════════
 #  Hooks (PreToolUse 管控 AI 裸操作知识库)
 # ══════════════════════════════════════════════════════════════

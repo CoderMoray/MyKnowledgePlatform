@@ -21,6 +21,7 @@ from backend.client_config import (
     detect_all,
     detect_platform,
     mcp_entry,
+    remove_kind,
     write_kind,
 )
 
@@ -256,6 +257,83 @@ class TestInvalidInput:
     def test_bad_kind(self, fake_home: Path) -> None:
         with pytest.raises(ValueError, match="不支持的配置类型"):
             write_kind("claude", "nope")
+
+
+class TestRemoveKind:
+    def test_remove_mcp_keeps_others(self, fake_home: Path) -> None:
+        """mcpServers loses MyKnowledge, other servers preserved."""
+        mcp = fake_home / ".codebuddy" / "mcp.json"
+        _write_json(mcp, {"mcpServers": {
+            "RAPID": {"type": "stdio", "command": "x"},
+            "MyKnowledge": {"type": "stdio", "command": "y"},
+        }})
+        write_kind("codebuddy", "mcp")  # ensures entry is ours-format
+        remove_kind("codebuddy", "mcp")
+        servers = _read_json(mcp)["mcpServers"]
+        assert "MyKnowledge" not in servers
+        assert "RAPID" in servers
+
+    def test_remove_hooks_keeps_others(self, fake_home: Path) -> None:
+        """PreToolUse loses the MyKnowledge Bash matcher, keeps other matchers."""
+        s = fake_home / ".claude" / "settings.json"
+        _write_json(s, {"hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash",
+                 "hooks": [{"type": "command",
+                            "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use x"}]},
+                {"matcher": "Edit|Write",
+                 "hooks": [{"type": "command", "command": "fmt"}]},
+            ],
+        }})
+        write_kind("claude", "hooks")  # ensures our matcher present
+        remove_kind("claude", "hooks")
+        data = _read_json(s)
+        matchers = [m.get("matcher") for m in data["hooks"]["PreToolUse"]]
+        # MyKnowledge Bash matcher removed, Edit|Write preserved
+        assert "Bash" not in matchers
+        assert "Edit|Write" in matchers
+
+    def test_remove_agent_deletes_file(self, fake_home: Path) -> None:
+        write_kind("codebuddy", "agent")
+        path = fake_home / ".codebuddy" / "agents" / "MyKnowledge-agent.md"
+        assert path.exists()
+        remove_kind("codebuddy", "agent")
+        assert not path.exists()
+
+    def test_remove_idempotent(self, fake_home: Path) -> None:
+        """Removing an absent entry succeeds (no error)."""
+        res = remove_kind("codebuddy", "mcp")
+        assert res["status"] == "removed"
+        remove_kind("claude", "agent")  # no file → still ok
+        remove_kind("claude", "hooks")  # no hooks → still ok
+
+    def test_remove_unknown_platform_kind(self, fake_home: Path) -> None:
+        with pytest.raises(ValueError, match="不支持的平台"):
+            remove_kind("cursor", "mcp")
+        with pytest.raises(ValueError, match="不支持的配置类型"):
+            remove_kind("claude", "nope")
+
+    def test_api_delete_returns_removed(self, fake_home: Path) -> None:
+        from backend.main import app
+        c = TestClient(app)
+        r = c.delete("/api/client-config/codebuddy/mcp")
+        assert r.status_code == 200
+        assert r.json()["status"] == "removed"
+        assert r.json()["kind"] == "mcp"
+
+    def test_api_delete_reflects_in_detect(self, fake_home: Path) -> None:
+        from backend.main import app
+        c = TestClient(app)
+        c.post("/api/client-config/codebuddy/mcp")
+        assert c.get("/api/client-config").json()["codebuddy"]["mcp"] is True
+        c.delete("/api/client-config/codebuddy/mcp")
+        assert c.get("/api/client-config").json()["codebuddy"]["mcp"] is False
+
+    def test_api_delete_bad_platform(self, fake_home: Path) -> None:
+        from backend.main import app
+        c = TestClient(app)
+        r = c.delete("/api/client-config/cursor/mcp")
+        assert r.status_code == 400
 
 
 class TestREST:

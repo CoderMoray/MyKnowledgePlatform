@@ -248,3 +248,54 @@ def write_kind(platform: str, kind: str) -> dict:
     path.write_text(agent_content(platform), encoding="utf-8")
     return {"platform": platform, "kind": "agent", "file": str(path),
             "status": "written", "detected": True}
+
+
+def remove_kind(platform: str, kind: str) -> dict:
+    """Remove the MyKnowledge config entry for one platform/kind.
+
+    Only MyKnowledge-related entries are touched — the user's other config
+    (other mcpServers, other hooks/matchers, unrelated settings) is preserved.
+    Idempotent: removing an already-absent entry succeeds (no error).
+
+    Returns ``{"platform", "kind", "file", "status": "removed"}``.
+    """
+    if platform not in PLATFORMS:
+        raise ValueError(f"不支持的平台: {platform}")
+    if kind not in KINDS:
+        raise ValueError(f"不支持的配置类型: {kind}（mcp/hooks/agent）")
+    p = _platform_paths(platform)
+
+    if kind == "mcp":
+        path = p["mcp_file"]
+        data = _load_json(path)
+        servers = data.get("mcpServers")
+        if isinstance(servers, dict):
+            servers.pop("MyKnowledge", None)
+            _save_json(path, data)
+        return {"platform": platform, "kind": "mcp", "file": str(path),
+                "status": "removed"}
+
+    if kind == "hooks":
+        path = p["settings_file"]
+        data = _load_json(path)
+        hooks = data.get("hooks")
+        if isinstance(hooks, dict):
+            existing = hooks.get("PreToolUse") or []
+            # 只移除 MyKnowledge 的 Bash matcher（保留用户其他 matcher/hook）
+            kept = [m for m in existing
+                    if not (isinstance(m, dict)
+                            and m.get("matcher") == "Bash"
+                            and m.get("hooks")
+                            and HOOK_ENDPOINT in str(m["hooks"]))]
+            if len(kept) != len(existing):
+                hooks["PreToolUse"] = kept
+                _save_json(path, data)
+        return {"platform": platform, "kind": "hooks", "file": str(path),
+                "status": "removed"}
+
+    # agent
+    path = p["agents_dir"] / "MyKnowledge-agent.md"
+    if path.exists():
+        path.unlink()
+    return {"platform": platform, "kind": "agent", "file": str(path),
+            "status": "removed"}
