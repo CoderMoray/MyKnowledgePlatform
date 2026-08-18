@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# MyKnowledge 版本一致性守门
+#
+# push 前检查所有"静态版本号"是否一致，防止发版时漏改某个文件：
+#   - backend/__version__.py   （权威来源，CLI/doctor/upgrade 显示用）
+#   - desktop/package.json     （Electron 产物版本，electron-builder 读它命名 dmg/zip）
+#   - pyproject.toml           已 dynamic 派生自 __version__.py，无需检查
+# 不一致 → exit 1 阻止 push。
+#
+# 启用（一次性，本地配置不进 git）：
+#   git config core.hooksPath .githooks
+# 详见 docs/DEV.md「版本一致性守门」。
+#
+# 跳过（不建议）：git push --no-verify
+
+set -u
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+# 提取 backend/__version__.py 的版本号（__version__ = "X.Y.Z"）
+py_ver="$(sed -n 's/^__version__ *= *"\([^"]*\)" */\1/p' "$ROOT/backend/__version__.py" | head -1)"
+# 提取 desktop/package.json 的版本号（"version": "X.Y.Z"）
+js_ver="$(sed -n 's/^  *"version" *: *"\([^"]*\)" *,*$/\1/p' "$ROOT/desktop/package.json" | head -1)"
+
+fail=0
+if [ -z "$py_ver" ]; then
+  echo "✗ 无法解析 backend/__version__.py 的版本号" >&2
+  fail=1
+fi
+if [ -z "$js_ver" ]; then
+  echo "✗ 无法解析 desktop/package.json 的版本号" >&2
+  fail=1
+fi
+if [ "$fail" -ne 0 ]; then
+  echo "  push 已中止（可用 git push --no-verify 跳过，但不建议）" >&2
+  exit 1
+fi
+
+if [ "$py_ver" != "$js_ver" ]; then
+  echo "✗ 版本号不一致：" >&2
+  echo "    backend/__version__.py = $py_ver" >&2
+  echo "    desktop/package.json    = $js_ver" >&2
+  echo "  发版请同步两处（pyproject.toml 已 dynamic 派生，无需改）" >&2
+  echo "  push 已中止（可用 git push --no-verify 跳过，但不建议）" >&2
+  exit 1
+fi
+
+echo "✓ 版本一致：v$py_ver"
+exit 0

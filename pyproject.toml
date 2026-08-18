@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "myknowledge"
-version = "0.7.0"
+# 版本单一来源：backend/__version__.py（发版只改那里，pyproject 自动派生，
+# 由 .githooks/pre-push 校验与 desktop/package.json 一致）。
+dynamic = ["version"]
 description = "Local-first 知识管理平台 — 纯 Markdown + Git + MCP，让 AI 取·存你的知识"
 requires-python = ">=3.10"
 dependencies = [
@@ -26,6 +28,10 @@ dependencies = [
 
 [project.scripts]
 myknowledge = "backend.cli:main"
+
+[tool.setuptools.dynamic]
+# 静态 AST 解析 backend/__version__.py（不执行包导入，不触发 h11 检查）
+version = {attr = "backend.__version__.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["."]

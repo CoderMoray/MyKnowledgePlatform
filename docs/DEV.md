@@ -154,6 +154,32 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 （被引用的 js/ 注册符号全含）③ CSS 内联完整性（CSS_ORDER 选择器全含）④ `?v=` 与文件内容
 md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变红，只有 build 真破坏产物才失败。
 
+### 版本一致性守门（2026-08-18 引入）
+
+**背景**：`0.7.5` 发版曾漏改 `pyproject.toml`（PyPI 元数据停在 0.7.0），
+导致 `pip install` 包元数据与 CLI 版本不一致、`upgrade` 检测错乱。
+
+**版本单一来源架构**：
+
+| 文件 | 角色 | 发版时改？ |
+|---|---|---|
+| `backend/__version__.py` | **权威来源**（CLI/doctor/upgrade 显示） | ✅ 唯一必改 |
+| `desktop/package.json` | Electron 产物版本（electron-builder 读它命名 dmg/zip） | ✅ 桌面发版时同步 |
+| `pyproject.toml` | **已 `dynamic = ["version"]`** 派生自 `__version__.py`（setuptools 静态 AST 解析，不触发包导入/h11 检查） | ❌ 无需改 |
+
+**L1 — pre-push hook（本地自动守门）**：
+
+- 脚本：`.githooks/pre-push`（进 git，随仓库共享）
+- 启用（一次性，本地配置不进 git）：`git config core.hooksPath .githooks`
+  （与 pre-commit 同目录，一次配置两者皆生效）
+- 行为：push 前比对 `backend/__version__.py` 与 `desktop/package.json` 版本号，
+  不一致 → **中止 push** 并打印两侧实际值；解析失败同样中止。
+- 跳过（不建议）：`git push --no-verify`
+
+**发版流程（更新后）**：只改 `backend/__version__.py`（桌面发版再加
+`desktop/package.json`）→ pre-push 校验一致 → 打 tag → push。
+
+
 **前端分发（2026-08-10 修复）**：
 
 - **源码 clone**：`index.standalone.html` 被 .gitignore 忽略不在 git 里 → 后端 serve 检测缺失时
