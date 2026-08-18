@@ -140,7 +140,7 @@ class TestStage3StaticStructure:
         assert "组织代码" in html, "Missing 组织代码 field (SHARE_MAP)"
         assert "guideStep1Valid" in html, "Missing guideStep1Valid (4 字段校验)"
         assert "guideOrgCodeError" in html, "Missing guideOrgCodeError (三位正整数校验)"
-        assert "分享鉴权" in html, "Missing 分享鉴权说明文案"
+        # 分享鉴权说明整行已按产品反馈移除（"企业名称与组织代码用于知识库分享鉴权…"不再显示）
         # Step2.1 平台多选：未安装禁用 + 至少选 1
         assert "guide-platform-row" in html, "Missing guide-platform-row (平台多选行)"
         assert "未安装" in html, "Missing「未安装」标注"

@@ -2193,8 +2193,8 @@
   max-width: 840px;
   height: 640px;
   max-height: 640px;
-  padding: 24px 28px;
-  background: var(--card-bg);
+  padding: 28px 48px; /* 左右页边距加宽（视觉不再顶满），内容每页更透气 */
+  background: var(--surface); /* 背景更白（light 0.82 白 > 原 0.7 玻璃白），dark 跟随主题 */
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 0.5px solid rgba(0, 0, 0, 0.06);
@@ -2235,7 +2235,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default); /* 分割线更深一档（灰一点） */
 }
 .guide-platform-row__dot {
   width: 16px;
@@ -2293,7 +2293,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default); /* 分割线更深一档（灰一点） */
   font-size: var(--text-sm);
   color: var(--text-primary);
 }
