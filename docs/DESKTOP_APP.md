@@ -14,7 +14,9 @@
 │   ├─ 先显示 loading 等待页，后端就绪后加载主界面              │
 │   ├─ preload 注入 window.__MYK_API_BASE__（前端已有注入点）   │
 │   ├─ 外部链接交给系统浏览器                                  │
-│   └─ 窗口关闭 → kill 后端子进程                              │
+│   ├─ 无边框标题栏（titleBarStyle:hidden，红黄绿保留）         │
+│   ├─ 关闭询问（自绘 modal：退出/后台托管/取消 + 记住选择）     │
+│   └─ Tray 后台托管（菜单栏图标 + 缩小动画，进程常驻）          │
 │  ├─ Resources/myknowledge-backend/                          │
 │  │    PyInstaller onedir 产物（FastAPI + uvicorn + 前端静态） │
 │  │    知识库仍用 ~/.myknowledge/（与 CLI/MCP 完全一致）       │
@@ -26,13 +28,15 @@
 ```
 desktop/
 ├── package.json          # electron + electron-builder，npm scripts
-├── main.js               # 主进程：spawn 后端 / 端口协商 / 生命周期
-├── preload.js            # 注入 window.__MYK_API_BASE__
+├── main.js               # 主进程：spawn 后端 / 端口协商 / 关闭询问 / Tray 托管
+├── preload.js            # 注入 window.__MYK_API_BASE__ + 关闭询问 IPC 桥
 ├── loading.html          # 后端冷启动期间的等待页
 ├── electron-builder.yml  # 打包配置（.app / zip / dmg）
 └── assets/
     ├── icon.svg          # 图标源文件（与前端 favicon 同风格）
-    └── icon.icns         # 生成产物（gitignore，用脚本生成）
+    ├── icon.icns         # 生成产物（gitignore，用脚本生成）
+    ├── trayTemplate.png  # 菜单栏托盘图标（template，纯黑 M + 透明底）
+    └── trayTemplate@2x.png
 scripts/
 ├── build-backend.sh      # 前端构建 + PyInstaller 打包后端
 └── make-icon.sh          # icon.svg → icon.icns
@@ -115,7 +119,10 @@ cd desktop && npm run release
 | **动态端口 + `__MYK_API_BASE__` 注入** | 8080 可能与浏览器版 `myknowledge serve` 冲突；前端 `api.js` 的 hostname 分支写死 8080，动态端口必须走 preload 注入 |
 | **前端由后端托管**（`http://127.0.0.1:PORT`） | 与浏览器完全一致；`file://` 加载 ES Module（tiptap-bundle.mjs）会被 CORS 拦截 |
 | **单实例锁** | 两个 app 同时写一个知识库会互相清锁 |
-| **窗口关闭即退出** | 工具类 app 语义；同时确保后端子进程被 kill |
+| **无边框标题栏**（`titleBarStyle:'hidden'`） | 去掉原生标题栏但保留系统红黄绿；sidebar 顶部 28px 拖拽条（`-webkit-app-region: drag`）让位 traffic lights，非桌面模式 display:none 网页端零变化 |
+| **关闭询问自绘 modal** | 点红点不直接退出，弹自绘 modal（复用 `.guide-modal` 基建）三选「退出/后台托管/取消」+「记住我的选择」；记住后走 `__mykInitClosePreference__` 跳过 modal 直接执行 |
+| **Tray 后台托管** | 选「后台托管」→ Dock 隐藏 + ~250ms 缩小动画 + hide 到菜单栏，进程常驻、后端不退出；菜单栏图标（template 纯黑 M）三项菜单「显示主窗口/关于/退出」，「显示主窗口」是唯一恢复入口 |
+| **窗口退出流程** | 真正退出（app.quit）→ `before-quit` 设 isQuitting + SIGTERM 停后端 → 窗口 close 放行；Tray 托管下 `window-all-closed` 不退出 |
 
 ## 7. 已知限制
 
@@ -129,7 +136,7 @@ cd desktop && npm run release
 
 ### P0 — 近期（体验与分发核心）
 
-- ⏳ **标题栏一体化（hiddenInset）+ 前端顶栏重构**：`titleBarStyle: 'hiddenInset'` 隐藏标题栏，红绿灯融入 UI；M logo + sidebar 折叠按钮上移顶栏，theme 收进用户菜单；顶栏设 `-webkit-app-region: drag` 拖拽区（交互元素 `no-drag`）；loading 页同步适配。*待与前端 agent 讨论布局后实施*
+- ✅ **无边框标题栏 + 关闭询问 + Tray 后台托管（2026-08-19）**：`titleBarStyle:'hidden'` 去原生标题栏（红黄绿保留），sidebar 顶部 28px 拖拽条让位；点红点弹自绘 modal 三选「退出/后台托管/取消」+ 记住选择；Tray 菜单栏托管（template 纯黑 M 图标 + 缩小动画 + 三项菜单）。隔离机制：前端 `data-app-mode="desktop"` 作用域 + `__MYK_APP_MODE__` 门控，网页端零变化。详见 `docs/designs/桌面壳-无边框托盘/SPEC.md`
 - ⬜ **启动动画最终化**：当前 loading 页方案已可用；后续把进度条与后端真实启动进度挂钩、显示阶段文案（检查 Git/初始化知识库/启动服务）
 - ⬜ **自动更新（electron-updater）**：构建产出 `latest-mac.yml`；更新源托管 **OSS**（国内速度，项目已有 oss2 能力，`.env` 配置）；app 内「检查更新」菜单项；差分更新依赖 **zip 产物保留**
 

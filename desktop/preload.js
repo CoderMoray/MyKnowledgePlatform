@@ -28,3 +28,27 @@ contextBridge.exposeInMainWorld("__MYK_APP_MODE__", true);
 contextBridge.exposeInMainWorld("__mykLoadingDone__", () => {
   ipcRenderer.send("loading-done");
 });
+
+// ── 关闭询问 / Tray 托管 IPC 桥（SPEC §三 契约）───────────────────────────
+// 点红点（主窗口）触发 → 前端弹自绘关闭询问 modal
+contextBridge.exposeInMainWorld("__mykShowCloseChoice__", (cb) => {
+  const listener = () => cb();
+  ipcRenderer.on("show-close-choice", listener);
+  // 返回取消订阅函数
+  return () => ipcRenderer.removeListener("show-close-choice", listener);
+});
+
+// 用户三选 + 是否记住 → 主进程执行（quit / tray）
+contextBridge.exposeInMainWorld("__mykSubmitCloseChoice__", (payload) => {
+  ipcRenderer.send("close-choice", payload);
+});
+
+// 初始化上报记忆偏好：有记忆则跳过 modal 直接执行（payload: {action} | null）
+contextBridge.exposeInMainWorld("__mykInitClosePreference__", (payload) => {
+  ipcRenderer.send("close-choice-init", payload);
+});
+
+// 设置页「关闭行为」写入偏好（payload: {action:'quit'|'tray'|'ask'}）
+contextBridge.exposeInMainWorld("__mykOnCloseChoice__", (payload) => {
+  ipcRenderer.send("close-choice-pref", payload);
+});

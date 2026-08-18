@@ -2668,3 +2668,63 @@
   flex: 1;
   min-width: 0;
 }
+
+/* ═══ 桌面专属：关闭询问 modal + 设置「关闭行为」分段控件 ────────────────
+   仅桌面模式（data-app-mode="desktop" / __MYK_APP_MODE__ 门控），网页端零变化 */
+
+/* 关闭询问小 modal（~400×260，复用 .modal 基建） */
+.desktop-close-modal {
+  width: 400px;
+  max-width: 400px;
+  padding: var(--space-6);
+}
+/* 三选按钮区：后台托管(次要) + 退出(危险) */
+.desktop-close-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+/* 「记住我的选择」checkbox */
+.desktop-close-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.desktop-close-remember input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* 设置页「关闭行为」三选分段控件 */
+.desktop-close-pref-seg {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 3px;
+  background: var(--bg-tertiary, #f0f0f0);
+  border-radius: var(--radius-md);
+}
+.desktop-close-pref-seg__item {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-md) - 3px);
+  cursor: pointer;
+  transition: var(--transition-interactive);
+}
+.desktop-close-pref-seg__item--active {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}

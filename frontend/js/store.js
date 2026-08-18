@@ -257,6 +257,10 @@ let _tocCollapsedSet = {};
     /** 弹窗类型: null | 'delete-doc' | 'rename-doc' | 'new-doc' | 'rename-project' | 'share-export' */
     modal: null,
 
+    /* ── 桌面关闭询问 modal 状态（仅桌面模式；网页端不使用）────────────── */
+    /** 关闭询问 modal 可见性 + 「记住我的选择」checkbox */
+    desktopCloseChoice: { show: false, remember: false },
+
     /** 分享导出：项目列表 */
     shareProjects: [],
 
@@ -1139,6 +1143,14 @@ let _tocCollapsedSet = {};
       const S = window._mykSplash;
       S.init(performance.now());
 
+      // 桌面模式：订阅主进程关闭询问事件（网页端无 __MYK_APP_MODE__，跳过）
+      if (window.__MYK_APP_MODE__) {
+        // 主进程点红点 → 渲染层检查记忆并决定弹 modal 或直接执行
+        if (window.__mykShowCloseChoice__) {
+          window.__mykShowCloseChoice__(() => this.desktopShowCloseChoice());
+        }
+      }
+
       // 恢复主题
       const savedTheme = localStorage.getItem("myknowledge-theme") || "system";
       const savedDesign = localStorage.getItem("myknowledge-design") || "raycast";
@@ -1728,6 +1740,65 @@ let _tocCollapsedSet = {};
     closeModal() {
       this.modal = null;
       this.modalData = null;
+    },
+
+    /* ── 桌面关闭询问 / Tray 托管（仅桌面模式；网页端方法存在但不触发）────── */
+
+    /** 显示关闭询问 modal（主进程 'show-close-choice' 触发）。
+     *  有记忆（之前勾选「记住」）→ 直接上报主进程执行，跳过 modal；
+     *  无记忆 → 弹自绘关闭询问 modal。 */
+    desktopShowCloseChoice() {
+      if (!window.__MYK_APP_MODE__) return;
+      // 有记忆：跳过 modal，直接让主进程执行对应动作（不嵌套）
+      const pref = localStorage.getItem("myk-close-pref");
+      if (pref === "quit" || pref === "tray") {
+        if (window.__mykInitClosePreference__) {
+          window.__mykInitClosePreference__({ action: pref });
+        }
+        return;
+      }
+      // 无记忆：弹 modal（打开期间再点红点不嵌套——show 已为 true 则忽略）
+      if (this.desktopCloseChoice.show) return;
+      this.desktopCloseChoice.show = true;
+      this.desktopCloseChoice.remember = false;
+    },
+
+    /** 关闭询问三选：quit / tray / cancel（cancel 走 desktopCloseCancel） */
+    desktopCloseSelect(action) {
+      if (action !== "quit" && action !== "tray") return;
+      const remember = this.desktopCloseChoice.remember;
+      this.desktopCloseChoice.show = false;
+      // 「记住我的选择」→ 写入 localStorage，下次关闭跳过询问直接执行
+      if (remember) {
+        localStorage.setItem("myk-close-pref", action); // 'quit' | 'tray'
+      }
+      // 通知主进程执行（真退出 / 托管）
+      if (window.__mykSubmitCloseChoice__) {
+        window.__mykSubmitCloseChoice__({ action, remember });
+      }
+    },
+
+    /** 关闭询问：取消（不退出、不托管，留在主界面） */
+    desktopCloseCancel() {
+      this.desktopCloseChoice.show = false;
+    },
+
+    /** 设置页「关闭行为」：'quit' | 'tray' | 'ask'（'ask' 清除记忆） */
+    desktopSetClosePref(action) {
+      if (action === "ask") {
+        localStorage.removeItem("myk-close-pref");
+      } else {
+        localStorage.setItem("myk-close-pref", action); // 'quit' | 'tray'
+      }
+      if (window.__mykOnCloseChoice__) {
+        window.__mykOnCloseChoice__({ action });
+      }
+    },
+
+    /** 读取当前关闭偏好（设置页三选回显；默认 'ask'） */
+    desktopGetClosePref() {
+      const pref = localStorage.getItem("myk-close-pref");
+      return pref === "quit" || pref === "tray" ? pref : "ask";
     },
 
     /** 打开分享导出弹窗，加载项目列表 */

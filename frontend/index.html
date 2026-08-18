@@ -43,11 +43,11 @@
   <!-- ═══ CSS ════════════════════════════════════════════════════════════ -->
   <link rel="stylesheet" href="css/design-tokens.css?v=8a888edc49" />
   <link rel="stylesheet" href="css/reset.css?v=05c00c5ced" />
-  <link rel="stylesheet" href="css/layout.css?v=dbb8349fcd" />
+  <link rel="stylesheet" href="css/layout.css?v=11205152af" />
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=84d2e23b94" />
+  <link rel="stylesheet" href="css/components.css?v=3720ccb124" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,9 +69,9 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=24490d6c81"></script>
+  <script src="js/store.js?v=b14f1e0631"></script>
   <script src="js/router.js?v=a1968069d7"></script>
-  <script src="js/app.js?v=3c01777a12"></script>
+  <script src="js/app.js?v=5c96193949"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
   <script src="js/components/modal.js?v=eb42bf0180"></script>
@@ -116,6 +116,9 @@
            @mousedown.self="startResize($event)"
            @mouseenter="onHoverEnter()"
            @mouseleave="onHoverLeave()">
+
+      <!-- 桌面顶部拖拽条（无边框标题栏让位 traffic lights；网页端 display:none 零变化） -->
+      <div class="sidebar-titlebar"></div>
 
       <!-- Brand -->
       <div class="sidebar-brand">
@@ -1930,6 +1933,23 @@
               </div>
             </div>
 
+            <!-- 桌面专属：关闭行为（仅桌面模式显示；网页端无 __MYK_APP_MODE__，整卡隐藏） -->
+            <div class="settings-card" x-show="window.__MYK_APP_MODE__">
+              <div class="settings-card__title">关闭行为</div>
+              <div class="settings-card__desc">点击窗口关闭按钮时的处理方式</div>
+              <div class="desktop-close-pref-seg">
+                <button class="desktop-close-pref-seg__item"
+                        :class="{ 'desktop-close-pref-seg__item--active': $store.app.desktopGetClosePref() === 'ask' }"
+                        @click="$store.app.desktopSetClosePref('ask')">询问</button>
+                <button class="desktop-close-pref-seg__item"
+                        :class="{ 'desktop-close-pref-seg__item--active': $store.app.desktopGetClosePref() === 'quit' }"
+                        @click="$store.app.desktopSetClosePref('quit')">退出</button>
+                <button class="desktop-close-pref-seg__item"
+                        :class="{ 'desktop-close-pref-seg__item--active': $store.app.desktopGetClosePref() === 'tray' }"
+                        @click="$store.app.desktopSetClosePref('tray')">后台托管</button>
+              </div>
+            </div>
+
             <div class="settings-card">
               <div class="settings-card__title">关于</div>
               <div class="settings-card__desc" x-text="'MyKnowledge v' + ($store.app.systemVersion || '1.0.0') + ' · 知识库 v' + ($store.app.kbVersion || '—')"></div>
@@ -2054,6 +2074,26 @@
                   style="width:12px;height:12px;border-width:1.5px;background:transparent;display:inline-block;"></span>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- 桌面关闭询问 modal（仅桌面模式：__MYK_APP_MODE__ 门控，网页端恒不显示） -->
+    <div class="modal-overlay desktop-close-overlay"
+         x-show="window.__MYK_APP_MODE__ && $store.app.desktopCloseChoice.show"
+         x-cloak
+         @keydown.escape.window="$store.app.desktopCloseCancel()">
+      <div class="modal desktop-close-modal">
+        <h2 class="modal__title">关闭 MyKnowledge？</h2>
+        <p class="modal__description">退出会停止后台服务；「后台托管」将最小化到菜单栏继续运行。</p>
+        <div class="desktop-close-actions">
+          <button class="btn" @click="$store.app.desktopCloseCancel()">取消</button>
+          <button class="btn" @click="$store.app.desktopCloseSelect('tray')">后台托管</button>
+          <button class="btn btn--danger" @click="$store.app.desktopCloseSelect('quit')">退出</button>
+        </div>
+        <label class="desktop-close-remember">
+          <input type="checkbox" x-model="$store.app.desktopCloseChoice.remember" />
+          <span>记住我的选择</span>
+        </label>
       </div>
     </div>
 

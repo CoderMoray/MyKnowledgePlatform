@@ -12,6 +12,8 @@ files:
   - preload.js
   - loading.html
   - package.json
+  - assets/trayTemplate.png
+  - assets/trayTemplate@2x.png
 # 后端（PyInstaller onedir 目录）打进 app 的 Resources/（main.js 从 process.resourcesPath 定位）
 extraResources:
   - from: ../dist-backend/myknowledge-backend

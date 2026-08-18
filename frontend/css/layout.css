@@ -195,6 +195,18 @@
   display: block;
 }
 
+/* 桌面顶部拖拽条：无边框标题栏（titleBarStyle:hidden）时占 28px 让位系统
+   traffic lights；网页端 display:none，零变化 */
+.sidebar-titlebar {
+  display: none;
+}
+[data-app-mode="desktop"] .sidebar-titlebar {
+  display: block;
+  flex-shrink: 0;
+  height: 28px;
+  -webkit-app-region: drag; /* 拖拽移动窗口 */
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

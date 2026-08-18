@@ -16,7 +16,7 @@
  * `myknowledge serve --reload`，跳过 spawn，直接复用开发者后端（热更新）。
  */
 
-const { app, BrowserWindow, dialog, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, shell, ipcMain, Tray, Menu } = require("electron");
 const { spawn } = require("child_process");
 const net = require("net");
 const path = require("path");
@@ -33,6 +33,25 @@ const BACKEND_BIN =
 let mainWindow = null;
 let backendProc = null;
 let isQuitting = false;
+
+// ── 桌面壳状态 ─────────────────────────────────────────────
+let tray = null;          // macOS 菜单栏图标（Tray 后台托管）
+let hasTrayActive = false; // 是否处于托管状态（窗口隐藏到菜单栏）
+let isAppLoaded = false;  // 主界面是否已加载（loading 期关闭 → 直接退出）
+let isAnimatingToTray = false; // 缩小动画中（避免 resize 把缩小尺寸写入 window-state）
+
+// 托盘图标文件（template：纯黑 M + 透明底，跟随菜单栏深浅色自动反色）
+const TRAY_ICON = path.join(__dirname, "assets", "trayTemplate.png");
+
+// 读取应用版本号（package.json 与 backend/__version__.py 同步维护）
+function getAppVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8"));
+    return pkg.version || "";
+  } catch {
+    return "";
+  }
+}
 
 // ── 窗口状态持久化：记住用户调整的窗口尺寸 ──
 const userDataPath = app.getPath("userData");
@@ -56,6 +75,8 @@ function loadWindowState() {
 
 function saveWindowState() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  // 缩小动画中窗口尺寸在变，不写入（否则会把缩小尺寸存进下次启动）
+  if (isAnimatingToTray) return;
   const [width, height] = mainWindow.getSize();
   try {
     fs.writeFileSync(windowStateFile, JSON.stringify({ width, height }));
@@ -73,8 +94,13 @@ if (!gotLock) {
 } else {
   app.on("second-instance", () => {
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
+      // Tray 托管态（窗口隐藏）→ 走恢复流程；否则仅聚焦
+      if (hasTrayActive || !mainWindow.isVisible()) {
+        restoreFromTray();
+      } else {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
     }
   });
 }
@@ -152,6 +178,88 @@ function stopBackend() {
   proc.on("exit", () => clearTimeout(forceKill));
 }
 
+// ── Tray 后台托管 ─────────────────────────────────────────
+
+/** 创建菜单栏托盘图标 + 菜单（幂等：已创建则不重复） */
+function ensureTray() {
+  if (tray) return;
+  tray = new Tray(TRAY_ICON);
+  tray.setTemplateImage(true); // template image：跟随菜单栏深浅色自动反色
+  const version = getAppVersion();
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "显示主窗口", click: restoreFromTray },
+      { type: "separator" },
+      {
+        label: version ? `关于 MyKnowledge v${version}` : "关于 MyKnowledge",
+        click: () => {
+          dialog.showMessageBox({
+            type: "info",
+            title: "关于 MyKnowledge",
+            message: `MyKnowledge v${version}`,
+            detail:
+              "本地优先的知识管理平台\n\n后端进程常驻，关闭主窗口后可从菜单栏恢复。",
+          });
+        },
+      },
+      { type: "separator" },
+      { label: "退出", click: () => app.quit() },
+    ])
+  );
+}
+
+/**
+ * 托管到菜单栏：Dock 隐藏 + 缩小动画（~250ms setBounds 逐帧缩 + 透明度渐隐）→ hide。
+ * 进程常驻，后端不退出。
+ */
+function minimizeToTray() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  hasTrayActive = true;
+  isAnimatingToTray = true;
+  ensureTray();
+  if (app.dock) app.dock.hide();
+
+  const { x, y, width, height } = mainWindow.getBounds();
+  const dur = 250;
+  const start = Date.now();
+
+  // 主进程无可靠 requestAnimationFrame（窗口隐藏时可能不触发），用 setTimeout 逐帧缩
+  const animate = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const t = Math.min(1, (Date.now() - start) / dur);
+    const eased = 1 - (1 - t) * (1 - t); // ease-out 渐快
+    const cw = Math.max(4, Math.round(width * (1 - eased)));
+    const ch = Math.max(4, Math.round(height * (1 - eased)));
+    // 锚定原窗口中心缩放
+    mainWindow.setBounds({
+      x: Math.round(x + (width - cw) / 2),
+      y: Math.round(y + (height - ch) / 2),
+      width: cw,
+      height: ch,
+    });
+    mainWindow.setOpacity(1 - eased);
+    if (t < 1) {
+      setTimeout(animate, 16); // ~60fps
+    } else {
+      mainWindow.hide();
+      // 恢复原尺寸/不透明度，等下次 show 时用
+      mainWindow.setBounds({ x, y, width, height });
+      mainWindow.setOpacity(1);
+      isAnimatingToTray = false;
+    }
+  };
+  animate();
+}
+
+/** 从菜单栏恢复主窗口：显示 + Dock 显示 */
+function restoreFromTray() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  mainWindow.focus();
+  if (app.dock) app.dock.show();
+  hasTrayActive = false;
+}
+
 // ── 启动后端 ─────────────────────────────────────────────
 
 async function startBackend(port) {
@@ -189,6 +297,7 @@ function createLoadingWindow(backendUrl) {
     height: windowState.height,
     resizable: false,
     title: "MyKnowledge",
+    titleBarStyle: "hidden", // 无边框标题栏（系统红黄绿保留），sidebar 顶部 28px 条让位
     backgroundColor: "#fafafa",
     show: false,
     webPreferences: {
@@ -201,13 +310,36 @@ function createLoadingWindow(backendUrl) {
     },
   });
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  attachWindowCloseHandler();
   mainWindow.loadFile(path.join(__dirname, "loading.html"));
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
+/**
+ * 主窗口关闭询问：点红点不直接退出。
+ *  - 真正退出流程（app.quit）→ 放行
+ *  - loading 期（主界面未加载）→ 直接退出（loading.html 无 modal 代码）
+ *  - 主界面 → preventDefault → 通知渲染层弹自绘 modal
+ */
+function attachWindowCloseHandler() {
+  mainWindow.on("close", (e) => {
+    if (isQuitting) return; // 真退出流程，放行
+    if (!isAppLoaded) {
+      // loading 期关闭：直接退出（不弹询问，loading 页无 modal 代码）
+      app.quit();
+      return;
+    }
+    e.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("show-close-choice");
+    }
+  });
+}
+
 function loadAppWindow(backendUrl) {
+  isAppLoaded = true; // 主界面已加载 → 此后关闭走询问流程
   if (mainWindow && !mainWindow.isDestroyed()) {
     // 从 loading 窗口切换：保持同一尺寸（不重新 setSize，避免跳变）
     mainWindow.setResizable(true);
@@ -232,6 +364,7 @@ function loadAppWindow(backendUrl) {
     minWidth: 940,
     minHeight: 600,
     title: "MyKnowledge",
+    titleBarStyle: "hidden", // 无边框标题栏（系统红黄绿保留），sidebar 顶部 28px 条让位
     backgroundColor: "#fafafa", // 与前端 splash 底色一致，避免白闪
     show: false,
     webPreferences: {
@@ -258,6 +391,7 @@ function loadAppWindow(backendUrl) {
   });
 
   mainWindow.loadURL(backendUrl);
+  attachWindowCloseHandler();
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -292,6 +426,28 @@ app.whenReady().then(async () => {
   ipcMain.on("loading-done", () => {
     loadingDone = true;
     maybeLoad();
+  });
+
+  // ── 关闭询问 / Tray 托管 IPC ──────────────────────────────
+  // 渲染层 modal 三选：退出 / 后台托管
+  ipcMain.on("close-choice", (_e, payload) => {
+    const action = payload && payload.action;
+    if (action === "quit") app.quit();
+    else if (action === "tray") minimizeToTray();
+    // remember 由渲染层存 localStorage，主进程无需持久化
+  });
+
+  // 渲染层初始化上报记忆偏好：有记忆则跳过 modal 直接执行
+  ipcMain.on("close-choice-init", (_e, payload) => {
+    const action = payload && payload.action;
+    if (action === "quit") app.quit();
+    else if (action === "tray") minimizeToTray();
+    // null → 无记忆，忽略（等用户点红点再询问）
+  });
+
+  // 设置页「关闭行为」偏好：'ask' 表示清除记忆。渲染层已持久化，此处仅确认通道。
+  ipcMain.on("close-choice-pref", () => {
+    /* 无需主进程处理 */
   });
 
   try {
@@ -330,7 +486,8 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   // 工具类 app：窗口全关即退出（并清理后端进程）
-  app.quit();
+  // 但 Tray 托管模式下（进程常驻菜单栏）不退出
+  if (!hasTrayActive) app.quit();
 });
 
 app.on("before-quit", () => {
