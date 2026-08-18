@@ -976,7 +976,10 @@ class TestApiConfigStatus:
         d = r.json()
         assert d["share_configured"] is True
         assert d["env_source"] == "backend"
-        assert "Code" not in d["message"]  # never leak plaintext
+        assert "Code" not in d["message"]  # never leak plaintext in message
+        # GET 回显明文供引导页预填（本机用户自己的配置回显）
+        assert d["share_code"] == "Code"
+        assert d["share_map"] == "365"
 
     def test_configured_from_user(self, client, tmp_path, monkeypatch) -> None:
         self._set(tmp_path, monkeypatch,
@@ -985,6 +988,8 @@ class TestApiConfigStatus:
         assert d["share_configured"] is True
         assert d["env_source"] == "myknowledge"
         assert "MyCode" not in d["message"]
+        assert d["share_code"] == "MyCode"
+        assert d["share_map"] == "111"
 
     def test_not_configured_none(self, client, tmp_path, monkeypatch) -> None:
         self._set(tmp_path, monkeypatch)

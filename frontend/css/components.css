@@ -2203,9 +2203,28 @@
   /* 小屏兜底：<1024px 高度屏可用，内容超高内部滚动 */
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 48px);
-  overflow-y: auto;
+  /* 结构：步骤条(顶) + 内容区(滚动) + 底部按钮区(固定) */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
-.guide-modal .guide-steps { margin-bottom: 20px; }
+.guide-modal .guide-steps { flex-shrink: 0; margin-bottom: 20px; }
+/* 内容区：flex:1 撑满，超高内部滚动（每页不同高度不再影响按钮位置） */
+.guide-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px; /* 滚动条不贴内容 */
+}
+/* 底部固定按钮区：所有页按钮统一在此，垂直位置恒定 */
+.guide-actions {
+  flex-shrink: 0;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.guide-actions__row { display: flex; align-items: center; justify-content: space-between; }
+.guide-actions__row--center { justify-content: center; }
 /* 步骤子文案（"Step X of 3"） */
 .guide-step-sub {
   margin-left: auto;
@@ -2235,7 +2254,7 @@
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border-default); /* 分割线更深一档（灰一点） */
+  border-bottom: 1px solid var(--border-strong); /* 分割线更深（--border-strong #d1d5db，清晰可见） */
 }
 .guide-platform-row__dot {
   width: 16px;
@@ -2293,7 +2312,7 @@
   align-items: center;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border-default); /* 分割线更深一档（灰一点） */
+  border-bottom: 1px solid var(--border-strong); /* 分割线更深（--border-strong #d1d5db，清晰可见） */
   font-size: var(--text-sm);
   color: var(--text-primary);
 }
@@ -2326,26 +2345,25 @@
 /* Enchante 专属按钮禁用态（防御态：2.1 未安装已拦截，正常不触发） */
 .btn--deeplink:disabled { opacity: 0.45; }
 
-/* 步骤切换过渡（0.06 倍数：enter 0.42s / leave 0.36s；缓动统一 cubic-bezier(0.4,0,0.2,1)） */
+/* 步骤切换过渡（Alpine x-transition 标准三阶段语义，0.06 倍数：enter 0.42s / leave 0.36s）
+ * enter/leave 类只放 transition；enter-start/leave-start 为起始视觉；enter-end/leave-end 为终态。
+ * 避免旧版 enter 与 enter-start 同类的错乱时序（"先渲染下端再瞬移顶部"）。 */
 .guide-step-enter {
-  opacity: 0;
-  transform: translateY(8px);
   transition: opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1), transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.guide-step-enter-active { opacity: 1; transform: translateY(0); }
+.guide-step-enter-start { opacity: 0; transform: translateY(10px); }
+.guide-step-enter-end { opacity: 1; transform: translateY(0); }
 .guide-step-leave {
-  opacity: 1;
-  transform: translateY(0);
   transition: opacity 0.36s cubic-bezier(0.4, 0, 0.2, 1), transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.guide-step-leave-active { opacity: 0; transform: translateY(-8px); }
+.guide-step-leave-start { opacity: 1; transform: translateY(0); }
+.guide-step-leave-end { opacity: 0; transform: translateY(-10px); }
 /* Step2.2 执行中 → 结论（opacity + scale，0.48s = 0.06 × 8，ease-out） */
 .guide-conclusion-enter {
-  opacity: 0;
-  transform: scale(0.98);
   transition: opacity 0.48s ease-out, transform 0.48s ease-out;
 }
-.guide-conclusion-enter-active { opacity: 1; transform: scale(1); }
+.guide-conclusion-enter-start { opacity: 0; transform: scale(0.98); }
+.guide-conclusion-enter-end { opacity: 1; transform: scale(1); }
 @media (prefers-reduced-motion: reduce) {
   .guide-step-enter, .guide-step-leave, .guide-conclusion-enter {
     transition-duration: 0.18s;

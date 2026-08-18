@@ -295,6 +295,13 @@ Alpine.data("modalComponent", () => ({
             this.setupEmail = store.email || "";
           }
           store.loadClientConfig().catch(() => {});
+          // 预填分享配置（企业名称/组织代码）：.env 已有值则回显到 Step1（本机用户自己配置）
+          api.getConfigStatus()
+            .then((cs) => {
+              if (cs && cs.share_code) store.setupCompany = cs.share_code;
+              if (cs && cs.share_map && cs.share_map !== "000") store.setupOrgCode = cs.share_map;
+            })
+            .catch(() => {});
         }
       });
       // 高度柔和动画：候选/展开状态变化时，先定格当前高度再过渡到目标高度

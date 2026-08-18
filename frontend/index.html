@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=559e6c4c6c" />
+  <link rel="stylesheet" href="css/components.css?v=23223be4ed" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -65,7 +65,7 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=6dfba04cc4"></script>
+  <script src="js/api.js?v=e5aaf0dd59"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
@@ -74,7 +74,7 @@
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
   <script src="js/components/sidebar.js?v=e98d3627ec"></script>
-  <script src="js/components/modal.js?v=55071d922f"></script>
+  <script src="js/components/modal.js?v=eb42bf0180"></script>
   <script src="js/components/dashboard.js?v=929c7fd639"></script>
   <script src="js/components/project.js?v=c0097ea696"></script>
 </head>
@@ -1624,160 +1624,173 @@
           <span class="guide-step-sub" x-text="$store.app.guideStepLabel()"></span>
         </div>
 
-        <!-- Step 1：身份（4 字段全必填 + 校验 + 分享配置说明） -->
-        <div x-show="$store.app.guideStep === 1"
-             x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter" x-transition:enter-end="guide-step-enter-active"
-             x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave" x-transition:leave-end="guide-step-leave-active">
-          <div style="text-align:center;margin-bottom:20px;">
-            <div class="avatar avatar--fallback avatar--lg"
-                 x-text="setupNickname ? setupNickname[0] : '?'"
-                 style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;"></div>
-            <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
-            <p class="modal__description" style="margin-bottom:0;">设置你的身份信息，开始初始化 AI 协作</p>
+        <!-- 内容区（flex:1 滚动，超高时内部滚动，不影响底部按钮位置） -->
+        <div class="guide-body">
+
+          <!-- Step 1：身份（4 字段全必填 + 校验） -->
+          <div x-show="$store.app.guideStep === 1"
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
+               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+            <div style="text-align:center;margin-bottom:20px;">
+              <div class="avatar avatar--fallback avatar--lg"
+                   x-text="setupNickname ? setupNickname[0] : '?'"
+                   style="width:56px;height:56px;border-radius:50%;font-size:24px;font-weight:600;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;"></div>
+              <h2 class="modal__title" style="margin-bottom:4px;">欢迎使用 MyKnowledge</h2>
+              <p class="modal__description" style="margin-bottom:0;">设置你的身份信息，开始初始化 AI 协作</p>
+            </div>
+            <div class="guide-field">
+              <label class="guide-field__label">昵称</label>
+              <input class="modal__input" type="text" x-model="setupNickname" placeholder="如：张三" />
+            </div>
+            <div class="guide-field">
+              <label class="guide-field__label">邮箱</label>
+              <input class="modal__input" type="email" x-model="setupEmail" placeholder="如：zhangsan@example.com" />
+              <p class="modal__hint" x-show="setupEmail && !isValidEmail(setupEmail)" x-text="'邮箱格式不正确'"></p>
+            </div>
+            <div class="guide-field">
+              <label class="guide-field__label">企业名称</label>
+              <input class="modal__input" type="text" x-model="$store.app.setupCompany" placeholder="如：Acme 科技" />
+              <p class="guide-field__hint guide-field__hint--error" x-show="$store.app.setupCompany && $store.app.guideCompanyError()"
+                 x-text="$store.app.guideCompanyError()"></p>
+            </div>
+            <div class="guide-field">
+              <label class="guide-field__label">组织代码</label>
+              <input class="modal__input" type="text" inputmode="numeric" x-model="$store.app.setupOrgCode" placeholder="如：123" />
+              <p class="guide-field__hint guide-field__hint--error" x-show="$store.app.setupOrgCode && $store.app.guideOrgCodeError()"
+                 x-text="$store.app.guideOrgCodeError()"></p>
+            </div>
           </div>
-          <div class="guide-field">
-            <label class="guide-field__label">昵称</label>
-            <input class="modal__input" type="text" x-model="setupNickname" placeholder="如：张三" />
+
+          <!-- Step 2.1：平台多选（6 平台开关，未安装禁用，至少选 1） -->
+          <div x-show="$store.app.guideStep === 2"
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
+               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+            <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
+            <p class="modal__description" style="text-align:center;margin-bottom:8px;">选择要初始化的 AI 客户端</p>
+            <div>
+              <template x-for="plat in $store.app.clientPlatforms" :key="plat.key">
+                <div class="guide-platform-row">
+                  <span class="guide-platform-row__dot" :style="'background:' + plat.dot"></span>
+                  <span class="guide-platform-row__name" x-text="plat.label"></span>
+                  <span class="guide-platform-row__not-installed" x-show="!$store.app.clientInstalled(plat.key)">未安装</span>
+                  <button class="toggle"
+                          :class="$store.app.guideIsSelected(plat.key) ? 'toggle--on' : 'toggle--off'"
+                          :disabled="!$store.app.clientInstalled(plat.key)"
+                          @click="$store.app.toggleGuideSelect(plat.key)">
+                    <span class="toggle__knob"></span>
+                  </button>
+                </div>
+              </template>
+            </div>
+            <div class="guide-selection-count">
+              <span x-text="'已选 ' + $store.app.guideSelectedCount() + '/' + $store.app.clientPlatforms.length + ' 个平台'"></span>
+              <span x-show="!$store.app.guideStep2Valid()" class="guide-selection-count__hint">请至少选择 1 个平台</span>
+            </div>
           </div>
-          <div class="guide-field">
-            <label class="guide-field__label">邮箱</label>
-            <input class="modal__input" type="email" x-model="setupEmail" placeholder="如：zhangsan@example.com" />
-            <p class="modal__hint" x-show="setupEmail && !isValidEmail(setupEmail)" x-text="'邮箱格式不正确'"></p>
+
+          <!-- Step 2.2：执行 + 结论（进入即自动执行；Enchante 专属按钮四态） -->
+          <div x-show="$store.app.guideStep === 3"
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
+               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+            <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
+            <!-- 执行中：进度条 -->
+            <div x-show="$store.app.guideExecuting">
+              <p class="modal__description" style="text-align:center;margin-bottom:8px;"
+                 x-text="'正在为 ' + $store.app.guideSelected.length + ' 个平台初始化 AI 协作…'"></p>
+              <div class="guide-progress">
+                <div class="guide-progress__bar" :style="'width:' + $store.app.guideExecPercent + '%'"></div>
+              </div>
+              <div class="guide-progress__label" x-text="$store.app.guideExecPercent + '%'"></div>
+            </div>
+            <!-- 结论 -->
+            <div x-show="$store.app.guideExecDone"
+                 x-transition:enter="guide-conclusion-enter" x-transition:enter-start="guide-conclusion-enter-start" x-transition:enter-end="guide-conclusion-enter-end">
+              <p class="modal__description" style="text-align:center;margin-bottom:8px;">初始化完成，已为所选平台开启协作能力</p>
+              <div>
+                <template x-for="plat in $store.app.clientPlatforms" :key="plat.key">
+                  <div class="guide-conclusion-row" x-show="$store.app.guideIsSelected(plat.key)">
+                    <span class="guide-conclusion-row__dot" :style="'background:' + plat.dot"
+                          :class="{ 'guide-conclusion-row__dot--skip': !$store.app.clientInstalled(plat.key) }"></span>
+                    <span class="guide-conclusion-row__name" x-text="plat.label"></span>
+                    <!-- Enchante：专属 deeplink 安装按钮（四态） -->
+                    <template x-if="plat.key === 'Enchante'">
+                      <span class="guide-conclusion-row__body">
+                        <span class="guide-conclusion-row__action">MCP 需手动安装</span>
+                        <button class="btn btn--sm btn--deeplink guide-conclusion-row__deeplink"
+                                :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
+                                @click="$store.app.generateEnchanteDeeplink('Enchante')">
+                          <span x-text="$store.app.deeplinkBusy ? '生成中…'
+                                        : ($store.app.deeplinkClicked ? '已生成链接 · 可再次点击' : '⚡ 打开安装链接')"></span>
+                        </button>
+                        <span class="guide-conclusion-row__hint"
+                              x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
+                      </span>
+                    </template>
+                    <!-- 其它平台：已开启的 kinds 结论 -->
+                    <template x-if="plat.key !== 'Enchante'">
+                      <span class="guide-conclusion-row__action" x-show="$store.app.clientInstalled(plat.key)"
+                            x-text="'已开启 ' + $store.app.platformKinds(plat.key).map(k => $store.app._clientKindLabel(k.key)).join(' / ')"></span>
+                      <span class="guide-conclusion-row__action guide-conclusion-row__action--skip" x-show="!$store.app.clientInstalled(plat.key)">未安装，已跳过</span>
+                    </template>
+                  </div>
+                </template>
+              </div>
+              <p class="guide-conclusion-hint">你可以在 设置 → MCP / Hooks / Agent 中查看或调整</p>
+              <p class="guide-conclusion-sub">可在个人设置中关闭</p>
+            </div>
           </div>
-          <div class="guide-field">
-            <label class="guide-field__label">企业名称</label>
-            <input class="modal__input" type="text" x-model="$store.app.setupCompany" placeholder="如：Acme 科技" />
-            <p class="guide-field__hint guide-field__hint--error" x-show="$store.app.setupCompany && $store.app.guideCompanyError()"
-               x-text="$store.app.guideCompanyError()"></p>
+
+          <!-- Step 3：完成（延续现有 guideSummary） -->
+          <div x-show="$store.app.guideStep === 4"
+               x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter-start" x-transition:enter-end="guide-step-enter-end"
+               x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave-start" x-transition:leave-end="guide-step-leave-end">
+            <div style="text-align:center;margin-bottom:20px;">
+              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.9;margin:0 auto 12px;">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <h2 class="modal__title" style="margin-bottom:4px;">初始化完成</h2>
+              <p class="modal__description" style="margin-bottom:0;">你的知识库已准备好与 AI 协作</p>
+            </div>
+            <div>
+              <template x-for="s in $store.app.guideSummary" :key="s.label">
+                <div class="ai-config-item" style="margin-bottom:6px;">
+                  <span class="ai-config-item__status">
+                    <span class="status-indicator__dot"
+                          :class="s.done ? 'status-indicator__dot--success' : 'status-indicator__dot--muted'"></span>
+                    <span x-text="s.label"></span>
+                  </span>
+                  <span class="ai-config-item__state"
+                        x-text="s.done ? '已就绪' : '待配置'"></span>
+                </div>
+              </template>
+            </div>
           </div>
-          <div class="guide-field">
-            <label class="guide-field__label">组织代码</label>
-            <input class="modal__input" type="text" inputmode="numeric" x-model="$store.app.setupOrgCode" placeholder="如：123" />
-            <p class="guide-field__hint guide-field__hint--error" x-show="$store.app.setupOrgCode && $store.app.guideOrgCodeError()"
-               x-text="$store.app.guideOrgCodeError()"></p>
-          </div>
-          <div class="modal__actions" style="justify-content:center;margin-top:20px;">
+
+        </div>
+
+        <!-- 底部固定按钮区：所有页按钮统一在此，垂直位置恒定 -->
+        <div class="guide-actions">
+          <!-- Step 1：下一步 -->
+          <div x-show="$store.app.guideStep === 1" class="guide-actions__row guide-actions__row--center">
             <button class="btn btn--primary"
                     @click="guideNext()"
                     :disabled="!$store.app.guideStep1Valid(setupNickname, setupEmail)">
               下一步
             </button>
           </div>
-        </div>
-
-        <!-- Step 2.1：平台多选（6 平台开关，未安装禁用，至少选 1） -->
-        <div x-show="$store.app.guideStep === 2"
-             x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter" x-transition:enter-end="guide-step-enter-active"
-             x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave" x-transition:leave-end="guide-step-leave-active">
-          <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
-          <p class="modal__description" style="text-align:center;margin-bottom:8px;">选择要初始化的 AI 客户端</p>
-          <div>
-            <template x-for="plat in $store.app.clientPlatforms" :key="plat.key">
-              <div class="guide-platform-row">
-                <span class="guide-platform-row__dot" :style="'background:' + plat.dot"></span>
-                <span class="guide-platform-row__name" x-text="plat.label"></span>
-                <span class="guide-platform-row__not-installed" x-show="!$store.app.clientInstalled(plat.key)">未安装</span>
-                <button class="toggle"
-                        :class="$store.app.guideIsSelected(plat.key) ? 'toggle--on' : 'toggle--off'"
-                        :disabled="!$store.app.clientInstalled(plat.key)"
-                        @click="$store.app.toggleGuideSelect(plat.key)">
-                  <span class="toggle__knob"></span>
-                </button>
-              </div>
-            </template>
-          </div>
-          <div class="guide-selection-count">
-            <span x-text="'已选 ' + $store.app.guideSelectedCount() + '/' + $store.app.clientPlatforms.length + ' 个平台'"></span>
-            <span x-show="!$store.app.guideStep2Valid()" class="guide-selection-count__hint">请至少选择 1 个平台</span>
-          </div>
-          <div class="modal__actions" style="justify-content:space-between;margin-top:16px;">
+          <!-- Step 2.1：上一步 | 下一步 -->
+          <div x-show="$store.app.guideStep === 2" class="guide-actions__row">
             <button class="btn" @click="guidePrev()">上一步</button>
             <button class="btn btn--primary" @click="guideNext()" :disabled="!$store.app.guideStep2Valid()">下一步</button>
           </div>
-        </div>
-
-        <!-- Step 2.2：执行 + 结论（进入即自动执行；Enchante 专属按钮四态） -->
-        <div x-show="$store.app.guideStep === 3"
-             x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter" x-transition:enter-end="guide-step-enter-active"
-             x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave" x-transition:leave-end="guide-step-leave-active">
-          <h2 class="modal__title" style="text-align:center;">AI 协作初始化</h2>
-          <!-- 执行中：进度条 -->
-          <div x-show="$store.app.guideExecuting">
-            <p class="modal__description" style="text-align:center;margin-bottom:8px;"
-               x-text="'正在为 ' + $store.app.guideSelected.length + ' 个平台初始化 AI 协作…'"></p>
-            <div class="guide-progress">
-              <div class="guide-progress__bar" :style="'width:' + $store.app.guideExecPercent + '%'"></div>
-            </div>
-            <div class="guide-progress__label" x-text="$store.app.guideExecPercent + '%'"></div>
-          </div>
-          <!-- 结论 -->
-          <div x-show="$store.app.guideExecDone"
-               x-transition:enter="guide-conclusion-enter" x-transition:enter-start="guide-conclusion-enter" x-transition:enter-end="guide-conclusion-enter-active">
-            <p class="modal__description" style="text-align:center;margin-bottom:8px;">初始化完成，已为所选平台开启协作能力</p>
-            <div>
-              <template x-for="plat in $store.app.clientPlatforms" :key="plat.key">
-                <div class="guide-conclusion-row" x-show="$store.app.guideIsSelected(plat.key)">
-                  <span class="guide-conclusion-row__dot" :style="'background:' + plat.dot"
-                        :class="{ 'guide-conclusion-row__dot--skip': !$store.app.clientInstalled(plat.key) }"></span>
-                  <span class="guide-conclusion-row__name" x-text="plat.label"></span>
-                  <!-- Enchante：专属 deeplink 安装按钮（四态） -->
-                  <template x-if="plat.key === 'Enchante'">
-                    <span class="guide-conclusion-row__body">
-                      <span class="guide-conclusion-row__action">MCP 需手动安装</span>
-                      <button class="btn btn--sm btn--deeplink guide-conclusion-row__deeplink"
-                              :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
-                              @click="$store.app.generateEnchanteDeeplink('Enchante')">
-                        <span x-text="$store.app.deeplinkBusy ? '生成中…'
-                                      : ($store.app.deeplinkClicked ? '已生成链接 · 可再次点击' : '⚡ 打开安装链接')"></span>
-                      </button>
-                      <span class="guide-conclusion-row__hint"
-                            x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
-                    </span>
-                  </template>
-                  <!-- 其它平台：已开启的 kinds 结论 -->
-                  <template x-if="plat.key !== 'Enchante'">
-                    <span class="guide-conclusion-row__action" x-show="$store.app.clientInstalled(plat.key)"
-                          x-text="'已开启 ' + $store.app.platformKinds(plat.key).map(k => $store.app._clientKindLabel(k.key)).join(' / ')"></span>
-                    <span class="guide-conclusion-row__action guide-conclusion-row__action--skip" x-show="!$store.app.clientInstalled(plat.key)">未安装，已跳过</span>
-                  </template>
-                </div>
-              </template>
-            </div>
-            <p class="guide-conclusion-hint">你可以在 设置 → MCP / Hooks / Agent 中查看或调整</p>
-            <p class="guide-conclusion-sub">可在个人设置中关闭</p>
-          </div>
-          <div class="modal__actions" style="justify-content:space-between;margin-top:16px;">
+          <!-- Step 2.2：上一步 | 下一步 -->
+          <div x-show="$store.app.guideStep === 3" class="guide-actions__row">
             <button class="btn" @click="guidePrev()" :disabled="$store.app.guideExecuting">上一步</button>
             <button class="btn btn--primary" @click="guideNext()" :disabled="!$store.app.guideExecDone">下一步</button>
           </div>
-        </div>
-
-        <!-- Step 3：完成（延续现有 guideSummary） -->
-        <div x-show="$store.app.guideStep === 4"
-             x-transition:enter="guide-step-enter" x-transition:enter-start="guide-step-enter" x-transition:enter-end="guide-step-enter-active"
-             x-transition:leave="guide-step-leave" x-transition:leave-start="guide-step-leave" x-transition:leave-end="guide-step-leave-active">
-          <div style="text-align:center;margin-bottom:20px;">
-            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.9;margin:0 auto 12px;">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            <h2 class="modal__title" style="margin-bottom:4px;">初始化完成</h2>
-            <p class="modal__description" style="margin-bottom:0;">你的知识库已准备好与 AI 协作</p>
-          </div>
-          <div>
-            <template x-for="s in $store.app.guideSummary" :key="s.label">
-              <div class="ai-config-item" style="margin-bottom:6px;">
-                <span class="ai-config-item__status">
-                  <span class="status-indicator__dot"
-                        :class="s.done ? 'status-indicator__dot--success' : 'status-indicator__dot--muted'"></span>
-                  <span x-text="s.label"></span>
-                </span>
-                <span class="ai-config-item__state"
-                      x-text="s.done ? '已就绪' : '待配置'"></span>
-              </div>
-            </template>
-          </div>
-          <div class="modal__actions" style="justify-content:space-between;margin-top:16px;">
+          <!-- Step 3：上一步 | 进入知识体检 | 开始使用 -->
+          <div x-show="$store.app.guideStep === 4" class="guide-actions__row">
             <button class="btn" @click="guidePrev()">上一步</button>
             <div style="display:flex;gap:8px;">
               <button class="btn" @click="window.location.hash='health'">进入知识体检</button>

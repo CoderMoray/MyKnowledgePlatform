@@ -334,6 +334,15 @@ const api = {
     });
   },
 
+  /**
+   * 读分享配置状态 + 明文回显（供引导页 Step1 预填企业名称/组织代码）
+   * @returns {Promise<{share_configured, env_source, message, share_code, share_map}>}
+   *   share_code/share_map 为明文（本机用户自己配置的回显），message 保持脱敏
+   */
+  async getConfigStatus() {
+    return apiRequest("/api/config-status");
+  },
+
   /* ── AI 客户端配置 API（阶段三：MCP/hooks/Agent 检测与增量写入） ────── */
 
   /**

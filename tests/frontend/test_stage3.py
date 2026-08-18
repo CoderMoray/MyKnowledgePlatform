@@ -229,9 +229,11 @@ class TestStage3StaticStructure:
                     "guide-conclusion-row__name", "guide-conclusion-row__action",
                     "guide-conclusion-row__action--skip", "guide-conclusion-row__deeplink",
                     "guide-conclusion-row__hint", "guide-conclusion-hint", "guide-conclusion-sub",
-                    "guide-step-enter", "guide-step-enter-active",
-                    "guide-step-leave", "guide-step-leave-active",
-                    "guide-conclusion-enter", "guide-conclusion-enter-active",
+                    "guide-body", "guide-actions", "guide-actions__row",
+                    # 步骤切换过渡（Alpine 三阶段：enter/enter-start/enter-end + leave 系列）
+                    "guide-step-enter", "guide-step-enter-start", "guide-step-enter-end",
+                    "guide-step-leave", "guide-step-leave-start", "guide-step-leave-end",
+                    "guide-conclusion-enter", "guide-conclusion-enter-start", "guide-conclusion-enter-end",
                     "guide-step-sub"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 

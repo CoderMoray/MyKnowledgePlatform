@@ -1429,8 +1429,20 @@ def _share_config_status() -> dict:
 
 @app.get("/api/config-status")
 def api_config_status():
-    """Report the share-config status for the frontend guidance."""
-    return _share_config_status()
+    """Report the share-config status for the frontend guidance.
+
+    Returns ``_share_config_status()`` plus ``share_code``/``share_map`` plaintext
+    values **for the local onboarding prefill** (the user's own config echoed back
+    to them on the setup page — like ``GET /api/identity`` returns the plaintext
+    nickname/email).  ``message`` stays masked.  The POST endpoint keeps returning
+    the masked shape only (no plaintext) to avoid echoing secrets on writes.
+    """
+    d = _share_config_status()
+    from backend.config import load_share_env
+    env = load_share_env()
+    d["share_code"] = env["share_code"]
+    d["share_map"] = env["share_map"]
+    return d
 
 
 class ShareConfigPayload(BaseModel):
