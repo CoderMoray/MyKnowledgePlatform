@@ -1050,7 +1050,7 @@ ValidationReport.summary:
 | `3_1-20260814_132346509.png` | `export/714694871087289/` | `screenshots/` | **仅人审参考**，不作为实施依据（已被本 SPEC + 未来 SVG 替代） |
 | `3_186-20260814_132346511.png` | `export/714694871087289/` | `screenshots/` | 同上 |
 
-旧的 export/714694871087289/ 目录已删除（空目录）。当 ardot 适配器恢复后，新设计的 SVG 将输出到 `designs/kb-health/export/`。
+旧的 export/714694871087289/ 目录已删除（空目录）。当 ardot 适配器恢复后，新设计的 SVG 将输出到 `docs/designs/kb-health/export/`。
 
 ---
 
@@ -1064,7 +1064,7 @@ ValidationReport.summary:
 - ✅ 目录结构清理（旧的 export/714694871087289/ 已删）
 
 **待办（待 ardot 恢复后）**：
-- 在画布上产出 SVG 矢量稿，输出到 `designs/kb-health/export/`
+- 在画布上产出 SVG 矢量稿，输出到 `docs/designs/kb-health/export/`
 - SVG 视觉稿需与本 SPEC 一一对应（健康徽标/概览/分组/复杂区/空态/加载态/就绪信号三态 + 交互态/引导页 3 步/配置页 3 tab + 平台状态 + 兜底）
 
 **对前端开发 agent 的指引**：在 SVG 矢量稿产出前，可据本 SPEC 实施；产出后请以 SVG 为视觉参考、以本 SPEC 为语义参考。
@@ -1074,9 +1074,9 @@ ValidationReport.summary:
 ## 19. 反馈给架构师（自包含文本）
 
 > 交付物位置：
-> - SPEC.md: `/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_PlatForm/designs/kb-health/SPEC.md`
-> - 旧 PNG（人审参考，不作为实施依据）: `designs/kb-health/screenshots/`
-> - SVG 矢量稿: **待 ardot 适配器恢复后产出**，目录 `designs/kb-health/export/`
+> - SPEC.md: `/Users/chrismoray/Desktop/Moray/MyOpenSource/MyKnowledge_PlatForm/docs/designs/kb-health/SPEC.md`
+> - 旧 PNG（人审参考，不作为实施依据）: `docs/designs/kb-health/screenshots/`
+> - SVG 矢量稿: **待 ardot 适配器恢复后产出**，目录 `docs/designs/kb-health/export/`
 >
 > 当前阻塞：ardot MCP adapter 报 `NO_ADAPTER`，3+ 次重试失败。按工具错误指示已停止画布操作，避免在不可用状态下编造视觉稿。
 >
@@ -1151,7 +1151,7 @@ ValidationReport.summary:
 
 ### 20.3 SVG 视觉稿状态（2026-08-15）
 
-- SVG 矢量稿已产出至 `designs/kb-health/export/`（7 个 frame：A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / **G 配置 modal（Trae/OpenCode 范式：左导航 6 分组 + 右多卡片）**）。
+- SVG 矢量稿已产出至 `docs/designs/kb-health/export/`（7 个 frame：A 健康空态 / B 有问题分组 / C 修复弹窗 / D 加载态 / E 就绪信号紧凑徽章 / F 引导页 3 步 / **G 配置 modal（Trae/OpenCode 范式：左导航 6 分组 + 右多卡片）**）。
 - **标注**：A/B/C/D 标注「仅视觉参考 · 以 index.html 实际实现为准」；F 标注「阶段三待实现：当前 setup 为单步 modal，3 步向导为未来 AI 协作初始化设计」。
 - **已知限制**：ardot `export_nodes` 的 SVG 格式将文本节点转为 `<path>`，**不含可读中文 `<text>` 元素**；前端 agent 实施应以 SPEC（语义）+ PNG screenshots（视觉）为准，SVG 仅作矢量视觉参考。
 
@@ -1159,4 +1159,4 @@ ValidationReport.summary:
 
 > 接手本功能后续设计/开发时：**先探查 `frontend/index.html` / `components.css` / `store.js` 确认已落地实现**，再判断是否需改设计。已落地部分以实际渲染为准；未落地部分（阶段三引导/配置）以本文档 §3.6/§3.7 + §20.2 差异表为准。
 >
-> 关于 ardot 适配器：建议本地 MCP 服务方排查连接问题（127.0.0.1:50501）。本任务因该故障降级为 SPEC-only 交付；SVG 为增强视觉参考非硬依赖，记入待办，待适配器恢复后补（落 `designs/kb-health/export/`）。
+> 关于 ardot 适配器：建议本地 MCP 服务方排查连接问题（127.0.0.1:50501）。本任务因该故障降级为 SPEC-only 交付；SVG 为增强视觉参考非硬依赖，记入待办，待适配器恢复后补（落 `docs/designs/kb-health/export/`）。

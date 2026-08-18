@@ -96,7 +96,7 @@
 - 提交：65b1c85 / a4d0768 / 198d771 / b31939a
 
 ### 测试资产
-- `tests/frontend/test_paste_markdown.py`（P 系列 24 用例）；场景矩阵 `doc/test/testing-plan-paste-markdown.md`（8 批 48 场景）
+- `tests/frontend/test_paste_markdown.py`（P 系列 24 用例）；场景矩阵 `docs/test/testing-plan-paste-markdown.md`（8 批 48 场景）
 - 前端全量 **75/75**（edit_switch 42 + hover 5 + paste 24 + refwarn toast 4）+ 后端 **349/349**
 
 ### S16 引用异常提示（ref_warnings toast，4252a96）
@@ -186,7 +186,7 @@
 - 路由 + 状态页已实现（store.setView("status") + statusSummary）
 
 ### H3. 知识健康检查视图（#health）✅ 2026-08-14
-- 规范来源：`designs/kb-health/SPEC.md`（已定稿，唯一权威依据）
+- 规范来源：`docs/designs/kb-health/SPEC.md`（已定稿，唯一权威依据）
 - 后端契约：`GET /api/diagnose`（真算+写 `.diagnose-result.json`，含 `generated_at`）、`GET /api/diagnose/saved`（读上次，含 `generated_at`）
 - 前端实现：
   - 路由 `#health`（router.js）+ 侧边栏「知识健康检查」入口（垃圾箱下方）

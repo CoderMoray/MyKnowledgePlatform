@@ -34,6 +34,6 @@ desktop/dist/
 desktop/assets/icon.icns
 
 # Design artifacts (generated SVG/PNG, not versioned; keep SPEC.md/.md docs versioned)
-designs/**/export/
-designs/**/screenshots/
+docs/designs/**/export/
+docs/designs/**/screenshots/
 
