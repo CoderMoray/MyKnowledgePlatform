@@ -232,17 +232,27 @@ def _hooks_command_claude() -> str:
 
 
 def _hooks_command_codebuddy() -> str:
-    """CodeBuddy: forward stdin JSON via the ``backend.hooks_forward`` module.
+    """CodeBuddy: forward stdin JSON via the ``hooks_forward`` helper.
 
     CodeBuddy passes PreToolUse data on **stdin** and uses IDE tool names
     (execute_command / write_to_file / ...); ``hooks_forward.py`` reads stdin,
     POSTs to the hook endpoint, and prints the response JSON.
 
-    We invoke it as ``python3 -m backend.hooks_forward`` (module form) instead
-    of an absolute script path — the module is located by the installed
-    ``backend`` package, so the hook survives moving/copying the KB config to
-    another machine or an installed distribution.
+    Environment-aware command generation:
+      - **development / PyPI install** (not frozen): ``python3 -m backend.hooks_forward``
+        (module form) — the module is located by the installed ``backend`` package,
+        so the hook survives moving/copying the KB config or an installed wheel.
+      - **PyInstaller desktop app** (``sys.frozen``): there is no standalone python
+        in an onedir bundle, so we reuse the *frozen backend binary itself*
+        (``sys.executable``) with the ``--hooks-forward`` subcommand.  PyInstaller
+        traces the ``from backend import hooks_forward`` import in
+        ``desktop_server.py`` into the PYZ bundle, so the binary can run the
+        forwarder in-process.  This avoids shipping a second executable.
     """
+    if getattr(sys, "frozen", False):
+        # sys.executable is the myknowledge-backend binary (onedir executable);
+        # quote it in case the install path contains spaces.
+        return f'"{sys.executable}" --hooks-forward'
     return "python3 -m backend.hooks_forward"
 
 

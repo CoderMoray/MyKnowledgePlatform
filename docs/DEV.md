@@ -123,7 +123,7 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 600 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 68 个 + connection 25 个 + hooks 18 个 + hooks_forward 2 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个）
+- 611 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 72 个 + connection 25 个 + hooks 18 个 + hooks_forward 6 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个）
 - 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...) + staged-guard 跳过无变更 + repo-relative 解析）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST/DELETE /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入 + remove_kind 移除 + client_installed 检测 + WorkBuddy 平台支持 + mcp_entry 注入 MYKNOWLEDGE_CLIENT + /api/mcp/heartbeat 心跳连接检测 + connection 字段 + kinds 能力面 + Enchante 平台（SKILL.md + deeplink））、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库 + CodeBuddy 工具名归一化 + hooks_forward 模块调用 + hooks_matcher 平台差异化 + Agent md 模板化 backend/AiClientConfig/agents/ + ClaudeDesktop MCP-only 平台 + frontmatter.json 多平台配置 + PascalCase 平台标识符（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy））、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
 
 ### 前端构建守门（2026-08-09 引入）
@@ -163,6 +163,41 @@ md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变�
   后端 `_frontend_dir()` 优先定位安装包内 frontend（import frontend 包路径）。发布前 publish.yml
   已先跑 build → wheel 自带最新 standalone。
 - **依赖锁定**：`mcp>=1.0.0,<2.0`（mcp 2.x 移除 `mcp.server.fastmcp`，1.29 仍兼容）。
+
+### hooks_forward 打包适配（2026-08-18）
+
+**背景**：CodeBuddy PreToolUse hook（stdin→后端 `/hooks/pre-tool-use`，fail-open）的
+`command` 原来是 `python3 -m backend.hooks_forward`（模块调用）。在桌面 App（PyInstaller
+onedir 打包）下不可行——onedir 无独立 python 可执行（`sys.executable` 是 bootloader），
+不能跑 python 脚本。
+
+**改造**：
+- `hooks_forward.py` **完全独立**（不再 `from backend.client_config import HOOK_ENDPOINT`）：
+  - 自带 `HOOK_ENDPOINT` 常量（默认 `http://127.0.0.1:8080/hooks/pre-tool-use`，与
+    `client_config.py` 默认一致；可用环境变量 `MYKNOWLEDGE_HOOK_ENDPOINT` 覆盖）。
+  - 抽出 `forward(raw: str) -> str` 核心函数（stdin 串 → hook → 返回 stdout 串，fail-open），
+    便于单测，不依赖 stdin/stdout。
+  - 可独立运行：`python3 <path>/hooks_forward.py`（无需 backend 包）。
+- `_hooks_command_codebuddy()` **环境感知**：
+  - 开发 / PyPI 安装（非 frozen）：保持 `python3 -m backend.hooks_forward`。
+  - 桌面 App（`sys.frozen`）：`"<sys.executable>" --hooks-forward` —— **复用冻结的
+    myknowledge-backend 二进制本身**作为 hook 执行器，不额外产出一个可执行文件。
+- `desktop_server.py` 增加 `--hooks-forward` 子命令：读 stdin → `hooks_forward.main()`
+  转发 → stdout。因 `desktop_server` 顶层 `from backend import hooks_forward`，
+  PyInstaller 会把它 trace 进 PYZ 包（而非仅 datas 数据文件），使冻结二进制内可 import。
+
+**打包执行方案（待打包阶段验证，backlog）**：
+- 现状 spec 仍把 `backend/hooks_forward.py` 放 `datas`（供开发环境 `python <path>` 独立运行）；
+  `desktop_server` 的 import 会额外把它编入 PYZ，两者共存不冲突。
+- 冻结后 `~/.codebuddy/settings.json` 的 hooks command 将写成
+  `<App资源路径>/myknowledge-backend --hooks-forward`（代码在 `sys.frozen` 分支生成），
+  由 Electron App 内的同一二进制处理，fail-open 语义不变。
+
+**测试**（`tests/test_hooks_forward.py` + `tests/test_client_config.py`）：
+- hooks_forward 源码不含 `backend` import（standalone 约束断言）；
+- `python <path>/hooks_forward.py` 子进程可独立跑通 mock 输入（fail-open）；
+- `desktop_server --hooks-forward` 转发并 fail-open；
+- `_hooks_command_codebuddy()` 开发/冻结两分支 + 空格路径加引号 + `write_kind` 落盘命令。
 
 ---
 

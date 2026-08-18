@@ -10,6 +10,7 @@ WorkBuddy), consistent with the frontend store and URL-safe.
 from __future__ import annotations
 
 import json
+import sys
 import urllib.parse
 from pathlib import Path
 
@@ -411,6 +412,42 @@ class TestHooksMatcher:
         data = _read_json(fake_home / ".codebuddy" / "settings.json")
         cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         assert "python3 -m backend.hooks_forward" == cmd
+
+
+class TestCodebuddyFrozenCommand:
+    """Environment-aware command: frozen desktop build reuses the binary."""
+
+    def test_dev_uses_module_form(self, monkeypatch) -> None:
+        """Not frozen → module invocation (python3 -m backend.hooks_forward)."""
+        monkeypatch.delattr(sys, "frozen", raising=False)
+        cmd = _hooks_command_codebuddy()
+        assert cmd == "python3 -m backend.hooks_forward"
+
+    def test_frozen_uses_binary_subcommand(self, monkeypatch) -> None:
+        """Frozen (PyInstaller) → <sys.executable> --hooks-forward."""
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        fake_bin = "/Applications/MyKnowledge.app/Contents/Resources/myknowledge-backend"
+        monkeypatch.setattr(sys, "executable", fake_bin)
+        cmd = _hooks_command_codebuddy()
+        assert cmd == f'"{fake_bin}" --hooks-forward'
+        assert "backend.hooks_forward" not in cmd
+
+    def test_frozen_quotes_path_with_spaces(self, monkeypatch) -> None:
+        """Frozen path with spaces is quoted for the shell."""
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        fake_bin = "/Users/me/Library/My Knowledge/myknowledge-backend"
+        monkeypatch.setattr(sys, "executable", fake_bin)
+        cmd = _hooks_command_codebuddy()
+        assert cmd == f'"{fake_bin}" --hooks-forward'
+
+    def test_frozen_matcher_writes_binary_command(self, fake_home, monkeypatch) -> None:
+        """write_kind stores the frozen binary subcommand, not the module form."""
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "executable", "/fake/app/myknowledge-backend")
+        write_kind("CodeBuddyIDE", "hooks")
+        data = _read_json(fake_home / ".codebuddy" / "settings.json")
+        cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        assert cmd == '"/fake/app/myknowledge-backend" --hooks-forward'
 
 
 class TestRemoveKind:
