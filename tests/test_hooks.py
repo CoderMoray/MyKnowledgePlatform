@@ -107,6 +107,55 @@ class TestKBWriteDeny:
         assert "write__delete_document" in d["agent_message"]
 
 
+class TestCodeBuddyAliases:
+    """CodeBuddy IDE tool names are normalized to the internal ones."""
+
+    def test_execute_command_equals_bash(self, kb_root: Path, client) -> None:
+        """execute_command rm on KB → deny (same as Bash rm)."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "execute_command",
+            "tool_input": {"command": f"rm -rf {kb_root}/projects/P"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_write_to_file_equals_write(self, kb_root: Path, client) -> None:
+        """write_to_file on a KB file → deny (same as Write)."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "write_to_file",
+            "tool_input": {"file_path": str(kb_root / "common-knowledge" / "a.md")},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+        assert "write__create_document" in r.json()["agent_message"]
+
+    def test_edit_file_equals_edit(self, kb_root: Path, client) -> None:
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "edit_file",
+            "tool_input": {"file_path": str(kb_root / "common-knowledge" / "b.md")},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_delete_file_equals_delete(self, kb_root: Path, client) -> None:
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "delete_file",
+            "tool_input": {"file_path": str(kb_root / "common-knowledge" / "c.md")},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+        assert "write__delete_document" in r.json()["agent_message"]
+
+    def test_non_kb_write_alias_allowed(self, kb_root: Path, client) -> None:
+        """CodeBuddy write to project code (outside KB) → allow."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "write_to_file",
+            "tool_input": {"file_path": "/tmp/proj/app.py"},
+            "cwd": "/tmp/proj",
+        })
+        assert r.json()["permission"] == "allow"
+
+
 class TestKBReadAllow:
     def test_read_tool_allow(self, kb_root: Path, client) -> None:
         r = client.post("/hooks/pre-tool-use", json={

@@ -83,13 +83,34 @@ def _tool_name_is_mcp(tool_name: str) -> bool:
     return tool_name.startswith("mcp:") or tool_name.startswith("mcp__")
 
 
+# CodeBuddy IDE tool names → internal canonical names (reused by the judgement).
+_TOOL_ALIASES = {
+    "execute_command": "Bash",
+    "write_to_file": "Write",
+    "edit_file": "Edit",
+    "apply_patch": "Edit",
+    "delete_file": "Delete",
+}
+
+
+def _normalize_tool_name(tool_name: str) -> str:
+    """Map CodeBuddy IDE tool names to the internal canonical names.
+
+    CodeBuddy's PreToolUse reports IDE tool names (``execute_command`` /
+    ``write_to_file`` / ``edit_file`` / ``delete_file``) instead of Claude's
+    ``Bash`` / ``Write`` / ``Edit`` / ``Delete``.  Normalizing lets the existing
+    judgement logic reuse the same Bash/file_write classification unchanged.
+    """
+    return _TOOL_ALIASES.get(tool_name, tool_name)
+
+
 def evaluate(payload: dict) -> dict:
     """Decide allow/deny for a PreToolUse tool-call payload.
 
     Returns a Claude + Cursor compatible response dict.  ``*_message`` fields
     carry the finalized guidance text (see ``GUIDANCE_PROPOSAL``).
     """
-    tool_name = str(payload.get("tool_name") or "")
+    tool_name = _normalize_tool_name(str(payload.get("tool_name") or ""))
     tool_input = payload.get("tool_input") or {}
     cwd = str(payload.get("cwd") or "")
     kb_root = resolve_root()

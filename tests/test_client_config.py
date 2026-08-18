@@ -15,11 +15,14 @@ from fastapi.testclient import TestClient
 from backend.client_config import (
     KINDS,
     PLATFORMS,
+    _hooks_command_codebuddy,
+    _hooks_command_claude,
     _platform_paths,
     agent_content,
     client_installed,
     detect_all,
     detect_platform,
+    hooks_matcher,
     mcp_entry,
     remove_kind,
     write_kind,
@@ -259,6 +262,35 @@ class TestInvalidInput:
             write_kind("claude", "nope")
 
 
+class TestHooksMatcher:
+    def test_commands_differ_by_platform(self, fake_home: Path) -> None:
+        """claude uses curl/$CLAUDE_TOOL_USE_INPUT; codebuddy uses helper script."""
+        claude = hooks_matcher("claude")
+        codebuddy = hooks_matcher("codebuddy")
+        assert claude["hooks"][0]["command"] != codebuddy["hooks"][0]["command"]
+        assert "$CLAUDE_TOOL_USE_INPUT" in claude["hooks"][0]["command"]
+        assert "hooks_forward.py" in codebuddy["hooks"][0]["command"]
+
+    def test_codebuddy_matcher_all(self, fake_home: Path) -> None:
+        """CodeBuddy matcher '*' matches all tools (MCP allowed internally)."""
+        assert hooks_matcher("codebuddy")["matcher"] == "*"
+
+    def test_claude_matcher_bash(self, fake_home: Path) -> None:
+        assert hooks_matcher("claude")["matcher"] == "Bash"
+
+    def test_workbuddy_uses_claude_command(self, fake_home: Path) -> None:
+        assert hooks_matcher("workbuddy")["matcher"] == "Bash"
+        assert hooks_matcher("workbuddy")["hooks"][0]["command"] \
+            == hooks_matcher("claude")["hooks"][0]["command"]
+
+    def test_codebuddy_write_kind_uses_helper(self, fake_home: Path) -> None:
+        """Writing codebuddy hooks stores the helper command."""
+        write_kind("codebuddy", "hooks")
+        data = _read_json(fake_home / ".codebuddy" / "settings.json")
+        cmd = data["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        assert "hooks_forward.py" in cmd
+
+
 class TestRemoveKind:
     def test_remove_mcp_keeps_others(self, fake_home: Path) -> None:
         """mcpServers loses MyKnowledge, other servers preserved."""
@@ -274,24 +306,29 @@ class TestRemoveKind:
         assert "RAPID" in servers
 
     def test_remove_hooks_keeps_others(self, fake_home: Path) -> None:
-        """PreToolUse loses the MyKnowledge Bash matcher, keeps other matchers."""
+        """PreToolUse loses the MyKnowledge matcher, keeps other matchers/hooks.
+
+        The user's own Bash hook (different command) must be preserved — only
+        the MyKnowledge matcher (exact command signature) is removed.
+        """
         s = fake_home / ".claude" / "settings.json"
+        user_bash_cmd = "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use x"
         _write_json(s, {"hooks": {
             "PreToolUse": [
                 {"matcher": "Bash",
-                 "hooks": [{"type": "command",
-                            "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use x"}]},
+                 "hooks": [{"type": "command", "command": user_bash_cmd}]},
                 {"matcher": "Edit|Write",
                  "hooks": [{"type": "command", "command": "fmt"}]},
             ],
         }})
-        write_kind("claude", "hooks")  # ensures our matcher present
+        write_kind("claude", "hooks")  # appends our exact-command matcher
         remove_kind("claude", "hooks")
         data = _read_json(s)
-        matchers = [m.get("matcher") for m in data["hooks"]["PreToolUse"]]
-        # MyKnowledge Bash matcher removed, Edit|Write preserved
-        assert "Bash" not in matchers
-        assert "Edit|Write" in matchers
+        cmds = [m["hooks"][0]["command"] for m in data["hooks"]["PreToolUse"]]
+        # our exact MyKnowledge command gone, user's own hooks preserved
+        assert "$CLAUDE_TOOL_USE_INPUT" not in "\n".join(cmds)
+        assert user_bash_cmd in cmds
+        assert "fmt" in cmds
 
     def test_remove_agent_deletes_file(self, fake_home: Path) -> None:
         write_kind("codebuddy", "agent")

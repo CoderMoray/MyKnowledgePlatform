@@ -74,21 +74,59 @@ def mcp_entry() -> dict:
     }
 
 
-def hooks_matcher() -> dict:
-    """The PreToolUse hook matcher (guards bare AI operations via HTTP)."""
+def _hooks_command_claude() -> str:
+    """Claude/WorkBuddy: curl the hook with $CLAUDE_TOOL_USE_INPUT."""
+    return (
+        f"curl -s -X POST {HOOK_ENDPOINT} "
+        "-H 'Content-Type: application/json' "
+        "-d '$CLAUDE_TOOL_USE_INPUT'"
+    )
+
+
+def _hooks_command_codebuddy() -> str:
+    """CodeBuddy: forward stdin JSON via a helper script (no $CLAUDE_TOOL_USE_INPUT).
+
+    CodeBuddy passes PreToolUse data on **stdin** and uses IDE tool names
+    (execute_command / write_to_file / ...); ``hooks_forward.py`` reads stdin,
+    POSTs to the hook endpoint, and prints the response JSON.
+    """
+    helper = Path(__file__).resolve().parent / "hooks_forward.py"
+    return f"python3 {helper}"
+
+
+def hooks_matcher(platform: str) -> dict:
+    """The PreToolUse hook matcher (guards bare AI operations via HTTP).
+
+    Platform-differentiated command:
+      - claude / workbuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher ``Bash``.
+      - codebuddy: helper script reading stdin, matcher ``*`` (match all tools —
+        ``hooks.py`` allows MCP calls internally, so a broad matcher is safe).
+    """
+    if platform == "codebuddy":
+        return {
+            "matcher": "*",
+            "hooks": [{"type": "command",
+                       "command": _hooks_command_codebuddy()}],
+        }
     return {
         "matcher": "Bash",
-        "hooks": [
-            {
-                "type": "command",
-                "command": (
-                    f"curl -s -X POST {HOOK_ENDPOINT} "
-                    "-H 'Content-Type: application/json' "
-                    "-d '$CLAUDE_TOOL_USE_INPUT'"
-                ),
-            }
-        ],
+        "hooks": [{"type": "command", "command": _hooks_command_claude()}],
     }
+
+
+def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
+    """True if a PreToolUse matcher is the MyKnowledge hook (by command signature).
+
+    Recognises our hook by its command (claude/curl-$CLAUDE_TOOL_USE_INPUT or
+    codebuddy/hooks_forward.py) so we never mistake a user's own hook for ours.
+    """
+    if not isinstance(matcher, dict):
+        return False
+    hooks = matcher.get("hooks")
+    if not isinstance(hooks, list) or not hooks:
+        return False
+    first = hooks[0]
+    return isinstance(first, dict) and first.get("command") == cmd
 
 
 def agent_content(platform: str) -> str:
@@ -185,8 +223,9 @@ def detect_platform(platform: str) -> dict:
 
     settings = _load_json(p["settings_file"])
     hk = settings.get("hooks") or {}
+    cmd = hooks_matcher(platform)["hooks"][0]["command"]
     hooks = any(
-        isinstance(m, dict) and m.get("matcher") == "Bash"
+        _matcher_is_mine(m, cmd)
         for lst in hk.values()
         if isinstance(lst, list)
         for m in lst
@@ -230,9 +269,11 @@ def write_kind(platform: str, kind: str) -> dict:
         data = _load_json(path)
         hooks = data.setdefault("hooks", {})
         existing = hooks.get("PreToolUse") or []
-        if not any(isinstance(m, dict) and m.get("matcher") == "Bash"
-                   for m in existing):
-            existing.append(hooks_matcher())
+        matcher = hooks_matcher(platform)
+        cmd = matcher["hooks"][0]["command"]
+        # 幂等：若已存在本平台的 MyKnowledge 钩子（按 command 签名识别），不重复追加。
+        if not any(_matcher_is_mine(m, cmd) for m in existing):
+            existing.append(matcher)
         hooks["PreToolUse"] = existing
         _save_json(path, data)
         return {"platform": platform, "kind": "hooks", "file": str(path),
@@ -281,12 +322,9 @@ def remove_kind(platform: str, kind: str) -> dict:
         hooks = data.get("hooks")
         if isinstance(hooks, dict):
             existing = hooks.get("PreToolUse") or []
-            # 只移除 MyKnowledge 的 Bash matcher（保留用户其他 matcher/hook）
-            kept = [m for m in existing
-                    if not (isinstance(m, dict)
-                            and m.get("matcher") == "Bash"
-                            and m.get("hooks")
-                            and HOOK_ENDPOINT in str(m["hooks"]))]
+            cmd = hooks_matcher(platform)["hooks"][0]["command"]
+            # 只移除 MyKnowledge 的钩子（按 command 签名识别），保留用户其他 matcher/hook
+            kept = [m for m in existing if not _matcher_is_mine(m, cmd)]
             if len(kept) != len(existing):
                 hooks["PreToolUse"] = kept
                 _save_json(path, data)
