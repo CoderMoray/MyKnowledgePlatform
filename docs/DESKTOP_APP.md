@@ -70,14 +70,14 @@ cd desktop && npm run release
 | 2. 后端打包 | `./scripts/build-backend.sh` | `dist-backend/myknowledge-backend/` | 改后端 Python |
 | 3. 壳打包 | `npx electron-builder --mac` | `desktop/dist/MyKnowledge-*.dmg/.zip` | 改 desktop/ 壳代码 |
 
-**版本号**：统一在 `backend/__version__.py`（当前 0.7.0），发版时更新（`desktop/package.json` 的 version 同步）。
+**版本号**：统一在 `backend/__version__.py`（当前 0.7.5），发版时更新（`desktop/package.json` 的 version 同步）。
 
 **产物**（`desktop/dist/`）：
 
 | 文件 | 说明 |
 |------|------|
-| `MyKnowledge-0.7.0-arm64.dmg` | 拖入 Applications 安装（Apple Silicon） |
-| `MyKnowledge-0.7.0-arm64-mac.zip` | 解压即用，网络受限时用这个分发 |
+| `MyKnowledge-0.7.5-arm64.dmg` | 拖入 Applications 安装（Apple Silicon） |
+| `MyKnowledge-0.7.5-arm64-mac.zip` | 解压即用，网络受限时用这个分发 |
 
 > DMG 构建工具从 GitHub 下载可能超时，`build:app` 脚本已默认走国内镜像
 > （`ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`，
@@ -93,7 +93,7 @@ cd desktop && npm run release
 | Python 后端（PyInstaller onedir） | 81MB | 已瘦身，见下 |
 | 壳 + 图标 + 其余 | ~1MB | — |
 
-**分发产物**：`MyKnowledge-0.7.0-arm64-mac.zip` 161MB，`MyKnowledge-0.7.0-arm64.dmg` 148MB。
+**分发产物**：`MyKnowledge-0.7.5-arm64-mac.zip` 161MB，`MyKnowledge-0.7.5-arm64.dmg` 148MB。
 
 **瘦身效果：后端 164MB → 71MB（-93MB，57%），.app 446MB → 357MB（-89MB，20%），zip 185MB → 161MB。**
 

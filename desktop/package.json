@@ -1,6 +1,6 @@
 {
   "name": "myknowledge-desktop",
-  "version": "0.7.0",
+  "version": "0.7.5",
   "private": true,
   "description": "MyKnowledge macOS 桌面壳（Electron）",
   "main": "main.js",
