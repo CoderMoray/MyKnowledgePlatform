@@ -67,7 +67,7 @@ let _tocCollapsedSet = {};
 
     /* ── 阶段三：AI 客户端配置 + 引导向导 + 配置 modal ─────────────────── */
 
-    /** AI 客户端配置检测状态：{ claude: {mcp, hooks, agent}, codebuddy: {...} }（bool） */
+    /** AI 客户端配置检测状态：{ ClaudeCode: {mcp, hooks, agent}, CodeBuddyIDE: {...} }（bool） */
     clientConfig: null,
     /** 配置 modal 当前左侧分组：account | general | mcp | hooks | agent */
     settingsGroup: "account",
@@ -1295,11 +1295,14 @@ let _tocCollapsedSet = {};
 
     /* ── 阶段三：AI 客户端配置（MCP/hooks/Agent 检测 + 半自动化写入） ── */
 
-    /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy/workbuddy） */
+    /** AI 平台元信息（key 与后端 client_config.PLATFORMS 严格一致：ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy）
+     *  key 用 PascalCase（读起来即展示名去空格：CodeBuddyIDE → "CodeBuddy IDE"），URL 无需编码。
+     *  mcpOnly: 该平台仅支持 MCP（如 Claude Desktop 不支持 hooks/专用 Agent） */
     clientPlatforms: [
-      { key: "claude",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
-      { key: "codebuddy", label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
-      { key: "workbuddy", label: "WorkBuddy",   dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)" },
+      { key: "ClaudeCode",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
+      { key: "ClaudeDesktop", label: "Claude Desktop", dot: "linear-gradient(135deg,#b45309,#f59e0b)", mcpOnly: true },
+      { key: "CodeBuddyIDE",  label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
+      { key: "WorkBuddy",     label: "WorkBuddy",     dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)" },
     ],
 
     /** 加载各平台配置检测状态（GET /api/client-config）；加载中 clientDetecting=true（「重新检测」按钮转 spinner） */
@@ -1321,7 +1324,7 @@ let _tocCollapsedSet = {};
      * 关 = DELETE 移除 MyKnowledge 配置（只动 MyKnowledge，保留用户其他配置；幂等）。
      * 开关 optimistic：点击立即本地翻转为目标状态；成功 loadClientConfig 刷新真实
      * 状态；失败回弹真实状态 + 行内 fallback 可交互文本（5 秒自动消失）。
-     * @param {string} platform - claude | codebuddy | workbuddy
+     * @param {string} platform - ClaudeCode | ClaudeDesktop | CodeBuddyIDE | WorkBuddy
      * @param {string} kind - mcp | hooks | agent
      */
     async configureClient(platform, kind) {
@@ -1435,11 +1438,24 @@ let _tocCollapsedSet = {};
       return cfg[platform].client_installed;
     },
 
+    /** 某平台适用的 kind 列表（mcpOnly 平台仅 mcp，与后端 client_config._kinds_for 一致） */
+    platformKinds(platform) {
+      const plat = this.clientPlatforms.find(p => p.key === platform);
+      if (plat && plat.mcpOnly) return this.clientKinds.filter(k => k.key === "mcp");
+      return this.clientKinds;
+    },
+
+    /** 某 kind 适用的平台列表（仅含支持该 kind 的平台，用于 settings 矩阵渲染） */
+    platformsForKind(kindKey) {
+      return this.clientPlatforms.filter(p =>
+        !p.mcpOnly || kindKey === "mcp");
+    },
+
     /** 引导 Step2：平台×kind 配置项行列表（供 x-for 渲染） */
     get guideConfigItems() {
       const items = [];
       for (const plat of this.clientPlatforms) {
-        for (const kind of this.clientKinds) {
+        for (const kind of this.platformKinds(plat.key)) {
           items.push({ platform: plat.key, kind: kind.key });
         }
       }

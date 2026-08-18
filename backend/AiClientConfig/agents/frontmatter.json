@@ -1,0 +1,28 @@
+{
+  "agent_file": "MyKnowledge-agent.md",
+  "_comment": "variants 按 frontmatter 设计分组：多个平台共享同一份 frontmatter 时只写一次，在 platforms 列出全部适用平台。agent_content(platform) 会挑选 platforms 包含该平台的 variant，拼装成 frontmatter + 正文。",
+  "variants": [
+    {
+      "platforms": ["ClaudeCode"],
+      "frontmatter": {
+        "name": "MyKnowledge Agent",
+        "description": "MyKnowledge 知识管理平台协作 Agent：通过 MCP 检索与维护本地知识库",
+        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose",
+        "model": "inherit"
+      }
+    },
+    {
+      "platforms": ["CodeBuddyIDE", "WorkBuddy"],
+      "frontmatter": {
+        "name": "MyKnowledge Agent",
+        "description": "MyKnowledge 知识管理平台协作 Agent：通过 MCP 检索与维护本地知识库",
+        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose",
+        "model": "inherit",
+        "agentMode": "manual",
+        "enabled": true,
+        "enabledAutoRun": true,
+        "mcpServers": "MyKnowledge"
+      }
+    }
+  ]
+}

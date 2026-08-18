@@ -9,7 +9,9 @@ we only add/update the ``MyKnowledge`` MCP server entry, our ``hooks``
 matcher, and our ``MyKnowledge-agent.md`` agent file.  Existing servers
 (e.g. RAPID / CodeGraph) and unrelated settings are preserved untouched.
 
-MVP platforms: Claude + CodeBuddy IDE. WorkBuddy is the fallback (not built).
+MVP platforms: ClaudeCode + CodeBuddyIDE. WorkBuddy is the fallback (not built).
+``ClaudeDesktop`` is MCP-only (Claude Desktop does not support hooks / custom
+agents), so its KINDS are restricted to ``mcp``.
 
 The webserver runs on ``127.0.0.1:8080`` (``cli.py serve``); the generated
 hook points at its ``/hooks/pre-tool-use`` handler.
@@ -28,37 +30,131 @@ HOOK_ENDPOINT = f"{WEBSERVER_BASE}/hooks/pre-tool-use"
 
 
 # ══════════════════════════════════════════════════════════════
-#  平台 → 配置路径映射（扩展 WorkBuddy 时在此追加）
+#  平台定义（平台标识符与前端 store.clientPlatforms 的 key 严格一致）
 # ══════════════════════════════════════════════════════════════
-def _platform_paths(platform: str) -> dict:
-    """Return the resolved config paths for a platform.
-
-    Global (user-wide) locations only — we never write project files.
-    """
-    home = Path.home()
-    if platform == "claude":
-        return {
-            "mcp_file": home / ".claude.json",             # global MCP servers
-            "settings_file": home / ".claude" / "settings.json",  # hooks
-            "agents_dir": home / ".claude" / "agents",
-        }
-    if platform == "codebuddy":
-        return {
-            "mcp_file": home / ".codebuddy" / "mcp.json",   # mcpServers
-            "settings_file": home / ".codebuddy" / "settings.json",  # hooks
-            "agents_dir": home / ".codebuddy" / "agents",
-        }
-    if platform == "workbuddy":
-        return {
-            "mcp_file": home / ".workbuddy" / "mcp.json",   # mcpServers
-            "settings_file": home / ".workbuddy" / "settings.json",  # hooks
-            "agents_dir": home / ".workbuddy" / "agents",
-        }
-    raise ValueError(f"不支持的平台: {platform}（仅 claude/codebuddy/workbuddy）")
-
-
-PLATFORMS = ("claude", "codebuddy", "workbuddy")
+# 平台标识符用 PascalCase（无空格/下划线，URL 无需编码），读起来即展示名
+# 去掉空格：ClaudeCode → "Claude Code"、CodeBuddyIDE → "CodeBuddy IDE"。
+# 磁盘配置目录（~/.claude、~/.codebuddy…）是厂商事实标准，与标识符解耦，
+# 全部路径与 mcp_only / cli_names 由 AiClientConfig/platforms.json 单一来源管理。
+PLATFORMS: tuple
 KINDS = ("mcp", "hooks", "agent")
+MCP_ONLY_PLATFORMS: tuple
+_platforms_cache: dict | None = None
+
+
+def _aiclient_config_dir() -> Path:
+    """Path to the AI-client config data (``backend/AiClientConfig``).
+
+    Holds ``platforms.json`` (per-OS vendor config paths) and ``agents/``
+    (agent prompt + per-platform frontmatter). Shipped with the package
+    (PyInstaller datas / wheel package-data).
+    """
+    return Path(__file__).resolve().parent / "AiClientConfig"
+
+
+def _load_platforms_data() -> dict:
+    """Load (and cache) the whole ``platforms.json`` dict."""
+    global _platforms_cache
+    if _platforms_cache is None:
+        jf = _aiclient_config_dir() / "platforms.json"
+        if not jf.is_file():
+            raise RuntimeError(
+                f"缺失平台配置: {jf}（backend/AiClientConfig/platforms.json）")
+        try:
+            data = json.loads(jf.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"平台配置格式错误: {jf}: {e}") from e
+        platforms = data.get("platforms")
+        if not isinstance(platforms, dict):
+            raise RuntimeError(f"平台配置缺少 platforms 字典: {jf}")
+        _platforms_cache = data
+    return _platforms_cache
+
+
+# 平台枚举与 MCP-only 集合从 platforms.json 派生（单一来源）。
+_platforms_data = _load_platforms_data()
+PLATFORMS = tuple(_platforms_data["platforms"].keys())
+MCP_ONLY_PLATFORMS = tuple(
+    k for k, v in _platforms_data["platforms"].items() if v.get("mcp_only"))
+
+
+def _kinds_for(platform: str) -> tuple:
+    """Kinds applicable to a platform (MCP-only platforms support only mcp)."""
+    if platform in MCP_ONLY_PLATFORMS:
+        return ("mcp",)
+    return KINDS
+
+
+def _current_os() -> str:
+    """The current OS key (macos / windows / linux)."""
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def _platform_spec(platform: str) -> dict:
+    """Return a platform's spec from ``AiClientConfig/platforms.json``.
+
+    Raises ``ValueError`` for an unknown platform.
+    """
+    platforms = _load_platforms_data()["platforms"]
+    if platform not in platforms:
+        raise ValueError(
+            f"不支持的平台: {platform}（仅 {'/'.join(PLATFORMS)}）")
+    return platforms[platform]
+
+
+def _resolve_path(template: str) -> Path:
+    """Resolve a path template (``~`` / ``%APPDATA%`` / ``%USERPROFILE%``)."""
+    if template.startswith("~"):
+        return Path.home() / template.lstrip("~/")
+    import os
+    for var in ("APPDATA", "USERPROFILE"):
+        prefix = f"%{var}%"
+        if template.startswith(prefix):
+            base = os.environ.get(var)
+            if base:
+                return Path(base) / template[len(prefix):].lstrip("/\\")
+    return Path(template)
+
+
+def _platform_paths(platform: str) -> dict:
+    """Return the resolved config paths for a platform on the current OS.
+
+    Reads the vendor config locations from ``platforms.json`` (per-OS), so the
+    platform identifier stays display-name-readable while the real config dir
+    (~/.claude, ~/.codebuddy, …) is a fixed factual path.  Global (user-wide)
+    locations only — we never write project files.
+    """
+    spec = _platform_spec(platform)
+    paths = spec.get("paths", {})
+    os_key = _current_os()
+    # Fall back to macOS if the current OS isn't yet mapped in platforms.json.
+    entry = paths.get(os_key) or paths.get("macos") or {}
+    return {
+        "mcp_file": _resolve_path(entry["mcp_file"]),
+        "settings_file": _resolve_path(entry.get("settings_file", "")),
+        "agents_dir": _resolve_path(entry.get("agents_dir", "")),
+    }
+
+
+def _config_dir(platform: str) -> Path:
+    """The vendor config dir used for client_installed detection.
+
+    From ``platforms.json`` ``config_dir`` (per-OS); the vendor's own home
+    folder, not derived from the display-name identifier.
+    """
+    entry = (_platform_spec(platform).get("paths", {})
+             .get(_current_os()) or _platform_spec(platform).get("paths", {}).get("macos"))
+    return _resolve_path(entry["config_dir"])
+
+
+def _cli_name(platform: str) -> str:
+    """CLI name for PATH-based install detection (``""`` if none)."""
+    return (_platform_spec(platform).get("cli_names", {})
+            .get(_current_os(), ""))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -102,11 +198,11 @@ def hooks_matcher(platform: str) -> dict:
     """The PreToolUse hook matcher (guards bare AI operations via HTTP).
 
     Platform-differentiated command:
-      - claude / workbuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher ``Bash``.
-      - codebuddy: helper script reading stdin, matcher ``*`` (match all tools —
+      - ClaudeCode / WorkBuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher ``Bash``.
+      - CodeBuddyIDE: helper script reading stdin, matcher ``*`` (match all tools —
         ``hooks.py`` allows MCP calls internally, so a broad matcher is safe).
     """
-    if platform == "codebuddy":
+    if platform == "CodeBuddyIDE":
         return {
             "matcher": "*",
             "hooks": [{"type": "command",
@@ -133,42 +229,84 @@ def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
     return isinstance(first, dict) and first.get("command") == cmd
 
 
-def _agent_template() -> str:
-    """Read the agent prompt body from ``backend/templates/MyKnowledge-agent.md``.
+def _agents_dir() -> Path:
+    """Path to the AI-client agent templates (``backend/AiClientConfig/agents``).
 
-    Content is separated from code so edits don't require a code change; the
-    template ships with the package (PyInstaller datas / wheel package-data).
+    Holds the agent prompt body (``MyKnowledge-agent.md``) plus the per-platform
+    frontmatter map (``frontmatter.json``). Shipped with the package (PyInstaller
+    datas / wheel package-data).
+    """
+    return _aiclient_config_dir() / "agents"
+
+
+def _agent_template() -> str:
+    """Read the agent prompt body from ``backend/AiClientConfig/agents/MyKnowledge-agent.md``.
+
+    Content is separated from code so edits don't require a code change.
     Raises a clear ``RuntimeError`` if the template is missing.
     """
-    tpl = Path(__file__).resolve().parent / "templates" / "MyKnowledge-agent.md"
+    tpl = _agents_dir() / "MyKnowledge-agent.md"
     if not tpl.is_file():
         raise RuntimeError(
-            f"缺失 Agent 模板: {tpl}（backend/templates/MyKnowledge-agent.md）")
+            f"缺失 Agent 模板: {tpl}（backend/AiClientConfig/agents/MyKnowledge-agent.md）")
     return tpl.read_text(encoding="utf-8")
 
 
+def _frontmatter_variants() -> list:
+    """Load the per-platform frontmatter map from ``frontmatter.json``.
+
+    Schema: ``{"agent_file": str, "variants": [{"platforms": [str, ...],
+    "frontmatter": {k: v, ...}}, ...]}``. A platform's frontmatter is the
+    ``frontmatter`` dict of the variant whose ``platforms`` list contains it.
+    Raises ``RuntimeError`` if the map is missing/corrupt or a platform has no
+    matching variant.
+    """
+    jf = _agents_dir() / "frontmatter.json"
+    if not jf.is_file():
+        raise RuntimeError(
+            f"缺失 frontmatter 配置: {jf}（backend/AiClientConfig/agents/frontmatter.json）")
+    try:
+        data = json.loads(jf.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"frontmatter 配置格式错误: {jf}: {e}") from e
+    variants = data.get("variants")
+    if not isinstance(variants, list):
+        raise RuntimeError(f"frontmatter 配置缺少 variants 列表: {jf}")
+    return variants
+
+
+def _frontmatter_for(platform: str) -> dict:
+    """Return the frontmatter dict for a platform (from ``frontmatter.json``)."""
+    for variant in _frontmatter_variants():
+        if platform in (variant.get("platforms") or []):
+            fm = variant.get("frontmatter")
+            if isinstance(fm, dict):
+                return fm
+    raise RuntimeError(
+        f"frontmatter 配置未覆盖平台: {platform}（检查 frontmatter.json 的 platforms）")
+
+
 def agent_content(platform: str) -> str:
-    """MyKnowledge agent markdown, body from template + per-platform frontmatter."""
-    tools = ("mcp_get_tool_description, mcp_call_tool, "
-             "nav__list_dir, nav__get_document, nav__find, write__create_document, "
-             "write__update_document, maint__knowledgebase_diagnose")
+    """MyKnowledge agent markdown: body from template + per-platform frontmatter.
+
+    The frontmatter is read from ``frontmatter.json`` (not hardcoded), so adding
+    a platform or changing its format requires only a data edit, no code change.
+    """
     prompt = _agent_template()
-    fm = [
-        "---",
-        "name: MyKnowledge Agent",
-        "description: MyKnowledge 知识管理平台协作 Agent",
-        f"tools: {tools}",
-        "model: inherit",
-    ]
-    # WorkBuddy 与 CodeBuddy 同为 IDE/办公智能体、经 MCP 连接，复用同一 agent 格式。
-    if platform in ("codebuddy", "workbuddy"):
-        fm += [
-            "agentMode: manual",
-            "enabled: true",
-            "enabledAutoRun: true",
-            "mcpServers: MyKnowledge",
-        ]
-    return "\n".join(fm) + "\n---\n\n" + prompt
+    fm_lines = ["---"]
+    for key, value in _frontmatter_for(platform).items():
+        # Render YAML-ish frontmatter lines: booleans/None → lowercase YAML
+        # literals (true/false/null); lists → comma-joined (tools: a, b, c).
+        if isinstance(value, bool):
+            fm_lines.append(f"{key}: {'true' if value else 'false'}")
+        elif value is None:
+            fm_lines.append(f"{key}: null")
+        elif isinstance(value, (list, tuple)):
+            fm_lines.append(f"{key}: {', '.join(map(str, value))}")
+        else:
+            fm_lines.append(f"{key}: {value}")
+    fm_lines.append("---")
+    return "\n".join(fm_lines) + "\n\n" + prompt
 
 
 # ══════════════════════════════════════════════════════════════
@@ -197,19 +335,23 @@ def _save_json(path: Path, data: dict) -> None:
 def client_installed(platform: str) -> bool:
     """Is the AI client installed / has a config environment?
 
-    Platform-level (shared across mcp/hooks/agent kinds):
-      - Claude Code: ``~/.claude`` dir exists, or the ``claude`` CLI is on PATH.
-      - CodeBuddy: ``~/.codebuddy`` dir exists.
+    Platform-level (shared across mcp/hooks/agent kinds) — the vendor config
+    dir comes from ``_config_dir`` (not derived from the display-name id):
+      - ClaudeCode: ``~/.claude`` dir exists, or the ``claude`` CLI is on PATH.
+      - ClaudeDesktop: ``~/Library/Application Support/Claude`` dir exists
+        (where ``claude_desktop_config.json`` lives).
+      - CodeBuddyIDE: ``~/.codebuddy`` dir exists.
       - WorkBuddy: ``~/.workbuddy`` dir exists.
     Read-only detection — never writes anything.
     """
     import shutil
-    home = Path.home()
-    if platform == "claude":
-        return (home / ".claude").exists() or shutil.which("claude") is not None
-    if platform in ("codebuddy", "workbuddy"):
-        return (home / f".{platform}").exists()
-    raise ValueError(f"不支持的平台: {platform}")
+    cfg_dir = _config_dir(platform)
+    # Some clients also expose a CLI on PATH (e.g. ClaudeCode → ``claude``);
+    # the CLI name comes from platforms.json ``cli_names`` (per-OS).
+    cli = _cli_name(platform)
+    if cli:
+        return cfg_dir.exists() or shutil.which(cli) is not None
+    return cfg_dir.exists()
 
 
 def detect_platform(platform: str) -> dict:
@@ -221,6 +363,15 @@ def detect_platform(platform: str) -> dict:
     p = _platform_paths(platform)
     mcp_data = _load_json(p["mcp_file"])
     mcp = "MyKnowledge" in (mcp_data.get("mcpServers") or {})
+
+    # MCP-only platforms (ClaudeDesktop) do not support hooks / custom agents.
+    if platform in MCP_ONLY_PLATFORMS:
+        return {
+            "client_installed": client_installed(platform),
+            "mcp": mcp,
+            "hooks": False,
+            "agent": False,
+        }
 
     settings = _load_json(p["settings_file"])
     hk = settings.get("hooks") or {}
@@ -254,6 +405,8 @@ def write_kind(platform: str, kind: str) -> dict:
         raise ValueError(f"不支持的平台: {platform}")
     if kind not in KINDS:
         raise ValueError(f"不支持的配置类型: {kind}（mcp/hooks/agent）")
+    if kind not in _kinds_for(platform):
+        raise ValueError(f"平台 {platform} 不支持 {kind} 配置（仅支持 {_kinds_for(platform)}）")
     p = _platform_paths(platform)
 
     if kind == "mcp":
@@ -305,6 +458,8 @@ def remove_kind(platform: str, kind: str) -> dict:
         raise ValueError(f"不支持的平台: {platform}")
     if kind not in KINDS:
         raise ValueError(f"不支持的配置类型: {kind}（mcp/hooks/agent）")
+    if kind not in _kinds_for(platform):
+        raise ValueError(f"平台 {platform} 不支持 {kind} 配置（仅支持 {_kinds_for(platform)}）")
     p = _platform_paths(platform)
 
     if kind == "mcp":

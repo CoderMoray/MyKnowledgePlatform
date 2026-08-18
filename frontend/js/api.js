@@ -325,7 +325,7 @@ const api = {
 
   /**
    * 检测各 AI 客户端的 MyKnowledge 配置状态
-   * @returns {Promise<{claude: {mcp, hooks, agent}, codebuddy: {mcp, hooks, agent}}>}
+   * @returns {Promise<{ClaudeCode: {mcp, hooks, agent}, CodeBuddyIDE: {mcp, hooks, agent}}>}
    */
   async getClientConfig() {
     return apiRequest("/api/client-config");
@@ -333,7 +333,7 @@ const api = {
 
   /**
    * 增量写入某平台某 kind 的 MyKnowledge 配置
-   * @param {string} platform - claude | codebuddy
+   * @param {string} platform - ClaudeCode | ClaudeDesktop | CodeBuddyIDE | WorkBuddy
    * @param {string} kind - mcp | hooks | agent
    * @returns {Promise<{platform, kind, file, status, detected}>}
    */
@@ -346,7 +346,7 @@ const api = {
   /**
    * 移除某平台某 kind 的 MyKnowledge 配置（只动 MyKnowledge 条目，
    * 保留用户其他配置；幂等）。开=写（setClientConfig），关=移除。
-   * @param {string} platform - claude | codebuddy | workbuddy
+   * @param {string} platform - ClaudeCode | ClaudeDesktop | CodeBuddyIDE | WorkBuddy
    * @param {string} kind - mcp | hooks | agent
    * @returns {Promise<{platform, kind, file, status: "removed"}>}
    */

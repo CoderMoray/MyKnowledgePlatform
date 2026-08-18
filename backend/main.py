@@ -1248,10 +1248,12 @@ def api_heal_rebuild(payload: HealRebuildPayload):
 
 @app.get("/api/client-config")
 def api_client_config_detect():
-    """Detect MyKnowledge config presence in each AI client (Claude/CodeBuddy).
+    """Detect MyKnowledge config presence in each AI client.
 
-    Returns ``{claude: {mcp, hooks, agent}, codebuddy: {mcp, hooks, agent}}``
-    — read-only, no writes.
+    Returns ``{ClaudeCode: {mcp, hooks, agent}, ClaudeDesktop: {...},
+    CodeBuddyIDE: {...}, WorkBuddy: {...}}`` — read-only, no writes.
+    Platform identifiers are PascalCase (ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy),
+    consistent with the frontend store and URL-safe (no spaces).
     """
     from backend.client_config import detect_all
     return detect_all()
@@ -1261,7 +1263,8 @@ def api_client_config_detect():
 def api_client_config_write(platform: str, kind: str):
     """Incrementally write MyKnowledge config for one platform/kind.
 
-    ``platform``: ``claude`` | ``codebuddy``; ``kind``: ``mcp`` | ``hooks`` | ``agent``.
+    ``platform``: ``ClaudeCode`` | ``ClaudeDesktop`` | ``CodeBuddyIDE`` | ``WorkBuddy``;
+    ``kind``: ``mcp`` | ``hooks`` | ``agent`` (ClaudeDesktop is MCP-only).
     Writes the user's **global** config files (``~/.claude`` / ``~/.codebuddy``),
     merging incrementally without overwriting unrelated existing entries.
 
@@ -1279,8 +1282,8 @@ def api_client_config_write(platform: str, kind: str):
 def api_client_config_remove(platform: str, kind: str):
     """Remove the MyKnowledge config entry for one platform/kind.
 
-    ``platform``: ``claude`` | ``codebuddy`` | ``workbuddy``;
-    ``kind``: ``mcp`` | ``hooks`` | ``agent``.
+    ``platform``: ``ClaudeCode`` | ``ClaudeDesktop`` | ``CodeBuddyIDE`` | ``WorkBuddy``;
+    ``kind``: ``mcp`` | ``hooks`` | ``agent`` (ClaudeDesktop is MCP-only).
     Removes **only** the MyKnowledge entries (the user's other mcpServers /
     hooks / settings are preserved).  Idempotent — removing an already-absent
     entry succeeds.

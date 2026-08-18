@@ -186,8 +186,8 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | GET | `/api/diagnose/saved` | 读取上次诊断结果（读/算分离；无结果或损坏返回 `{saved: false}`） |
 | POST | `/api/heal/move` | 批量移动孤儿文档到同级 `common-knowledge/`（body: `{paths, target_rel?}`）→ `{moved, failed}` |
 | POST | `/api/heal/rebuild` | 重建 readme 索引层 + project-status（body: `{layers?, all?}`）→ `{rebuilt, project_status}` |
-| GET | `/api/client-config` | 检测 AI 客户端（Claude/CodeBuddy/WorkBuddy）的 MyKnowledge 配置状态 → `{claude: {client_installed,mcp,hooks,agent}, codebuddy: {...}, workbuddy: {...}}`（client_installed=客户端是否安装） |
-| POST | `/api/client-config/:platform/:kind` | 增量写入该平台该 kind 的 MyKnowledge 配置（platform: claude\|codebuddy\|workbuddy；kind: mcp\|hooks\|agent）→ `{platform, kind, file, status, detected}` |
+| GET | `/api/client-config` | 检测 AI 客户端（Claude Code/Claude Desktop/CodeBuddy/WorkBuddy）的 MyKnowledge 配置状态 → `{ClaudeCode: {client_installed,mcp,hooks,agent}, ClaudeDesktop: {...}, CodeBuddyIDE: {...}, WorkBuddy: {...}}`（client_installed=客户端是否安装） |
+| POST | `/api/client-config/:platform/:kind` | 增量写入该平台该 kind 的 MyKnowledge 配置（platform: ClaudeCode\|ClaudeDesktop\|CodeBuddyIDE\|WorkBuddy；kind: mcp\|hooks\|agent；ClaudeDesktop 仅支持 mcp）→ `{platform, kind, file, status, detected}` |
 | DELETE | `/api/client-config/:platform/:kind` | 移除该平台该 kind 的 MyKnowledge 配置（只动 MyKnowledge，保留用户其他配置；幂等）→ `{platform, kind, file, status: "removed"}` |
 | POST | `/hooks/pre-tool-use` | AI 客户端 PreToolUse hook：判定知识库裸操作 allow/deny（Claude/Cursor 兼容）→ `{hookSpecificOutput, permission, agent_message, user_message}` |
 

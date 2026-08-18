@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=1fcfee2d57"></script>
+  <script src="js/api.js?v=f854b5cbc8"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=5a63812e13"></script>
+  <script src="js/store.js?v=15b6ac8bd6"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=3c01777a12"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1872,7 +1872,7 @@
               <div class="settings-card">
                 <div class="settings-card__title" x-text="kind.label + ' 服务状态'"></div>
                 <div class="settings-card__desc" x-text="'为各 AI 客户端配置 ' + kind.label + '；开关关闭 = 移除配置'"></div>
-                <template x-for="plat in $store.app.clientPlatforms" :key="kind.key + '-' + plat.key">
+                <template x-for="plat in $store.app.platformsForKind(kind.key)" :key="kind.key + '-' + plat.key">
                   <div>
                     <div class="ai-platform-row" :data-platform="plat.key" :data-kind="kind.key">
                       <span class="status-indicator__dot"
