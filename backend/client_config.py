@@ -179,8 +179,13 @@ def enchante_deeplink() -> str:
     The ``config`` is base64 of a JSON bundle: ``{displayName, description,
     icon, config: {type, command, args, env}}``.  Generation only — the actual
     deeplink capture is handled by the Enchante client, not the backend.
+
+    The base64 is URL-quoted (with the unreserved/reserved-query safe set) so
+    ``+`` becomes ``%2B`` — Enchanté's Swift ``URLComponents`` would otherwise
+    parse a raw ``+`` as a space and corrupt the payload.
     """
     import base64
+    import urllib.parse
     bundle = {
         "displayName": "MyKnowledge",
         "description": "MyKnowledge 知识管理平台",
@@ -189,7 +194,10 @@ def enchante_deeplink() -> str:
     }
     enc = base64.b64encode(json.dumps(bundle, ensure_ascii=False)
                            .encode("utf-8")).decode("ascii")
-    return f"enchante://mcp/install?name=MyKnowledge&config={enc}"
+    # 强制 '+'→'%2B'（base64 可能含 +），保留 base64 其他安全字符与 query 分隔符。
+    quoted = urllib.parse.quote(
+        enc, safe="-._~!$&'()*,;=:@/?")
+    return f"enchante://mcp/install?name=MyKnowledge&config={quoted}"
 
 
 # ══════════════════════════════════════════════════════════════

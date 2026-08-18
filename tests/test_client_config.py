@@ -10,6 +10,7 @@ WorkBuddy), consistent with the frontend store and URL-safe.
 from __future__ import annotations
 
 import json
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -551,7 +552,11 @@ class TestEnchante:
         link = enchante_deeplink()
         assert link.startswith("enchante://mcp/install?name=MyKnowledge&config=")
         enc = link.split("config=")[1]
-        bundle = json.loads(base64.b64decode(enc).decode("utf-8"))
+        # '+' must be URL-quoted as %2B (Swift URLComponents would misread a raw
+        # '+' as a space).  The quoted value decodes back to the original base64.
+        assert "+" not in enc
+        bundle = json.loads(
+            base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
         assert bundle["displayName"] == "MyKnowledge"
         assert bundle["icon"] == "book.closed"
         cfg = bundle["config"]
@@ -559,6 +564,16 @@ class TestEnchante:
         assert cfg["args"] == ["-m", "backend.cli", "mcp"]
         assert cfg["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
         assert "MYKNOWLEDGE_ROOT" in cfg["env"]
+
+    def test_deeplink_base64_decodes_after_unquote(self, fake_home: Path) -> None:
+        """The quoted config round-trips through urllib.parse.unquote + b64decode."""
+        import base64
+        import urllib.parse
+        enc = enchante_deeplink().split("config=")[1]
+        # unquote %2B back to + then base64-decode must not raise
+        bundle = json.loads(
+            base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
+        assert bundle["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
 
 class TestREST:

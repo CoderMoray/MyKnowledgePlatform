@@ -192,12 +192,40 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     # 进程以 env MYKNOWLEDGE_CLIENT 标识所属平台（由客户端配置注入）；向本地
     # webserver 上报心跳供 /api/client-config 显示连接状态。webserver 不在运行
     # 时静默跳过（MCP server 可独立运行）。daemon 线程随 app.run() 退出而结束；
-    # app.run() 返回（优雅退出）后显式置 lost；被强杀则由 webserver 端 TTL 兜底。
+    # 优雅退出（app.run 返回 / SIGTERM / Ctrl-C）时显式置 lost；被强杀则由
+    # webserver 端 TTL 兜底。
     client_platform = os.environ.get("MYKNOWLEDGE_CLIENT", "")
     _start_heartbeat(client_platform)
-    app.run(transport="stdio")
-    _stop_heartbeat(client_platform)
+    try:
+        _install_signal_handlers(client_platform)
+        app.run(transport="stdio")
+    except KeyboardInterrupt:
+        pass  # Ctrl-C：走 finally 上报 disconnect
+    finally:
+        _stop_heartbeat(client_platform)
     return 0
+
+
+def _install_signal_handlers(platform: str) -> None:
+    """Register SIGTERM/SIGINT to report disconnect before exit.
+
+    ``app.run()`` blocks in the main thread; when the parent closes the stdio
+    (EOF) or sends SIGTERM, we want to POST a disconnect (mark lost) before the
+    process dies.  SIGTERM's default action would terminate the process
+    immediately, so the handler must report then ``sys.exit(0)``.  Only the
+    main thread may install signal handlers, so this runs in ``cmd_mcp``.
+    """
+    import signal
+
+    def _handler(_sig, _frame):
+        _stop_heartbeat(platform)
+        sys.exit(0)
+
+    try:
+        signal.signal(signal.SIGTERM, _handler)
+        signal.signal(signal.SIGINT, _handler)
+    except ValueError:
+        pass  # not the main thread — signal registration unsupported; skip
 
 
 def _heartbeat_url() -> str:

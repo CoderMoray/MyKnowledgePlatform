@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend import connection
@@ -148,3 +149,33 @@ class TestDetectConnectionField:
         assert detect_platform("ClaudeCode")["connection"] == "not_connected"
         connection.report("ClaudeCode", time.time())
         assert detect_platform("ClaudeCode")["connection"] == "connected"
+
+
+class TestCmdMcpSignals:
+    """SIGTERM/KeyboardInterrupt must report disconnect (mark lost) before exit."""
+
+    def test_sigterm_handler_reports_disconnect(self, monkeypatch) -> None:
+        import backend.cli as cli
+        reported = []
+        monkeypatch.setattr(cli, "_stop_heartbeat",
+                            lambda p: reported.append(p))
+        cli._install_signal_handlers("ClaudeCode")
+
+        import signal
+        with pytest.raises(SystemExit) as exc:
+            signal.raise_signal(signal.SIGTERM)
+        assert exc.value.code == 0
+        assert reported == ["ClaudeCode"]
+
+    def test_sigint_handler_reports_disconnect(self, monkeypatch) -> None:
+        import backend.cli as cli
+        reported = []
+        monkeypatch.setattr(cli, "_stop_heartbeat",
+                            lambda p: reported.append(p))
+        cli._install_signal_handlers("WorkBuddy")
+
+        import signal
+        with pytest.raises(SystemExit) as exc:
+            signal.raise_signal(signal.SIGINT)
+        assert exc.value.code == 0
+        assert reported == ["WorkBuddy"]
