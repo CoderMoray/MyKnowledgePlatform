@@ -67,12 +67,13 @@ def _path_in_kb(raw_path: str, cwd: str, kb_root: Path) -> bool:
 import re as _re
 
 # Bash 破坏性命令：仅当命令同时引用 KB 路径才判 deny。
+# 注意：`>` 重定向**不在**此表——它需按「目标落在 KB 内」精确判定（见
+# _redirection_target_in_kb），避免误拦「> /tmp 日志」等 KB 外重定向。
 _DESTRUCTIVE_PATTERNS = [
     _re.compile(r"(^|[;&|]\s*)\s*rm\b"),
     _re.compile(r"(^|[;&|]\s*)\s*mv\b"),
     _re.compile(r"(^|[;&|]\s*)\s*cp\b"),
     _re.compile(r"(^|[;&|]\s*)\s*mkdir\b"),
-    _re.compile(r">"),
     _re.compile(r"(^|[;&|]\s*)\s*truncate\b"),
     _re.compile(r"(^|[;&|]\s*)\s*shred\b"),
 ]
@@ -164,19 +165,44 @@ def _points_at_kb(tool_name: str, tool_input: dict, cwd: str,
     return False
 
 
+def _redirection_target_in_kb(cmd: str, kb_root: Path) -> bool:
+    """True if any ``>``/``>>`` redirection target resolves inside the KB root.
+
+    Only used for redirections — the target is the shell word after the
+    operator.  A target outside the KB (e.g. ``> /tmp/xxx.log``) is NOT a KB
+    write, so such commands are allowed.  ``2>&1`` (fd dup, no file target) and
+    non-path targets are ignored.  This makes ``>`` precise without loosening
+    rm/mv/cp etc. (those still require the command to reference the KB root).
+    """
+    for m in _re.finditer(r">>?[ \t]*([^\s;&|<>]+)", cmd):
+        target = m.group(1)
+        if target.startswith("&"):  # 2>&1 — fd duplicate, not a file
+            continue
+        if target and _path_in_kb(target, "", kb_root):
+            return True
+    return False
+
+
 def _write_op_kind(tool_name: str, tool_input: dict, cwd: str,
                    kb_root: Path) -> str | None:
     """Classify a destructive KB write, or ``None`` if it is a read / safe call.
 
-    Returns ``"bash_destructive"`` for a Bash command referencing the KB root
-    plus a destructive pattern, or ``"file_write"`` for a Write/Edit/Delete
-    tool whose target is inside the KB root.
+    Returns ``"bash_destructive"`` for:
+      - a Bash command referencing the KB root plus a destructive command
+        (rm/mv/cp/mkdir/truncate/shred) — command-reference based, so an
+        AI cannot bypass via ``--root <KB>`` (the command still references KB);
+      - a Bash command with a ``>`` redirection whose **target** is inside the
+        KB root (precise target check — ``> /tmp`` logs are allowed).
+    Or ``"file_write"`` for a Write/Edit/Delete tool whose target is inside the KB root.
     """
     if tool_name == "Bash":
         cmd = str((tool_input or {}).get("command") or "")
-        if cmd and _command_references_kb(cmd, kb_root):
-            return "bash_destructive" if any(
-                p.search(cmd) for p in _DESTRUCTIVE_PATTERNS) else None
+        if not cmd or not _command_references_kb(cmd, kb_root):
+            return None
+        if any(p.search(cmd) for p in _DESTRUCTIVE_PATTERNS):
+            return "bash_destructive"
+        if _redirection_target_in_kb(cmd, kb_root):
+            return "bash_destructive"
         return None
     if tool_name in ("Write", "Edit", "Delete"):
         return "file_write"

@@ -156,6 +156,79 @@ class TestCodeBuddyAliases:
         assert r.json()["permission"] == "allow"
 
 
+class TestRedirectionPrecision:
+    """'>' is precise: only a KB-inside redirection target is a KB write."""
+
+    def test_redirect_outside_kb_allow(self, kb_root: Path, client) -> None:
+        """cmd > /tmp/xxx.log (KB-external target) → allow."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {"command": f"cmd > /tmp/xxx.log"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "allow"
+
+    def test_redirect_inside_kb_deny(self, kb_root: Path, client) -> None:
+        """echo x > <KB>/common-knowledge/a.md (KB-internal target) → deny."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"echo x > {kb_root}/common-knowledge/a.md"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_rm_kb_deny(self, kb_root: Path, client) -> None:
+        """rm -rf <KB>/common-knowledge → deny (command references KB)."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {"command": f"rm -rf {kb_root}/common-knowledge"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_rm_with_root_flag_not_bypassable(self, kb_root: Path, client) -> None:
+        """rm -rf <KB>/x --root <KB> → deny (--root cannot bypass)."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"rm -rf {kb_root}/x --root {kb_root}"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_serve_with_root_redirect_log_allow(self, kb_root: Path,
+                                                client) -> None:
+        """myknowledge serve --root <KB> > /tmp/xxx.log → allow (not a KB write)."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"myknowledge serve --root {kb_root} > /tmp/xxx.log"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "allow"
+
+    def test_append_redirect_inside_kb_deny(self, kb_root: Path, client) -> None:
+        """echo x >> <KB>/a.md (append into KB) → deny."""
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {"command": f"echo x >> {kb_root}/common-knowledge/a.md"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "deny"
+
+    def test_fd_dup_redirect_not_false_positive(self, kb_root: Path, client) -> None:
+        """2>&1 (fd dup, no file target) on a KB command → not a redirection-write."""
+        # Command references KB via --root, redirects stderr to fd 1 (no KB write)
+        r = client.post("/hooks/pre-tool-use", json={
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": f"myknowledge serve --root {kb_root} 2>&1"},
+            "cwd": str(kb_root),
+        })
+        assert r.json()["permission"] == "allow"
+
+
 class TestKBReadAllow:
     def test_read_tool_allow(self, kb_root: Path, client) -> None:
         r = client.post("/hooks/pre-tool-use", json={
