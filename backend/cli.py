@@ -17,6 +17,7 @@ Once installed::
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -186,8 +187,81 @@ def cmd_mcp(args: argparse.Namespace) -> int:
     from backend.mcp_server import create_mcp_app
     gm = GitManager(kb_root)
     app = create_mcp_app(storage, gen=gen, gm=gm)
+
+    # ── Connection heartbeat reporting (Phase A) ──────────
+    # 进程以 env MYKNOWLEDGE_CLIENT 标识所属平台（由客户端配置注入）；向本地
+    # webserver 上报心跳供 /api/client-config 显示连接状态。webserver 不在运行
+    # 时静默跳过（MCP server 可独立运行）。daemon 线程随 app.run() 退出而结束；
+    # app.run() 返回（优雅退出）后显式置 lost；被强杀则由 webserver 端 TTL 兜底。
+    client_platform = os.environ.get("MYKNOWLEDGE_CLIENT", "")
+    _start_heartbeat(client_platform)
     app.run(transport="stdio")
+    _stop_heartbeat(client_platform)
     return 0
+
+
+def _heartbeat_url() -> str:
+    from backend.client_config import WEBSERVER_BASE
+    return f"{WEBSERVER_BASE}/api/mcp/heartbeat"
+
+
+def _send_heartbeat(platform: str) -> None:
+    """POST a heartbeat for *platform*; fail-open if the webserver is down."""
+    if not platform:
+        return
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            _heartbeat_url(),
+            data=b"{}",
+            headers={"X-MYKNOWLEDGE-CLIENT": platform,
+                     "Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=3)  # noqa: S310
+    except Exception:  # noqa: BLE001 — webserver may not be running; non-fatal
+        pass
+
+
+_heartbeat_thread = None
+
+
+def _start_heartbeat(platform: str) -> None:
+    """Send an immediate heartbeat, then a daemon thread every 60s."""
+    global _heartbeat_thread
+    _send_heartbeat(platform)
+    if not platform:
+        return
+    import threading
+    _heartbeat_thread = threading.Thread(
+        target=_heartbeat_loop, args=(platform,), daemon=True)
+    _heartbeat_thread.start()
+
+
+def _heartbeat_loop(platform: str) -> None:
+    import time
+    while True:
+        time.sleep(60)
+        _send_heartbeat(platform)
+
+
+def _stop_heartbeat(platform: str) -> None:
+    """Graceful exit: POST a disconnect to mark the platform lost."""
+    if not platform:
+        return
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            _heartbeat_url(),
+            data=b"{}",
+            headers={"X-MYKNOWLEDGE-CLIENT": platform,
+                     "X-MYKNOWLEDGE-DISCONNECT": "1",
+                     "Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=3)  # noqa: S310
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # ══════════════════════════════════════════════════════════════

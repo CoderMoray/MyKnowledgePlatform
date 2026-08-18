@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio, os, re, subprocess, sys, threading, time, json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -1257,6 +1257,30 @@ def api_client_config_detect():
     """
     from backend.client_config import detect_all
     return detect_all()
+
+
+@app.post("/api/mcp/heartbeat")
+def api_mcp_heartbeat(request: Request):
+    """MCP server liveness report.
+
+    The MCP stdio process identifies its platform via the ``MYKNOWLEDGE_CLIENT``
+    env it was launched with, and sends it as the ``X-MYKNOWLEDGE-CLIENT`` header.
+    A missing/unknown platform is ignored (backward-compatible with older configs
+    that lack the env) and returns ``{"status": "ignored"}`` — it is not treated
+    as a connection.
+    """
+    import os
+    from backend.client_config import PLATFORMS
+    from backend.connection import report, mark_lost
+    client = (request.headers.get("X-MYKNOWLEDGE-CLIENT", "")
+              or os.environ.get("MYKNOWLEDGE_CLIENT", ""))
+    if not client or client not in PLATFORMS:
+        return {"status": "ignored"}
+    if request.headers.get("X-MYKNOWLEDGE-DISCONNECT") == "1":
+        mark_lost(client)
+        return {"status": "lost", "platform": client}
+    report(client)
+    return {"status": "ok", "platform": client}
 
 
 @app.post("/api/client-config/{platform}/{kind}")

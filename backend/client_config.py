@@ -71,18 +71,22 @@ def _load_platforms_data() -> dict:
     return _platforms_cache
 
 
-# 平台枚举与 MCP-only 集合从 platforms.json 派生（单一来源）。
+# 平台枚举从 platforms.json 派生（单一来源）。
 _platforms_data = _load_platforms_data()
 PLATFORMS = tuple(_platforms_data["platforms"].keys())
-MCP_ONLY_PLATFORMS = tuple(
-    k for k, v in _platforms_data["platforms"].items() if v.get("mcp_only"))
 
 
 def _kinds_for(platform: str) -> tuple:
-    """Kinds applicable to a platform (MCP-only platforms support only mcp)."""
-    if platform in MCP_ONLY_PLATFORMS:
-        return ("mcp",)
-    return KINDS
+    """Kinds applicable to a platform (from platforms.json ``kinds``).
+
+    E.g. ClaudeDesktop → ``("mcp",)`` (no hooks/agent); Enchante →
+    ``("mcp", "agent")`` (no hooks).  Unknown platforms raise ``ValueError``.
+    """
+    if platform not in PLATFORMS:
+        raise ValueError(
+            f"不支持的平台: {platform}（仅 {'/'.join(PLATFORMS)}）")
+    kinds = _platform_spec(platform).get("kinds") or list(KINDS)
+    return tuple(kinds)
 
 
 def _current_os() -> str:
@@ -133,8 +137,10 @@ def _platform_paths(platform: str) -> dict:
     os_key = _current_os()
     # Fall back to macOS if the current OS isn't yet mapped in platforms.json.
     entry = paths.get(os_key) or paths.get("macos") or {}
+    # 平台可能不提供某类路径（如 Enchante 无 mcp_file/settings_file/agents_dir，
+    # 其 MCP 走 deeplink、skill 走 skills_dir）——缺省为空 Path。
     return {
-        "mcp_file": _resolve_path(entry["mcp_file"]),
+        "mcp_file": _resolve_path(entry.get("mcp_file", "")),
         "settings_file": _resolve_path(entry.get("settings_file", "")),
         "agents_dir": _resolve_path(entry.get("agents_dir", "")),
     }
@@ -157,16 +163,54 @@ def _cli_name(platform: str) -> str:
             .get(_current_os(), ""))
 
 
+def _enchante_installed() -> bool:
+    """Enchante app present under /Applications or ~/Applications."""
+    for base in (Path("/Applications"), Path.home() / "Applications"):
+        for name in ("Enchanté.app", "Enchante.app"):
+            if (base / name).exists():
+                return True
+    return False
+
+
+def enchante_deeplink() -> str:
+    """Build the Enchante MCP install deeplink (returns the link string).
+
+    ``enchante://mcp/install?name=MyKnowledge&config=<base64 MCPServerBundle>``
+    The ``config`` is base64 of a JSON bundle: ``{displayName, description,
+    icon, config: {type, command, args, env}}``.  Generation only — the actual
+    deeplink capture is handled by the Enchante client, not the backend.
+    """
+    import base64
+    bundle = {
+        "displayName": "MyKnowledge",
+        "description": "MyKnowledge 知识管理平台",
+        "icon": "book.closed",
+        "config": mcp_entry("Enchante"),
+    }
+    enc = base64.b64encode(json.dumps(bundle, ensure_ascii=False)
+                           .encode("utf-8")).decode("ascii")
+    return f"enchante://mcp/install?name=MyKnowledge&config={enc}"
+
+
 # ══════════════════════════════════════════════════════════════
 #  条目构建
 # ══════════════════════════════════════════════════════════════
-def mcp_entry() -> dict:
-    """The MyKnowledge MCP stdio server entry (points at the global KB)."""
+def mcp_entry(platform: str) -> dict:
+    """The MyKnowledge MCP stdio server entry (points at the global KB).
+
+    Injects ``MYKNOWLEDGE_CLIENT=<platform>`` so the MCP server process can
+    identify which client launched it when reporting heartbeats.  Each platform
+    gets its own entry (env is per-server, so platforms never overwrite one
+    another).
+    """
     return {
         "type": "stdio",
         "command": sys.executable,
         "args": ["-m", "backend.cli", "mcp"],
-        "env": {"MYKNOWLEDGE_ROOT": str(resolve_root())},
+        "env": {
+            "MYKNOWLEDGE_ROOT": str(resolve_root()),
+            "MYKNOWLEDGE_CLIENT": platform,
+        },
     }
 
 
@@ -286,12 +330,65 @@ def _frontmatter_for(platform: str) -> dict:
         f"frontmatter 配置未覆盖平台: {platform}（检查 frontmatter.json 的 platforms）")
 
 
+def _skills_dir(platform: str) -> Path:
+    """The skills install dir for a platform (from platforms.json), or empty."""
+    spec = _platform_spec(platform)
+    entry = (spec.get("paths", {})
+             .get(_current_os()) or spec.get("paths", {}).get("macos") or {})
+    tpl = entry.get("skills_dir", "")
+    return _resolve_path(tpl) if tpl else Path()
+
+
+def _agent_target_path(platform: str) -> Path:
+    """Where the agent/skill file is written for a platform (user's dir).
+
+    Enchante uses a skill file at ``~/.agents/skills/myknowledge/SKILL.md``;
+    all other platforms use ``<agents_dir>/MyKnowledge-agent.md``.
+    """
+    if platform == "Enchante":
+        return _skills_dir(platform) / "SKILL.md"
+    return _platform_paths(platform)["agents_dir"] / "MyKnowledge-agent.md"
+
+
+def _agent_file_exists(platform: str, p: dict | None = None) -> bool:
+    """True if the platform's agent/skill file already exists on disk."""
+    if platform == "Enchante":
+        target = _agent_target_path(platform)
+        return target.is_file()
+    path = (p or _platform_paths(platform))["agents_dir"] / "MyKnowledge-agent.md"
+    return path.exists()
+
+
+def _skill_template() -> str:
+    """Read the Enchante SKILL.md prompt body from the templates dir."""
+    tpl = _aiclient_config_dir() / "agents" / "SKILL.md"
+    if not tpl.is_file():
+        raise RuntimeError(
+            f"缺失 SKILL 模板: {tpl}（backend/AiClientConfig/agents/SKILL.md）")
+    return tpl.read_text(encoding="utf-8")
+
+
+def _skill_content() -> str:
+    """Enchante SKILL.md: minimal frontmatter (name+description) + body."""
+    body = _skill_template()
+    return (
+        "---\n"
+        "name: MyKnowledge\n"
+        "description: MyKnowledge 知识管理平台协作 Skill：通过 MCP 检索与维护本地知识库\n"
+        "---\n\n"
+        f"{body}"
+    )
+
+
 def agent_content(platform: str) -> str:
     """MyKnowledge agent markdown: body from template + per-platform frontmatter.
 
     The frontmatter is read from ``frontmatter.json`` (not hardcoded), so adding
     a platform or changing its format requires only a data edit, no code change.
+    Enchante uses the SKILL.md format (minimal frontmatter + body) instead.
     """
+    if platform == "Enchante":
+        return _skill_content()
     prompt = _agent_template()
     fm_lines = ["---"]
     for key, value in _frontmatter_for(platform).items():
@@ -342,9 +439,13 @@ def client_installed(platform: str) -> bool:
         (where ``claude_desktop_config.json`` lives).
       - CodeBuddyIDE: ``~/.codebuddy`` dir exists.
       - WorkBuddy: ``~/.workbuddy`` dir exists.
+      - Enchante: ``Enchanté.app`` / ``Enchante.app`` under ``/Applications`` or
+        ``~/Applications``.
     Read-only detection — never writes anything.
     """
     import shutil
+    if platform == "Enchante":
+        return _enchante_installed()
     cfg_dir = _config_dir(platform)
     # Some clients also expose a CLI on PATH (e.g. ClaudeCode → ``claude``);
     # the CLI name comes from platforms.json ``cli_names`` (per-OS).
@@ -355,41 +456,48 @@ def client_installed(platform: str) -> bool:
 
 
 def detect_platform(platform: str) -> dict:
-    """Return ``{client_installed, mcp, hooks, agent}`` detection for one platform.
+    """Return detection for one platform: ``{client_installed, connection, mcp, hooks, agent}``.
 
-    ``client_installed`` is platform-level (whether the client is installed);
-    ``mcp``/``hooks``/``agent`` report whether our MyKnowledge entries exist.
+    ``client_installed`` — whether the client is installed;
+    ``connection`` — MCP liveness (not_connected/connected/inactive/lost);
+    ``mcp``/``hooks``/``agent`` — whether our MyKnowledge entries exist (each
+    only evaluated if the platform supports that kind, per platforms.json).
     """
+    kinds = _kinds_for(platform)
     p = _platform_paths(platform)
-    mcp_data = _load_json(p["mcp_file"])
-    mcp = "MyKnowledge" in (mcp_data.get("mcpServers") or {})
-
-    # MCP-only platforms (ClaudeDesktop) do not support hooks / custom agents.
-    if platform in MCP_ONLY_PLATFORMS:
-        return {
-            "client_installed": client_installed(platform),
-            "mcp": mcp,
-            "hooks": False,
-            "agent": False,
-        }
-
-    settings = _load_json(p["settings_file"])
-    hk = settings.get("hooks") or {}
-    cmd = hooks_matcher(platform)["hooks"][0]["command"]
-    hooks = any(
-        _matcher_is_mine(m, cmd)
-        for lst in hk.values()
-        if isinstance(lst, list)
-        for m in lst
-    )
-
-    agent = (p["agents_dir"] / "MyKnowledge-agent.md").exists()
-    return {
+    result = {
         "client_installed": client_installed(platform),
-        "mcp": mcp,
-        "hooks": hooks,
-        "agent": agent,
+        "connection": _connection_status(platform),
+        "mcp": False,
+        "hooks": False,
+        "agent": False,
     }
+
+    if "mcp" in kinds:
+        mcp_data = _load_json(p.get("mcp_file") or Path())
+        result["mcp"] = "MyKnowledge" in (mcp_data.get("mcpServers") or {})
+
+    if "hooks" in kinds:
+        settings = _load_json(p["settings_file"])
+        hk = settings.get("hooks") or {}
+        cmd = hooks_matcher(platform)["hooks"][0]["command"]
+        result["hooks"] = any(
+            _matcher_is_mine(m, cmd)
+            for lst in hk.values()
+            if isinstance(lst, list)
+            for m in lst
+        )
+
+    if "agent" in kinds:
+        # Enchante uses a SKILL.md in its skills dir; others use MyKnowledge-agent.md.
+        result["agent"] = _agent_file_exists(platform, p)
+    return result
+
+
+def _connection_status(platform: str) -> str:
+    """Current MCP connection level for a platform (from in-process heartbeat)."""
+    from backend.connection import status
+    return status(platform)
 
 
 def detect_all() -> dict:
@@ -413,7 +521,7 @@ def write_kind(platform: str, kind: str) -> dict:
         path = p["mcp_file"]
         data = _load_json(path)
         servers = data.setdefault("mcpServers", {})
-        servers["MyKnowledge"] = mcp_entry()
+        servers["MyKnowledge"] = mcp_entry(platform)
         _save_json(path, data)
         return {"platform": platform, "kind": "mcp", "file": str(path),
                 "status": "written", "detected": True}
@@ -434,7 +542,7 @@ def write_kind(platform: str, kind: str) -> dict:
                 "status": "written", "detected": True}
 
     # agent
-    path = p["agents_dir"] / "MyKnowledge-agent.md"
+    path = _agent_target_path(platform)
     if path.exists():
         return {"platform": platform, "kind": "agent", "file": str(path),
                 "status": "exists", "detected": True,
@@ -488,7 +596,7 @@ def remove_kind(platform: str, kind: str) -> dict:
                 "status": "removed"}
 
     # agent
-    path = p["agents_dir"] / "MyKnowledge-agent.md"
+    path = _agent_target_path(platform)
     if path.exists():
         path.unlink()
     return {"platform": platform, "kind": "agent", "file": str(path),

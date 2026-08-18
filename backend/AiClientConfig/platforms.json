@@ -1,10 +1,10 @@
 {
-  "_comment": "AI 客户端平台 → 各操作系统下的配置文件路径（单一来源）。平台 key 用 PascalCase，与 client_config.PLATFORMS 及前端 store.clientPlatforms 严格一致。路径占位符：~ → Path.home()，%APPDATA% / %USERPROFILE% → 对应环境变量。mcp_only=true 表示该平台仅支持 MCP（无 hooks / 专用 Agent）。cli_names 用于 client_installed 检测（PATH 探测）。",
+  "_comment": "AI 客户端平台 → 各操作系统下的配置文件路径（单一来源）。平台 key 用 PascalCase，与 client_config.PLATFORMS 及前端 store.clientPlatforms 严格一致。路径占位符：~ → Path.home()，%APPDATA% / %USERPROFILE% → 对应环境变量。kinds 声明该平台支持的配置种类（mcp/hooks/agent）；skills_dir 用于 skill 写入路径（Enchante）。cli_names 用于 client_installed 检测（PATH 探测）。",
   "os_order": ["macos", "windows", "linux"],
   "platforms": {
     "ClaudeCode": {
       "display": "Claude Code",
-      "mcp_only": false,
+      "kinds": ["mcp", "hooks", "agent"],
       "cli_names": { "macos": "claude", "windows": "claude.exe", "linux": "claude" },
       "paths": {
         "macos": {
@@ -29,7 +29,7 @@
     },
     "ClaudeDesktop": {
       "display": "Claude Desktop",
-      "mcp_only": true,
+      "kinds": ["mcp"],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -48,7 +48,7 @@
     },
     "CodeBuddyIDE": {
       "display": "CodeBuddy IDE",
-      "mcp_only": false,
+      "kinds": ["mcp", "hooks", "agent"],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -61,7 +61,7 @@
     },
     "WorkBuddy": {
       "display": "WorkBuddy",
-      "mcp_only": false,
+      "kinds": ["mcp", "hooks", "agent"],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -69,6 +69,17 @@
           "mcp_file": "~/.workbuddy/mcp.json",
           "settings_file": "~/.workbuddy/settings.json",
           "agents_dir": "~/.workbuddy/agents"
+        }
+      }
+    },
+    "Enchante": {
+      "display": "Enchanté",
+      "kinds": ["mcp", "agent"],
+      "cli_names": {},
+      "paths": {
+        "macos": {
+          "config_dir": "/Applications",
+          "skills_dir": "~/.agents/skills/myknowledge"
         }
       }
     }

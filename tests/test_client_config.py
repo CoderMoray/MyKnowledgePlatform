@@ -17,16 +17,18 @@ from fastapi.testclient import TestClient
 
 from backend.client_config import (
     KINDS,
-    MCP_ONLY_PLATFORMS,
     PLATFORMS,
+    _agent_target_path,
     _agent_template,
     _hooks_command_codebuddy,
     _hooks_command_claude,
+    _kinds_for,
     _platform_paths,
     agent_content,
     client_installed,
     detect_all,
     detect_platform,
+    enchante_deeplink,
     hooks_matcher,
     mcp_entry,
     remove_kind,
@@ -196,8 +198,9 @@ class TestWorkBuddy:
         res = detect_all()
         assert "WorkBuddy" in res
         assert set(res["WorkBuddy"].keys()) == {
-            "client_installed", "mcp", "hooks", "agent"}
+            "client_installed", "connection", "mcp", "hooks", "agent"}
         assert res["WorkBuddy"]["client_installed"] is False
+        assert res["WorkBuddy"]["connection"] == "not_connected"
 
     def test_write_kind_workbuddy(self, fake_home: Path) -> None:
         write_kind("WorkBuddy", "mcp")
@@ -275,7 +278,7 @@ class TestClaudeDesktop:
         res = detect_all()
         assert "ClaudeDesktop" in res
         assert set(res["ClaudeDesktop"].keys()) == {
-            "client_installed", "mcp", "hooks", "agent"}
+            "client_installed", "connection", "mcp", "hooks", "agent"}
 
 
 class TestAgentTemplate:
@@ -336,10 +339,11 @@ class TestDetect:
         # every platform is absent (not installed, no MyKnowledge entries)
         assert set(res.keys()) == set(PLATFORMS)
         for pl in PLATFORMS:
-            assert res[pl] == {
-                "client_installed": False, "mcp": False,
-                "hooks": False, "agent": False,
-            }
+            assert res[pl]["client_installed"] is False
+            assert res[pl]["connection"] == "not_connected"
+            assert res[pl]["mcp"] is False
+            assert res[pl]["hooks"] is False
+            assert res[pl]["agent"] is False
 
     def test_detect_present(self, fake_home: Path, monkeypatch) -> None:
         monkeypatch.setattr("shutil.which", lambda *a, **k: None)
@@ -490,6 +494,73 @@ class TestRemoveKind:
         assert r.status_code == 400
 
 
+class TestKinds:
+    def test_claude_desktop_only_mcp(self, fake_home: Path) -> None:
+        assert _kinds_for("ClaudeDesktop") == ("mcp",)
+
+    def test_claude_code_full_kinds(self, fake_home: Path) -> None:
+        assert _kinds_for("ClaudeCode") == ("mcp", "hooks", "agent")
+
+    def test_enchante_mcp_and_agent(self, fake_home: Path) -> None:
+        assert _kinds_for("Enchante") == ("mcp", "agent")
+
+    def test_workbuddy_full_kinds(self, fake_home: Path) -> None:
+        assert _kinds_for("WorkBuddy") == ("mcp", "hooks", "agent")
+
+    def test_write_unsupported_kind_rejected(self, fake_home: Path) -> None:
+        """ClaudeDesktop (mcp-only) rejects hooks/agent writes."""
+        with pytest.raises(ValueError, match="不支持.*hooks"):
+            write_kind("ClaudeDesktop", "hooks")
+        with pytest.raises(ValueError, match="不支持.*agent"):
+            write_kind("ClaudeDesktop", "agent")
+        # Enchante has no hooks
+        with pytest.raises(ValueError, match="不支持.*hooks"):
+            write_kind("Enchante", "hooks")
+
+
+class TestEnchante:
+    def test_client_installed_app(self, fake_home: Path, monkeypatch) -> None:
+        """Enchante installed when Enchanté.app is present."""
+        import backend.client_config as cc
+        apps = fake_home / "Applications"
+        (apps / "Enchanté.app").mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", lambda: fake_home)
+        # _enchante_installed checks /Applications and ~/Applications
+        monkeypatch.setattr(cc, "_enchante_installed",
+                            lambda: True)
+        assert client_installed("Enchante") is True
+
+    def test_skill_write_path(self, fake_home: Path) -> None:
+        """Enchante agent target is ~/.agents/skills/myknowledge/SKILL.md."""
+        target = _agent_target_path("Enchante")
+        assert str(target).endswith(
+            ".agents/skills/myknowledge/SKILL.md")
+
+    def test_skill_content_format(self, fake_home: Path) -> None:
+        """Enchante SKILL.md has minimal frontmatter (name+description)."""
+        content = agent_content("Enchante")
+        fm = content.split("---")[1]
+        assert "name: MyKnowledge" in fm
+        assert "description:" in fm
+        # no tools/model/agentMode in the minimal skill frontmatter
+        assert "tools:" not in fm
+        assert "agentMode" not in fm
+
+    def test_deeplink_generation(self, fake_home: Path) -> None:
+        import base64
+        link = enchante_deeplink()
+        assert link.startswith("enchante://mcp/install?name=MyKnowledge&config=")
+        enc = link.split("config=")[1]
+        bundle = json.loads(base64.b64decode(enc).decode("utf-8"))
+        assert bundle["displayName"] == "MyKnowledge"
+        assert bundle["icon"] == "book.closed"
+        cfg = bundle["config"]
+        assert cfg["type"] == "stdio"
+        assert cfg["args"] == ["-m", "backend.cli", "mcp"]
+        assert cfg["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
+        assert "MYKNOWLEDGE_ROOT" in cfg["env"]
+
+
 class TestREST:
     def test_detect_endpoint(self, fake_home: Path) -> None:
         from backend.main import app
@@ -499,7 +570,7 @@ class TestREST:
         data = r.json()
         for pl in PLATFORMS:
             assert set(data[pl].keys()) == {
-                "client_installed", "mcp", "hooks", "agent"}
+                "client_installed", "connection", "mcp", "hooks", "agent"}
 
     def test_write_endpoint(self, fake_home: Path) -> None:
         from backend.main import app
@@ -519,22 +590,24 @@ class TestREST:
         assert r.status_code == 400
 
     def test_mcp_entry_has_kb_root(self) -> None:
-        """MCP entry env carries the resolved KB root."""
-        entry = mcp_entry()
+        """MCP entry env carries the resolved KB root + client id."""
+        entry = mcp_entry("CodeBuddyIDE")
         assert "MYKNOWLEDGE_ROOT" in entry["env"]
+        assert entry["env"]["MYKNOWLEDGE_CLIENT"] == "CodeBuddyIDE"
 
 
 class TestPlatformSpecJson:
     """Platform config paths are driven by AiClientConfig/platforms.json."""
 
     def test_platforms_derived_from_json(self, fake_home: Path) -> None:
-        """PLATFORMS / MCP_ONLY_PLATFORMS come from platforms.json (single source)."""
+        """PLATFORMS / kinds come from platforms.json (single source)."""
         import backend.client_config as cc
         data = cc._load_platforms_data()
         json_platforms = tuple(data["platforms"].keys())
         assert PLATFORMS == json_platforms
-        assert MCP_ONLY_PLATFORMS == tuple(
-            k for k, v in data["platforms"].items() if v.get("mcp_only"))
+        for pl in PLATFORMS:
+            assert cc._kinds_for(pl) == tuple(
+                data["platforms"][pl].get("kinds") or ["mcp", "hooks", "agent"])
 
     def test_claudedesktop_macos_official_path(self, fake_home: Path) -> None:
         """Claude Desktop macOS MCP path matches the official documented location."""
