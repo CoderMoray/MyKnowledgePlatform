@@ -2144,8 +2144,9 @@
 }
 .guide-steps__line {
   flex: 1;
-  height: 1px;
-  background: var(--border-default);
+  height: 2px; /* 加粗到 2px，白色背景下更易辨认 */
+  border-radius: 1px;
+  background: var(--border-strong); /* 加深（#d1d5db），与步骤区分隔线区分开 */
 }
 
 /* 引导/配置：Step2 AI 协作配置项列表（max-height 滚动，防平台行增多后 modal 超高、按钮出视口） */
@@ -2208,7 +2209,12 @@
   flex-direction: column;
   overflow: hidden;
 }
-.guide-modal .guide-steps { flex-shrink: 0; margin-bottom: 20px; }
+.guide-modal .guide-steps {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default); /* 步骤区与内容区分隔线（与底部按钮区对称） */
+}
 /* 内容区：flex:1 撑满，超高内部滚动（每页不同高度不再影响按钮位置） */
 .guide-body {
   flex: 1;
@@ -2216,12 +2222,12 @@
   overflow-y: auto;
   padding-right: 4px; /* 滚动条不贴内容 */
 }
-/* 底部固定按钮区：所有页按钮统一在此，垂直位置恒定 */
+/* 底部固定按钮区：所有页按钮统一在此，垂直位置恒定（顶部与步骤区分隔线对称、同色可见） */
 .guide-actions {
   flex-shrink: 0;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-default);
 }
 .guide-actions__row { display: flex; align-items: center; justify-content: space-between; }
 .guide-actions__row--center { justify-content: center; }
@@ -2233,8 +2239,8 @@
   white-space: nowrap;
 }
 
-/* Step1 身份：4 字段表单（复用 .modal__input / .modal__hint） */
-.guide-field { margin-bottom: 11px; }
+/* Step1 身份：4 字段表单（复用 .modal__input / .modal__hint）——间距紧凑，避免内容超高出现 scroll */
+.guide-field { margin-bottom: 8px; }
 .guide-field__label {
   display: block;
   margin-bottom: 4px;
