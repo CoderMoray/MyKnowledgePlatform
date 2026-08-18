@@ -576,6 +576,34 @@ class TestEnchante:
         assert bundle["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
 
+class TestDeeplinkEndpoint:
+    def test_enchante_deeplink_endpoint(self, fake_home: Path) -> None:
+        """GET /api/client-config/Enchante/deeplink returns the deeplink."""
+        from backend.main import app
+        c = TestClient(app)
+        r = c.get("/api/client-config/Enchante/deeplink")
+        assert r.status_code == 200
+        data = r.json()
+        assert set(data.keys()) == {"deeplink"}
+        assert data["deeplink"].startswith(
+            "enchante://mcp/install?name=MyKnowledge&config=")
+
+    def test_non_enchante_deeplink_400(self, fake_home: Path) -> None:
+        """Other platforms return 400."""
+        from backend.main import app
+        c = TestClient(app)
+        r = c.get("/api/client-config/ClaudeCode/deeplink")
+        assert r.status_code == 400
+        assert "仅 Enchante" in r.json()["detail"]
+
+    def test_deeplink_endpoint_matches_function(self, fake_home: Path) -> None:
+        """Endpoint output equals backend.enchante_deeplink()."""
+        from backend.main import app
+        c = TestClient(app)
+        data = c.get("/api/client-config/Enchante/deeplink").json()
+        assert data["deeplink"] == enchante_deeplink()
+
+
 class TestREST:
     def test_detect_endpoint(self, fake_home: Path) -> None:
         from backend.main import app

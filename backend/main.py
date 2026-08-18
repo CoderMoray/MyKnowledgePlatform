@@ -1283,6 +1283,22 @@ def api_mcp_heartbeat(request: Request):
     return {"status": "ok", "platform": client}
 
 
+@app.get("/api/client-config/{platform}/deeplink")
+def api_client_config_deeplink(platform: str):
+    """Generate the MyKnowledge MCP install deeplink for a platform.
+
+    Only ``Enchante`` supports a deeplink:
+      ``GET /api/client-config/Enchante/deeplink`` →
+      ``{"deeplink": "enchante://mcp/install?name=MyKnowledge&config=..."}``.
+    Any other platform returns 400.
+    """
+    if platform != "Enchante":
+        raise HTTPException(
+            400, f"平台 {platform} 不支持 deeplink（仅 Enchante）")
+    from backend.client_config import enchante_deeplink
+    return {"deeplink": enchante_deeplink()}
+
+
 @app.post("/api/client-config/{platform}/{kind}")
 def api_client_config_write(platform: str, kind: str):
     """Incrementally write MyKnowledge config for one platform/kind.
