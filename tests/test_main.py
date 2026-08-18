@@ -999,3 +999,97 @@ class TestApiConfigStatus:
         d = client.get("/api/config-status").json()
         assert d["share_configured"] is False
         assert d["env_source"] == "myknowledge"
+
+
+class TestApiConfigShareWrite:
+    """POST /api/config/share — write share config to ~/.myknowledge/.env."""
+
+    def _set(self, tmp_path: Path, monkeypatch) -> None:
+        b_env = tmp_path / "backend" / ".env"
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        monkeypatch.setattr("backend.config.backend_env_file", lambda: b_env)
+        monkeypatch.setattr("backend.config.user_env_file", lambda: u_env)
+
+    def test_write_both_creates_user_env(self, client, tmp_path,
+                                         monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        r = client.post("/api/config/share",
+                        json={"share_code": "Acme Corp", "share_map": "365"})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["share_configured"] is True
+        assert d["env_source"] == "myknowledge"
+        # file written on disk
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        text = u_env.read_text(encoding="utf-8")
+        assert "KNOWLEDGE_SHARE_CODE = Acme Corp" in text
+        assert "SHARE_MAP = 365" in text
+
+    def test_write_reflects_in_get(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        client.post("/api/config/share",
+                    json={"share_code": "Acme", "share_map": "111"})
+        d = client.get("/api/config-status").json()
+        assert d["share_configured"] is True
+        assert d["env_source"] == "myknowledge"
+
+    def test_write_never_leaks_plaintext(self, client, tmp_path,
+                                         monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        r = client.post("/api/config/share",
+                        json={"share_code": "SecretCode", "share_map": "222"})
+        assert "SecretCode" not in r.text  # message only masked
+
+    def test_partial_update_share_code_only(self, client, tmp_path,
+                                            monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        u_env.parent.mkdir(parents=True, exist_ok=True)
+        u_env.write_text("SHARE_MAP = 365\n")
+        client.post("/api/config/share", json={"share_code": "New Code"})
+        text = u_env.read_text(encoding="utf-8")
+        assert "KNOWLEDGE_SHARE_CODE = New Code" in text
+        assert "SHARE_MAP = 365" in text  # untouched
+
+    def test_partial_update_share_map_only(self, client, tmp_path,
+                                           monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        u_env.parent.mkdir(parents=True, exist_ok=True)
+        u_env.write_text("KNOWLEDGE_SHARE_CODE = Old\n")
+        client.post("/api/config/share", json={"share_map": "999"})
+        text = u_env.read_text(encoding="utf-8")
+        assert "SHARE_MAP = 999" in text
+        assert "KNOWLEDGE_SHARE_CODE = Old" in text  # untouched
+
+    def test_share_code_empty_rejected(self, client, tmp_path,
+                                       monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        r = client.post("/api/config/share", json={"share_code": "  "})
+        assert r.status_code == 400
+        assert "share_code 不能为空" in r.json()["detail"]
+
+    def test_share_map_invalid_rejected(self, client, tmp_path,
+                                        monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        for bad in ("3650", "36", "abc", "12a"):
+            r = client.post("/api/config/share", json={"share_map": bad})
+            assert r.status_code == 400, bad
+            assert "三位正整数" in r.json()["detail"]
+
+    def test_no_fields_rejected(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        r = client.post("/api/config/share", json={})
+        assert r.status_code == 400
+        assert "至少提供" in r.json()["detail"]
+
+    def test_write_idempotent(self, client, tmp_path, monkeypatch) -> None:
+        self._set(tmp_path, monkeypatch)
+        client.post("/api/config/share",
+                    json={"share_code": "A", "share_map": "111"})
+        client.post("/api/config/share",
+                    json={"share_code": "A", "share_map": "111"})
+        u_env = tmp_path / "home" / ".myknowledge" / ".env"
+        text = u_env.read_text(encoding="utf-8")
+        assert text.count("KNOWLEDGE_SHARE_CODE = A") == 1  # no dup
+        assert text.count("SHARE_MAP = 111") == 1

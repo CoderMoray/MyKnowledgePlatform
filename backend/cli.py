@@ -520,6 +520,27 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         git_repo_status = "已初始化" if git_repo_ok else "未初始化"
     checks.append(("Git 仓库", git_repo_status, git_repo_ok))
 
+    # ── 7. 分享配置（非阻塞，可选功能）────────────────────
+    from backend.config import (
+        load_share_env,
+        mask_share_code,
+        share_env_source,
+    )
+    share_env = load_share_env()
+    share_source = share_env_source()
+    share_configured = bool(share_env["share_code"]) and bool(share_env["share_map"])
+    src_label = ("backend/.env" if share_source == "backend"
+                 else "~/.myknowledge/.env" if share_source == "myknowledge"
+                 else "未配置")
+    if share_configured:
+        share_status = (f"✓ 已配置（{src_label}，分享码 "
+                        f"{mask_share_code(share_env['share_code'])}，SHARE_MAP "
+                        f"{share_env['share_map']}）")
+    else:
+        share_status = f"✗ 未配置（来源 {src_label}）"
+    # 分享是可选项：不因未配置而判 doctor 失败，仅作提示。
+    checks.append(("分享配置", share_status, True))
+
     # ── Report ─────────────────────────────────────────────
     print(f"MyKnowledge v{__version__} — 健康检查报告")
     print("=" * 60)
@@ -540,6 +561,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         if not kb_ok or not git_repo_ok:
             print("   初始化 KB: myknowledge init")
         print("   再次检查:  myknowledge doctor")
+    if not share_configured:
+        from backend.config import backend_env_file
+        print("  ⚠ 分享配置未设置（分享为可选功能）。如需发布/导入 .mkpkg：")
+        print("    myknowledge config set KNOWLEDGE_SHARE_CODE=<鉴权码>")
+        print("    myknowledge config set SHARE_MAP=<三位正整数>")
+        if backend_env_file().is_file():
+            # backend/.env 存在且优先：用户级配置可能被遮蔽，提示其存在性。
+            print("  注意：backend/.env 存在，分享码以其中配置为准，"
+                  "用户级配置（~/.myknowledge/.env）可能不生效；"
+                  "需修改 backend/.env 或移除其分享配置。")
     return 0 if all_ok else 1
 
 
@@ -735,8 +766,72 @@ def cmd_config(args: argparse.Namespace) -> int:
 
 
 # ══════════════════════════════════════════════════════════════
-#  argparse
+#  argparse — 命令分组友好帮助（像 git）
 # ══════════════════════════════════════════════════════════════
+
+# 各子命令一句话说明（单一来源：既用于 add_parser(help=...)，也用于分组帮助显示）。
+_CMD_HELP = {
+    "init": "创建新知识库",
+    "check": "检查知识库完整性（清理过期项目等）",
+    "rebuild": "重建指定路径的 readme（空=根或项目层）",
+    "serve": "启动 Web UI（FastAPI）",
+    "login": "设置身份（邮箱 + 昵称）",
+    "whoami": "显示当前身份",
+    "publish": "导出项目为分享包 .mkpkg",
+    "import-share": "导入 .mkpkg 分享包",
+    "config": "查看/设置分享配置（写入 ~/.myknowledge/.env）",
+    "mcp": "启动 MCP server（stdio 模式）",
+    "mcp-config": "输出 MCP 配置 JSON，供 AI client 使用",
+    "version": "显示版本信息",
+    "doctor": "全面健康检查（Python/git/deps/身份/KB）",
+    "upgrade": "升级到最新版本（pip install --upgrade）",
+}
+
+# 命令分组（用于无参数 / -h 时的分组帮助展示）。
+_GROUPS = [
+    ("知识库操作", ["init", "check", "rebuild", "serve"]),
+    ("身份", ["login", "whoami"]),
+    ("分享", ["publish", "import-share", "config"]),
+    ("AI 客户端", ["mcp", "mcp-config"]),
+    ("系统", ["version", "doctor", "upgrade"]),
+]
+
+
+def _print_grouped_help() -> int:
+    """Print usage + grouped command list (like ``git``). exit 0."""
+    print("用法: myknowledge <command> [选项]")
+    print()
+    for group, cmds in _GROUPS:
+        print(f"{group}:")
+        for cmd in cmds:
+            print(f"   {cmd:<14} {_CMD_HELP[cmd]}")
+        print()
+    print("运行 'myknowledge <command> -h' 查看某命令的详细帮助。")
+    return 0
+
+
+# config 子命令的子表单说明（复用分组帮助风格，供 `config -h` / 无参数展示）。
+_CONFIG_HELP = {
+    "show": "查看当前分享配置（默认）",
+    "set": "设置 KEY=VALUE（KNOWLEDGE_SHARE_CODE / SHARE_MAP）",
+    "unset": "移除 KEY",
+}
+
+
+def _print_config_help() -> int:
+    """Print the ``config`` sub-form help in the grouped-friendly style. exit 0."""
+    print("用法: myknowledge config <action> [参数]")
+    print()
+    print("管理分享配置（写入 ~/.myknowledge/.env）：")
+    for action, desc in _CONFIG_HELP.items():
+        print(f"   {action:<6} {desc}")
+    print()
+    print("示例:")
+    print("   myknowledge config set KNOWLEDGE_SHARE_CODE=<鉴权码>")
+    print("   myknowledge config set SHARE_MAP=<三位正整数>")
+    print("   myknowledge config unset SHARE_MAP")
+    return 0
+
 
 def _add_common_args(p: argparse.ArgumentParser) -> None:
     """Add --root to a subparser."""
@@ -749,36 +844,36 @@ def build_parser() -> argparse.ArgumentParser:
         prog="myknowledge",
         description="MyKnowledge — local-first 知识管理平台",
     )
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command")
 
     # init
-    p = sub.add_parser("init", help="创建新知识库")
+    p = sub.add_parser("init", help=_CMD_HELP["init"])
     _add_common_args(p)
     p.add_argument("--mirror", default="",
                    help=f"pip 镜像源，如 {_PIP_MIRROR}")
     p.set_defaults(func=cmd_init)
 
     # mcp
-    p = sub.add_parser("mcp", help="启动 MCP server（stdio 模式）")
+    p = sub.add_parser("mcp", help=_CMD_HELP["mcp"])
     _add_common_args(p)
     p.set_defaults(func=cmd_mcp)
 
     # check
-    p = sub.add_parser("check", help="检查知识库完整性（清理过期项目等）")
+    p = sub.add_parser("check", help=_CMD_HELP["check"])
     _add_common_args(p)
     p.set_defaults(func=cmd_check)
 
     # login / whoami
-    p = sub.add_parser("login", help="设置身份（邮箱 + 昵称）")
+    p = sub.add_parser("login", help=_CMD_HELP["login"])
     p.add_argument("email", help="邮箱地址")
     p.add_argument("nickname", help="昵称")
     p.set_defaults(func=cmd_login)
 
-    p = sub.add_parser("whoami", help="显示当前身份")
+    p = sub.add_parser("whoami", help=_CMD_HELP["whoami"])
     p.set_defaults(func=cmd_whoami)
 
     # publish
-    p = sub.add_parser("publish", help="导出项目为分享包 .mkpkg")
+    p = sub.add_parser("publish", help=_CMD_HELP["publish"])
     _add_common_args(p)
     p.add_argument("path", help="项目路径，如 projects/以旧换新")
     p.add_argument("--with-context", action="store_true",
@@ -786,7 +881,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_publish)
 
     # import_share
-    p = sub.add_parser("import-share", help="导入 .mkpkg 分享包")
+    p = sub.add_parser("import-share", help=_CMD_HELP["import-share"])
     _add_common_args(p)
     p.add_argument("file", help=".mkpkg 文件路径")
     p.add_argument("--sharer-email", default="",
@@ -794,7 +889,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_import_share)
 
     # serve
-    p = sub.add_parser("serve", help="启动 Web UI（FastAPI）")
+    p = sub.add_parser("serve", help=_CMD_HELP["serve"])
     _add_common_args(p)
     p.add_argument("--port", type=int, default=8080,
                    help="端口号（默认 8080）")
@@ -803,33 +898,33 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_serve)
 
     # version
-    p = sub.add_parser("version", help="显示版本信息")
+    p = sub.add_parser("version", help=_CMD_HELP["version"])
     p.add_argument("--check", action="store_true",
                    help="检查 PyPI 最新版本")
     p.set_defaults(func=cmd_version)
 
     # doctor
-    p = sub.add_parser("doctor", help="全面健康检查（Python/git/deps/身份/KB）")
+    p = sub.add_parser("doctor", help=_CMD_HELP["doctor"])
     _add_common_args(p)
     p.set_defaults(func=cmd_doctor)
 
     # upgrade
-    p = sub.add_parser("upgrade", help="升级到最新版本（pip install --upgrade）")
+    p = sub.add_parser("upgrade", help=_CMD_HELP["upgrade"])
     p.set_defaults(func=cmd_upgrade)
 
     # mcp-config
-    p = sub.add_parser("mcp-config", help="输出 MCP 配置 JSON，供 AI client 使用")
+    p = sub.add_parser("mcp-config", help=_CMD_HELP["mcp-config"])
     p.set_defaults(func=cmd_mcp_config)
 
     # rebuild — 手动兜底重建指定路径的 readme（空=根，或 projects/项目名）
-    p = sub.add_parser("rebuild", help="重建指定路径的 readme（空=根或项目层）")
+    p = sub.add_parser("rebuild", help=_CMD_HELP["rebuild"])
     _add_common_args(p)
     p.add_argument("path", nargs="?", default="",
                    help="目标路径：空=根，或 projects/项目名")
     p.set_defaults(func=cmd_rebuild)
 
     # config — 查看/设置分享配置（KNOWLEDGE_SHARE_CODE / SHARE_MAP）
-    p = sub.add_parser("config", help="查看/设置分享配置（写入 ~/.myknowledge/.env）")
+    p = sub.add_parser("config", help=_CMD_HELP["config"])
     p.add_argument("action", nargs="?", default=None,
                    choices=["show", "set", "unset"],
                    help="show（默认）=查看；set KEY=VALUE；unset KEY")
@@ -841,6 +936,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    # 默认取 sys.argv[1:]（与 argparse 行为一致），保证 `python -m backend.cli <cmd>` 生效。
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = list(argv)
+    # 无参数 / 顶层 -h --help → 打印分组友好帮助（exit 0，不报 error）。
+    if not argv or argv[0] in ("-h", "--help"):
+        return _print_grouped_help()
+    # config 子命令 -h/--help → 复用分组帮助风格（子表单清单）。
+    if argv[0] == "config" and len(argv) > 1 and argv[1] in ("-h", "--help"):
+        return _print_config_help()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)

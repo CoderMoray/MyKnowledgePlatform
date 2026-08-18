@@ -404,3 +404,107 @@ async guideExecute() {
 ---
 
 *本规范与现有引导向导（index.html 1608-1717）+ 设置 Modal（5 平级 / 5 态开关）协调。前端开发 agent 据此实施。*
+
+---
+
+## 十、补充设计：大 modal 规格 + Enchante 专属按钮（2026-08-18 架构师追加）
+
+### 10.1 大 modal 规格（引导页）
+
+引导 modal 从普通 modal 改为**大 modal**（适配 4 页内容，不全屏，风格与设置 modal 协调）：
+
+| 属性 | 值 | 对照 |
+|------|-----|------|
+| 宽度 | **840px**（> 设置 modal 760px） | 容纳 Step1 4 字段 / Step2.1 6 平台 / Step2.2 结论 |
+| 高度 | **640px**（> 设置 modal 540px） | 4 页内容垂直容纳 |
+| 圆角 | `--radius-xl`（14px） | 同设置 modal |
+| 背景 | `--card-bg` + `backdrop-filter: blur(24px)` | 同设置 modal |
+| 边框 | `0.5px solid rgba(0,0,0,0.06)` | 同设置 modal |
+| 阴影 | `0 16px 48px rgba(0,0,0,0.12)` | 同设置 modal |
+| 内边距 | 上下 24px / 左右 28px | 比设置 modal 略宽，容纳表单/列表 |
+
+**实现**：`.guide-modal`（新类），复用 `.modal` 基础，覆盖尺寸：
+```css
+.guide-modal {
+  width: 840px;
+  max-width: 840px;
+  height: 640px;
+  max-height: 640px;
+  padding: 24px 28px;
+  border-radius: var(--radius-xl);
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+```
+
+### 10.2 Enchante 专属按钮（2.2 结论页）
+
+当 2.1 选择 Enchante，2.2 结论页 Enchante 行显示**专属按钮**（区别于其它平台"已开启"）。
+
+**交互**（复用现有 `generateEnchanteDeeplink`，`store.js:1539`）：
+- 点击 → `api.getClientConfigDeeplink(platform)` → **复制链接 + 隐藏 a 触发打开 + toast**「已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏」
+- 复用现有 `deeplinkBusy` 状态（busy 时按钮 disabled + "生成中…"）
+
+**视觉**（复用 `.btn--deeplink`）：
+- 醒目（accent 紫实色，区别于其它"已开启"的文本）
+- 文案：「**⚡ 打开安装链接**」（引导手动安装）
+
+**状态机**：
+
+| 状态 | 触发 | 按钮文案 | 视觉 |
+|------|------|----------|------|
+| **初始** | 结论页首次显示 | 「⚡ 打开安装链接」 | accent 实色 `.btn--sm btn--deeplink` |
+| **点击后** | 生成 deeplink 成功 | 「已生成链接 · 可再次点击」 | accent 实色（保持可点） |
+| **生成中** | `deeplinkBusy` | 「生成中…」 | disabled + spinner |
+| **未安装** | `clientInstalled=false` | 「⚡ 打开安装链接」 | **置灰禁用**（opacity 0.45）+ 旁提示「请先安装 Enchanté」 |
+
+**结论页 Enchante 行说明**（按钮旁/下方小字）：
+> 「MCP 需手动安装完成：点击按钮生成专属链接并打开」
+
+**HTML 参考**：
+```html
+<!-- 2.2 结论页 Enchante 行 -->
+<div class="guide-conclusion-row">
+  <span class="guide-conclusion-row__dot" :style="...Enchante gradient..."></span>
+  <span class="guide-conclusion-row__name">Enchanté</span>
+  <span class="guide-conclusion-row__action">MCP 需手动安装</span>
+  <button class="btn btn--sm btn--deeplink"
+          :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
+          @click="$store.app.generateEnchanteDeeplink('Enchante')">
+    <span x-text="$store.app.deeplinkBusy ? '生成中…'
+                  : ($store.app.deeplinkClicked ? '已生成链接 · 可再次点击' : '⚡ 打开安装链接')"></span>
+  </button>
+  <span class="guide-conclusion-row__hint"
+        x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
+</div>
+```
+
+**新增 store 状态**：`deeplinkClicked`（bool，点击后标记，文案变"已生成链接"）。
+
+### 10.3 新增/调整样式类
+
+```css
+/* 大 modal（引导页） */
+.guide-modal { /* 见 §10.1 */ }
+
+/* Enchante 专属按钮（复用 .btn--deeplink）+ 禁用态 */
+.btn--deeplink:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* 结论行 Enchante 行（含按钮）布局 */
+.guide-conclusion-row--deeplink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.guide-conclusion-row__hint {
+  font-size: var(--text-2xs);
+  color: var(--text-tertiary);
+}
+```
+
+**无 design-token 增量**（复用 card-bg、radius-xl、btn--deeplink、accent、text-tertiary）。

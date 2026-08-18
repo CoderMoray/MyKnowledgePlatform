@@ -193,6 +193,7 @@ myknowledge serve --root .myknowledge_test --port 8080 --reload
 | GET | `/api/client-config/Enchante/deeplink` | 生成 Enchante MCP 安装 deeplink → `{deeplink: "enchante://mcp/install?name=MyKnowledge&config=..."}`（其它平台 400） |
 | POST | `/hooks/pre-tool-use` | AI 客户端 PreToolUse hook：判定知识库裸操作 allow/deny（Claude/Cursor 兼容）→ `{hookSpecificOutput, permission, agent_message, user_message}` |
 | GET | `/api/config-status` | 分享配置状态（只读，不泄露分享码明文）→ `{share_configured: bool, env_source: "backend"\|"myknowledge"\|"none", message}`；`share_configured` 仅当 KNOWLEDGE_SHARE_CODE + SHARE_MAP 均配置；前端用于「未配置 → 引导」 |
+| POST | `/api/config/share` | 写分享配置到 `~/.myknowledge/.env`（body: `{share_code?, share_map?}`，部分更新：缺省字段不变）→ 同 config-status `{share_configured, env_source, message}`（不泄露明文）。校验：`share_code` 非空、`share_map` 三位正整数；400 返回 detail |
 
 ## 可编辑字段清单
 

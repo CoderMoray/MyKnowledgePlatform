@@ -123,8 +123,8 @@ REST 侧经 `backend/main.py::_guard_doc_write_path` 走同一校验（转 400�
 
 ### 测试
 
-- 671 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 102 个 + connection 25 个 + hooks 29 个 + hooks_forward 6 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个 + config 分享配置 28 个）
-- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...) + staged-guard 跳过无变更 + repo-relative 解析）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST/DELETE /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入 + remove_kind 移除 + client_installed 检测 + WorkBuddy 平台支持 + mcp_entry 注入 MYKNOWLEDGE_CLIENT + /api/mcp/heartbeat 心跳连接检测 + connection 字段 + kinds 能力面 + Enchante 平台（SKILL.md + deeplink））、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库 + CodeBuddy 工具名归一化 + hooks_forward 模块调用 + hooks_matcher 平台差异化 + Agent md 模板化 backend/AiClientConfig/agents/ + ClaudeDesktop MCP-only 平台 + frontmatter.json 多平台配置 + PascalCase 平台标识符（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Cursor））、Cursor 全能力平台接入（mcp+hooks+agent，hooks 写入 ~/.cursor/hooks.json 的 version:1 + preToolUse + matcher Shell + hooks_forward，agents 写入 ~/.cursor/agents/MyKnowledge-agent.md，client_installed 检测 ~/.cursor）+ Cursor Shell 工具归一化（hooks.py）+ hooks 设计目录 backend/AiClientConfig/hooks/（6 平台 json，schema 一致 + supports_hooks 对齐 kinds）、分享配置（CLI config set/show/unset + 读取优先级 backend/.env→~/.myknowledge/.env + GET /api/config-status + share.py 读来源对齐优先级，不影响分享往返）、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
+- 695 个后端测试全绿（含 S15 renames 20 个 + S16 ref 空格 34 个 + nav__find 全文搜索 12 个 + validator 结构诊断 30 个 + diagnose REST 7 个 + frontmatter-in-content 拦截 7 个 + heal 14 个 + 精准 git 提交 4 个 + events 类型化 5 个 + diagnose 写结果文件 1 个 + client-config 102 个 + connection 25 个 + hooks 29 个 + hooks_forward 6 个 + trash empty-all/分页/精准删除 12 个 + git staged-guard/repo-relative 6 个 + config 分享配置 28 个 + doctor 分享检查 5 个 + CLI 分组帮助 10 个 + config/share 写端点 9 个）
+- 覆盖：storage 读写/list/search/全文搜索、MCP 工具（全部 20 个）、write-through、lock、share publish/import/merge、CLI、readme 生成器、git manager、rename 映射、ref 空格路径、validator 知识库结构诊断、GET /api/diagnose、GET /api/diagnose/saved、write__* content 误传 frontmatter 拦截、heal（move_document + /api/heal/move + /api/heal/rebuild + maint__move_document）、git 精准提交（commit(paths=...) + staged-guard 跳过无变更 + repo-relative 解析）、events 类型化（broadcast(event_type) + /api/events 下发 {version,type}）、maint__knowledgebase_diagnose 写结果文件、AI 客户端配置（GET /api/client-config + POST/DELETE /api/client-config/:platform/:kind + MCP/hooks/Agent 增量合并写入 + remove_kind 移除 + client_installed 检测 + WorkBuddy 平台支持 + mcp_entry 注入 MYKNOWLEDGE_CLIENT + /api/mcp/heartbeat 心跳连接检测 + connection 字段 + kinds 能力面 + Enchante 平台（SKILL.md + deeplink））、hooks（POST /hooks/pre-tool-use 管控 AI 裸操作知识库 + CodeBuddy 工具名归一化 + hooks_forward 模块调用 + hooks_matcher 平台差异化 + Agent md 模板化 backend/AiClientConfig/agents/ + ClaudeDesktop MCP-only 平台 + frontmatter.json 多平台配置 + PascalCase 平台标识符（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Cursor））、Cursor 全能力平台接入（mcp+hooks+agent，hooks 写入 ~/.cursor/hooks.json 的 version:1 + preToolUse + matcher Shell + hooks_forward，agents 写入 ~/.cursor/agents/MyKnowledge-agent.md，client_installed 检测 ~/.cursor）+ Cursor Shell 工具归一化（hooks.py）+ hooks 设计目录 backend/AiClientConfig/hooks/（6 平台 json，schema 一致 + supports_hooks 对齐 kinds）、分享配置（CLI config set/show/unset + 读取优先级 backend/.env→~/.myknowledge/.env + GET /api/config-status + POST /api/config/share 写端点（部分更新/校验/幂等）+ doctor 分享配置检查项（非阻塞、脱敏显示、未配置引导 + backend 存在性提示）+ CLI 分组友好帮助（无参数/-h 打印分组命令列表）+ share.py 读来源对齐优先级，不影响分享往返）、trash（empty all=true 清空全部 + GET /api/trash 分页 + POST body trash_paths 精准删除 + delete_trash_items）
 
 ### 前端构建守门（2026-08-09 引入）
 
@@ -256,6 +256,39 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 - `share_configured` 仅当 KNOWLEDGE_SHARE_CODE + SHARE_MAP 均配置；**绝不泄露分享码明文**
   （message 只含脱敏形式）。
 - 前端用于「未配置 → 引导」（另派前端）。
+
+**REST `POST /api/config/share`**（`backend/main.py`，2026-08-18）：
+- 写分享配置到 `~/.myknowledge/.env`（复用 `write_share_env()`，与 CLI config 同一文件/逻辑）。
+- body `{share_code?, share_map?}`，**部分更新**（缺省字段不变）；重复写覆盖（幂等）。
+- 校验：`share_code` 非空（400「share_code 不能为空」）、`share_map` 三位正整数
+  （400「share_map 须为三位正整数」）；两者皆空 400「至少提供一个字段」。
+- 返回与 `GET /api/config-status` 相同 shape（`{share_configured, env_source, message}`，
+  反映写入后生效来源）；不泄露分享码明文。与 GET 共用 `_share_config_status()`。
+- 前端引导页 Step1（企业名称 + 组织代码）保存用；测试 `tests/test_main.py`
+  `TestApiConfigShareWrite`（9 个）。
+
+**doctor 分享配置检查项**（`backend/cli.py` `cmd_doctor`，2026-08-18）：
+- 新增第 7 项「分享配置」：显示来源（backend/.env / ~/.myknowledge/.env / 未配置）、脱敏分享码、SHARE_MAP。
+- **非阻塞**：分享是可选项，`checks.append(..., True)` 恒 ok，不因未配置判 doctor 失败。
+- 未配置时在 summary 追加引导：`myknowledge config set KNOWLEDGE_SHARE_CODE=<鉴权码> 与 SHARE_MAP=<三位正整数>`。
+- 测试：`tests/test_cli_doctor.py`（4 个，backend/user/none/partial 四态）。
+
+**doctor 分享检查增强 + CLI 分组帮助（2026-08-18）**：
+- **doctor 分享检查增强**：未配置且 `backend/.env` 存在时，除现有引导外追加 backend 存在性提示
+  「注意：若 backend/.env 存在，分享码以其中配置为准，用户级配置（~/.myknowledge/.env）可能不生效；
+  需修改 backend/.env 或移除其分享配置」，帮用户理解"改了 config set 为什么不生效"。已配置不提示。
+  `tests/test_cli_doctor.py` 增至 5 个（+backend 存在+未配置态）。
+- **CLI 分组友好帮助（像 git）**：
+  - 无参数 / 顶层 `-h` / `--help` → 打印 `用法 + 分组命令列表`（exit 0，不报 error）。
+  - 5 组：知识库操作（init/check/rebuild/serve）、身份（login/whoami）、分享（publish/import-share/config）、
+    AI 客户端（mcp/mcp-config）、系统（version/doctor/upgrade）。
+  - 命令说明单一来源 `_CMD_HELP`（`add_parser(help=...)` 与分组显示共用）；`_GROUPS` 定义分组。
+  - `main()`：`argv=None` 默认取 `sys.argv[1:]`（与 argparse 一致），空/顶层 help → 分组帮助；
+    子命令 `<cmd> -h` 仍走 argparse 显示该子命令自身帮助。
+  - subparsers 改 `required=False`（空 argv 由 main 拦截）。
+  - **config 子命令复用分组帮助风格**（补充）：`myknowledge config -h`/`--help` 打印子表单清单
+    （show/set/unset + 示例，exit 0）；`config` 无 action 仍为 show（向后兼容）。`_CONFIG_HELP` 单一来源。
+  - 测试 `tests/test_cli_help.py`（10 个）。
 
 ---
 

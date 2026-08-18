@@ -1392,13 +1392,12 @@ def api_set_identity(payload: IdentityPayload):
 
 
 # ══════════════════════════════════════════════════════════════
-#  Share config status（只读，不泄露分享码明文）
+#  Share config（读状态 + 写配置，不泄露分享码明文）
 # ══════════════════════════════════════════════════════════════
 
 
-@app.get("/api/config-status")
-def api_config_status():
-    """Report the share-config status for the frontend guidance.
+def _share_config_status() -> dict:
+    """The share-config status dict shared by GET /api/config-status & POST.
 
     Returns ``{share_configured, env_source, message}``.  ``share_configured``
     is true only when both KNOWLEDGE_SHARE_CODE and SHARE_MAP are configured in
@@ -1426,6 +1425,49 @@ def api_config_status():
         "env_source": source,
         "message": message,
     }
+
+
+@app.get("/api/config-status")
+def api_config_status():
+    """Report the share-config status for the frontend guidance."""
+    return _share_config_status()
+
+
+class ShareConfigPayload(BaseModel):
+    """POST /api/config/share body — both fields optional (partial update)."""
+    share_code: str | None = None
+    share_map: str | None = None
+
+
+@app.post("/api/config/share")
+def api_config_share_write(payload: ShareConfigPayload):
+    """Write share config (KNOWLEDGE_SHARE_CODE / SHARE_MAP) to ``~/.myknowledge/.env``.
+
+    Partial update: only provided keys are written; missing keys are left
+    unchanged.  ``share_code`` must be non-empty; ``share_map`` must be a
+    three-digit positive integer (aligned with the field-pool redirection rule).
+    Returns the same shape as ``GET /api/config-status`` (reflects the effective
+    source after the write).
+    """
+    from backend.config import write_share_env
+
+    if payload.share_code is not None:
+        code = payload.share_code.strip()
+        if not code:
+            raise HTTPException(400, "share_code 不能为空")
+        write_share_env("KNOWLEDGE_SHARE_CODE", code)
+
+    if payload.share_map is not None:
+        sm = payload.share_map.strip()
+        if not (sm.isdigit() and len(sm) == 3):
+            raise HTTPException(
+                400, "share_map 须为三位正整数（如 365）")
+        write_share_env("SHARE_MAP", sm)
+
+    if payload.share_code is None and payload.share_map is None:
+        raise HTTPException(400, "至少提供一个字段: share_code 或 share_map")
+
+    return _share_config_status()
 
 
 # ══════════════════════════════════════════════════════════════

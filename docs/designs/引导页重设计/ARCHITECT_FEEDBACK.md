@@ -1,145 +1,135 @@
-# 前端视觉设计 agent → MyKnowledge 架构师：「引导页重设计」设计反馈
+# 前端视觉设计 agent → MyKnowledge 架构师：「引导页重设计」补充反馈
 
 > 作者：前端视觉/交互设计 agent
 > 日期：2026-08-18
-> 用途：本反馈覆盖「引导页 3 步改结构」任务的**设计交付物**与**关键决策**。可直接转发架构师。
+> 用途：本反馈覆盖架构师 7 个裁决的回应 + 2 个补充设计需求（A. 大 modal 规格 / B. Enchante 专属按钮）。可直接转发架构师。
 
 ---
 
 ## 〇、一句话结论
 
-按你（架构师）的设计需求，产出**4 页 3 步结构 + 动画规范**的完整设计：
+按你（架构师）的 7 个裁决 + 2 个补充需求，**更新 SPEC.md** 并**新建视觉稿 S2.2b**：
 
-```
-Step 1  身份（4 字段全必填 + 校验）
-Step 2  ┌ 2.1 平台多选（6 平台开关，未安装禁用，至少选 1）
-        └ 2.2 执行 + 结论（进度条 ≥0.36s → 按平台结论）
-Step 3  完成（✓ 延续现有）
-```
+1. **大 modal 规格**：引导 modal 改为 **840×640**（> 设置 modal 760×540），风格协调
+2. **Enchante 专属按钮**（2.2 结论页）：4 态——初始「⚡ 打开安装链接」/ 点击后「已生成链接 · 可再次点击」/ 生成中「生成中…」/ 未安装「置灰禁用 + 请先安装 Enchanté」
 
-**动画规范（重点）**：步骤间过渡 = 淡入 + 位移/缩放，**时长 ≥0.36s 且为 0.06 整数倍**（0.36/0.42/0.48/0.54/0.60s）；2.2 执行进度条也 ≥0.36s。
-
-**设计三件套**（存 `docs/designs/引导页重设计/`）：
-- `SPEC.md`（**200+ 行**，语义规范）
-- `export/106_1-...svg`（Frame S1 · Step1 身份 4 字段）/ `106_37-...svg`（S2.1 平台多选）/ `106_87-...svg`（S2.2 执行+结论）/ `106_125-...svg`（S3 完成）
-- `screenshots/screenshot-106_*.png` ×4（人审参考）
+**设计三件套更新**（`docs/designs/引导页重设计/`）：
+- `SPEC.md`（**510 行**，§十 补充 104 行）
+- `export/106_1/37/87/125/163-...svg`（5 帧：S1/S2.1/S2.2/S3 + **S2.2b 大 modal + Enchante 四态**）
+- `screenshots/screenshot-106_*.png` ×5
 
 ---
 
-## 一、范围与边界
+## 一、对你 7 个裁决的回应
 
-| 项 | 状态 |
-|---|---|
-| **只做视觉/交互设计** | ✅（不写 HTML/JS 实现，前端开发另派） |
-| **不改后端** | ✅（Step1 写分享配置的 REST 端点由后端另派） |
-| **不动设置 Modal 现有 5 平级导航** | ✅（引导页独立设计，风格协调即可） |
-| **零 design-token 增量** | ✅（全复用现有 token：accent、color-success/warning/danger、text-primary/secondary/tertiary、bg-tertiary、border-subtle、radius-sm、text-2xs/xs/sm、transition-interactive） |
-
----
-
-## 二、关键设计决策
-
-### 2.1 Step 1 身份 — 4 字段全必填
-
-| 字段 | 对应 | 校验 | 占位示例 |
-|------|------|------|---------|
-| 昵称 | nickname | 非空 | 张三 |
-| 邮箱 | email | **邮箱格式** | zhangsan@example.com |
-| 企业名称 | `KNOWLEDGE_SHARE_CODE` | 非空 + 格式（按 /api/config-status schema）| Acme 科技 |
-| 组织代码 | `SHARE_MAP` | 非空 + 格式 | acme-share |
-
-- **4 字段全必填，未填全「下一步」disabled**（按钮半透明紫态）
-- 校验失败字段下方红字 hint（复用 `.modal__hint--error`）
-- 字段下方说明：「企业名称与组织代码用于知识库分享鉴权，仅本机存储」
-
-### 2.2 Step 2.1 平台多选 — 6 平台开关
-
-- **每行结构**：平台渐变 dot（16px，复用 `clientPlatforms[].dot`）+ 平台名 + 开关
-- **开关** 与设置 Modal toggle **一致**（`.toggle` + knob，选中 `toggle--on` accent 实色）
-- **未安装**（`clientInstalled=false`）：开关 **灰禁用**（opacity 0.4）+ 行尾**「未安装」标签**（`--text-2xs` 灰）
-- **至少选 1**：未选「下一步」disabled + 提示「请至少选择 1 个平台」+ 列表底部「已选 N/6 个平台」
-- **6 平台**（复用 store.js `clientPlatforms`）：ClaudeCode / ClaudeDesktop / CodeBuddyIDE / WorkBuddy / Enchanté / Cursor
-
-### 2.3 Step 2.2 执行 + 结论
-
-- **进入即执行**：为已选平台按 kinds 开启 MCP/Hooks/Agent，Enchanté 生成 deeplink
-- **进度条** ≥0.36s（0.42s 0.06 倍数），用 `@keyframes guide-progress 0.42s ease-out`（CSS）或 `min-duration` 补足
-- **结论按平台分行**：
-  - 每行 = 平台渐变 dot + 平台名 + `: 做了什么` + 状态点（成功绿 / 跳过灰）
-  - 「做了什么」按平台 × kind 组合（如 `已开启 MCP / Hooks / Agent`；Enchanté `已生成专属链接 (deeplink)`；未安装 `已跳过`）
-- **查看指引**（结论下方）：「你可以在 设置 → MCP / Hooks / Agent 中查看或调整」
-- **关闭小字**：「可在个人设置中关闭」(`--text-tertiary`)
-
-### 2.4 Step 3 完成 — 延续现有
-
-- ✓ check-circle + 「初始化完成」+ 「你的知识库已准备好与 AI 协作」
-- 4 项总结（身份已设置 / MCP 已配置 / hooks 待配置 / 专用 Agent 已就绪）
-- 「开始使用」主按钮 → dashboard
-
-### 2.5 动画规范（硬性）
-
-| 时机 | 过渡 | 时长 | 缓动 |
-|------|------|------|------|
-| 进入新步骤 | `opacity 0→1` + `translateY(8px→0)` | **0.42s**（0.06 整数倍）| `cubic-bezier(0.4,0,0.2,1)` |
-| 离开旧步骤 | `opacity 1→0` + `translateY(0→-8px)` | **0.36s** | 同上 |
-| 2.2 执行中 → 结论 | 结论 `opacity 0→1` + `scale(0.98→1)` | **0.48s** | `ease-out` |
-| 2.2 进度条 | 0→100% | **0.42s** | `ease-out` |
-| 触屏/弱化 | 时长减半或关闭位移 | `prefers-reduced-motion: reduce` |
-
-**实现**：CSS `transition` + Alpine `x-transition` 或 class 切换；时长用 0.06 倍数。
+| # | 裁决 | 我的处理 |
+|---|------|---------|
+| 1 | 字段命名 ✅ | SPEC §1.1 维持「企业名称（KNOWLEDGE_SHARE_CODE）」+「组织代码（SHARE_MAP）」并列 |
+| 2 | 校验严格度 ✅ | SPEC §1.2 邮箱标准 + 企业名称非空 + **组织代码三位正整数**（与后端 `POST /api/config/share` share_map 一致） |
+| 3 | 仅下限 1，无上限 ✅ | SPEC §2.4 保持"至少选 1"（6 平台全选无妨） |
+| 4 | 进度条 0.42s ✅ | SPEC §5 维持 0.42s（0.06 整数倍）|
+| 5 | 动画 0.36/0.42/0.48s ✅ | SPEC §5 维持 |
+| 6 | 平台列表扩展 ✅ | 复用 `clientPlatforms` 数据驱动 |
+| 7 | 执行态无需单独视觉稿 ✅ | SPEC §3.2 描述足够 |
 
 ---
 
-## 三、产物清单（本机绝对路径）
+## 二、补充需求 A：大 modal 规格
 
-- **设计规范**：`docs/designs/引导页重设计/SPEC.md`（**200+ 行**）
+### 2.1 规格
+
+| 属性 | 值 | 对照 |
+|------|-----|------|
+| 宽度 | **840px** | > 设置 modal 760px |
+| 高度 | **640px** | > 设置 modal 540px |
+| 圆角 | `--radius-xl`(14px) | 同设置 modal |
+| 背景 | `--card-bg` + `backdrop-filter: blur(24px)` | 同设置 modal |
+| 边框 | `0.5px solid rgba(0,0,0,0.06)` | 同设置 modal |
+| 阴影 | `0 16px 48px rgba(0,0,0,0.12)` | 同设置 modal |
+| 内边距 | 24px / 28px | 比设置 modal 略宽 |
+
+### 2.2 实现
+
+- **新类 `.guide-modal`**：复用 `.modal` 基础，覆盖尺寸
+- **不**改设置 modal 现有结构
+- 视觉稿 S2.2b 演示大 modal 框架 + 内容布局
+
+---
+
+## 三、补充需求 B：Enchante 专属按钮
+
+### 3.1 视觉稿（S2.2b）四态
+
+| 状态 | 文案 | 视觉 |
+|------|------|------|
+| **初始** | 「⚡ 打开安装链接」 | accent 实色 `.btn--sm btn--deeplink` |
+| **点击后** | 「已生成链接 · 可再次点击」 | accent 实色 + 描边（保持可点）|
+| **生成中** | 「生成中…」 | disabled + opacity 0.7（`deeplinkBusy`）|
+| **未安装** | 「⚡ 打开安装链接」 | **置灰禁用**（opacity 0.45）+ 旁提示「请先安装 Enchanté」 |
+
+### 3.2 交互
+
+- 复用现有 `generateEnchanteDeeplink`（`store.js:1539` → `getClientConfigDeeplink` → **复制链接 + 隐藏 a 触发打开 + toast**「已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏」）
+- 复用现有 `deeplinkBusy` 状态
+- **新增 store 状态**：`deeplinkClicked`（bool，点击后标记，文案变"已生成链接"）
+
+### 3.3 Enchante 行说明
+
+按钮旁小字：「MCP 需手动安装完成：点击按钮生成专属链接并打开」
+
+### 3.4 未安装禁用
+
+`!clientInstalled('Enchante')` → 按钮 `disabled`（opacity 0.45）+ 旁「请先安装 Enchanté」提示
+
+---
+
+## 四、SPEC.md 修订（§十 新增 104 行）
+
+- §10.1 大 modal 规格（840×640 + CSS）
+- §10.2 Enchante 专属按钮（4 态 + 交互 + HTML 参考）
+- §10.3 新增/调整样式类（`.guide-modal`、`.btn--deeplink:disabled`、`.guide-conclusion-row--deeplink`、`.guide-conclusion-row__hint`）
+
+**零 design-token 增量**：全复用现有 `--card-bg` / `--radius-xl` / `--text-tertiary` / accent。
+
+---
+
+## 五、产物清单（本机绝对路径）
+
+- **设计规范**：`docs/designs/引导页重设计/SPEC.md`（**510 行**，§十 补充 104 行）
 - **视觉稿 SVG**：
-  - `export/106_1-20260818_220939916.svg`（Frame S1 · Step1 身份）
-  - `export/106_37-20260818_220939920.svg`（Frame S2.1 平台多选）
-  - `export/106_87-20260818_220939923.svg`（Frame S2.2 执行+结论）
-  - `export/106_125-20260818_220939927.svg`（Frame S3 完成）
-- **人审截图**：`screenshots/screenshot-106_*.png` ×4
+  - `export/106_1-...svg`（S1）/ `106_37-...svg`（S2.1）/ `106_87-...svg`（S2.2 升级含 Enchante 按钮）/ `106_125-...svg`（S3）
+  - **`export/106_163-...svg`**（**S2.2b · 大 modal 框架 + Enchante 按钮四态**）
+- **人审截图**：`screenshots/screenshot-106_*.png` ×5
 
 ---
 
-## 四、需架构师确认的决策
+## 六、需架构师确认的决策
 
-1. **Step 1 字段命名**：「企业名称（KNOWLEDGE_SHARE_CODE）」与「组织代码（SHARE_MAP）」的**中文 label + 后端 key** 并列展示，是否合适？还是用更直白的中文（如「企业码」/「组织码」）
-2. **Step 1 校验严格度**：
-   - 邮箱用现有 `isValidEmail`
-   - 企业名称/组织代码格式**具体规则**以后端 `GET /api/config-status` 返回的 schema 为准（前端按后端定义校验）。建议正则 `[A-Za-z0-9_-]{2,32}`——是否合适
-3. **Step 2.1 至少选 1 + 上限**：是否需要「至少 1 但不超过 4」（避免一次配置太多失败体验差）？我的决策是**仅下限 1**
-4. **Step 2.2 进度条最小播放时长**：**0.42s**（0.06 整数倍）是否够？后端真实执行通常 <0.42s，前端补足
-5. **动画时长**：
-   - 进入新步骤 **0.42s**，离开 **0.36s**，执行→结论 **0.48s**——是否符合"≥0.36s 且 0.06 整数倍"硬约束
-6. **平台 6 个**：复用现有 `clientPlatforms`（ClaudeCode/ClaudeDesktop/CodeBuddyIDE/WorkBuddy/Enchanté/Cursor），未来扩展时前端自动适配
-7. **执行态视觉稿**：本轮视觉稿只画了 S2.2 结论态（更信息丰富）；**执行态**（进度条 + spinner ≥0.36s）见 SPEC §3.2 描述，前端实现时按此
+1. **大 modal 尺寸 840×640**：是否合适（> 设置 modal 760×540 略大）？是否需要更大或更小
+2. **Enchante 专属按钮文案**：「⚡ 打开安装链接」是否足够醒目？或用「⚡ 完成 Enchante MCP 安装」
+3. **点击后态文案**：「已生成链接 · 可再次点击」是否清晰？或简化为「已生成 · 再次点击」
+4. **未安装禁用文案**：「请先安装 Enchanté」是否明确？或加具体安装指引
+5. **新增 store 状态 `deeplinkClicked`**：仅用于 2.2 结论页显示文案；是否需要持久化（跨页面）或仅本次 session
 
 ---
 
-## 五、待前端开发 agent 实施
+## 七、待前端开发 agent 实施（补充）
 
-按 SPEC §六/§七 实施：
+按 SPEC §十 实施：
 
-1. **`frontend/index.html` L1608-1717**：替换为新结构
-   - Step1：4 字段表单 + 校验
-   - Step2.1：6 平台多选 + 未安装禁用 + 至少选 1
-   - Step2.2：执行（进度条）+ 结论（按平台分行）
-   - Step3：延续现有（4 项总结）
-2. **`frontend/js/store.js`**：
-   - `data()` 新增：`setupCompany` / `setupOrgCode` / `guideSelected[]` / `guideExecuting` / `guideExecDone` / `guideExecPercent`
-   - 新增 `guideStep1Valid()` / `guideStep2Valid()` / `guideExecute()`（含 min-duration 补足 0.42s）
-3. **`frontend/css/components.css`**：新增样式类（见 SPEC §六）
-4. **企业名称/组织代码格式校验**：按后端 `GET /api/config-status` schema 实施
+1. **`frontend/css/components.css`**：新增 `.guide-modal` 样式（840×640 + backdrop-blur + 阴影）
+2. **`frontend/index.html` L1608-1717**：引导 modal 容器加 `guide-modal` 类；2.2 结论页 Enchante 行加专属按钮（含 4 态 + 旁小字）
+3. **`frontend/js/store.js`**：新增 `deeplinkClicked: false`；在 `generateEnchanteDeeplink` 成功回调设 `deeplinkClicked = true`
+4. **不动后端**；**不动设置 modal**
 
 ---
 
-## 六、零修改声明
+## 八、零修改声明
 
-- `frontend/*.js / *.html`：未改（**待前端开发 agent 按 SPEC 实施**）
+- `frontend/*.js / *.html`：未改（**待前端开发 agent 按 SPEC §十 实施**）
 - `backend/`：未改
 - `design-tokens.css`：零 token 增量
 
 ---
 
-*本反馈 + SPEC.md + 4 个 SVG = 引导页重设计交付完整三件套。前端开发 agent 据此施工，架构师拍板决策点（§四）。*
+*本反馈 + SPEC.md §十 + 5 个 SVG = 引导页重设计 + 补充设计交付。前端开发 agent 据此施工，架构师拍板决策点（§六）。*
