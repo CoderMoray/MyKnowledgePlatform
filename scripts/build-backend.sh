@@ -10,7 +10,34 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PYTHON="${PYTHON:-python3}"
+# Python 智能探测：显式 PYTHON 优先；否则优先当前 PATH 的 python3，
+# 但若它没有 PyInstaller（如 npm run 子进程解析到 macOS 系统 python），
+# 自动回退到 conda base / 常见 conda 路径，避免 "No module named PyInstaller"。
+PYTHON="${PYTHON:-}"
+if [ -z "$PYTHON" ]; then
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import PyInstaller" >/dev/null 2>&1; then
+    PYTHON="$(command -v python3)"
+  else
+    # 候选：conda base（CONDA_PREFIX）→ 当前 shell 的 conda exe → 常见安装路径
+    for cand in \
+      "${CONDA_PREFIX:-}/bin/python3" \
+      "$(command -v conda >/dev/null 2>&1 && dirname "$(dirname "$(command -v conda)")")/bin/python3" \
+      "/opt/homebrew/Caskroom/miniconda/base/bin/python3" \
+      "$HOME/miniconda3/bin/python3" \
+      "$HOME/miniforge3/bin/python3"; do
+      if [ -n "$cand" ] && [ -x "$cand" ] && "$cand" -c "import PyInstaller" >/dev/null 2>&1; then
+        PYTHON="$cand"
+        break
+      fi
+    done
+    if [ -z "$PYTHON" ]; then
+      echo "✗ 未找到带 PyInstaller 的 Python。请安装: pip install pyinstaller，或显式 PYTHON=/path/to/python" >&2
+      exit 1
+    fi
+    echo "  ✓ PATH 的 python3 无 PyInstaller，自动使用: $PYTHON"
+  fi
+fi
+echo "  ✓ 使用 Python: $PYTHON ($("$PYTHON" --version 2>&1))"
 OUT_DIR="dist-backend"
 
 step() {  # step <序号> <总数> <标题>
