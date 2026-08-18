@@ -41,10 +41,12 @@ class TestStage3StaticStructure:
     """验证阶段三引导页 + 配置 modal 的 HTML/JS/CSS 结构完整性"""
 
     def test_api_client_config_methods(self):
-        """api.js 暴露 client-config 方法"""
+        """api.js 暴露 client-config 方法（get 检测 / set 写 / delete 移除）"""
         js = API.read_text(encoding="utf-8")
         assert "getClientConfig" in js, "Missing api.getClientConfig()"
         assert "setClientConfig" in js, "Missing api.setClientConfig(platform, kind)"
+        assert "deleteClientConfig" in js, "Missing api.deleteClientConfig(platform, kind)"
+        assert 'method: "DELETE"' in js, "Missing DELETE request (remove client config)"
         assert "/api/client-config" in js, "Missing /api/client-config endpoint"
 
     def test_store_stage3_state_and_methods(self):
@@ -54,16 +56,16 @@ class TestStage3StaticStructure:
                      "clientPlatforms", "clientKinds", "loadClientConfig",
                      "configureClient", "copyClientPrompt", "openSettings",
                      "rerunGuide", "isClientConfiguring", "clientStatus",
-                     "guideConfigItems", "guideSummary"]:
+                     "guideConfigItems", "guideSummary", "deleteClientConfig"]:
             assert name in js, f"Missing store symbol: {name}"
 
     def test_store_platforms_match_backend(self):
-        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy），标签定稿 Claude Code/CodeBuddy"""
+        """平台列表与后端 client_config.PLATFORMS 严格一致（claude/codebuddy），标签定稿 Claude Code/CodeBuddy IDE"""
         js = STORE.read_text(encoding="utf-8")
         assert "claude" in js and "codebuddy" in js, "Missing claude/codebuddy platforms"
-        # 平台标签定稿（SETTINGS_REDESIGN_SPEC：Claude Code（CLI）/ CodeBuddy（IDE））
+        # 平台标签定稿（SETTINGS_REDESIGN_SPEC：Claude Code（CLI）/ CodeBuddy IDE（IDE））
         assert "Claude Code" in js, "Missing Claude Code platform label"
-        assert "CodeBuddy" in js, "Missing CodeBuddy platform label"
+        assert "CodeBuddy IDE" in js, "Missing CodeBuddy IDE platform label"
         # 不应出现 cursor 平台（后端未实现，前端不硬编码）
         assert "cursor" not in js, "cursor 平台不应存在（后端 PLATFORMS 未含 cursor）"
 
@@ -136,6 +138,16 @@ class TestStage3StaticStructure:
                     "ai-platform-fallback", "settings-card__row"]:
             assert f".{cls}" in css, f"Missing CSS class: .{cls}"
 
+    def test_stage3_css_toggle_knob_slides(self):
+        """toggle__knob 有 transform 过渡：knob 滑动动画（0.42s = 0.06s × 7）"""
+        css = COMPONENTS_CSS.read_text(encoding="utf-8")
+        marker = ".toggle__knob {"
+        assert marker in css, "Missing .toggle__knob rule"
+        seg = css[css.index(marker):]
+        seg = seg[:seg.index("}") + 1]  # 截断到规则块结束
+        assert "transform" in seg, "toggle__knob 缺少 transform 过渡（knob 无滑动动画）"
+        assert "0.42s" in seg, "knob 滑动时长应为 0.06s 整数倍（0.42s = 0.06 × 7）"
+
     def test_stage3_css_uses_tokens_not_new_colors(self):
         """阶段三样式必须复用 design token（不引入硬编码十六进制颜色）"""
         css = COMPONENTS_CSS.read_text(encoding="utf-8")
@@ -162,7 +174,7 @@ class TestStage3Build:
         assert STANDALONE.exists(), "Standalone not built. Run: python3 build.py"
         content = STANDALONE.read_text(encoding="utf-8")
         checks = [
-            "getClientConfig", "setClientConfig", "clientConfig",
+            "getClientConfig", "setClientConfig", "deleteClientConfig", "clientConfig",
             "guide-steps", "初始化 AI 协作", "初始化完成",
             "settings-nav", "settings-card", "ai-platform-row",
             "复制 prompt 给 AI", "saveSettingsIdentity", "configureAi",
@@ -223,6 +235,22 @@ class TestStage3Browser:
         page.locator(".settings-nav__item", has_text="Agents").click()
         page.wait_for_timeout(300)
         expect(page.locator(".settings-card", has_text="Agent 服务状态")).to_be_visible(timeout=3000)
+
+    def test_toggle_knob_slides_with_transform(self, static_server, page, backend_running):
+        """knob 滑动动画真实生效：computed transition-property 含 transform、
+        时长 0.42s（0.06s × 7）。只读不写，不触达用户全局配置。"""
+        page.goto(f"{static_server}#dashboard")
+        page.wait_for_timeout(2500)
+        self._open_settings(page)
+        page.locator(".settings-nav__item", has_text="MCP").click()
+        page.wait_for_timeout(300)
+        expect(page.locator(".toggle__knob").first).to_be_visible(timeout=3000)
+        props = page.locator(".toggle__knob").first.evaluate(
+            "el => getComputedStyle(el).transitionProperty")
+        assert "transform" in props, f"knob transition-property 缺 transform: {props}"
+        dur = page.locator(".toggle__knob").first.evaluate(
+            "el => getComputedStyle(el).transitionDuration")
+        assert "0.42" in dur, f"knob transition-duration 应为 0.42s: {dur}"
 
     def test_guide_wizard_three_steps(self, static_server, page, backend_running):
         """引导页三步向导：从配置 modal「重新运行初始化引导」进入，Step1→Step2→Step3"""

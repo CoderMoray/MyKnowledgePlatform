@@ -2325,7 +2325,9 @@
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: var(--transition-interactive);
+  /* knob 滑动动画：0.42s = 0.06s × 7（设计要求动画时长 0.06s 整数倍；用户反馈 0.24s 偏快，调慢至 0.42s）；
+     曲线复用 --transition-card 的 cubic-bezier(0.16, 1, 0.3, 1)（缓出无过冲） */
+  transition: var(--transition-interactive), transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .toggle--on       { background: var(--accent); }
 .toggle--on-soft  { background: color-mix(in srgb, var(--accent) 40%, transparent); }

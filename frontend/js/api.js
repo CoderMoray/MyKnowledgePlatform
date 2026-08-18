@@ -343,6 +343,19 @@ const api = {
     });
   },
 
+  /**
+   * 移除某平台某 kind 的 MyKnowledge 配置（只动 MyKnowledge 条目，
+   * 保留用户其他配置；幂等）。开=写（setClientConfig），关=移除。
+   * @param {string} platform - claude | codebuddy | workbuddy
+   * @param {string} kind - mcp | hooks | agent
+   * @returns {Promise<{platform, kind, file, status: "removed"}>}
+   */
+  async deleteClientConfig(platform, kind) {
+    return apiRequest(`/api/client-config/${encodeURIComponent(platform)}/${encodeURIComponent(kind)}`, {
+      method: "DELETE",
+    });
+  },
+
   /* ── 实时事件 ─────────────────────────────────────────────────────────── */
 
   /** SSE 事件名 */

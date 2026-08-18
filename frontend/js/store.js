@@ -1298,7 +1298,7 @@ let _tocCollapsedSet = {};
     /** AI 平台元信息（与后端 client_config.PLATFORMS 严格一致：claude/codebuddy/workbuddy） */
     clientPlatforms: [
       { key: "claude",    label: "Claude Code", dot: "linear-gradient(135deg,#d97706,#f59e0b)" },
-      { key: "codebuddy", label: "CodeBuddy",   dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
+      { key: "codebuddy", label: "CodeBuddy IDE", dot: "linear-gradient(135deg,#6366f1,#818cf8)" },
       { key: "workbuddy", label: "WorkBuddy",   dot: "linear-gradient(135deg,#0ea5e9,#22d3ee)" },
     ],
 
@@ -1317,30 +1317,37 @@ let _tocCollapsedSet = {};
     },
 
     /**
-     * 半自动化写入某平台某 kind 配置：POST → 刷新 GET → toast。
-     * 开关 optimistic：点击立即本地翻转；失败 loadClientConfig 回弹真实状态 +
-     * 行内 fallback 可交互文本（5 秒自动消失）。
-     * @param {string} platform
+     * 半自动化配置开关（双向）：开 = POST 写 MyKnowledge 配置；
+     * 关 = DELETE 移除 MyKnowledge 配置（只动 MyKnowledge，保留用户其他配置；幂等）。
+     * 开关 optimistic：点击立即本地翻转为目标状态；成功 loadClientConfig 刷新真实
+     * 状态；失败回弹真实状态 + 行内 fallback 可交互文本（5 秒自动消失）。
+     * @param {string} platform - claude | codebuddy | workbuddy
      * @param {string} kind - mcp | hooks | agent
      */
     async configureClient(platform, kind) {
       if (this.clientConfiguring) return; // 同一时刻只允许一个写入
       this.clientConfiguring = { platform, kind };
       this.clientFallback = null;
+      // 开关目标状态：当前未配置 → 开（POST 写）；当前已配置 → 关（DELETE 移除）。
       // optimistic：本地先翻转开关（clientConfig 已加载且非 null 时；null 态开关禁用不会走到这里）
+      let target = true;
       if (this.clientConfig && this.clientConfig[platform]) {
         const prev = !!this.clientConfig[platform][kind];
-        this.clientConfig[platform][kind] = !prev;
+        target = !prev;
+        this.clientConfig[platform][kind] = target;
       }
       try {
-        const res = await api.setClientConfig(platform, kind);
-        // 写入后重新检测，更新状态显示「已就绪」
+        // 开 = 写配置（POST）；关 = 移除配置（DELETE，只动 MyKnowledge 条目）
+        const res = target
+          ? await api.setClientConfig(platform, kind)
+          : await api.deleteClientConfig(platform, kind);
+        // 写入/移除后重新检测，更新状态显示「已就绪 / 已关闭」
         await this.loadClientConfig();
         const label = this._clientKindLabel(kind);
         if (res && res.status) {
-          showToast(`${this._platformLabel(platform)} ${label}已就绪`, "success");
+          showToast(`${this._platformLabel(platform)} ${label}${target ? "已就绪" : "已关闭"}`, "success");
         } else {
-          showToast(`${this._platformLabel(platform)} ${label}配置完成`, "success");
+          showToast(`${this._platformLabel(platform)} ${label}${target ? "配置完成" : "已移除"}`, "success");
         }
       } catch (e) {
         // 失败：loadClientConfig 用真实状态刷新（开关回弹）+ 行内 fallback 文本
