@@ -16,7 +16,7 @@
  * `myknowledge serve --reload`，跳过 spawn，直接复用开发者后端（热更新）。
  */
 
-const { app, BrowserWindow, dialog, shell, ipcMain, Tray, Menu } = require("electron");
+const { app, BrowserWindow, dialog, shell, ipcMain, Tray, Menu, nativeImage } = require("electron");
 const { spawn } = require("child_process");
 const net = require("net");
 const path = require("path");
@@ -183,8 +183,11 @@ function stopBackend() {
 /** 创建菜单栏托盘图标 + 菜单（幂等：已创建则不重复） */
 function ensureTray() {
   if (tray) return;
-  tray = new Tray(TRAY_ICON);
-  tray.setTemplateImage(true); // template image：跟随菜单栏深浅色自动反色
+  // Electron 43+ 移除了 Tray.setTemplateImage()；模板图标标记改到 nativeImage 上：
+  // 先用 createFromPath 加载，再 setTemplateImage(true)，最后把 NativeImage 传给 Tray。
+  const img = nativeImage.createFromPath(TRAY_ICON);
+  img.setTemplateImage(true); // template image：跟随菜单栏深浅色自动反色
+  tray = new Tray(img);
   const version = getAppVersion();
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -401,6 +404,9 @@ function loadAppWindow(backendUrl) {
 // ── 生命周期 ─────────────────────────────────────────────
 
 app.whenReady().then(async () => {
+  // 启动即创建托盘图标（幂等），用户随时可从菜单栏「显示主窗口 / 退出」
+  ensureTray();
+
   // Git 是后端写操作的外部依赖，先检测并友好提示
   const gitOk = await checkGitInstalled();
   if (!gitOk) {
