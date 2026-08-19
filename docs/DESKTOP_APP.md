@@ -138,6 +138,8 @@ cd desktop && npm run release
 
 - ✅ **无边框标题栏 + 关闭询问 + Tray 后台托管（2026-08-19）**：`titleBarStyle:'hidden'` 去原生标题栏（红黄绿保留），sidebar 顶部 28px 拖拽条让位；点红点弹自绘 modal 三选「退出/后台托管/取消」+ 记住选择；Tray 菜单栏托管（template 纯黑 M 图标 + 缩小动画 + 三项菜单）。隔离机制：前端 `data-app-mode="desktop"` 作用域 + `__MYK_APP_MODE__` 门控，网页端零变化。详见 `docs/designs/桌面壳-无边框托盘/SPEC.md`
 - ✅ **DMG 安装背景定制（2026-08-19）**：纯白四角 + 淡蓝紫流动光晕 + 白色箭头 + 标题文案；`scripts/make-dmg-background.py` 生成 600x400 + @2x，`dmg.background` + `dmg.contents`（图标中心锚点 150,170 / 450,170）接入 electron-builder
+- ✅ **企业定制打包（2026-08-19）**：同一版本可导出多份 dmg（不同企业），每份平台 enabled/display/order/kinds 不同。方案 A（打包期合并）：`platforms.json` 保持默认，新增 `desktop/enterprises/<name>.json`（默认不入库，仅 template 入库）；`bash scripts/release.sh --enterprise <name>` 合并注入。支持 `default_disabled`（未列出平台全禁用）、`order`（前端顺序）、`kinds`（能力集，三页置灰依据）。详见 `desktop/enterprises/README.md`
+- ✅ **三页一致置灰（2026-08-19）**：MCP/Hooks/Agent 三页显示同一批启用平台；平台原生不支持的 kind 整行置灰 + 「平台原生不支持」文字（toggle/deeplink 禁用）；引导页结论行区分「已开启/平台原生不支持/未安装」。kinds 改为后端权威（`/api/platforms-meta` 下发），企业配置可覆盖
 - 🔴 **启动动画进度挂钩真实后端就绪（backlog·高优先，2026-08-19 探查）**：实测后端真实启动仅 0.5~2.7s（PyInstaller），但 loading.html 用假进度（150ms +2~5%）磨满 ~7s 才切 → 用户感知 8s 大部分是空等。方向：main.js `waitForBackend` 就绪后发 IPC（如 `backend-ready`）→ loading 页立即进度 100% 并切主界面；需处理最小时长（≥1.2s 防闪）与慢启动保持等待两个边界。`DESKTOP_APP.md` 原「后端启动提速·延迟 import mcp」方向实测收益≈0（import 仅 ~400ms），应更正为本项
 - ⬜ **启动页动态光晕（backlog）**：静态 DMG 背景已定稿；「跟随鼠标的光晕 + 边缘阻塞变形 / 双光晕环绕游走」动态交互因当前设计观感不佳搁置，待用户提供参考图后再做（demo 原型在 /tmp/myk_dmg_preview/glow-demo.html）
 - ⬜ **自动更新（electron-updater）**：构建产出 `latest-mac.yml`；更新源托管 **OSS**（国内速度，项目已有 oss2 能力，`.env` 配置）；app 内「检查更新」菜单项；差分更新依赖 **zip 产物保留**
@@ -145,7 +147,7 @@ cd desktop && npm run release
 ### P1 — 内部分发完善
 
 - ⬜ **Intel（x64）或 universal 包**：当前只构建 arm64（Apple Silicon）；`npx electron-builder --mac --x64` 可出 x64，universal 需 `--universal`
-- ⬜ **后端启动提速（~8s → ≤3s）**：冷启动主要耗时在 FastAPI/uvicorn/mcp 全量 import；探索延迟 import mcp 框架、按需加载
+- ⬜ **后端启动提速（感知 8s → ≤3s）**：真实后端启动仅 0.5~2.7s，用户感知 8s 来自 loading 假进度——正解见 P0「启动动画进度挂钩真实后端就绪」；「延迟 import mcp」实测收益≈0（import 仅 ~400ms），不单独做
 - ⬜ **后端日志落盘**：当前 stdout 直通终端，排查线上问题困难；落地到 `~/Library/Logs/MyKnowledge/`
 - ⬜ **应用内「关于/设置」**：显示版本、知识库位置、按钮「打开数据目录」「查看日志」
 
