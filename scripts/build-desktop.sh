@@ -32,6 +32,7 @@ step 2 "$TOTAL" "electron-builder 依赖（electron 二进制 / 工具链，有�
 # ── 3. 打包（日志实时转发 + 抓关键行映射进度）────────────
 step 3 "$TOTAL" "打包 dmg + zip（electron-builder）"
 T3=$(date +%s)
+ELECTRON_MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}" \
 ELECTRON_BUILDER_BINARIES_MIRROR="${ELECTRON_BUILDER_BINARIES_MIRROR:-https://npmmirror.com/mirrors/electron-builder-binaries/}" \
   npx electron-builder --mac 2>&1 | awk '
     function bar(p) {
