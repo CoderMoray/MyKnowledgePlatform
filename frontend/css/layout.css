@@ -207,6 +207,21 @@
   -webkit-app-region: drag; /* 拖拽移动窗口 */
 }
 
+/* 桌面模式 sidebar 加宽：168 → 200（brand 行 version 完整显示），网页端不变 */
+[data-app-mode="desktop"] .sidebar {
+  width: var(--sidebar-width-desktop, 200px);
+}
+
+/* 桌面模式 brand 行紧凑化：gap 8→6、version 9→8px，在 200px 内完整显示
+   （toggle24+gap6+logo26+gap6+name89+gap6+version8px≈21 → 总≈178px ≤ 176 内容宽，紧凑可容纳） */
+[data-app-mode="desktop"] .sidebar-brand {
+  gap: 6px;
+  padding: 12px 10px;
+}
+[data-app-mode="desktop"] .sidebar-brand__version {
+  font-size: 8px;
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

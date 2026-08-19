@@ -123,8 +123,11 @@
   --locked-banner-text: #7c3aed;
 
   /* ── 1.9 侧边栏 ───────────────────────────────────────────────────────── */
-
   --sidebar-width: 168px;
+  /* 桌面模式专属宽度：brand 行（toggle24+gap8+logo26+gap8+name89+gap8+version26+padding24）
+     实测需 189px 内容宽，168px 放不下会截断 version → 桌面端 200px；
+     网页端保持 168px 不变（[data-app-mode=desktop] 作用域覆盖，见 layout.css） */
+  --sidebar-width-desktop: 200px;
 
   /* ── 1.10 组件 Token ──────────────────────────────────────────────────── */
 

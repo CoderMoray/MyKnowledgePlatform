@@ -1,6 +1,6 @@
 document.addEventListener("alpine:init", () => {
 Alpine.data("sidebarComponent", () => ({
-    sidebarWidth: 168,
+    sidebarWidth: window.__MYK_APP_MODE__ ? 200 : 168,
     resizing: false,
     hovering: false,
     startX: 0,
@@ -56,9 +56,10 @@ Alpine.data("sidebarComponent", () => ({
 
       const onUp = () => {
         this.resizing = false;
-        // 吸附到默认宽度（±2px）
-        if (Math.abs(this.sidebarWidth - 168) <= 2) {
-          this.sidebarWidth = 168;
+        // 吸附到默认宽度（±2px）——默认宽度随环境：桌面 200 / 网页 168
+        const defW = window.__MYK_APP_MODE__ ? 200 : 168;
+        if (Math.abs(this.sidebarWidth - defW) <= 2) {
+          this.sidebarWidth = defW;
         }
         localStorage.setItem("myknowledge-sidebar-width", String(this.sidebarWidth));
         window.removeEventListener("mousemove", onMove);
