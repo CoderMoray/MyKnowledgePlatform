@@ -86,10 +86,10 @@ PLATFORMS = tuple(
 def platforms_meta() -> dict:
     """Return display metadata for enabled platforms.
 
-    ``{key: {"display": str, "enabled": bool, "order": int|None}, ...}`` —
-    供前端把展示名改为从后端配置读取（企业定制 display 后前端无需改代码），
-    并用 ``order`` 重排展示顺序（数字小的靠前；None/缺失排在后面保持原序）。
-    只含 enabled 平台。
+    ``{key: {"display": str, "enabled": bool, "order": int|None, "kinds": [...], ...}, ...}``
+    — 供前端把展示名/能力集改为从后端配置读取（企业定制 display / kinds 后前端
+    无需改代码），并用 ``order`` 重排展示顺序（数字小的靠前；None/缺失排在后面
+    保持原序）。只含 enabled 平台。
 
     动态读 ``_load_platforms_data()``（而非模块级 ``_platforms_data`` 快照），
     保证与 PLATFORMS 过滤行为一致。
@@ -98,11 +98,17 @@ def platforms_meta() -> dict:
     for key, spec in _load_platforms_data()["platforms"].items():
         if not spec.get("enabled", True):
             continue
-        items.append((key, {
+        meta = {
             "display": spec.get("display", key),
             "enabled": True,
             "order": spec.get("order"),
-        }))
+            "kinds": spec.get("kinds", []),
+        }
+        # 透传企业可定制的附加展示字段（如 kinds 之外的说明文案）
+        for f in ("native_hint",):
+            if f in spec:
+                meta[f] = spec[f]
+        items.append((key, meta))
     # 按 order 升序：有 order 的靠前（数字小优先），无 order（None）排在后面
     # 保持相对原序（Python sort 稳定）。
     items.sort(key=lambda kv: (kv[1]["order"] if kv[1]["order"] is not None else 10**9))

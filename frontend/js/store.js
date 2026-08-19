@@ -1362,16 +1362,22 @@ let _tocCollapsedSet = {};
       }
     },
 
-    /** 用后端 /api/platforms-meta 覆盖平台展示名 + 按 order 重排展示顺序。
-     *  失败静默保留前端硬编码 label（后端离线时兜底）。 */
+    /** 用后端 /api/platforms-meta 覆盖平台展示名 + 能力集（kinds）+ 按 order 重排。
+     *  kinds 后端权威（platforms.json / 企业配置可定制），前端硬编码仅作离线兜底。
+     *  失败静默保留前端硬编码（后端离线时兜底）。 */
     async applyPlatformsMeta() {
       try {
         const meta = await api.getPlatformsMeta();
         if (!meta || typeof meta !== "object") return;
         for (const p of this.clientPlatforms) {
           const m = meta[p.key];
-          if (m && typeof m.display === "string" && m.display) {
-            p.label = m.display;
+          if (m) {
+            if (typeof m.display === "string" && m.display) {
+              p.label = m.display;
+            }
+            if (Array.isArray(m.kinds) && m.kinds.length) {
+              p.kinds = m.kinds; // 后端权威能力集
+            }
           }
         }
         // 按 order 重排：有 order 的升序靠前，无 order 的排在后面保持原序
@@ -1383,6 +1389,12 @@ let _tocCollapsedSet = {};
       } catch (e) {
         // 后端离线：保留硬编码 label，静默
       }
+    },
+
+    /** 某平台是否支持某 kind（mcp/hooks/agent）—— 由后端权威 kinds 判定。 */
+    platformSupportsKind(key, kind) {
+      const p = this.clientPlatforms.find((x) => x.key === key);
+      return !!(p && p.kinds && p.kinds.includes(kind));
     },
 
     /**
@@ -1676,10 +1688,21 @@ let _tocCollapsedSet = {};
       return this.clientKinds.filter(k => kinds.includes(k.key));
     },
 
-    /** 某 kind 适用的平台列表（按各平台 kinds 数组过滤，用于 settings 矩阵渲染） */
+    /** 某平台原生不支持的 kind 标签列表（用于结论行灰字提示：Agent 平台原生不支持） */
+    platformUnsupportedKinds(platform) {
+      const plat = this.clientPlatforms.find(p => p.key === platform);
+      const kinds = plat && Array.isArray(plat.kinds) ? plat.kinds : [];
+      return this.clientKinds.filter(k => !kinds.includes(k.key));
+    },
+
+    /** 某 kind 页展示的平台列表（全部启用平台，含 supported 标记，用于 settings 矩阵渲染）。
+     *  三页（MCP/Hooks/Agent）显示同一批平台保持一致；supported=false 的平台
+     *  由渲染端置灰 + 「平台原生不支持」。 */
     platformsForKind(kindKey) {
-      return this.clientPlatforms.filter(p =>
-        Array.isArray(p.kinds) && p.kinds.includes(kindKey));
+      return this.clientPlatforms.map(p => ({
+        ...p,
+        supported: Array.isArray(p.kinds) && p.kinds.includes(kindKey),
+      }));
     },
 
     /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP/Agent：无配置文件，客户端捕获链接） */

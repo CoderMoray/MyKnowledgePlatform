@@ -2333,6 +2333,7 @@
 .guide-conclusion-row__body { display: inline-flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
 .guide-conclusion-row__action { color: var(--text-secondary); flex: 1; text-align: right; }
 .guide-conclusion-row__action--skip { color: var(--text-tertiary); }
+.guide-conclusion-row__action--native { color: var(--text-tertiary); font-style: italic; }
 .guide-conclusion-row__deeplink { flex-shrink: 0; }
 .guide-conclusion-row__hint {
   font-size: var(--text-2xs);
@@ -2517,6 +2518,17 @@
 .ai-platform-row__state--off  { color: var(--text-secondary); }
 .ai-platform-row__state--soft { color: var(--text-muted); }
 .ai-platform-row__state--fail { color: var(--color-danger); }
+/* 平台原生不支持某 kind：整行置灰（dot/名称/状态文字统一淡化，按钮禁用态由 disabled 承担） */
+.ai-platform-row--unsupported {
+  opacity: 0.55;
+}
+.ai-platform-row--unsupported .ai-platform-row__name {
+  color: var(--text-muted);
+}
+.ai-platform-row__state--unsupported {
+  color: var(--text-muted);
+  font-style: italic;
+}
 
 /* ── 连接态（MCP 卡平台行右，平台级四态：not_connected/connected/inactive/lost；置灰仅 !installed） ── */
 .ai-platform-row__connection {
