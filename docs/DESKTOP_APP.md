@@ -138,7 +138,7 @@ cd desktop && npm run release
 
 - ✅ **无边框标题栏 + 关闭询问 + Tray 后台托管（2026-08-19）**：`titleBarStyle:'hidden'` 去原生标题栏（红黄绿保留），sidebar 顶部 28px 拖拽条让位；点红点弹自绘 modal 三选「退出/后台托管/取消」+ 记住选择；Tray 菜单栏托管（template 纯黑 M 图标 + 缩小动画 + 三项菜单）。隔离机制：前端 `data-app-mode="desktop"` 作用域 + `__MYK_APP_MODE__` 门控，网页端零变化。详见 `docs/designs/桌面壳-无边框托盘/SPEC.md`
 - ✅ **DMG 安装背景定制（2026-08-19）**：纯白四角 + 淡蓝紫流动光晕 + 白色箭头 + 标题文案；`scripts/make-dmg-background.py` 生成 600x400 + @2x，`dmg.background` + `dmg.contents`（图标中心锚点 150,170 / 450,170）接入 electron-builder
-- ⬜ **启动动画最终化**：当前 loading 页方案已可用；后续把进度条与后端真实启动进度挂钩、显示阶段文案（检查 Git/初始化知识库/启动服务）
+- 🔴 **启动动画进度挂钩真实后端就绪（backlog·高优先，2026-08-19 探查）**：实测后端真实启动仅 0.5~2.7s（PyInstaller），但 loading.html 用假进度（150ms +2~5%）磨满 ~7s 才切 → 用户感知 8s 大部分是空等。方向：main.js `waitForBackend` 就绪后发 IPC（如 `backend-ready`）→ loading 页立即进度 100% 并切主界面；需处理最小时长（≥1.2s 防闪）与慢启动保持等待两个边界。`DESKTOP_APP.md` 原「后端启动提速·延迟 import mcp」方向实测收益≈0（import 仅 ~400ms），应更正为本项
 - ⬜ **启动页动态光晕（backlog）**：静态 DMG 背景已定稿；「跟随鼠标的光晕 + 边缘阻塞变形 / 双光晕环绕游走」动态交互因当前设计观感不佳搁置，待用户提供参考图后再做（demo 原型在 /tmp/myk_dmg_preview/glow-demo.html）
 - ⬜ **自动更新（electron-updater）**：构建产出 `latest-mac.yml`；更新源托管 **OSS**（国内速度，项目已有 oss2 能力，`.env` 配置）；app 内「检查更新」菜单项；差分更新依赖 **zip 产物保留**
 
