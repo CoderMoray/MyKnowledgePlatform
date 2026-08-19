@@ -33,6 +33,10 @@ desktop/node_modules/
 desktop/dist/
 desktop/assets/icon.icns
 
+# Enterprise configs (per-customer; not versioned — keep template.json + README.md)
+desktop/enterprises/*.json
+!desktop/enterprises/template.json
+
 # Design artifacts (generated SVG/PNG, not versioned; keep SPEC.md/.md docs versioned)
 docs/designs/**/export/
 docs/designs/**/screenshots/
