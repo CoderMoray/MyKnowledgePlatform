@@ -72,10 +72,10 @@ def render(scale: int) -> Image.Image:
 
     img = Image.new("RGB", (W, H), (0xFF, 0xFF, 0xFF))
 
-    # 光晕：对角线排布（左上 + 右下），大半径向中部扩散重叠形成斜向流动。
-    # 峰值偏高：斜对角两光晕重叠少，需各自够浓（区别于纵向定稿的互相叠浓）
-    img = _add_glow(img, 190 * S, 135 * S, 280 * S, (129, 140, 248), 230, 80 * S)
-    img = _add_glow(img, 410 * S, 265 * S, 290 * S, (99, 102, 241), 215, 80 * S)
+    # 光晕：对角线排布（左上 + 右下），半径更小 + blur 更弱 → 两个分明光球，
+    # 不再糊在一起。中心更靠角，让中部留出图标/箭头的干净呼吸区。
+    img = _add_glow(img, 140 * S, 110 * S, 200 * S, (129, 140, 248), 215, 40 * S)
+    img = _add_glow(img, 460 * S, 300 * S, 210 * S, (99, 102, 241), 200, 40 * S)
     d = ImageDraw.Draw(img)
 
     # 箭头：白色 + 柔光阴影（与定稿图一致）
@@ -87,14 +87,16 @@ def render(scale: int) -> Image.Image:
     d = ImageDraw.Draw(img)
     _arrow(d, 212 * S, 168 * S, 388 * S, 5 * S, (255, 255, 255, 255), head=0.9)
 
-    # 标题
+    # 标题区（顶部）
     f_title = _font(22 * S)
     d.text((W / 2, 52 * S), "MyKnowledge", font=f_title, fill=(0x11, 0x18, 0x27), anchor="mm")
     f_sub = _font(13 * S)
-    d.text((W / 2, 82 * S), "拖拽到 Applications 文件夹完成安装", font=f_sub,
+    d.text((W / 2, 88 * S), "拖拽到 Applications 文件夹完成安装", font=f_sub,
            fill=(0x6B, 0x72, 0x80), anchor="mm")
+    # 版本号/slogan：移到图标行下方（y=170+65=235）—— DMG Finder 窗口实际尺寸
+    # 不固定，贴底会被截；放在图标下方既安全又符合"图标-标签"的 Finder 习惯。
     f_tag = _font(11 * S)
-    d.text((W / 2, 348 * S), "v0.7.6 · Local-first Knowledge Platform", font=f_tag,
+    d.text((W / 2, 235 * S), "v0.7.6 · Local-first Knowledge Platform", font=f_tag,
            fill=(0x6B, 0x72, 0x80), anchor="mm")
 
     return img
