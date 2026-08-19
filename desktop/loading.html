@@ -125,9 +125,21 @@
       if (p >= 100) {
         clearInterval(timer);
         bar.classList.add("splash__bar-fill--done");
-        setTimeout(() => {
+        // 等绿条展开动画（height 3px→26px, 0.6s transition）真正结束后再切主界面，
+        // 避免绿条被截断在展开中途（此前固定 400ms < 600ms 动画时长 → 截断）。
+        // transitionend 事件精确；加超时兜底防止事件未触发。
+        let switched = false;
+        const doSwitch = () => {
+          if (switched) return;
+          switched = true;
+          bar.removeEventListener("transitionend", onExpandEnd);
           if (window.__mykLoadingDone__) window.__mykLoadingDone__();
-        }, 400);
+        };
+        const onExpandEnd = (e) => {
+          if (e.propertyName === "height") doSwitch();
+        };
+        bar.addEventListener("transitionend", onExpandEnd);
+        setTimeout(doSwitch, 900); // 兜底：0.6s 动画 + 缓冲
       }
     }, 150);
   </script>
