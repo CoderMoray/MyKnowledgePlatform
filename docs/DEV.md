@@ -319,6 +319,29 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 2. 新 hook 配置要**新会话**才被 Claude Code 读取（重启对话是必要不充分条件——
    关键是先把配置内容改对再重启）。
 
+### Claude hook payload 走 stdin（-d @-）bugfix（2026-08-19，更深的根因）
+
+**背景**：matcher 修好后（见上），Write/Edit 会触发 hook 了——但 hook 命令**本身也是坏的**，
+之前根本没真正工作过。旧命令 `curl ... -d '$CLAUDE_TOOL_USE_INPUT'`：
+- **单引号包裹** → shell 不展开 → POST 字面量 `$CLAUDE_TOOL_USE_INPUT`。
+- **`$CLAUDE_TOOL_USE_INPUT` 环境变量根本不存在**——Claude Code 把 PreToolUse payload
+  **写在 hook 命令的 stdin**（官方文档确认），而非环境变量。
+- 结果：每次 hook 调用 POST 非法 JSON → 后端 422 → curl 退出码 0 → **Claude Code 静默
+  allow**。「Write/Edit 没被拦」的完整根因 = matcher 没覆盖 + 命令 POST 了非法 JSON，两者都修。
+
+**改动**：
+- `_hooks_command_claude()`：`-d '$CLAUDE_TOOL_USE_INPUT'` → **`-d @-`**（curl 从 stdin 读
+  POST body；`-H 'Content-Type: application/json'` 覆盖默认 form-urlencoded）。
+- 新增 `_LEGACY_CLAUDE_HOOK_COMMANDS`：保留旧命令，让已装旧配置被 `_matcher_is_mine` 识别并
+  **原地升级**（不重复追加）。
+- `_merge_hook_entry()`：从「只比较 matcher」改为「`_matcher_is_mine` 识别到就**整体覆盖**」——
+  修复「matcher 已匹配时旧 command 幸存、每次重装保留坏命令」的隐患。
+- WorkBuddy 与 ClaudeCode 共用 `_hooks_command_claude()`（`-d @-`）；**WorkBuddy 是否走 stdin
+  待确认**。
+
+**验证**：真实 Claude Code 会话端到端实测——直接 Write/Edit/裸 `rm` 指向 KB 现在被 deny +
+引导文案；MCP 工具正常放行。**测试**：后端 705 全绿（新增 `test_upgrades_legacy_command_not_duplicated`）。
+
 ### Enchante 独立 Agent deeplink 接入（2026-08-19）
 
 **背景**：为 Enchanté 提供「一键创建独立专属 Agent」能力——用户在 Enchanté 顶部
