@@ -72,9 +72,10 @@ def render(scale: int) -> Image.Image:
 
     img = Image.new("RGB", (W, H), (0xFF, 0xFF, 0xFF))
 
-    # 光晕：标题下方 + 底部，垂直重叠连片（淡蓝紫氛围，四角纯白）
-    img = _add_glow(img, 300 * S, 120 * S, 260 * S, (129, 140, 248), 150, 80 * S)
-    img = _add_glow(img, 300 * S, 290 * S, 280 * S, (99, 102, 241), 140, 80 * S)
+    # 光晕：对角线排布（左上 + 右下），大半径向中部扩散重叠形成斜向流动。
+    # 峰值偏高：斜对角两光晕重叠少，需各自够浓（区别于纵向定稿的互相叠浓）
+    img = _add_glow(img, 190 * S, 135 * S, 280 * S, (129, 140, 248), 230, 80 * S)
+    img = _add_glow(img, 410 * S, 265 * S, 290 * S, (99, 102, 241), 215, 80 * S)
     d = ImageDraw.Draw(img)
 
     # 箭头：白色 + 柔光阴影（与定稿图一致）
@@ -94,7 +95,7 @@ def render(scale: int) -> Image.Image:
            fill=(0x6B, 0x72, 0x80), anchor="mm")
     f_tag = _font(11 * S)
     d.text((W / 2, 348 * S), "v0.7.6 · Local-first Knowledge Platform", font=f_tag,
-           fill=(0x9C, 0xA3, 0xAF), anchor="mm")
+           fill=(0x6B, 0x72, 0x80), anchor="mm")
 
     return img
 
