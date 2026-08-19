@@ -1,0 +1,16 @@
+{
+  "_comment": "企业定制配置示例。platforms 键与 backend/AiClientConfig/platforms.json 的平台 key 严格一致。只写需要覆盖的平台；未列出的平台沿用 platforms.json 默认值（enabled=true + 默认 display）。enabled=false 的平台不会出现在产物（前端列表/检测/生成均不含）。",
+  "name": "Acme",
+  "platforms": {
+    "ClaudeCode": {
+      "enabled": true,
+      "display": "Claude Code"
+    },
+    "WorkBuddy": {
+      "enabled": false
+    },
+    "Enchante": {
+      "enabled": false
+    }
+  }
+}

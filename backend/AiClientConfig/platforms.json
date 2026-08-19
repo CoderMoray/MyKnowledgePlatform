@@ -1,11 +1,23 @@
 {
   "_comment": "AI 客户端平台 → 各操作系统下的配置文件路径（单一来源）。平台 key 用 PascalCase，与 client_config.PLATFORMS 及前端 store.clientPlatforms 严格一致。路径占位符：~ → Path.home()，%APPDATA% / %USERPROFILE% → 对应环境变量。kinds 声明该平台支持的配置种类（mcp/hooks/agent）；Enchante 的 MCP/Agent 均走 deeplink（无本地配置文件/agents 目录）。cli_names 用于 client_installed 检测（PATH 探测）。",
-  "os_order": ["macos", "windows", "linux"],
+  "os_order": [
+    "macos",
+    "windows",
+    "linux"
+  ],
   "platforms": {
     "ClaudeCode": {
       "display": "Claude Code",
-      "kinds": ["mcp", "hooks", "agent"],
-      "cli_names": { "macos": "claude", "windows": "claude.exe", "linux": "claude" },
+      "kinds": [
+        "mcp",
+        "hooks",
+        "agent"
+      ],
+      "cli_names": {
+        "macos": "claude",
+        "windows": "claude.exe",
+        "linux": "claude"
+      },
       "paths": {
         "macos": {
           "config_dir": "~/.claude",
@@ -25,11 +37,14 @@
           "settings_file": "~/.claude/settings.json",
           "agents_dir": "~/.claude/agents"
         }
-      }
+      },
+      "enabled": true
     },
     "ClaudeDesktop": {
       "display": "Claude Desktop",
-      "kinds": ["mcp"],
+      "kinds": [
+        "mcp"
+      ],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -44,11 +59,16 @@
           "config_dir": "~/.config/Claude",
           "mcp_file": "~/.config/Claude/claude_desktop_config.json"
         }
-      }
+      },
+      "enabled": true
     },
     "CodeBuddyIDE": {
       "display": "CodeBuddy IDE",
-      "kinds": ["mcp", "hooks", "agent"],
+      "kinds": [
+        "mcp",
+        "hooks",
+        "agent"
+      ],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -57,11 +77,16 @@
           "settings_file": "~/.codebuddy/settings.json",
           "agents_dir": "~/.codebuddy/agents"
         }
-      }
+      },
+      "enabled": true
     },
     "WorkBuddy": {
       "display": "WorkBuddy",
-      "kinds": ["mcp", "hooks", "agent"],
+      "kinds": [
+        "mcp",
+        "hooks",
+        "agent"
+      ],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -70,21 +95,30 @@
           "settings_file": "~/.workbuddy/settings.json",
           "agents_dir": "~/.workbuddy/agents"
         }
-      }
+      },
+      "enabled": true
     },
     "Enchante": {
       "display": "Enchanté",
-      "kinds": ["mcp", "agent"],
+      "kinds": [
+        "mcp",
+        "agent"
+      ],
       "cli_names": {},
       "paths": {
         "macos": {
           "config_dir": "/Applications"
         }
-      }
+      },
+      "enabled": true
     },
     "Cursor": {
       "display": "Cursor",
-      "kinds": ["mcp", "hooks", "agent"],
+      "kinds": [
+        "mcp",
+        "hooks",
+        "agent"
+      ],
       "cli_names": {},
       "paths": {
         "macos": {
@@ -93,7 +127,8 @@
           "hooks_file": "~/.cursor/hooks.json",
           "agents_dir": "~/.cursor/agents"
         }
-      }
+      },
+      "enabled": true
     }
   }
 }

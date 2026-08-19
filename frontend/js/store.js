@@ -1178,6 +1178,9 @@ let _tocCollapsedSet = {};
       await S.step(this.loadProjects(), 55, isHome ? homeStep() : fastStep());
       await S.step(this.loadIdentity(), 75, isHome ? homeStep() : fastStep());
       await S.step(this.loadVersion(),  90, isHome ? homeStep() : slowStep());
+      // 用后端 /api/platforms-meta 覆盖平台展示名（企业定制 display 生效）；
+      // 失败静默保留前端硬编码 label。
+      await S.step(this.applyPlatformsMeta(), 92, 0);
 
       // 启动 AI 状态轮询
       this.checkMcpStatus();
@@ -1356,6 +1359,23 @@ let _tocCollapsedSet = {};
         this.clientConfig = null;
       } finally {
         this.clientDetecting = false;
+      }
+    },
+
+    /** 用后端 /api/platforms-meta 覆盖平台展示名（企业定制 display 后前端无需改代码）。
+     *  失败静默保留前端硬编码 label（后端离线时兜底）。 */
+    async applyPlatformsMeta() {
+      try {
+        const meta = await api.getPlatformsMeta();
+        if (!meta || typeof meta !== "object") return;
+        for (const p of this.clientPlatforms) {
+          const m = meta[p.key];
+          if (m && typeof m.display === "string" && m.display) {
+            p.label = m.display;
+          }
+        }
+      } catch (e) {
+        // 后端离线：保留硬编码 label，静默
       }
     },
 

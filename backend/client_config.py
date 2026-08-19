@@ -74,8 +74,29 @@ def _load_platforms_data() -> dict:
 
 
 # 平台枚举从 platforms.json 派生（单一来源）。
+# enabled=false 的平台不出现在 PLATFORMS（企业定制打包时被过滤，
+# 前端列表/检测/生成均自动只覆盖启用平台）。
 _platforms_data = _load_platforms_data()
-PLATFORMS = tuple(_platforms_data["platforms"].keys())
+PLATFORMS = tuple(
+    key for key, spec in _platforms_data["platforms"].items()
+    if spec.get("enabled", True)
+)
+
+
+def platforms_meta() -> dict:
+    """Return display metadata for enabled platforms.
+
+    ``{key: {"display": str, "enabled": bool}, ...}`` — 供前端把展示名改为
+    从后端配置读取（企业定制 display 后前端无需改代码）。只含 enabled 平台。
+
+    动态读 ``_load_platforms_data()``（而非模块级 ``_platforms_data`` 快照），
+    保证与 PLATFORMS 过滤行为一致。
+    """
+    return {
+        key: {"display": spec.get("display", key), "enabled": spec.get("enabled", True)}
+        for key, spec in _load_platforms_data()["platforms"].items()
+        if spec.get("enabled", True)
+    }
 
 
 def _kinds_for(platform: str) -> tuple:

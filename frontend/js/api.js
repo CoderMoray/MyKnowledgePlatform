@@ -354,6 +354,14 @@ const api = {
   },
 
   /**
+   * 获取启用平台的展示元数据（display/enabled，可由企业配置覆盖）
+   * @returns {Promise<{ClaudeCode: {display: string, enabled: boolean}, ...}>}
+   */
+  async getPlatformsMeta() {
+    return apiRequest("/api/platforms-meta");
+  },
+
+  /**
    * 获取平台 MCP 安装 deeplink（当前仅 Enchante：无配置文件，走客户端捕获链接）
    * @param {string} platform - Enchante
    * @returns {Promise<{deeplink: string}>}
