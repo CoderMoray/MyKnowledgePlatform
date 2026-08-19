@@ -1072,7 +1072,8 @@ class TestPlatformsMeta:
 class TestEnterpriseMerge:
     """企业配置合并逻辑（build-backend.sh 用 Python 内联执行）。"""
 
-    def _merge(self, tmp_path: Path, enterprise: dict) -> Path:
+    def _merge(self, tmp_path: Path, enterprise: dict,
+               default_disabled: bool = False) -> Path:
         """模拟 build-backend.sh 的合并：返回合并后的 AiClientConfig 目录。"""
         import backend.client_config as cc
         import shutil
@@ -1081,13 +1082,22 @@ class TestEnterpriseMerge:
         shutil.copytree(src, dst)
         base = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
         platforms = base.get("platforms", {})
-        unknown = [k for k in enterprise.get("platforms", {}) if k not in platforms]
+        overrides = enterprise.get("platforms", {})
+        unknown = [k for k in overrides if k not in platforms]
         assert not unknown, f"未知平台: {unknown}"
-        for key, ov in enterprise.get("platforms", {}).items():
+        for key, ov in overrides.items():
             if "enabled" in ov:
                 platforms[key]["enabled"] = bool(ov["enabled"])
+            elif default_disabled:
+                platforms[key]["enabled"] = True  # 显式列出即启用
             if "display" in ov and ov["display"]:
                 platforms[key]["display"] = ov["display"]
+            if "order" in ov:
+                platforms[key]["order"] = ov["order"]
+        if default_disabled:
+            for key in platforms:
+                if key not in overrides:
+                    platforms[key]["enabled"] = False
         (dst / "platforms.json").write_text(
             json.dumps(base, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return dst
@@ -1134,3 +1144,56 @@ class TestEnterpriseMerge:
         import pytest as _pytest
         with _pytest.raises(AssertionError):
             self._merge(tmp_path, {"platforms": {"UnknownPlatform": {"enabled": False}}})
+
+    def test_merge_default_disabled(self, tmp_path: Path, monkeypatch) -> None:
+        """default_disabled=true → 未列出的平台全部禁用（只启用显式列出的）。"""
+        import backend.client_config as cc
+        ent = {
+            "default_disabled": True,
+            "platforms": {
+                "Enchante": {},
+                "ClaudeCode": {"display": "Claude Code (Apple Internal)"},
+            },
+        }
+        dst = self._merge(tmp_path, ent, default_disabled=True)
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        assert set(cc.PLATFORMS) == {"Enchante", "ClaudeCode"}
+        assert "Cursor" not in cc.PLATFORMS
+        assert "WorkBuddy" not in cc.PLATFORMS
+
+    def test_merge_default_disabled_false_keeps_others(self, tmp_path: Path, monkeypatch) -> None:
+        """default_disabled 缺省 → 未列出的平台沿用默认（全启用）。"""
+        import backend.client_config as cc
+        ent = {"platforms": {"WorkBuddy": {"enabled": False}}}
+        dst = self._merge(tmp_path, ent)
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        assert "Cursor" in cc.PLATFORMS  # 未列出 → 沿用默认启用
+        assert "WorkBuddy" not in cc.PLATFORMS
+
+    def test_meta_order_sorting(self, tmp_path: Path, monkeypatch) -> None:
+        """order 字段控制 platforms_meta 顺序（数字小靠前）。"""
+        import backend.client_config as cc
+        ent = {
+            "default_disabled": True,
+            "platforms": {
+                "Enchante": {"order": 1},
+                "ClaudeCode": {"order": 2},
+            },
+        }
+        dst = self._merge(tmp_path, ent, default_disabled=True)
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        meta = cc.platforms_meta()
+        assert list(meta.keys()) == ["Enchante", "ClaudeCode"]
+        assert meta["ClaudeCode"]["display"] == "Claude Code"  # 未覆盖 → 默认
