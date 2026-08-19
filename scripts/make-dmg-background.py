@@ -93,10 +93,10 @@ def render(scale: int) -> Image.Image:
     f_sub = _font(13 * S)
     d.text((W / 2, 88 * S), "拖拽到 Applications 文件夹完成安装", font=f_sub,
            fill=(0x6B, 0x72, 0x80), anchor="mm")
-    # 版本号/slogan：移到图标行下方（y=245）—— DMG Finder 窗口实际尺寸
-    # 不固定，贴底会被截；放在图标下方既安全又符合"图标-标签"的 Finder 习惯。
+    # 版本号/slogan：移到图标行下方（y=275，共下移 40px）—— DMG Finder 窗口
+    # 实际尺寸不固定，贴底会被截；放在图标下方既安全又符合"图标-标签"的 Finder 习惯。
     f_tag = _font(11 * S)
-    d.text((W / 2, 245 * S), "v0.7.6 · Local-first Knowledge Platform", font=f_tag,
+    d.text((W / 2, 275 * S), "v0.7.6 · Local-first Knowledge Platform", font=f_tag,
            fill=(0x6B, 0x72, 0x80), anchor="mm")
 
     return img
