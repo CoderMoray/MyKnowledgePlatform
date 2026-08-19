@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=3720ccb124" />
+  <link rel="stylesheet" href="css/components.css?v=76726197d6" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=2756e21bfd"></script>
+  <script src="js/store.js?v=2a3fdcc5a3"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=5c96193949"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1733,11 +1733,14 @@
                               x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
                       </span>
                     </template>
-                    <!-- 其它平台：已开启的 kinds 结论 -->
+                    <!-- 其它平台：已开启的 kinds 结论 + 原生不支持的 kind 灰字提示 -->
                     <template x-if="plat.key !== 'Enchante'">
                       <span class="guide-conclusion-row__action" x-show="$store.app.clientInstalled(plat.key)"
                             x-text="'已开启 ' + $store.app.platformKinds(plat.key).map(k => $store.app._clientKindLabel(k.key)).join(' / ')"></span>
                       <span class="guide-conclusion-row__action guide-conclusion-row__action--skip" x-show="!$store.app.clientInstalled(plat.key)">未安装，已跳过</span>
+                      <span class="guide-conclusion-row__action guide-conclusion-row__action--native"
+                            x-show="$store.app.platformUnsupportedKinds(plat.key).length"
+                            x-text="$store.app.platformUnsupportedKinds(plat.key).map(k => $store.app._clientKindLabel(k.key)).join(' / ') + ' 平台原生不支持'"></span>
                     </template>
                   </div>
                 </template>
@@ -1980,7 +1983,8 @@
                 <div class="settings-card__desc" x-text="'为各 AI 客户端配置 ' + kind.label + '；开关关闭 = 移除配置'"></div>
                 <template x-for="plat in $store.app.platformsForKind(kind.key)" :key="kind.key + '-' + plat.key">
                   <div>
-                    <div class="ai-platform-row" :data-platform="plat.key" :data-kind="kind.key">
+                    <div class="ai-platform-row" :class="{ 'ai-platform-row--unsupported': !plat.supported }"
+                         :data-platform="plat.key" :data-kind="kind.key">
                       <span class="status-indicator__dot"
                             :class="$store.app.clientStatus(plat.key, kind.key) === true ? 'status-indicator__dot--success'
                                    : $store.app.clientStatus(plat.key, kind.key) === false ? 'status-indicator__dot--muted'
@@ -1988,10 +1992,12 @@
                             :style="$store.app.clientStatus(plat.key, kind.key) !== null && !$store.app.clientInstalled(plat.key) ? 'opacity:0.5' : ''"></span>
                       <span class="ai-platform-row__name" x-text="plat.label"></span>
                       <span class="ai-platform-row__state"
-                            :class="$store.app.clientStatus(plat.key, kind.key) === null ? 'ai-platform-row__state--fail'
+                            :class="!plat.supported ? 'ai-platform-row__state--unsupported'
+                                   : $store.app.clientStatus(plat.key, kind.key) === null ? 'ai-platform-row__state--fail'
                                    : !$store.app.clientInstalled(plat.key) ? 'ai-platform-row__state--soft'
                                    : ($store.app.clientStatus(plat.key, kind.key) ? 'ai-platform-row__state--ok' : 'ai-platform-row__state--off')"
-                            x-text="$store.app.clientStatus(plat.key, kind.key) === null
+                            x-text="!plat.supported ? '平台原生不支持'
+                                    : $store.app.clientStatus(plat.key, kind.key) === null
                                     ? '检测失败 · 重新检测'
                                     : !$store.app.clientInstalled(plat.key)
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
@@ -2000,17 +2006,18 @@
                       <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle -->
                       <button class="btn btn--sm btn--deeplink"
                               x-show="$store.app.usesDeeplink(plat.key, kind.key)"
-                              :disabled="$store.app.deeplinkBusy"
+                              :disabled="!plat.supported || $store.app.deeplinkBusy"
                               @click="$store.app.generateEnchanteDeeplink(plat.key, kind.key)">
                         <span x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成 ' + $store.app._clientKindLabel(kind.key) + ' 链接'"></span>
                       </button>
                       <button class="toggle"
                               x-show="!$store.app.usesDeeplink(plat.key, kind.key)"
-                              :class="$store.app.clientStatus(plat.key, kind.key) === null ? 'toggle--failed'
+                              :class="!plat.supported ? 'toggle--off'
+                                     : $store.app.clientStatus(plat.key, kind.key) === null ? 'toggle--failed'
                                      : !$store.app.clientInstalled(plat.key)
                                        ? ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on-soft' : 'toggle--off-soft')
                                        : ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on' : 'toggle--off')"
-                              :disabled="$store.app.clientStatus(plat.key, kind.key) === null || $store.app.isClientConfiguring(plat.key, kind.key)"
+                              :disabled="!plat.supported || $store.app.clientStatus(plat.key, kind.key) === null || $store.app.isClientConfiguring(plat.key, kind.key)"
                               @click="$store.app.clientStatus(plat.key, kind.key) === null
                                       ? $store.app.loadClientConfig()
                                       : $store.app.configureClient(plat.key, kind.key)">
