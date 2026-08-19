@@ -2,13 +2,51 @@
 # 打包 MyKnowledge 后端为单个可执行文件（供 Electron 壳 spawn）
 #
 # 用法：
-#   ./scripts/build-backend.sh                # 用 python3
+#   ./scripts/build-backend.sh                              # 默认（全平台）
+#   ./scripts/build-backend.sh --enterprise Acme            # 企业定制
 #   PYTHON=/path/to/python ./scripts/build-backend.sh
+#
+# --enterprise <name>：读取 desktop/enterprises/<name>.json，在打包期把
+# enabled/display 覆盖合并进 platforms.json，产物只含该企业启用的平台。
+# 不传则保持默认（platforms.json 原样，全平台）。
 #
 # 产物：dist-backend/myknowledge-backend（PyInstaller onefile）
 # 前端静态资源（frontend/）一并打入，运行时从 sys._MEIPASS/frontend 定位。
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# ── 参数解析 ────────────────────────────────────────────────────────────
+ENTERPRISE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --enterprise)
+      ENTERPRISE="${2:-}"
+      if [ -z "$ENTERPRISE" ]; then
+        echo "✗ --enterprise 需要一个企业名（desktop/enterprises/<name>.json）" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      echo "✗ 未知参数: $1（仅支持 --enterprise <name>）" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# 企业配置：合并到临时 AiClientConfig 目录（不污染源 platforms.json）
+ENTERPRISE_DIR=""
+if [ -n "$ENTERPRISE" ]; then
+  ENTERPRISE_FILE="desktop/enterprises/${ENTERPRISE}.json"
+  if [ ! -f "$ENTERPRISE_FILE" ]; then
+    echo "✗ 企业配置不存在: $ENTERPRISE_FILE" >&2
+    echo "  可用配置: $(ls desktop/enterprises/*.json 2>/dev/null | xargs -n1 basename | tr '\n' ' ')" >&2
+    exit 1
+  fi
+  echo "  ✓ 企业定制: $ENTERPRISE（$ENTERPRISE_FILE）"
+  ENTERPRISE_DIR="$(mktemp -d)"
+  trap 'rm -rf "$ENTERPRISE_DIR"' EXIT
+fi
 
 # Python 智能探测：显式 PYTHON 优先；否则优先当前 PATH 的 python3，
 # 但若它没有 PyInstaller（如 npm run 子进程解析到 macOS 系统 python），
@@ -58,7 +96,36 @@ T0=$(date +%s)
 "${PYTHON}" frontend/build.py
 echo "    ✓ 前端构建完成 ($(( $(date +%s) - T0 ))s)"
 
-step 2 3 "PyInstaller 打包后端（含前端静态资源，约 60-90s）"
+# ── 企业配置合并（仅 --enterprise 时）────────────────────────────────
+AICLIENT_SRC="backend/AiClientConfig"
+if [ -n "$ENTERPRISE" ]; then
+  step 2 4 "合并企业配置 → 临时 AiClientConfig"
+  AICLIENT_SRC="${ENTERPRISE_DIR}/AiClientConfig"
+  "${PYTHON}" -c "
+import json, shutil
+from pathlib import Path
+src = Path('backend/AiClientConfig')
+dst = Path('${ENTERPRISE_DIR}/AiClientConfig')
+shutil.copytree(src, dst)
+base = json.loads((dst / 'platforms.json').read_text(encoding='utf-8'))
+ent = json.loads(Path('${ENTERPRISE_FILE}').read_text(encoding='utf-8'))
+overrides = ent.get('platforms', {})
+platforms = base.get('platforms', {})
+unknown = [k for k in overrides if k not in platforms]
+if unknown:
+    raise SystemExit(f'✗ 企业配置含未知平台: {\", \".join(unknown)}（仅支持: {\", \".join(platforms)}）')
+for key, ov in overrides.items():
+    if 'enabled' in ov:
+        platforms[key]['enabled'] = bool(ov['enabled'])
+    if 'display' in ov and ov['display']:
+        platforms[key]['display'] = ov['display']
+(dst / 'platforms.json').write_text(json.dumps(base, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+enabled = [k for k, v in platforms.items() if v.get('enabled', True)]
+print(f'  ✓ 启用平台: {\", \".join(enabled)}')
+" || exit 1
+fi
+
+step 3 4 "PyInstaller 打包后端（含前端静态资源，约 60-90s）"
 rm -rf build "${OUT_DIR}"
 # 注意：默认 onedir 模式（不传 --onefile）——onedir 免去每次启动解包，
 # 后端就绪时间从 ~10s 降到 ~2s，对 Electron 冷启动体验影响巨大。
@@ -85,7 +152,7 @@ T1=$(date +%s)
   --add-data "frontend/tiptap-bundle.mjs:frontend" \
   --add-data "backend/hooks_forward.py:backend" \
   --add-data "backend/templates:backend/templates" \
-  --add-data "backend/AiClientConfig:backend/AiClientConfig" \
+  --add-data "${AICLIENT_SRC}:backend/AiClientConfig" \
   --exclude-module matplotlib \
   --exclude-module PIL \
   --exclude-module lxml \
@@ -135,6 +202,9 @@ echo "    ✓ PyInstaller 完成 ($(( $(date +%s) - T1 ))s)"
 
 chmod +x "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 
-step 3 3 "完成"
+step 4 4 "完成"
 echo "    后端: ${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 echo "    冒烟测试: ${OUT_DIR}/myknowledge-backend/myknowledge-backend --port 8099"
+if [ -n "$ENTERPRISE" ]; then
+  echo "    企业定制: $ENTERPRISE"
+fi

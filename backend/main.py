@@ -1271,6 +1271,18 @@ def api_client_config_detect():
     return detect_all()
 
 
+@app.get("/api/platforms-meta")
+def api_platforms_meta():
+    """Return enabled platforms' display metadata.
+
+    ``{ClaudeCode: {"display": "Claude Code", "enabled": true}, ...}`` —
+    供前端把展示名改为从后端配置读取（企业定制 display 后前端无需改代码）。
+    只含 enabled 平台；结构独立于 /api/client-config（检测状态），互不影响。
+    """
+    from backend.client_config import platforms_meta
+    return platforms_meta()
+
+
 @app.post("/api/mcp/heartbeat")
 def api_mcp_heartbeat(request: Request):
     """MCP server liveness report.

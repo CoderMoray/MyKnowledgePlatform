@@ -10,7 +10,7 @@
     "start:dev": "MYKNOWLEDGE_DEV_BACKEND_URL=http://127.0.0.1:8080 electron .",
     "build:backend": "../scripts/build-backend.sh",
     "build:app": "bash ../scripts/build-desktop.sh",
-    "release": "npm run build:backend && npm run build:app"
+    "release": "bash ../scripts/release.sh"
   },
   "devDependencies": {
     "electron": "^43.3.0",

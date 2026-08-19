@@ -998,3 +998,139 @@ class TestPlatformSpecJson:
         import backend.client_config as cc
         with pytest.raises(ValueError, match="不支持的平台"):
             cc._platform_spec("cursor")
+
+
+class TestPlatformsMeta:
+    """platforms_meta / /api/platforms-meta — display metadata for enabled platforms."""
+
+    def test_meta_returns_all_default(self, fake_home: Path) -> None:
+        """默认全启用：meta 覆盖所有平台，display 与 platforms.json 一致。"""
+        import backend.client_config as cc
+        meta = cc.platforms_meta()
+        assert set(meta.keys()) == set(PLATFORMS)
+        data = cc._load_platforms_data()
+        for key, spec in data["platforms"].items():
+            assert meta[key]["display"] == spec.get("display", key)
+            assert meta[key]["enabled"] is True
+
+    def test_meta_endpoint(self, fake_home: Path) -> None:
+        """GET /api/platforms-meta 返回 {key: {display, enabled}}。"""
+        from backend.main import app
+        c = TestClient(app)
+        r = c.get("/api/platforms-meta")
+        assert r.status_code == 200
+        data = r.json()
+        assert set(data.keys()) == set(PLATFORMS)
+        assert data["ClaudeCode"]["display"] == "Claude Code"
+        assert data["Enchante"]["display"] == "Enchanté"
+        assert data["Cursor"]["enabled"] is True
+
+    def test_meta_filters_disabled(self, tmp_path: Path, monkeypatch) -> None:
+        """enabled=false 的平台不出现在 platforms_meta（企业合并后）。"""
+        import backend.client_config as cc
+        # 复制 platforms.json 到临时目录，禁用 WorkBuddy
+        dst = tmp_path / "AiClientConfig"
+        dst.mkdir(parents=True)
+        data = cc._load_platforms_data()
+        for name in ("platforms.json",):
+            (dst / name).write_text(
+                json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        merged["platforms"]["WorkBuddy"]["enabled"] = False
+        (dst / "platforms.json").write_text(
+            json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+        # 指向临时目录 + 重置缓存 + 重新派生 PLATFORMS
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        meta = cc.platforms_meta()
+        assert "WorkBuddy" not in meta
+        assert "ClaudeCode" in meta
+        assert meta["ClaudeCode"]["display"] == "Claude Code"
+
+    def test_meta_display_override(self, tmp_path: Path, monkeypatch) -> None:
+        """企业覆盖 display 后，meta 返回覆盖值。"""
+        import backend.client_config as cc
+        dst = tmp_path / "AiClientConfig"
+        dst.mkdir(parents=True)
+        data = cc._load_platforms_data()
+        (dst / "platforms.json").write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        merged["platforms"]["Cursor"]["display"] = "Cursor Pro"
+        (dst / "platforms.json").write_text(
+            json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        meta = cc.platforms_meta()
+        assert meta["Cursor"]["display"] == "Cursor Pro"
+
+
+class TestEnterpriseMerge:
+    """企业配置合并逻辑（build-backend.sh 用 Python 内联执行）。"""
+
+    def _merge(self, tmp_path: Path, enterprise: dict) -> Path:
+        """模拟 build-backend.sh 的合并：返回合并后的 AiClientConfig 目录。"""
+        import backend.client_config as cc
+        import shutil
+        dst = tmp_path / "AiClientConfig"
+        src = cc._aiclient_config_dir()
+        shutil.copytree(src, dst)
+        base = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        platforms = base.get("platforms", {})
+        unknown = [k for k in enterprise.get("platforms", {}) if k not in platforms]
+        assert not unknown, f"未知平台: {unknown}"
+        for key, ov in enterprise.get("platforms", {}).items():
+            if "enabled" in ov:
+                platforms[key]["enabled"] = bool(ov["enabled"])
+            if "display" in ov and ov["display"]:
+                platforms[key]["display"] = ov["display"]
+        (dst / "platforms.json").write_text(
+            json.dumps(base, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return dst
+
+    def test_merge_disables_platform(self, tmp_path: Path, monkeypatch) -> None:
+        """合并后禁用平台从 PLATFORMS / detect_all / platforms_meta 全部消失。"""
+        import backend.client_config as cc
+        dst = self._merge(tmp_path, {"platforms": {"WorkBuddy": {"enabled": False}}})
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        assert "WorkBuddy" not in cc.PLATFORMS
+        assert "WorkBuddy" not in cc.platforms_meta()
+        assert "WorkBuddy" not in cc.detect_all()
+
+    def test_merge_keeps_others(self, tmp_path: Path, monkeypatch) -> None:
+        """未覆盖平台保持默认 enabled=true。"""
+        import backend.client_config as cc
+        dst = self._merge(tmp_path, {"platforms": {"WorkBuddy": {"enabled": False}}})
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        assert "ClaudeCode" in cc.PLATFORMS
+        assert "Cursor" in cc.PLATFORMS
+
+    def test_merge_custom_display(self, tmp_path: Path, monkeypatch) -> None:
+        """企业覆盖 display 后前端 label 使用覆盖值。"""
+        import backend.client_config as cc
+        dst = self._merge(tmp_path, {"platforms": {"ClaudeCode": {"display": "Claude Code 企业版"}}})
+        monkeypatch.setattr(cc, "_aiclient_config_dir", lambda: dst)
+        monkeypatch.setattr(cc, "_platforms_cache", None)
+        merged = json.loads((dst / "platforms.json").read_text(encoding="utf-8"))
+        monkeypatch.setattr(cc, "PLATFORMS", tuple(
+            k for k, s in merged["platforms"].items() if s.get("enabled", True)))
+        meta = cc.platforms_meta()
+        assert meta["ClaudeCode"]["display"] == "Claude Code 企业版"
+
+    def test_merge_unknown_platform_rejected(self, tmp_path: Path) -> None:
+        """企业配置含未知平台 → 合并报错（构建期拦截）。"""
+        import pytest as _pytest
+        with _pytest.raises(AssertionError):
+            self._merge(tmp_path, {"platforms": {"UnknownPlatform": {"enabled": False}}})
