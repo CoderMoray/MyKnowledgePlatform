@@ -89,8 +89,8 @@ let _tocCollapsedSet = {};
     guideExecDone: false,
     /** Step2.2 进度值 0-100 */
     guideExecPercent: 0,
-    /** Step2.2 结论页 Enchante 按钮已点击标记（会话内 UX 态，不持久化） */
-    deeplinkClicked: false,
+    /** Step2.2 结论页 Enchante deeplink 已点击标记（按 kind，会话内 UX 态，不持久化）：{ mcp, agent } */
+    deeplinkClicked: { mcp: false, agent: false },
     /** 正在写入的平台/kind（防重复点击）：{ platform, kind } | null */
     clientConfiguring: null,
     /** 配置失败的平台-kind 标记（行内 fallback 文本，5 秒自动消失）："claude-mcp" | null */
@@ -1544,7 +1544,7 @@ let _tocCollapsedSet = {};
       this.guideExecuting = false;
       this.guideExecDone = false;
       this.guideExecPercent = 0;
-      this.deeplinkClicked = false;
+      this.deeplinkClicked = { mcp: false, agent: false };
     },
 
     /** 平台 key → 显示名 */
@@ -1656,24 +1656,32 @@ let _tocCollapsedSet = {};
         Array.isArray(p.kinds) && p.kinds.includes(kindKey));
     },
 
-    /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP：无配置文件，客户端捕获链接） */
+    /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP/Agent：无配置文件，客户端捕获链接） */
     usesDeeplink(platform, kind) {
-      return platform === "Enchante" && kind === "mcp";
+      return platform === "Enchante" && (kind === "mcp" || kind === "agent");
     },
 
-    /** 正在生成 deeplink（Enchante MCP 按钮 spinner / 防重复点击） */
+    /** 正在生成 deeplink（Enchante deeplink 按钮 spinner / 防重复点击） */
     deeplinkBusy: false,
 
+    /** 某 kind 的 deeplink 是否已点击（「已生成链接 · 可再次点击」态） */
+    deeplinkClickedFor(kind) {
+      return !!(this.deeplinkClicked && this.deeplinkClicked[kind]);
+    },
+
     /**
-     * Enchante MCP 专属链接流程：GET deeplink → 复制剪贴板 → 隐藏 <a target=_blank> 触发唤起
-     * （避免 SPA location.href 跳转中断）→ toast。失败给出可读提示。
+     * Enchante deeplink 专属链接流程（MCP / Agent 共用）：GET deeplink → 复制剪贴板 →
+     * 隐藏 <a target=_blank> 触发唤起（避免 SPA location.href 跳转中断）→ toast。失败给出可读提示。
      * @param {string} platform - Enchante
+     * @param {string} kind - mcp | agent（决定调 /deeplink 还是 /agent-deeplink）
      */
-    async generateEnchanteDeeplink(platform) {
-      if (this.deeplinkBusy || !this.usesDeeplink(platform, "mcp")) return;
+    async generateEnchanteDeeplink(platform, kind) {
+      if (this.deeplinkBusy || !this.usesDeeplink(platform, kind)) return;
       this.deeplinkBusy = true;
       try {
-        const data = await api.getClientConfigDeeplink(platform);
+        const data = kind === "agent"
+          ? await api.getClientConfigAgentDeeplink(platform)
+          : await api.getClientConfigDeeplink(platform);
         const link = data && data.deeplink;
         if (!link) throw new Error("后端未返回 deeplink");
         const copied = await this._writeClipboard(link);
@@ -1687,7 +1695,7 @@ let _tocCollapsedSet = {};
         document.body.appendChild(a);
         a.click();
         setTimeout(() => a.remove(), 100);
-        this.deeplinkClicked = true; // 结论页按钮态「已生成链接 · 可再次点击」（会话内，不持久化）
+        this.deeplinkClicked = { ...this.deeplinkClicked, [kind]: true }; // 结论页按钮态「已生成链接 · 可再次点击」（会话内，不持久化）
         showToast("已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏", "success");
       } catch (e) {
         showToast(e.message || "生成专属链接失败，请稍后重试", "error");

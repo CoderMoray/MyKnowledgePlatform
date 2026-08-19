@@ -229,12 +229,10 @@ def enchante_agent_deeplink() -> str:
         ``_agent_template()`` (``MyKnowledge-agent.md``) **as plain text — no
         YAML frontmatter** (Enchanté injects it verbatim as the system prompt;
         tool binding is carried structurally by ``mcpServers``).
-      - ``skillNames``: optional skill whitelist.  We keep ``["myknowledge"]`` to
-        explicitly associate the standalone skill (Enchanté recommends retaining
-        the skill — light, intent-triggered base capability — complementary to the
-        dedicated agent).  ``[]`` is also valid (optional field); we fill it to
-        bind the skill's extended knowledge.  Skill id is the lowercase folder
-        identifier ``myknowledge`` (case-sensitive).
+      - ``skillNames``: optional skill whitelist.  **Empty ``[]``** — MyKnowledge
+        no longer ships a standalone skill for Enchanté (the agent's full
+        capability comes from ``role`` + the ``mcpServers`` MCP tools), so there
+        is nothing to bind.  ``[]`` / omitting the field is valid (optional).
       - ``mcpServers``: MCP server configs the agent depends on; each value is an
         MCPServerBundle (``{displayName, description, icon, config}``) reusing
         ``mcp_entry("Enchante")``.
@@ -249,7 +247,7 @@ def enchante_agent_deeplink() -> str:
     import urllib.parse
     bundle = {
         "role": _agent_template(),
-        "skillNames": ["myknowledge"],
+        "skillNames": [],
         "mcpServers": {
             "MyKnowledge": {
                 "displayName": "MyKnowledge",

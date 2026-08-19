@@ -65,11 +65,11 @@
 
   <!-- ═══ App JS ═════════════════════════════════════════════════════════ -->
   <script src="js/utils.js?v=eb6bb0255c"></script>
-  <script src="js/api.js?v=e5aaf0dd59"></script>
+  <script src="js/api.js?v=cd75583acb"></script>
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=2e6013784c"></script>
+  <script src="js/store.js?v=fb59604687"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=5c96193949"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1713,15 +1713,21 @@
                     <span class="guide-conclusion-row__dot" :style="'background:' + plat.dot"
                           :class="{ 'guide-conclusion-row__dot--skip': !$store.app.clientInstalled(plat.key) }"></span>
                     <span class="guide-conclusion-row__name" x-text="plat.label"></span>
-                    <!-- Enchante：专属 deeplink 安装按钮（四态） -->
+                    <!-- Enchante：专属 deeplink 安装入口（MCP / Agent 两个按钮，各自四态） -->
                     <template x-if="plat.key === 'Enchante'">
                       <span class="guide-conclusion-row__body">
-                        <span class="guide-conclusion-row__action">MCP 需手动安装</span>
+                        <span class="guide-conclusion-row__action">需手动安装</span>
                         <button class="btn btn--sm btn--deeplink guide-conclusion-row__deeplink"
                                 :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
-                                @click="$store.app.generateEnchanteDeeplink('Enchante')">
+                                @click="$store.app.generateEnchanteDeeplink('Enchante', 'mcp')">
                           <span x-text="$store.app.deeplinkBusy ? '生成中…'
-                                        : ($store.app.deeplinkClicked ? '已生成链接 · 可再次点击' : '⚡ 打开安装链接')"></span>
+                                        : ($store.app.deeplinkClickedFor('mcp') ? 'MCP 已生成 · 可再次点击' : '⚡ 生成 MCP 链接')"></span>
+                        </button>
+                        <button class="btn btn--sm btn--deeplink guide-conclusion-row__deeplink"
+                                :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
+                                @click="$store.app.generateEnchanteDeeplink('Enchante', 'agent')">
+                          <span x-text="$store.app.deeplinkBusy ? '生成中…'
+                                        : ($store.app.deeplinkClickedFor('agent') ? 'Agent 已生成 · 可再次点击' : '⚡ 生成 Agent 链接')"></span>
                         </button>
                         <span class="guide-conclusion-row__hint"
                               x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
@@ -1991,12 +1997,12 @@
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
                                       : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
                                          : ($store.app.usesDeeplink(plat.key, kind.key) ? '未配置 · 生成专属链接' : '未配置 · 点击开关开启'))"></span>
-                      <!-- deeplink 平台（当前 Enchante MCP）：单按钮「生成专属链接」，不走 toggle -->
+                      <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle -->
                       <button class="btn btn--sm btn--deeplink"
                               x-show="$store.app.usesDeeplink(plat.key, kind.key)"
                               :disabled="$store.app.deeplinkBusy"
-                              @click="$store.app.generateEnchanteDeeplink(plat.key)">
-                        <span x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成专属链接'"></span>
+                              @click="$store.app.generateEnchanteDeeplink(plat.key, kind.key)">
+                        <span x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成 ' + $store.app._clientKindLabel(kind.key) + ' 链接'"></span>
                       </button>
                       <button class="toggle"
                               x-show="!$store.app.usesDeeplink(plat.key, kind.key)"

@@ -363,6 +363,15 @@ const api = {
   },
 
   /**
+   * 获取平台 Agent 安装 deeplink（当前仅 Enchante：通过 enchante://agent/install 一键创建专属 Agent）
+   * @param {string} platform - Enchante
+   * @returns {Promise<{deeplink: string}>}
+   */
+  async getClientConfigAgentDeeplink(platform) {
+    return apiRequest(`/api/client-config/${encodeURIComponent(platform)}/agent-deeplink`);
+  },
+
+  /**
    * 增量写入某平台某 kind 的 MyKnowledge 配置
    * @param {string} platform - ClaudeCode | ClaudeDesktop | CodeBuddyIDE | WorkBuddy
    * @param {string} kind - mcp | hooks | agent

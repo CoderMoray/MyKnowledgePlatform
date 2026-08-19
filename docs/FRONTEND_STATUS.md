@@ -6,6 +6,22 @@
 
 ---
 
+## 📅 2026-08-19 增量（已完成）
+
+### Enchante Agent 一键安装 deeplink（前端）
+- 后端新端点 `GET /api/client-config/Enchante/agent-deeplink`（仅 Enchante，`enchante://agent/install`），前端接入完成：
+- `api.js` 新增 `getClientConfigAgentDeeplink(platform)` 调 `/agent-deeplink`。
+- `store.js`：
+  - `usesDeeplink(platform, kind)` 由「仅 Enchante MCP」扩为「Enchante MCP + Agent」（两 kind 均无配置文件，走客户端捕获链接）。
+  - `generateEnchanteDeeplink(platform, kind)` 按 kind 分发：agent → `/agent-deeplink`，mcp → `/deeplink`；复用「复制剪贴板 → 隐藏 a 唤起 → toast」流程。
+  - `deeplinkClicked` 由单布尔改为按 kind 对象 `{mcp, agent}`，新增 `deeplinkClickedFor(kind)` 供结论页按 kind 展示「已生成 · 可再次点击」态。
+- `index.html`：
+  - 设置 modal：Enchante MCP/Agent 行均显示 deeplink 按钮（`⚡ 生成 MCP 链接` / `⚡ 生成 Agent 链接`），不走 toggle；@click 带 kind.key 分发。
+  - 引导页 Step2.2 结论：Enchante 拆「⚡ 生成 MCP 链接」+「⚡ 生成 Agent 链接」两个入口，分别调对应 kind。
+- 测试：`tests/frontend/test_stage3.py` 更新（agent-deeplink 断言、usesDeeplink 规则、Enchante agent 行=deeplink 按钮、结论页两按钮）；21/21 通过 + smoke 22 通过。
+
+---
+
 ## 📋 待办清单（按优先级排序，完成即划掉）
 
 ### P0 数据安全 / 正确性（优先）
