@@ -221,9 +221,9 @@ def _base64_quote(payload: dict) -> str:
 def enchante_agent_deeplink() -> str:
     """Build the Enchante **independent Agent** install deeplink (returns the string).
 
-    ``enchante://agent/install?name=MyKnowledge 助手&config=<base64>``
+    ``enchante://agent/install?name=MyKnowledge 知识管理专家&config=<base64>``
 
-    Creates a one-click dedicated "MyKnowledge 助手" role in Enchanté's top
+    Creates a one-click dedicated "MyKnowledge 知识管理专家" role in Enchanté's top
     Agent dropdown — atomically binding MCP tools + agent persona + skill
     whitelist.  Payload schema confirmed with Enchante (2026-08-19):
       - ``role``: the agent persona / safe-operation boundary prompt, reusing
@@ -255,7 +255,7 @@ def enchante_agent_deeplink() -> str:
             }
         },
     }
-    name = urllib.parse.quote("MyKnowledge 助手")
+    name = urllib.parse.quote("MyKnowledge 知识管理专家")
     return (f"enchante://agent/install?name={name}&config="
             f"{_base64_quote(bundle)}")
 

@@ -163,7 +163,7 @@ class TestAgent:
         assert path.exists()
         text = path.read_text(encoding="utf-8")
         assert text.startswith("---")
-        assert "name: MyKnowledge Agent" in text
+        assert "name: MyKnowledge 知识管理专家" in text
 
     def test_agent_exists_not_overwritten(self, fake_home: Path) -> None:
         path = fake_home / ".codebuddy" / "agents" / "MyKnowledge-agent.md"
@@ -342,7 +342,7 @@ class TestAgentTemplate:
         """Frontmatter comes from frontmatter.json, not hardcoded."""
         import backend.client_config as cc
         fm = cc._frontmatter_for("ClaudeCode")
-        assert fm["name"] == "MyKnowledge Agent"
+        assert fm["name"] == "MyKnowledge 知识管理专家"
         assert "tools" in fm
         assert "model" in fm
 
@@ -645,7 +645,7 @@ class TestEnchante:
     def test_agent_deeplink(self, fake_home: Path) -> None:
         """Agent deeplink (schema confirmed with Enchante 2026-08-19).
 
-        Pins the URL scheme, display name ``MyKnowledge 助手``, the shared
+        Pins the URL scheme, display name ``MyKnowledge 知识管理专家``, the shared
         '+'→'%2B' quoting + base64 round-trip, and the confirmed payload schema
         ``{role, skillNames, mcpServers}`` (role reuses the agent template, the
         mcpServers bundle reuses mcp_entry("Enchante")).
@@ -656,7 +656,7 @@ class TestEnchante:
         link = enchante_agent_deeplink()
         assert link.startswith("enchante://agent/install?name=")
         assert urllib.parse.unquote(
-            link.split("&config=")[0].split("name=")[1]) == "MyKnowledge 助手"
+            link.split("&config=")[0].split("name=")[1]) == "MyKnowledge 知识管理专家"
         enc = link.split("config=")[1]
         assert "+" not in enc  # '+'→'%2B'
         bundle = json.loads(
@@ -817,7 +817,7 @@ class TestCursor:
         assert path.exists()
         text = path.read_text(encoding="utf-8")
         fm = text.split("---")[1]
-        assert "name: MyKnowledge Agent" in fm
+        assert "name: MyKnowledge 知识管理专家" in fm
         assert "description:" in fm
 
     def test_remove_agent_deletes_file(self, fake_home: Path) -> None:

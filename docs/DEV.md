@@ -329,8 +329,9 @@ Agent 下拉框中直接选「MyKnowledge 助手」专属角色，原子化绑�
 ```
 enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLOAD>
 ```
-- `name`：Agent 显示名，本实现用 `"MyKnowledge 助手"`（与 MCP install 的
-  `name=MyKnowledge` 不同——agent 是角色，显示名更友好）。
+- `name`：Agent 显示名，本实现用 `"MyKnowledge 知识管理专家"`（与 MCP install
+  的 `name=MyKnowledge` 不同——agent 是角色，显示名更友好；所有平台 agent 统一
+  用此名）。
 - payload JSON schema：
   ```json
   {
