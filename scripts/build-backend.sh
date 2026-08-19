@@ -114,11 +114,23 @@ platforms = base.get('platforms', {})
 unknown = [k for k in overrides if k not in platforms]
 if unknown:
     raise SystemExit(f'✗ 企业配置含未知平台: {\", \".join(unknown)}（仅支持: {\", \".join(platforms)}）')
+# default_disabled=true → 未列出的平台默认禁用（只启用显式列出的）；
+# 缺省 false → 未列出的沿用 platforms.json 默认（向后兼容）。
+default_disabled = bool(ent.get('default_disabled', False))
 for key, ov in overrides.items():
     if 'enabled' in ov:
         platforms[key]['enabled'] = bool(ov['enabled'])
+    elif default_disabled:
+        platforms[key]['enabled'] = True  # 显式列出即启用
     if 'display' in ov and ov['display']:
         platforms[key]['display'] = ov['display']
+    if 'order' in ov:
+        platforms[key]['order'] = ov['order']
+if default_disabled:
+    # 未显式列出的平台全部禁用
+    for key in platforms:
+        if key not in overrides:
+            platforms[key]['enabled'] = False
 (dst / 'platforms.json').write_text(json.dumps(base, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 enabled = [k for k, v in platforms.items() if v.get('enabled', True)]
 print(f'  ✓ 启用平台: {\", \".join(enabled)}')

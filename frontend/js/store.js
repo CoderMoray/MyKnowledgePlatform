@@ -1362,7 +1362,7 @@ let _tocCollapsedSet = {};
       }
     },
 
-    /** 用后端 /api/platforms-meta 覆盖平台展示名（企业定制 display 后前端无需改代码）。
+    /** 用后端 /api/platforms-meta 覆盖平台展示名 + 按 order 重排展示顺序。
      *  失败静默保留前端硬编码 label（后端离线时兜底）。 */
     async applyPlatformsMeta() {
       try {
@@ -1374,6 +1374,12 @@ let _tocCollapsedSet = {};
             p.label = m.display;
           }
         }
+        // 按 order 重排：有 order 的升序靠前，无 order 的排在后面保持原序
+        const orderOf = (key) => {
+          const m = meta[key];
+          return m && typeof m.order === "number" ? m.order : Infinity;
+        };
+        this.clientPlatforms.sort((a, b) => orderOf(a.key) - orderOf(b.key));
       } catch (e) {
         // 后端离线：保留硬编码 label，静默
       }
