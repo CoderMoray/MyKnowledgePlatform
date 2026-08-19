@@ -1142,6 +1142,13 @@ let _tocCollapsedSet = {};
       this._inited = true;
       const S = window._mykSplash;
       S.init(performance.now());
+      // 桌面模式：加载动画由壳的 loading.html 承担，前端 splash 立即隐藏。
+      // 仅靠 S.init() 的 display:none 不够——Alpine 的 x-show 由 loading 控制，
+      // 响应式重绘会覆盖 JS 隐藏，导致切到主界面时 splash 闪现（双加载）。
+      // 直接置 loading=false，让 x-show 从一开始就隐藏。
+      if (window.__MYK_APP_MODE__) {
+        this.loading = false;
+      }
 
       // 桌面模式：订阅主进程关闭询问事件（网页端无 __MYK_APP_MODE__，跳过）
       if (window.__MYK_APP_MODE__) {
