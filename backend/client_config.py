@@ -379,9 +379,10 @@ def hooks_matcher(platform: str) -> dict:
     """The PreToolUse hook matcher (guards bare AI operations via HTTP).
 
     Platform-differentiated command:
-      - ClaudeCode / WorkBuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher
-        ``Bash|Write|Edit`` (claude PreToolUse is matched **per tool name**; a bare
-        ``Bash`` would skip Write/Edit, leaving ``hooks.py``'s file_write branch dead).
+      - ClaudeCode / WorkBuddy: curl reading stdin (``-d @-``; Claude delivers the
+        PreToolUse payload on stdin), matcher ``Bash|Write|Edit`` (claude
+        PreToolUse is matched **per tool name**; a bare ``Bash`` would skip
+        Write/Edit, leaving ``hooks.py``'s file_write branch dead).
       - CodeBuddyIDE: helper script reading stdin, matcher ``*`` (match all tools —
         ``hooks.py`` allows MCP calls internally, so a broad matcher is safe).
       - Cursor: helper script reading stdin, matcher ``Shell|Write|Delete``
