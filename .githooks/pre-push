@@ -4,6 +4,7 @@
 # push 前检查所有"静态版本号"是否一致，防止发版时漏改某个文件：
 #   - backend/__version__.py   （权威来源，CLI/doctor/upgrade 显示用）
 #   - desktop/package.json     （Electron 产物版本，electron-builder 读它命名 dmg/zip）
+#   - README.md / README.zh.md  （「当前版本」描述，写死需与权威来源同步）
 #   - pyproject.toml           已 dynamic 派生自 __version__.py，无需检查
 # 不一致 → exit 1 阻止 push。
 #
@@ -21,6 +22,11 @@ ROOT="$(git rev-parse --show-toplevel)"
 py_ver="$(sed -n 's/^__version__ *= *"\([^"]*\)" */\1/p' "$ROOT/backend/__version__.py" | head -1)"
 # 提取 desktop/package.json 的版本号（"version": "X.Y.Z"）
 js_ver="$(sed -n 's/^  *"version" *: *"\([^"]*\)" *,*$/\1/p' "$ROOT/desktop/package.json" | head -1)"
+# 提取 README 中的「当前版本」描述版本号：
+#   README.md 用 "currently X.Y.Z"，README.zh.md 用 "当前 X.Y.Z"。
+#   提取位置锚定在 backend/__version__.py 那一行内，避免误抓他处版本号。
+readme_en_ver="$(sed -n 's/.*`backend\/__version__.py` (currently \([^)]*\)).*/\1/p' "$ROOT/README.md" | head -1)"
+readme_zh_ver="$(sed -n 's/.*`backend\/__version__.py`（当前 \([^）]*\)）.*/\1/p' "$ROOT/README.zh.md" | head -1)"
 
 fail=0
 if [ -z "$py_ver" ]; then
@@ -31,16 +37,28 @@ if [ -z "$js_ver" ]; then
   echo "✗ 无法解析 desktop/package.json 的版本号" >&2
   fail=1
 fi
+if [ -z "$readme_en_ver" ]; then
+  echo "✗ 无法解析 README.md 的「当前版本」描述" >&2
+  fail=1
+fi
+if [ -z "$readme_zh_ver" ]; then
+  echo "✗ 无法解析 README.zh.md 的「当前版本」描述" >&2
+  fail=1
+fi
 if [ "$fail" -ne 0 ]; then
   echo "  push 已中止（可用 git push --no-verify 跳过，但不建议）" >&2
   exit 1
 fi
 
-if [ "$py_ver" != "$js_ver" ]; then
-  echo "✗ 版本号不一致：" >&2
-  echo "    backend/__version__.py = $py_ver" >&2
-  echo "    desktop/package.json    = $js_ver" >&2
-  echo "  发版请同步两处（pyproject.toml 已 dynamic 派生，无需改）" >&2
+# 逐一比对权威来源（__version__.py）与各静态版本号
+if [ "$py_ver" != "$js_ver" ] \
+  || [ "$py_ver" != "$readme_en_ver" ] \
+  || [ "$py_ver" != "$readme_zh_ver" ]; then
+  echo "✗ 版本号不一致（权威来源 backend/__version__.py = $py_ver）：" >&2
+  echo "    desktop/package.json      = $js_ver" >&2
+  echo "    README.md 当前版本        = $readme_en_ver" >&2
+  echo "    README.zh.md 当前版本     = $readme_zh_ver" >&2
+  echo "  发版请同步以上各处（pyproject.toml 已 dynamic 派生，无需改）" >&2
   echo "  push 已中止（可用 git push --no-verify 跳过，但不建议）" >&2
   exit 1
 fi

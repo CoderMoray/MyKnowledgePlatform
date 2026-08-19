@@ -172,8 +172,9 @@ md5 一致 ⑤ roundtrip（turndown 转换）。前端演进不会让检查变�
 - 脚本：`.githooks/pre-push`（进 git，随仓库共享）
 - 启用（一次性，本地配置不进 git）：`git config core.hooksPath .githooks`
   （与 pre-commit 同目录，一次配置两者皆生效）
-- 行为：push 前比对 `backend/__version__.py` 与 `desktop/package.json` 版本号，
-  不一致 → **中止 push** 并打印两侧实际值；解析失败同样中止。
+- 行为：push 前比对 `backend/__version__.py` 与 `desktop/package.json`、
+  `README.md`、`README.zh.md` 的版本号（README 检查「当前版本」描述），
+  任一不一致 → **中止 push** 并打印各处实际值；解析失败同样中止。
 - 跳过（不建议）：`git push --no-verify`
 
 **发版流程（更新后）**：只改 `backend/__version__.py`（桌面发版再加
