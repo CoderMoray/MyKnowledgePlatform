@@ -1,5 +1,5 @@
 {
-    "_comment": "企业定制配置模板。复制本文件为 <企业名>.json（如 Apple.json），再按需修改。platforms 键与 backend/AiClientConfig/platforms.json 的平台 key 严格一致。语义：default_disabled 缺省 false → 未列出的平台沿用 platforms.json 默认（enabled=true + 默认 display，即不写=启用）；default_disabled=true → 未列出的平台全部禁用（只启用显式列出的）。enabled=false 的平台不会出现在产物。可选 order 字段控制前端展示顺序（数字小的靠前），未配置的平台按 platforms.json 顺序排在后面。注意：本文件是模板，仅作参考；desktop/enterprises/*.json（除 template.json 外）已被 .gitignore 忽略，不会进入代码仓库。",
+    "_comment": "企业定制配置模板。复制本文件为 <企业名>.json（如 Apple.json），再按需修改。platforms 键与 backend/AiClientConfig/platforms.json 的平台 key 严格一致。语义：default_disabled 缺省 false → 未列出的平台沿用 platforms.json 默认（enabled=true + 默认 display，即不写=启用）；default_disabled=true → 未列出的平台全部禁用（只启用显式列出的）。enabled=false 的平台不会出现在产物。可选字段：display 覆盖展示名、order 控制前端顺序（数字小靠前）、kinds 覆盖平台支持的能力集（如 [\"mcp\",\"agent\"]，MCP/Hooks/Agent 三页据此置灰「平台原生不支持」）。注意：本文件是模板，仅作参考；desktop/enterprises/*.json（除 template.json 外）已被 .gitignore 忽略，不会进入代码仓库。",
     "name": "YourCompany",
     "platforms": {
         "ClaudeCode": {
