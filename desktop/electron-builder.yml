@@ -30,4 +30,14 @@ mac:
 dmg:
   title: MyKnowledge ${version}
   artifactName: MyKnowledge-${version}-${arch}.${ext}
+  # 安装背景：scripts/make-dmg-background.py 生成（600x400 + @2x）
+  # 背景只画渐变+箭头+文字；真实图标由下方 contents 坐标放置（图标中心锚点）
+  background: assets/dmg-background.png
+  contents:
+    - x: 150
+      y: 170
+    - x: 450
+      y: 170
+      type: link
+      path: /Applications
 npmRebuild: false
