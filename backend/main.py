@@ -1311,6 +1311,26 @@ def api_client_config_deeplink(platform: str):
     return {"deeplink": enchante_deeplink()}
 
 
+@app.get("/api/client-config/{platform}/agent-deeplink")
+def api_client_config_agent_deeplink(platform: str):
+    """Generate the Enchante **agent (Skill)** install deeplink for a platform.
+
+    Only ``Enchante`` supports an agent deeplink:
+      ``GET /api/client-config/Enchante/agent-deeplink`` →
+      ``{"deeplink": "enchante://agent/install?name=MyKnowledge&config=..."}``.
+    Any other platform returns 400.
+
+    **⚠️ 占位**：agent deeplink 协议待 Enchante 确认，payload schema 可能调整
+    （见 ``client_config.enchante_agent_deeplink``）。在确认前保留直接写
+    SKILL.md 的 fallback。
+    """
+    if platform != "Enchante":
+        raise HTTPException(
+            400, f"平台 {platform} 不支持 agent deeplink（仅 Enchante）")
+    from backend.client_config import enchante_agent_deeplink
+    return {"deeplink": enchante_agent_deeplink()}
+
+
 @app.post("/api/client-config/{platform}/{kind}")
 def api_client_config_write(platform: str, kind: str):
     """Incrementally write MyKnowledge config for one platform/kind.

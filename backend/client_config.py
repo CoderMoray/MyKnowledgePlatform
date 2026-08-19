@@ -192,20 +192,58 @@ def enchante_deeplink() -> str:
     ``+`` becomes ``%2B`` — Enchanté's Swift ``URLComponents`` would otherwise
     parse a raw ``+`` as a space and corrupt the payload.
     """
-    import base64
-    import urllib.parse
     bundle = {
         "displayName": "MyKnowledge",
         "description": "MyKnowledge 知识管理平台",
         "icon": "book.closed",
         "config": mcp_entry("Enchante"),
     }
-    enc = base64.b64encode(json.dumps(bundle, ensure_ascii=False)
+    return (f"enchante://mcp/install?name=MyKnowledge&config="
+            f"{_base64_quote(bundle)}")
+
+
+def _base64_quote(payload: dict) -> str:
+    """URL-quote a JSON dict as an Enchante deeplink ``config`` query value.
+
+    Shared by the MCP and agent deeplinks: base64-encode the JSON, then force
+    ``+``→``%2B`` (Enchanté's Swift ``URLComponents`` would misread a raw ``+``
+    as a space).  Generation only — the actual deeplink capture is handled by
+    the Enchante client, not the backend.
+    """
+    import base64
+    import urllib.parse
+    enc = base64.b64encode(json.dumps(payload, ensure_ascii=False)
                            .encode("utf-8")).decode("ascii")
-    # 强制 '+'→'%2B'（base64 可能含 +），保留 base64 其他安全字符与 query 分隔符。
-    quoted = urllib.parse.quote(
+    return urllib.parse.quote(
         enc, safe="-._~!$&'()*,;=:@/?")
-    return f"enchante://mcp/install?name=MyKnowledge&config={quoted}"
+
+
+def enchante_agent_deeplink() -> str:
+    """Build the Enchante **agent (Skill)** install deeplink (returns the string).
+
+    ``enchante://agent/install?name=MyKnowledge&config=<base64>``
+
+    **⚠️ 占位实现，协议待 Enchante 确认（2026-08-19）**：agent deeplink 的 payload
+    schema 尚未经 Enchante 确认，可能与本占位不同。已向 Enchante 提问的关键待确认点：
+      - agent 与 MCP 的 deeplink 协议/包格式是否相同？payload JSON schema 是什么？
+      - 传 SKILL.md **全文**还是 URL/路径引用？
+      - ``name`` 是否决定落盘 ``~/.agents/skills/<name>/SKILL.md``？
+      - 是否同样弹窗人工确认？重复安装是否幂等？有无 uninstall 协议？
+      - ``+``→``%2B`` 的 URL 转义是否同样适用？
+    在 Enchante 答复前，**保留现有直接写 SKILL.md 文件**的路径（``write_kind``
+    agent 分支）作为已确认可用的 fallback，不删除。
+
+    占位 payload 沿用 MCP 的 bundle 结构（``{displayName, description, icon,
+    skill}``，``skill`` 为完整 SKILL.md 内容），待协议确认后再对齐真实 schema。
+    """
+    bundle = {
+        "displayName": "MyKnowledge",
+        "description": "MyKnowledge 知识管理平台协作 Skill：通过 MCP 检索与维护本地知识库",
+        "icon": "book.closed",
+        "skill": _skill_content(),
+    }
+    return (f"enchante://agent/install?name=MyKnowledge&config="
+            f"{_base64_quote(bundle)}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -273,11 +311,18 @@ def _cursor_hooks_entry() -> dict:
     entry (no nested ``hooks`` list).  We reuse the ``hooks_forward`` helper
     (same as CodeBuddy, matching the ``Shell`` tool) and default to
     ``failClosed: false`` to stay fail-open.
+
+    matcher covers all Cursor preToolUse tool types that can touch the KB
+    destructively.  Per Cursor docs (cursor.com/docs/hooks) the matcher tool
+    types are ``Shell/Read/Write/Grep/Delete/Task/MCP:<name>`` — there is **no
+    separate ``Edit``** (file edits route through ``Write``).  ``Write`` /
+    ``Delete`` are required (Cursor has a native Delete tool, unlike Claude
+    Code), ``Shell`` covers bare shell commands.
     """
     return {
         "type": "command",
         "command": _hooks_command_codebuddy(),
-        "matcher": "Shell",
+        "matcher": "Shell|Write|Delete",
         "timeout": 10000,
         "failClosed": False,
     }
@@ -298,10 +343,14 @@ def hooks_matcher(platform: str) -> dict:
     """The PreToolUse hook matcher (guards bare AI operations via HTTP).
 
     Platform-differentiated command:
-      - ClaudeCode / WorkBuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher ``Bash``.
+      - ClaudeCode / WorkBuddy: curl with ``$CLAUDE_TOOL_USE_INPUT``, matcher
+        ``Bash|Write|Edit`` (claude PreToolUse is matched **per tool name**; a bare
+        ``Bash`` would skip Write/Edit, leaving ``hooks.py``'s file_write branch dead).
       - CodeBuddyIDE: helper script reading stdin, matcher ``*`` (match all tools —
         ``hooks.py`` allows MCP calls internally, so a broad matcher is safe).
-      - Cursor: helper script reading stdin, matcher ``Shell`` (hooks.json format).
+      - Cursor: helper script reading stdin, matcher ``Shell|Write|Delete``
+        (hooks.json format; Cursor preToolUse matches tool types — no separate
+        Edit type, edits route through Write; Delete exists natively).
     """
     if platform == "Cursor":
         return _cursor_hooks_entry()
@@ -312,7 +361,7 @@ def hooks_matcher(platform: str) -> dict:
                        "command": _hooks_command_codebuddy()}],
         }
     return {
-        "matcher": "Bash",
+        "matcher": "Bash|Write|Edit",
         "hooks": [{"type": "command", "command": _hooks_command_claude()}],
     }
 
@@ -335,6 +384,26 @@ def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
         return False
     first = hooks[0]
     return isinstance(first, dict) and first.get("command") == cmd
+
+
+def _merge_hook_entry(matchers: list, entry: dict, cmd: str) -> list:
+    """Append *entry* to *matchers*, or upgrade our existing one in place.
+
+    The matcher is identified by **command signature** (``_matcher_is_mine``), so a
+    user's own hook sharing a matcher string is never touched.  If our hook already
+    exists but its ``matcher`` string is outdated (e.g. the old Claude ``Bash`` that
+    skipped Write/Edit), we replace it with the current entry instead of leaving the
+    stale one — otherwise re-running ``write_kind`` on an existing install would keep
+    the broken matcher and the fix would never take effect.
+    """
+    for i, m in enumerate(matchers):
+        if _matcher_is_mine(m, cmd):
+            if isinstance(m, dict) and m.get("matcher") == entry.get("matcher"):
+                return matchers  # already current — nothing to do
+            matchers[i] = entry  # upgrade stale matcher in place
+            return matchers
+    matchers.append(entry)
+    return matchers
 
 
 def _agents_dir() -> Path:
@@ -599,17 +668,14 @@ def write_kind(platform: str, kind: str) -> dict:
             data.setdefault("version", 1)
             existing = hooks.get("preToolUse") or []
             entry = _cursor_hooks_entry()
-            if not any(_matcher_is_mine(m, cmd) for m in existing):
-                existing.append(entry)
-            hooks["preToolUse"] = existing
+            hooks["preToolUse"] = _merge_hook_entry(existing, entry, cmd)
         else:
             # Claude/CodeBuddy settings.json: 事件键 PreToolUse + 嵌套 hooks 列表。
             existing = hooks.get("PreToolUse") or []
             matcher = hooks_matcher(platform)
-            # 幂等：若已存在本平台的 MyKnowledge 钩子（按 command 签名识别），不重复追加。
-            if not any(_matcher_is_mine(m, cmd) for m in existing):
-                existing.append(matcher)
-            hooks["PreToolUse"] = existing
+            # 幂等 + 升级：已存在本平台的钩子（按 command 签名识别）则原地升级
+            # 过期 matcher，不存在则追加；用户自己的钩子不受影响。
+            hooks["PreToolUse"] = _merge_hook_entry(existing, matcher, cmd)
         _save_json(path, data)
         return {"platform": platform, "kind": "hooks", "file": str(path),
                 "status": "written", "detected": True}

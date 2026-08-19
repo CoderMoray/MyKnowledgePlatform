@@ -263,9 +263,13 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 - `_platform_paths` 新增 `hooks_file` 键：Cursor 独立映射到 hooks.json，其余平台回退到
   settings_file（`_resolve_path("")` 返回 `Path('.')` truthy，空串须先判空）。
 - **hooks 写 `~/.cursor/hooks.json`**：`{version:1, hooks:{preToolUse:[{type:command,
-  command: hooks_forward, matcher: Shell, timeout:10000, failClosed:false}]}}`（增量合并，
-  保留 version:1 与已有 hooks）。Cursor 条目 `command` 直接挂在条目上（无嵌套 hooks 列表），
-  `_matcher_is_mine` 增加 direct-command 识别。
+  command: hooks_forward, matcher: Shell|Write|Delete, timeout:10000,
+  failClosed:false}]}}`（增量合并，保留 version:1 与已有 hooks）。Cursor 条目
+  `command` 直接挂在条目上（无嵌套 hooks 列表），`_matcher_is_mine` 增加
+  direct-command 识别。Cursor preToolUse matcher 按工具类型匹配（官方枚举
+  Shell/Read/Write/Grep/Delete/Task/MCP，无独立 Edit——文件编辑归 Write；
+  Delete 为原生工具），须同时覆盖 Shell 与 Write/Delete，否则文件直写/删除
+  不会被拦截（见下方 matcher bugfix）。
 - `hooks.py` `_TOOL_ALIASES` 增加 `"Shell": "Bash"`（Cursor preToolUse 用 Shell 而非 Bash），
   使对 KB 裸写命令的拦截判定生效。
 - agent 写 `~/.cursor/agents/MyKnowledge-agent.md`（frontmatter name/description + 正文，
@@ -279,6 +283,41 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
   （ClaudeDesktop/Enchante）`supports_hooks=false` + notes 说明。
 - 6 文件：ClaudeCode / CodeBuddyIDE / WorkBuddy / ClaudeDesktop / Cursor / Enchante。
 - `AiClientConfig` 整目录已由 spec `datas` 携带，hooks/ 子目录自动进包，无需改 spec。
+
+### Hook matcher 按工具名触发 bugfix（2026-08-19）
+
+**背景**：用户用 Claude Code 实测发现，用 Write 工具直接写 KB 文件完全没被拦截。
+根源不在后端 `hooks.py` 判定逻辑（Write/Edit/Delete 的 `file_write` 分支早就写好），
+而在 **Claude 平台侧的 PreToolUse hook 是按「工具名」触发的**：`hooks_matcher()`
+里 Claude/WorkBuddy 分支的 `matcher` 写死为 `"Bash"`，于是 hook 只在调用 Bash 工具前
+触发，Write/Edit 调用根本不发到后端，`hooks.py` 的 `file_write` 分支成了死代码。
+
+**改动**：
+- `hooks_matcher()` ClaudeCode/WorkBuddy 分支：`matcher: "Bash"` →
+  `"Bash|Write|Edit"`（Claude 的 matcher 用 `|` 分隔多工具名；Delete 暂不覆盖，
+  Claude Code 无对应原生工具名）。
+- Cursor 分支同样有同类隐患（原 `matcher: "Shell"` 只匹配 Shell 工具）：
+  → `"Shell|Write|Delete"`。Cursor 官方文档（cursor.com/docs/hooks）确认其
+  preToolUse matcher 工具类型为 Shell/Read/Write/Grep/Delete/Task/MCP（**无独立
+  Edit，文件编辑归 Write**；**Delete 为原生工具**）。故覆盖 Shell + Write + Delete
+  即可拦截全部 KB 写操作；删文件的 Delete 对 Cursor 是必须加的（直删文件否则绕过）。
+- CodeBuddyIDE 分支本就是 `matcher: "*"`（全工具），`hooks.py` 内部对 MCP 放行，
+  宽 matcher 安全，无需改。
+- 同步更新权威记录 `backend/AiClientConfig/hooks/{ClaudeCode,WorkBuddy,Cursor}.json`
+  的 `matcher` / `matcher_note`。
+
+> **Delete 差异（经官方文档核实）**：Claude Code 的 PreToolUse matcher 工具名
+> （Bash/Write/Edit/Read/Glob/Grep/Agent/WebFetch/WebSearch/AskUserQuestion/
+> ExitPlanMode）**不含 Delete**——Claude 删文件走 Bash `rm`，已被 Bash 分支的
+> `_DESTRUCTIVE_PATTERNS` 拦截，故 Claude 不需要也不应加 Delete。**Cursor 则有原生
+> Delete 工具**，故其 matcher 必须包含 Delete，否则删除操作会绕过 hook。
+
+**生效前提（重要，非热更新）**：
+1. 改的是写入 `~/.claude/settings.json` 的**静态 JSON**，旧 `"Bash"` 条目不会自动变。
+   必须重新触发一次 `write_kind("ClaudeCode", "hooks")`（UI「开关」重开一下），
+   新 matcher 才落盘。
+2. 新 hook 配置要**新会话**才被 Claude Code 读取（重启对话是必要不充分条件——
+   关键是先把配置内容改对再重启）。
 
 ### CLI config 子命令 + 分享配置状态 API（2026-08-18）
 

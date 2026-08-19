@@ -100,12 +100,12 @@ class TestHooksIncremental:
         assert data["enableAllProjectMcpServers"] is True  # preserved
         hk = data["hooks"]
         matchers = [m.get("matcher") for m in hk["PreToolUse"]]
-        assert "Bash" in matchers
+        assert "Bash|Write|Edit" in matchers
         assert "127.0.0.1:8080/hooks/pre-tool-use" in \
             hk["PreToolUse"][0]["hooks"][0]["command"]
 
     def test_appends_without_overwriting_existing(self, fake_home: Path) -> None:
-        """Existing hooks preserved; our Bash matcher appended if absent."""
+        """Existing hooks preserved; our Bash|Write|Edit matcher appended if absent."""
         s = fake_home / ".claude" / "settings.json"
         _write_json(s, {"hooks": {
             "PostToolUse": [{"matcher": "Edit|Write",
@@ -116,7 +116,7 @@ class TestHooksIncremental:
         # existing PostToolUse untouched
         assert data["hooks"]["PostToolUse"][0]["matcher"] == "Edit|Write"
         # our PreToolUse added
-        assert any(m.get("matcher") == "Bash"
+        assert any(m.get("matcher") == "Bash|Write|Edit"
                    for m in data["hooks"]["PreToolUse"])
 
     def test_idempotent_no_duplicate(self, fake_home: Path) -> None:
@@ -124,9 +124,36 @@ class TestHooksIncremental:
         write_kind("ClaudeCode", "hooks")
         write_kind("ClaudeCode", "hooks")
         data = _read_json(fake_home / ".claude" / "settings.json")
-        bash_count = sum(1 for m in data["hooks"]["PreToolUse"]
-                         if m.get("matcher") == "Bash")
-        assert bash_count == 1
+        my_count = sum(1 for m in data["hooks"]["PreToolUse"]
+                       if m.get("matcher") == "Bash|Write|Edit")
+        assert my_count == 1
+
+    def test_upgrades_stale_matcher_in_place(self, fake_home: Path) -> None:
+        """An existing install with the old 'Bash' matcher (same command signature)
+        is upgraded to 'Bash|Write|Edit' on re-write — not left stale."""
+        s = fake_home / ".claude" / "settings.json"
+        # 模拟旧版本写入的 MyKnowledge 钩子：命令签名相同、matcher 是旧 Bash。
+        _write_json(s, {"hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash",
+                 "hooks": [{"type": "command",
+                            "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use "
+                                       "-H 'Content-Type: application/json' -d '$CLAUDE_TOOL_USE_INPUT'"}]},
+                {"matcher": "Edit|Write",
+                 "hooks": [{"type": "command", "command": "user-hook"}]},
+            ],
+        }})
+        write_kind("ClaudeCode", "hooks")
+        data = _read_json(s)
+        matchers = data["hooks"]["PreToolUse"]
+        # 我们的钩子 matcher 已升级，且仍是唯一的 MyKnowledge 钩子（不重复追加）。
+        my = [m for m in matchers
+              if "$CLAUDE_TOOL_USE_INPUT" in m["hooks"][0]["command"]]
+        assert len(my) == 1
+        assert my[0]["matcher"] == "Bash|Write|Edit"
+        # 用户的钩子（不同 command）不受影响。
+        user = [m for m in matchers if m["hooks"][0]["command"] == "user-hook"]
+        assert user and user[0]["matcher"] == "Edit|Write"
 
 
 class TestAgent:
@@ -398,11 +425,14 @@ class TestHooksMatcher:
         """CodeBuddy matcher '*' matches all tools (MCP allowed internally)."""
         assert hooks_matcher("CodeBuddyIDE")["matcher"] == "*"
 
-    def test_claude_matcher_bash(self, fake_home: Path) -> None:
-        assert hooks_matcher("ClaudeCode")["matcher"] == "Bash"
+    def test_claude_matcher_bash_write_edit(self, fake_home: Path) -> None:
+        """Claude PreToolUse is per-tool-name: must cover Bash+Write+Edit so the
+        file_write branch in hooks.py isn't dead code (a bare 'Bash' would skip
+        Write/Edit calls entirely)."""
+        assert hooks_matcher("ClaudeCode")["matcher"] == "Bash|Write|Edit"
 
     def test_workbuddy_uses_claude_command(self, fake_home: Path) -> None:
-        assert hooks_matcher("WorkBuddy")["matcher"] == "Bash"
+        assert hooks_matcher("WorkBuddy")["matcher"] == "Bash|Write|Edit"
         assert hooks_matcher("WorkBuddy")["hooks"][0]["command"] \
             == hooks_matcher("ClaudeCode")["hooks"][0]["command"]
 
@@ -612,6 +642,27 @@ class TestEnchante:
             base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
         assert bundle["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
+    def test_agent_deeplink_placeholder(self, fake_home: Path) -> None:
+        """Agent deeplink placeholder: enchante://agent/install, payload base64.
+
+        Protocol is TBD (awaiting Enchante confirmation) — the test only pins the
+        URL scheme, name, and the shared '+'→'%2B' quoting + base64 round-trip, so
+        a later schema alignment stays contained to the function.
+        """
+        import base64
+        import urllib.parse
+        from backend.client_config import enchante_agent_deeplink
+        link = enchante_agent_deeplink()
+        assert link.startswith(
+            "enchante://agent/install?name=MyKnowledge&config=")
+        enc = link.split("config=")[1]
+        assert "+" not in enc  # '+'→'%2B'
+        bundle = json.loads(
+            base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
+        assert bundle["displayName"] == "MyKnowledge"
+        # placeholder carries the full SKILL.md content under 'skill' (TBD schema)
+        assert bundle["skill"].startswith("---\nname: MyKnowledge")
+
 
 class TestDeeplinkEndpoint:
     def test_enchante_deeplink_endpoint(self, fake_home: Path) -> None:
@@ -639,6 +690,27 @@ class TestDeeplinkEndpoint:
         c = TestClient(app)
         data = c.get("/api/client-config/Enchante/deeplink").json()
         assert data["deeplink"] == enchante_deeplink()
+
+    def test_agent_deeplink_endpoint(self, fake_home: Path) -> None:
+        """GET /api/client-config/Enchante/agent-deeplink returns agent link."""
+        from backend.client_config import enchante_agent_deeplink
+        from backend.main import app
+        c = TestClient(app)
+        r = c.get("/api/client-config/Enchante/agent-deeplink")
+        assert r.status_code == 200
+        data = r.json()
+        assert set(data.keys()) == {"deeplink"}
+        assert data["deeplink"].startswith(
+            "enchante://agent/install?name=MyKnowledge&config=")
+        assert data["deeplink"] == enchante_agent_deeplink()
+
+    def test_non_enchante_agent_deeplink_400(self, fake_home: Path) -> None:
+        """Other platforms return 400 for agent deeplink."""
+        from backend.main import app
+        c = TestClient(app)
+        r = c.get("/api/client-config/ClaudeCode/agent-deeplink")
+        assert r.status_code == 400
+        assert "agent deeplink" in r.json()["detail"]
 
 
 class TestCursor:
@@ -677,9 +749,13 @@ class TestCursor:
             _read_json(fake_home / ".cursor" / "mcp.json")["mcpServers"]
 
     def test_hooks_matcher_shell(self, fake_home: Path) -> None:
-        """Cursor uses matcher Shell + hooks_forward command (hooks.json format)."""
+        """Cursor uses matcher Shell|Write|Delete + hooks_forward command
+        (hooks.json format). Per Cursor docs the preToolUse matcher tool types are
+        Shell/Read/Write/Grep/Delete/Task/MCP (no separate Edit — edits route
+        through Write); Delete exists natively (unlike Claude Code), so we cover
+        shell + write + delete to avoid a dead file_write branch."""
         m = hooks_matcher("Cursor")
-        assert m["matcher"] == "Shell"
+        assert m["matcher"] == "Shell|Write|Delete"
         assert m["type"] == "command"
         assert "backend.hooks_forward" in m["command"]
         assert m["failClosed"] is False
@@ -704,7 +780,7 @@ class TestCursor:
         assert any(m.get("command") == "user-hook" for m in hk)  # preserved
         our = [m for m in hk if "backend.hooks_forward" in m.get("command", "")]
         assert len(our) == 1
-        assert our[0]["matcher"] == "Shell"
+        assert our[0]["matcher"] == "Shell|Write|Delete"
 
     def test_write_hooks_idempotent(self, fake_home: Path) -> None:
         write_kind("Cursor", "hooks")
@@ -851,7 +927,7 @@ class TestREST:
         hj = fake_home / ".cursor" / "hooks.json"
         data = json.loads(hj.read_text(encoding="utf-8"))
         assert data["version"] == 1
-        assert data["hooks"]["preToolUse"][0]["matcher"] == "Shell"
+        assert data["hooks"]["preToolUse"][0]["matcher"] == "Shell|Write|Delete"
 
     def test_cursor_hooks_endpoint_detect_reflects(self, fake_home: Path) -> None:
         """Write/remove Cursor hooks reflects in /api/client-config detect."""
