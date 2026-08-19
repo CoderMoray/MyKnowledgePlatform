@@ -1558,17 +1558,22 @@ let _tocCollapsedSet = {};
       this.guideExecPercent = 0;
       const t0 = performance.now();
       const selected = this.guideSelected.filter(p => this.clientInstalled(p));
-      // 并行执行已选非 Enchante 平台的各 kind 写入（Enchante 由结论页按钮手动生成 deeplink）
-      const jobs = [];
+      // 串行执行已选非 Enchante 平台的各 kind 写入（Enchante 由结论页按钮手动生成 deeplink）。
+      // 注意：必须串行 —— configureClient 有全局单写锁 clientConfiguring，
+      // 并行执行时后到的 job 会因锁被占用而静默 return，导致仅第一个 kind 生效
+      // （此前 MCP 成功、Hooks/Agent 全未配置的根因）。
+      // 进度条 0→100 由 CSS transition 播放（0.42s）；先置 100 让动画与执行并行进行
+      this.guideExecPercent = 100;
       for (const platform of selected) {
         if (platform === "Enchante") continue; // deeplink 手动安装，结论页处理
         for (const kind of this.platformKinds(platform)) {
-          jobs.push(this.configureClient(platform, kind).catch(() => {}));
+          try {
+            await this.configureClient(platform, kind);
+          } catch (e) {
+            // 单个 kind 失败不中断后续（与原先 .catch(()=>{}) 语义一致）
+          }
         }
       }
-      // 进度条 0→100 由 CSS transition 播放（0.42s）；先置 100 让动画与执行并行进行
-      this.guideExecPercent = 100;
-      if (jobs.length) await Promise.allSettled(jobs);
       // 保证最小播放时长 0.42s（后端实际更快则补足，让用户感知"正在执行"）
       const elapsed = performance.now() - t0;
       const min = 420;
