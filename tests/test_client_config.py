@@ -642,26 +642,32 @@ class TestEnchante:
             base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
         assert bundle["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
-    def test_agent_deeplink_placeholder(self, fake_home: Path) -> None:
-        """Agent deeplink placeholder: enchante://agent/install, payload base64.
+    def test_agent_deeplink(self, fake_home: Path) -> None:
+        """Agent deeplink (schema confirmed with Enchante 2026-08-19).
 
-        Protocol is TBD (awaiting Enchante confirmation) — the test only pins the
-        URL scheme, name, and the shared '+'→'%2B' quoting + base64 round-trip, so
-        a later schema alignment stays contained to the function.
+        Pins the URL scheme, display name ``MyKnowledge 助手``, the shared
+        '+'→'%2B' quoting + base64 round-trip, and the confirmed payload schema
+        ``{role, skillNames, mcpServers}`` (role reuses the agent template, the
+        mcpServers bundle reuses mcp_entry("Enchante")).
         """
         import base64
         import urllib.parse
         from backend.client_config import enchante_agent_deeplink
         link = enchante_agent_deeplink()
-        assert link.startswith(
-            "enchante://agent/install?name=MyKnowledge&config=")
+        assert link.startswith("enchante://agent/install?name=")
+        assert urllib.parse.unquote(
+            link.split("&config=")[0].split("name=")[1]) == "MyKnowledge 助手"
         enc = link.split("config=")[1]
         assert "+" not in enc  # '+'→'%2B'
         bundle = json.loads(
             base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
-        assert bundle["displayName"] == "MyKnowledge"
-        # placeholder carries the full SKILL.md content under 'skill' (TBD schema)
-        assert bundle["skill"].startswith("---\nname: MyKnowledge")
+        assert bundle["role"].startswith("# MyKnowledge Agent")
+        assert bundle["skillNames"] == ["myknowledge"]
+        srv = bundle["mcpServers"]["MyKnowledge"]
+        assert srv["displayName"] == "MyKnowledge"
+        assert srv["icon"] == "book.closed"
+        assert srv["config"]["args"] == ["-m", "backend.cli", "mcp"]
+        assert srv["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
 
 class TestDeeplinkEndpoint:
@@ -700,8 +706,7 @@ class TestDeeplinkEndpoint:
         assert r.status_code == 200
         data = r.json()
         assert set(data.keys()) == {"deeplink"}
-        assert data["deeplink"].startswith(
-            "enchante://agent/install?name=MyKnowledge&config=")
+        assert data["deeplink"].startswith("enchante://agent/install?name=")
         assert data["deeplink"] == enchante_agent_deeplink()
 
     def test_non_enchante_agent_deeplink_400(self, fake_home: Path) -> None:

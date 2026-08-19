@@ -319,6 +319,46 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 2. 新 hook 配置要**新会话**才被 Claude Code 读取（重启对话是必要不充分条件——
    关键是先把配置内容改对再重启）。
 
+### Enchante 独立 Agent deeplink 接入（2026-08-19）
+
+**背景**：为 Enchanté 提供「一键创建独立专属 Agent」能力——用户在 Enchanté 顶部
+Agent 下拉框中直接选「MyKnowledge 助手」专属角色，原子化绑定 MCP 工具 + Agent
+人设 + Skill 技能白名单。协议经 Enchante 确认（区别于之前占位的猜测 schema）。
+
+**Deeplink 协议**（Enchante 提供）：
+```
+enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLOAD>
+```
+- `name`：Agent 显示名，本实现用 `"MyKnowledge 助手"`（与 MCP install 的
+  `name=MyKnowledge` 不同——agent 是角色，显示名更友好）。
+- payload JSON schema：
+  ```json
+  {
+    "role": "<人设 Prompt，复用 _agent_template() / MyKnowledge-agent.md>",
+    "skillNames": ["myknowledge"],
+    "mcpServers": {
+      "MyKnowledge": {
+        "displayName": "MyKnowledge", "description": "...", "icon": "book.closed",
+        "config": mcp_entry("Enchante")   // 复用标准 MCP stdio 配置
+      }
+    }
+  }
+  ```
+
+**实现**：
+- `backend/client_config.py`：`enchante_agent_deeplink()`（正式 schema）+
+  `_base64_quote()`（MCP/agent 共用 `+`→`%2B` 转义）；`role` 复用
+  `_agent_template()`，`mcpServers` 内嵌 `mcp_entry("Enchante")`。
+- `backend/main.py`：`GET /api/client-config/Enchante/agent-deeplink`（非 Enchante 400）。
+- **保留**现有 `write_kind("Enchante","agent")` 直接写 SKILL.md 的路径作为
+  skill 安装 fallback（`skillNames` 引用的 `myknowledge` skill 由它安装）。
+- 前端（后续）：设置→Agent 面板 Enchante 项加「⚡ 导入到 Enchanté」按钮，
+  `window.open(deeplink)` 呼出原生安装浮窗。
+
+**测试**：`tests/test_client_config.py` 更新为确认后的 schema 断言（name 显示名、
+`{role, skillNames, mcpServers}` 结构、base64 round-trip、端点 400 校验）。
+后端测试 703 全绿。
+
 ### CLI config 子命令 + 分享配置状态 API（2026-08-18）
 
 **背景**：分享配置（KNOWLEDGE_SHARE_CODE + SHARE_MAP）原先只能手动编辑 `backend/.env`。

@@ -1313,16 +1313,16 @@ def api_client_config_deeplink(platform: str):
 
 @app.get("/api/client-config/{platform}/agent-deeplink")
 def api_client_config_agent_deeplink(platform: str):
-    """Generate the Enchante **agent (Skill)** install deeplink for a platform.
+    """Generate the Enchante **independent Agent** install deeplink for a platform.
 
     Only ``Enchante`` supports an agent deeplink:
       ``GET /api/client-config/Enchante/agent-deeplink`` →
-      ``{"deeplink": "enchante://agent/install?name=MyKnowledge&config=..."}``.
+      ``{"deeplink": "enchante://agent/install?name=MyKnowledge 助手&config=..."}``.
     Any other platform returns 400.
 
-    **⚠️ 占位**：agent deeplink 协议待 Enchante 确认，payload schema 可能调整
-    （见 ``client_config.enchante_agent_deeplink``）。在确认前保留直接写
-    SKILL.md 的 fallback。
+    Protocol confirmed with Enchante (2026-08-19); payload schema is
+    ``{role, skillNames, mcpServers}`` (see ``client_config.enchante_agent_deeplink``).
+    The direct-write SKILL.md path stays as the skill-install fallback.
     """
     if platform != "Enchante":
         raise HTTPException(

@@ -219,30 +219,44 @@ def _base64_quote(payload: dict) -> str:
 
 
 def enchante_agent_deeplink() -> str:
-    """Build the Enchante **agent (Skill)** install deeplink (returns the string).
+    """Build the Enchante **independent Agent** install deeplink (returns the string).
 
-    ``enchante://agent/install?name=MyKnowledge&config=<base64>``
+    ``enchante://agent/install?name=MyKnowledge 助手&config=<base64>``
 
-    **⚠️ 占位实现，协议待 Enchante 确认（2026-08-19）**：agent deeplink 的 payload
-    schema 尚未经 Enchante 确认，可能与本占位不同。已向 Enchante 提问的关键待确认点：
-      - agent 与 MCP 的 deeplink 协议/包格式是否相同？payload JSON schema 是什么？
-      - 传 SKILL.md **全文**还是 URL/路径引用？
-      - ``name`` 是否决定落盘 ``~/.agents/skills/<name>/SKILL.md``？
-      - 是否同样弹窗人工确认？重复安装是否幂等？有无 uninstall 协议？
-      - ``+``→``%2B`` 的 URL 转义是否同样适用？
-    在 Enchante 答复前，**保留现有直接写 SKILL.md 文件**的路径（``write_kind``
-    agent 分支）作为已确认可用的 fallback，不删除。
+    Creates a one-click dedicated "MyKnowledge 助手" role in Enchanté's top
+    Agent dropdown — atomically binding MCP tools + agent persona + skill
+    whitelist.  Payload schema confirmed with Enchante (2026-08-19):
+      - ``role``: the agent persona / safe-operation boundary prompt, reusing
+        ``_agent_template()`` (``MyKnowledge-agent.md``).
+      - ``skillNames``: skill whitelist this agent may call (``["myknowledge"]``).
+      - ``mcpServers``: MCP server configs the agent depends on; each value is an
+        MCPServerBundle (``{displayName, description, icon, config}``) reusing
+        ``mcp_entry("Enchante")``.
 
-    占位 payload 沿用 MCP 的 bundle 结构（``{displayName, description, icon,
-    skill}``，``skill`` 为完整 SKILL.md 内容），待协议确认后再对齐真实 schema。
+    ``name`` is the display name (URL-encoded ``MyKnowledge 助手``), distinct
+    from the MCP install link's ``name=MyKnowledge``.  The base64 is URL-quoted
+    via ``_base64_quote`` (``+``→``%2B``).  Generation only — the actual install
+    capture is handled by the Enchante client.
+
+    The existing direct-write SKILL.md path (``write_kind`` agent branch) stays
+    as a fallback — ``skillNames`` references the ``myknowledge`` skill that
+    file installs.
     """
+    import urllib.parse
     bundle = {
-        "displayName": "MyKnowledge",
-        "description": "MyKnowledge 知识管理平台协作 Skill：通过 MCP 检索与维护本地知识库",
-        "icon": "book.closed",
-        "skill": _skill_content(),
+        "role": _agent_template(),
+        "skillNames": ["myknowledge"],
+        "mcpServers": {
+            "MyKnowledge": {
+                "displayName": "MyKnowledge",
+                "description": "MyKnowledge 知识管理平台",
+                "icon": "book.closed",
+                "config": mcp_entry("Enchante"),
+            }
+        },
     }
-    return (f"enchante://agent/install?name=MyKnowledge&config="
+    name = urllib.parse.quote("MyKnowledge 助手")
+    return (f"enchante://agent/install?name={name}&config="
             f"{_base64_quote(bundle)}")
 
 
