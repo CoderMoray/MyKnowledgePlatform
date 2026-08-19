@@ -84,13 +84,32 @@
       border-radius: 8px !important;
       background: linear-gradient(135deg, #22c55e, #16a34a) !important;
     }
+    .splash__bar-text {
+      display: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      animation: splash-text-in 0.3s ease both;
+    }
+    .splash__bar-fill--done .splash__bar-text {
+      display: block;
+    }
+    @keyframes splash-text-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
   <div class="splash">
     <div class="splash__logo">M</div>
     <div class="splash__title">MyKnowledge</div>
-    <div class="splash__bar"><div class="splash__bar-fill" id="bar"></div></div>
+    <div class="splash__bar">
+      <div class="splash__bar-fill" id="bar">
+        <span class="splash__bar-text">加载完成</span>
+      </div>
+    </div>
   </div>
   <script>
     // 进度 0→100%（约 7s，与后端冷启动同步）；完成态后通知主进程切换

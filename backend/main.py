@@ -892,9 +892,21 @@ class DocRenamePayload(BaseModel):
 
 @app.get("/api/status", response_class=PlainTextResponse)
 def api_status():
-    """Get project status overview."""
-    storage, gen = get_storage()
-    return PlainTextResponse(gen.rebuild_project_status())
+    """Get project status overview.
+
+    Health-check endpoint：桌面壳 waitForBackend 轮询它判断后端就绪（只看
+    ``res.ok``）。因此即使知识库未初始化/模板缺失，也要返回 200（带可读信息），
+    不能抛 500 —— 否则桌面 app 会误报「后端启动超时」。
+    """
+    try:
+        storage, gen = get_storage()
+        return PlainTextResponse(gen.rebuild_project_status())
+    except FileNotFoundError as e:
+        return PlainTextResponse(
+            f"# MyKnowledge\n\n知识库尚未初始化或模板缺失（{e}）。\n"
+            "桌面版会自动初始化，请稍候重试。",
+            status_code=200,
+        )
 
 
 @app.get("/api/status/detail")

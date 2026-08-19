@@ -54,7 +54,18 @@ def main(argv: list[str] | None = None) -> int:
         # free, and must never block the user when the backend is unreachable.
         return hooks_forward.main()
 
-    os.environ["MYKNOWLEDGE_ROOT"] = str(resolve_root(args.root))
+    kb_root = resolve_root(args.root)
+    os.environ["MYKNOWLEDGE_ROOT"] = str(kb_root)
+
+    # 首次启动自动初始化知识库：默认 ~/.myknowledge 通常不存在；若存在但缺
+    # _templates/readme.md（半初始化），也补齐。否则 /api/status 会因缺模板
+    # 抛 FileNotFoundError → 500，桌面壳 waitForBackend 轮询永不通过 → 30s 超时。
+    if not (kb_root / "_templates" / "readme.md").exists():
+        try:
+            from backend.cli import _auto_init
+            _auto_init(kb_root)
+        except Exception as e:  # noqa: BLE001 — init 失败不阻塞启动，交给 /api/status 暴露
+            print(f"[desktop_server] 自动初始化知识库失败: {e}", file=sys.stderr)
 
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning", timeout_graceful_shutdown=5)
     return 0
