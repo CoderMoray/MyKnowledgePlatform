@@ -224,31 +224,32 @@ def enchante_agent_deeplink() -> str:
     ``enchante://agent/install?name=MyKnowledge 知识管理专家&config=<base64>``
 
     Creates a one-click dedicated "MyKnowledge 知识管理专家" role in Enchanté's top
-    Agent dropdown — atomically binding MCP tools + agent persona.  Payload schema
-    confirmed with Enchante (2026-08-19):
-      - ``role``: the agent persona / safe-operation boundary prompt, reusing
-        ``_agent_template()`` (``MyKnowledge-agent.md``).
-      - ``skillNames``: skill whitelist this agent may call.  **Empty ``[]``** —
-        the agent needs no standalone skill (its full capability comes from
-        ``role`` + the ``mcpServers`` MCP tools), so we no longer ship a
-        ``myknowledge`` skill.
+    Agent dropdown.  Payload schema confirmed with Enchante (2026-08-19):
+      - ``role``: the agent persona / system instructions, reusing
+        ``_agent_template()`` (``MyKnowledge-agent.md``) **as plain text — no
+        YAML frontmatter** (Enchanté injects it verbatim as the system prompt;
+        tool binding is carried structurally by ``mcpServers``).
+      - ``skillNames``: optional skill whitelist.  We keep ``["myknowledge"]`` to
+        explicitly associate the standalone skill (Enchanté recommends retaining
+        the skill — light, intent-triggered base capability — complementary to the
+        dedicated agent).  ``[]`` is also valid (optional field); we fill it to
+        bind the skill's extended knowledge.  Skill id is the lowercase folder
+        identifier ``myknowledge`` (case-sensitive).
       - ``mcpServers``: MCP server configs the agent depends on; each value is an
         MCPServerBundle (``{displayName, description, icon, config}``) reusing
         ``mcp_entry("Enchante")``.
 
-    ``name`` is the display name (URL-encoded ``MyKnowledge 知识管理专家``),
-    distinct from the MCP install link's ``name=MyKnowledge``.  The base64 is
-    URL-quoted via ``_base64_quote`` (``+``→``%2B``).  Generation only — the
-    actual install capture is handled by the Enchante client.
-
-    The existing direct-write SKILL.md path (``write_kind`` agent branch) is kept
-    as-is pending Enchante confirmation of whether the standalone skill is still
-    needed (see backlog); ``skillNames`` stays empty either way.
+    ``name`` is the **display name** (URL-encoded ``MyKnowledge 知识管理专家``);
+    Enchanté assigns the agent an internal UUID as its key, so ``name`` is not an
+    ID and Chinese text is fine.  The base64 is URL-quoted via ``_base64_quote``
+    (``+``→``%2B``).  Generation only — the actual install capture is handled by
+    the Enchante client (repeat installs pop a Conflict Resolution float —
+    Replace / Rename / Skip).
     """
     import urllib.parse
     bundle = {
         "role": _agent_template(),
-        "skillNames": [],
+        "skillNames": ["myknowledge"],
         "mcpServers": {
             "MyKnowledge": {
                 "displayName": "MyKnowledge",

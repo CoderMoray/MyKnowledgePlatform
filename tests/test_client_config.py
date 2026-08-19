@@ -662,8 +662,8 @@ class TestEnchante:
         bundle = json.loads(
             base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
         assert bundle["role"].startswith("# MyKnowledge Agent")
-        # agent needs no standalone skill — capability comes from role + MCP tools
-        assert bundle["skillNames"] == []
+        # skillNames binds the standalone myknowledge skill (case-sensitive folder id)
+        assert bundle["skillNames"] == ["myknowledge"]
         srv = bundle["mcpServers"]["MyKnowledge"]
         assert srv["displayName"] == "MyKnowledge"
         assert srv["icon"] == "book.closed"
