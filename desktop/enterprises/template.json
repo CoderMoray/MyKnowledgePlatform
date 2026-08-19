@@ -1,0 +1,13 @@
+{
+  "_comment": "企业定制配置模板。复制本文件为 <企业名>.json（如 Acme.json），再按需修改。platforms 键与 backend/AiClientConfig/platforms.json 的平台 key 严格一致。只写需要覆盖的平台；未列出的平台沿用 platforms.json 默认值（enabled=true + 默认 display）。enabled=false 的平台不会出现在产物（前端列表/检测/生成均不含）。注意：本文件是模板，仅作参考；desktop/enterprises/*.json（除 template.json 外）已被 .gitignore 忽略，不会进入代码仓库。",
+  "name": "YourCompany",
+  "platforms": {
+    "ClaudeCode": {
+      "enabled": true,
+      "display": "Claude Code"
+    },
+    "WorkBuddy": {
+      "enabled": false
+    }
+  }
+}

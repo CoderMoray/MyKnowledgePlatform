@@ -1,6 +1,9 @@
 # 企业定制配置
 
-每个 JSON 文件代表一个企业的 dmg 定制配置。文件名为企业名（如 `Acme.json` → `--enterprise Acme`）。
+每个 JSON 文件代表一个企业的 dmg 定制配置。文件名为企业名（如 `yourcompany.json` → `--enterprise yourcompany`）。
+
+> **配置文件不进代码仓库**：`desktop/enterprises/*.json`（除 `template.json` 外）已被 `.gitignore` 忽略。
+> 使用方式：复制 `template.json` 为 `<企业名>.json` 再修改，该文件只存在于本地/分发机，不会提交。
 
 ## 打包用法
 
@@ -9,14 +12,14 @@
 bash scripts/release.sh
 
 # 企业定制
-bash scripts/release.sh --enterprise Acme
+bash scripts/release.sh --enterprise yourcompany
 ```
 
 ## 配置格式
 
 ```json
 {
-  "name": "Acme",
+  "name": "yourcompany",
   "platforms": {
     "ClaudeCode": { "enabled": true, "display": "Claude Code" },
     "WorkBuddy":  { "enabled": false }
