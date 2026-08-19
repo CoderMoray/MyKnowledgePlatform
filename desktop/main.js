@@ -201,7 +201,7 @@ function ensureTray() {
             title: "关于 MyKnowledge",
             message: `MyKnowledge v${version}`,
             detail:
-              "企业私有的知识管理平台\n\n苹果级的知识隐私保护\n\n所有知识文件存储于本机，仅你授权的 AI 可访问。",
+              "企业私有的知识管理平台\n\n苹果级的知识隐私保护\n\n所有知识仅你授权的 AI 可访问",
           });
         },
       },
