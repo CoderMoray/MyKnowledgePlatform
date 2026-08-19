@@ -224,28 +224,31 @@ def enchante_agent_deeplink() -> str:
     ``enchante://agent/install?name=MyKnowledge 知识管理专家&config=<base64>``
 
     Creates a one-click dedicated "MyKnowledge 知识管理专家" role in Enchanté's top
-    Agent dropdown — atomically binding MCP tools + agent persona + skill
-    whitelist.  Payload schema confirmed with Enchante (2026-08-19):
+    Agent dropdown — atomically binding MCP tools + agent persona.  Payload schema
+    confirmed with Enchante (2026-08-19):
       - ``role``: the agent persona / safe-operation boundary prompt, reusing
         ``_agent_template()`` (``MyKnowledge-agent.md``).
-      - ``skillNames``: skill whitelist this agent may call (``["myknowledge"]``).
+      - ``skillNames``: skill whitelist this agent may call.  **Empty ``[]``** —
+        the agent needs no standalone skill (its full capability comes from
+        ``role`` + the ``mcpServers`` MCP tools), so we no longer ship a
+        ``myknowledge`` skill.
       - ``mcpServers``: MCP server configs the agent depends on; each value is an
         MCPServerBundle (``{displayName, description, icon, config}``) reusing
         ``mcp_entry("Enchante")``.
 
-    ``name`` is the display name (URL-encoded ``MyKnowledge 助手``), distinct
-    from the MCP install link's ``name=MyKnowledge``.  The base64 is URL-quoted
-    via ``_base64_quote`` (``+``→``%2B``).  Generation only — the actual install
-    capture is handled by the Enchante client.
+    ``name`` is the display name (URL-encoded ``MyKnowledge 知识管理专家``),
+    distinct from the MCP install link's ``name=MyKnowledge``.  The base64 is
+    URL-quoted via ``_base64_quote`` (``+``→``%2B``).  Generation only — the
+    actual install capture is handled by the Enchante client.
 
-    The existing direct-write SKILL.md path (``write_kind`` agent branch) stays
-    as a fallback — ``skillNames`` references the ``myknowledge`` skill that
-    file installs.
+    The existing direct-write SKILL.md path (``write_kind`` agent branch) is kept
+    as-is pending Enchante confirmation of whether the standalone skill is still
+    needed (see backlog); ``skillNames`` stays empty either way.
     """
     import urllib.parse
     bundle = {
         "role": _agent_template(),
-        "skillNames": ["myknowledge"],
+        "skillNames": [],
         "mcpServers": {
             "MyKnowledge": {
                 "displayName": "MyKnowledge",
