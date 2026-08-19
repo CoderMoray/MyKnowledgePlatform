@@ -4,10 +4,10 @@
   "supports_hooks": true,
   "event": "PreToolUse",
   "matcher": "Bash|Write|Edit",
-  "matcher_note": "与 Claude Code 同协议：PreToolUse 按工具名触发，必须同时覆盖 Bash 与 Write/Edit（否则 file_write 拦截分支死代码）。MCP 调用由 hooks.py 内部放行。",
-  "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use -H 'Content-Type: application/json' -d '$CLAUDE_TOOL_USE_INPUT'",
-  "protocol": "同 Claude Code：环境变量 $CLAUDE_TOOL_USE_INPUT 传 JSON，stdout 输出 JSON 决策。",
+  "matcher_note": "与 Claude Code 同协议：PreToolUse 按工具名触发，必须覆盖 Bash 与 Write/Edit（否则 file_write 拦截分支死代码）。MCP 调用由 hooks.py 内部放行。",
+  "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use -H 'Content-Type: application/json' -d @-",
+  "protocol": "WorkBuddy 与 Claude Code 的 PreToolUse hook 协议完全同构（2026-08-19 经官方/实测确认）：payload 走 stdin（CodeBuddy CLI 与 WorkBuddy 同源引擎，官方文档「Hook scripts receive JSON-formatted input data via stdin」）；读 hookSpecificOutput.permissionDecision 做 allow/deny（另支持 ask 三态，我们只回 allow/deny 兼容）；退出码 0=放行(按 stdout JSON)/1=非阻断放行/2=阻断/其它=放行。无 $WORKBUDDY_TOOL_USE_INPUT 环境变量传 payload。后端不依赖 tool_use_id/call_id（只读 tool_name/tool_input/cwd），字段名差异无影响。",
   "exit_code_deny": 2,
   "fail_open": true,
-  "notes": "写入 ~/.workbuddy/settings.json 的 hooks.PreToolUse。命令与 ClaudeCode 相同。"
+  "notes": "写入 ~/.workbuddy/settings.json 的 hooks.PreToolUse（非 ~/.claude/），改完须完全重启 WorkBuddy 才加载。命令与 ClaudeCode 相同（-d @- 从 stdin 读 payload）。阻断判定靠 stdout JSON 的 permissionDecision 而非 curl 退出码；后端不可达时 curl 退出非 0 → 放行（fail-open），符合审计日志场景。"
 }

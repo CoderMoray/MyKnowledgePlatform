@@ -336,8 +336,11 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
   **原地升级**（不重复追加）。
 - `_merge_hook_entry()`：从「只比较 matcher」改为「`_matcher_is_mine` 识别到就**整体覆盖**」——
   修复「matcher 已匹配时旧 command 幸存、每次重装保留坏命令」的隐患。
-- WorkBuddy 与 ClaudeCode 共用 `_hooks_command_claude()`（`-d @-`）；**WorkBuddy 是否走 stdin
-  待确认**。
+- WorkBuddy 与 ClaudeCode 共用 `_hooks_command_claude()`（`-d @-`）。
+  **WorkBuddy 协议已确认与 Claude 同构**（2026-08-19）：payload 走 stdin、读
+  `hookSpecificOutput.permissionDecision`、退出码 0/2/其它、配置落 `~/.workbuddy/settings.json`
+  （须完全重启加载）。后端 hooks.py 不依赖 `tool_use_id`/`call_id`，`-d @-` 直接复用，
+  无需单独适配。
 
 **验证**：真实 Claude Code 会话端到端实测——直接 Write/Edit/裸 `rm` 指向 KB 现在被 deny +
 引导文案；MCP 工具正常放行。**测试**：后端 705 全绿（新增 `test_upgrades_legacy_command_not_duplicated`）。
