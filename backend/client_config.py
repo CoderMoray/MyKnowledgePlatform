@@ -285,12 +285,32 @@ def mcp_entry(platform: str) -> dict:
 
 
 def _hooks_command_claude() -> str:
-    """Claude/WorkBuddy: curl the hook with $CLAUDE_TOOL_USE_INPUT."""
+    """Claude/WorkBuddy: curl the hook, forwarding stdin as the POST body.
+
+    Claude Code writes the PreToolUse JSON payload to the hook command's
+    **stdin** — there is no ``$CLAUDE_TOOL_USE_INPUT`` env var (that was a
+    mistaken assumption from an earlier version; confirmed against Claude
+    Code's hooks docs). A single-quoted ``'$CLAUDE_TOOL_USE_INPUT'`` is never
+    shell-expanded either way, so the old command always POSTed that literal
+    string — invalid JSON, so the backend 422'd on *every* call and curl's
+    non-2xx exit code (0) meant Claude Code silently treated it as "allow".
+    ``-d @-`` tells curl to read the POST body from stdin instead.
+    """
     return (
         f"curl -s -X POST {HOOK_ENDPOINT} "
         "-H 'Content-Type: application/json' "
-        "-d '$CLAUDE_TOOL_USE_INPUT'"
+        "-d @-"
     )
+
+
+# Old, broken Claude command (see _hooks_command_claude docstring) — kept only
+# so _matcher_is_mine still recognises an install written before this fix and
+# upgrades it in place instead of appending a second, duplicate matcher.
+_LEGACY_CLAUDE_HOOK_COMMANDS = (
+    f"curl -s -X POST {HOOK_ENDPOINT} "
+    "-H 'Content-Type: application/json' "
+    "-d '$CLAUDE_TOOL_USE_INPUT'",
+)
 
 
 def _hooks_command_codebuddy() -> str:
@@ -385,21 +405,24 @@ def hooks_matcher(platform: str) -> dict:
 def _matcher_is_mine(matcher: dict, cmd: str) -> bool:
     """True if a PreToolUse matcher is the MyKnowledge hook (by command signature).
 
-    Recognises our hook by its command (claude/curl-$CLAUDE_TOOL_USE_INPUT,
-    codebuddy/hooks_forward.py, or cursor's direct-entry form) so we never
-    mistake a user's own hook for ours.  Handles both the Claude/CodeBuddy
-    nested ``hooks[0].command`` shape and Cursor's direct ``command`` entry.
+    Recognises our hook by its command (claude/curl-@-, codebuddy/hooks_forward.py,
+    or cursor's direct-entry form) so we never mistake a user's own hook for
+    ours.  Handles both the Claude/CodeBuddy nested ``hooks[0].command`` shape
+    and Cursor's direct ``command`` entry.  Also matches
+    ``_LEGACY_CLAUDE_HOOK_COMMANDS`` so an install written before the
+    stdin/``-d @-`` fix is upgraded in place rather than duplicated.
     """
     if not isinstance(matcher, dict):
         return False
+    recognised = (cmd, *_LEGACY_CLAUDE_HOOK_COMMANDS)
     # Cursor entries carry the command directly on the entry.
-    if matcher.get("command") == cmd:
+    if matcher.get("command") in recognised:
         return True
     hooks = matcher.get("hooks")
     if not isinstance(hooks, list) or not hooks:
         return False
     first = hooks[0]
-    return isinstance(first, dict) and first.get("command") == cmd
+    return isinstance(first, dict) and first.get("command") in recognised
 
 
 def _merge_hook_entry(matchers: list, entry: dict, cmd: str) -> list:
@@ -407,16 +430,16 @@ def _merge_hook_entry(matchers: list, entry: dict, cmd: str) -> list:
 
     The matcher is identified by **command signature** (``_matcher_is_mine``), so a
     user's own hook sharing a matcher string is never touched.  If our hook already
-    exists but its ``matcher`` string is outdated (e.g. the old Claude ``Bash`` that
-    skipped Write/Edit), we replace it with the current entry instead of leaving the
-    stale one — otherwise re-running ``write_kind`` on an existing install would keep
-    the broken matcher and the fix would never take effect.
+    exists but is stale — an outdated ``matcher`` (e.g. the old Claude ``Bash`` that
+    skipped Write/Edit) or an outdated ``command`` (e.g. the old
+    ``$CLAUDE_TOOL_USE_INPUT`` payload bug) — we overwrite it with the current entry
+    unconditionally. Comparing only ``matcher`` here previously let a stale
+    ``command`` survive re-installs whenever the matcher string already matched,
+    so re-running ``write_kind`` silently kept the broken command forever.
     """
     for i, m in enumerate(matchers):
         if _matcher_is_mine(m, cmd):
-            if isinstance(m, dict) and m.get("matcher") == entry.get("matcher"):
-                return matchers  # already current — nothing to do
-            matchers[i] = entry  # upgrade stale matcher in place
+            matchers[i] = entry  # upgrade stale matcher/command in place
             return matchers
     matchers.append(entry)
     return matchers

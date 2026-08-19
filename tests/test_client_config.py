@@ -146,14 +146,32 @@ class TestHooksIncremental:
         write_kind("ClaudeCode", "hooks")
         data = _read_json(s)
         matchers = data["hooks"]["PreToolUse"]
-        # 我们的钩子 matcher 已升级，且仍是唯一的 MyKnowledge 钩子（不重复追加）。
+        # 我们的钩子已升级到当前命令（-d @-），且仍是唯一的 MyKnowledge 钩子（不重复追加）。
         my = [m for m in matchers
-              if "$CLAUDE_TOOL_USE_INPUT" in m["hooks"][0]["command"]]
+              if "-d @-" in m["hooks"][0]["command"]]
         assert len(my) == 1
         assert my[0]["matcher"] == "Bash|Write|Edit"
+        assert "$CLAUDE_TOOL_USE_INPUT" not in my[0]["hooks"][0]["command"]
         # 用户的钩子（不同 command）不受影响。
         user = [m for m in matchers if m["hooks"][0]["command"] == "user-hook"]
         assert user and user[0]["matcher"] == "Edit|Write"
+
+    def test_upgrades_legacy_command_not_duplicated(self, fake_home: Path) -> None:
+        """Writing twice over a legacy-command install never yields 2+ of our matchers."""
+        s = fake_home / ".claude" / "settings.json"
+        _write_json(s, {"hooks": {
+            "PreToolUse": [
+                {"matcher": "Bash|Write|Edit",
+                 "hooks": [{"type": "command",
+                            "command": "curl -s -X POST http://127.0.0.1:8080/hooks/pre-tool-use "
+                                       "-H 'Content-Type: application/json' -d '$CLAUDE_TOOL_USE_INPUT'"}]},
+            ],
+        }})
+        write_kind("ClaudeCode", "hooks")
+        write_kind("ClaudeCode", "hooks")
+        matchers = _read_json(s)["hooks"]["PreToolUse"]
+        assert len(matchers) == 1
+        assert "-d @-" in matchers[0]["hooks"][0]["command"]
 
 
 class TestAgent:
@@ -414,11 +432,12 @@ class TestInvalidInput:
 
 class TestHooksMatcher:
     def test_commands_differ_by_platform(self, fake_home: Path) -> None:
-        """ClaudeCode uses curl/$CLAUDE_TOOL_USE_INPUT; CodeBuddyIDE uses helper script."""
+        """ClaudeCode uses curl reading stdin (-d @-); CodeBuddyIDE uses helper script."""
         claude = hooks_matcher("ClaudeCode")
         codebuddy = hooks_matcher("CodeBuddyIDE")
         assert claude["hooks"][0]["command"] != codebuddy["hooks"][0]["command"]
-        assert "$CLAUDE_TOOL_USE_INPUT" in claude["hooks"][0]["command"]
+        assert "-d @-" in claude["hooks"][0]["command"]
+        assert "$CLAUDE_TOOL_USE_INPUT" not in claude["hooks"][0]["command"]
         assert "backend.hooks_forward" in codebuddy["hooks"][0]["command"]
 
     def test_codebuddy_matcher_all(self, fake_home: Path) -> None:
@@ -515,7 +534,7 @@ class TestRemoveKind:
         data = _read_json(s)
         cmds = [m["hooks"][0]["command"] for m in data["hooks"]["PreToolUse"]]
         # our exact MyKnowledge command gone, user's own hooks preserved
-        assert "$CLAUDE_TOOL_USE_INPUT" not in "\n".join(cmds)
+        assert _hooks_command_claude() not in cmds
         assert user_bash_cmd in cmds
         assert "fmt" in cmds
 
