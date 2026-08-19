@@ -1317,12 +1317,12 @@ def api_client_config_agent_deeplink(platform: str):
 
     Only ``Enchante`` supports an agent deeplink:
       ``GET /api/client-config/Enchante/agent-deeplink`` →
-      ``{"deeplink": "enchante://agent/install?name=MyKnowledge 助手&config=..."}``.
+      ``{"deeplink": "enchante://agent/install?name=MyKnowledge 知识管理专家&config=..."}``.
     Any other platform returns 400.
 
     Protocol confirmed with Enchante (2026-08-19); payload schema is
-    ``{role, skillNames, mcpServers}`` (see ``client_config.enchante_agent_deeplink``).
-    The direct-write SKILL.md path stays as the skill-install fallback.
+    ``{role, skillNames: [], mcpServers}`` (see
+    ``client_config.enchante_agent_deeplink``).  No standalone skill is shipped.
     """
     if platform != "Enchante":
         raise HTTPException(

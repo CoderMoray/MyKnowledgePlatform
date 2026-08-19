@@ -1,5 +1,5 @@
 {
-  "_comment": "AI 客户端平台 → 各操作系统下的配置文件路径（单一来源）。平台 key 用 PascalCase，与 client_config.PLATFORMS 及前端 store.clientPlatforms 严格一致。路径占位符：~ → Path.home()，%APPDATA% / %USERPROFILE% → 对应环境变量。kinds 声明该平台支持的配置种类（mcp/hooks/agent）；skills_dir 用于 skill 写入路径（Enchante）。cli_names 用于 client_installed 检测（PATH 探测）。",
+  "_comment": "AI 客户端平台 → 各操作系统下的配置文件路径（单一来源）。平台 key 用 PascalCase，与 client_config.PLATFORMS 及前端 store.clientPlatforms 严格一致。路径占位符：~ → Path.home()，%APPDATA% / %USERPROFILE% → 对应环境变量。kinds 声明该平台支持的配置种类（mcp/hooks/agent）；Enchante 的 MCP/Agent 均走 deeplink（无本地配置文件/agents 目录）。cli_names 用于 client_installed 检测（PATH 探测）。",
   "os_order": ["macos", "windows", "linux"],
   "platforms": {
     "ClaudeCode": {
@@ -78,8 +78,7 @@
       "cli_names": {},
       "paths": {
         "macos": {
-          "config_dir": "/Applications",
-          "skills_dir": "~/.agents/skills/myknowledge"
+          "config_dir": "/Applications"
         }
       }
     },

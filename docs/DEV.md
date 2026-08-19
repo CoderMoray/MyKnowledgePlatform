@@ -323,7 +323,9 @@ stdout JSON，退出码 2=阻止、其他 fail-open）与 hooks_forward 兼容�
 
 **背景**：为 Enchanté 提供「一键创建独立专属 Agent」能力——用户在 Enchanté 顶部
 Agent 下拉框中直接选「MyKnowledge 知识管理专家」专属角色，原子化绑定 MCP 工具 +
-Agent 人设 + Skill 技能白名单。协议细节经 Enchante 确认（2026-08-19，7 项）。
+Agent 人设。协议细节经 Enchante 确认（2026-08-19，7 项）。**产品决策：不再提供
+独立 skill**（Agent 能力全部来自 role + MCP 工具），故 skillNames 留空、SKILL.md
+写路径移除。
 
 **Deeplink 协议**（Enchante 提供并确认）：
 ```
@@ -336,7 +338,7 @@ enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLO
   ```json
   {
     "role": "<人设 Prompt，复用 _agent_template()/MyKnowledge-agent.md 纯正文>",
-    "skillNames": ["myknowledge"],
+    "skillNames": [],
     "mcpServers": {
       "MyKnowledge": {
         "displayName": "MyKnowledge", "description": "...", "icon": "book.closed",
@@ -346,28 +348,27 @@ enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLO
   }
   ```
 - **role**：必须**纯正文，无 YAML frontmatter**（Enchanté 直接作 System Prompt 注入）。
-- **skillNames**：可选字段，`[]` 或省略均合法；本实现填 `["myknowledge"]` 显式关联
-  独立 skill。skill 引用以**目录名/标识符全小写 `myknowledge` 为准，大小写敏感**。
-- **skill 保留策略**：Skill（轻量通用，默认助手意图唤醒）与 Agent（重度专注，顶部
-  下拉切换）是**分层互补**，Enchanté 强烈建议保留两者。故保留 `write_kind` 写
-  SKILL.md，agent deeplink 的 `skillNames` 填 `["myknowledge"]`。
+- **skillNames**：可选字段；**本实现留空 `[]`**——不再提供独立 skill，Agent 能力
+  来自 role + mcpServers，无对象可绑定。
 - **重复安装**：弹「Conflict Resolution」浮窗（Replace / Rename / Skip），非静默幂等。
-- **卸载**：无 uninstall 协议——Agent 须在 Settings→Agents 手动删；Skill 移除=删
-  磁盘 `~/.agents/skills/myknowledge`（App 实时感知自动卸载）。
+- **卸载**：无 uninstall 协议——Agent 须在 Settings→Agents 手动删。
 
 **实现**：
 - `backend/client_config.py`：`enchante_agent_deeplink()`（确认 schema）+
   `_base64_quote()`（MCP/agent 共用 `+`→`%2B` 转义）；`role` 复用
-  `_agent_template()`，`skillNames` 填 `["myknowledge"]`，`mcpServers` 内嵌
-  `mcp_entry("Enchante")`。
+  `_agent_template()`，`skillNames: []`，`mcpServers` 内嵌 `mcp_entry("Enchante")`。
+- **skill 移除**：删除 `_skill_template()`/`_skill_content()`/`_skills_dir()` 与
+  `SKILL.md` 模板；`write_kind/remove_kind('Enchante','agent')` 改为短接返回
+  `status:"deeplink"`（不写本地文件）；`detect_platform('Enchante')['agent']=false`
+  （deeplink 安装无本地文件）；Enchante 在 `_agent_target_path`/`_agent_file_exists`/
+  `agent_content` 不再走 skill 分支；platforms.json 移除 `skills_dir`。
 - `backend/main.py`：`GET /api/client-config/Enchante/agent-deeplink`（非 Enchante 400）。
-- **保留**现有 `write_kind("Enchante","agent")` 直接写 SKILL.md 的路径（skill 安装）。
-- 前端（后续）：设置→Agent 面板 Enchante 项加「⚡ 导入到 Enchanté」按钮，
-  `window.open(deeplink)` 呼出原生安装浮窗。
+- 前端（已完成）：设置 modal Enchante MCP/Agent 行均显示 deeplink 按钮（不走 toggle），
+  引导页 Step2.2 拆「生成 MCP 链接」+「生成 Agent 链接」两入口。
 
-**测试**：`tests/test_client_config.py` 更新为确认后的 schema 断言（name 展示名、
-`{role, skillNames, mcpServers}` 结构、base64 round-trip、端点 400 校验）。
-后端测试 703 全绿。
+**测试**：`tests/test_client_config.py` 更新为确认后 schema 断言（name 展示名、
+`{role, skillNames: [], mcpServers}` 结构、base64 round-trip、端点 400、Enchante
+agent deeplink 短接）。后端测试 704 全绿。
 
 ### CLI config 子命令 + 分享配置状态 API（2026-08-18）
 

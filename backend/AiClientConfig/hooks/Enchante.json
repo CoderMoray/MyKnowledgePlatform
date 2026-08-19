@@ -9,5 +9,5 @@
   "protocol": "",
   "exit_code_deny": 2,
   "fail_open": true,
-  "notes": "Enchante 无 hooks 能力（kinds=[mcp, agent]，MCP 走 deeplink、agent 走 skill）。本平台不生成 hooks 配置。"
+  "notes": "Enchante 无 hooks 能力（kinds=[mcp, agent]，MCP 走 deeplink、agent 走 agent-deeplink）。本平台不生成 hooks 配置。"
 }

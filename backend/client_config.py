@@ -140,7 +140,7 @@ def _platform_paths(platform: str) -> dict:
     # Fall back to macOS if the current OS isn't yet mapped in platforms.json.
     entry = paths.get(os_key) or paths.get("macos") or {}
     # 平台可能不提供某类路径（如 Enchante 无 mcp_file/settings_file/agents_dir，
-    # 其 MCP 走 deeplink、skill 走 skills_dir）——缺省为空 Path。
+    # 其 MCP/Agent 均走 deeplink）——缺省为空 Path。
     settings = _resolve_path(entry.get("settings_file", ""))
     # Cursor 的 hooks 配置独立成 hooks.json（非 settings.json）；其余平台
     # hooks 写在 settings.json 里，未显式配置 hooks_file 时回退到 settings_file。
@@ -479,54 +479,21 @@ def _frontmatter_for(platform: str) -> dict:
         f"frontmatter 配置未覆盖平台: {platform}（检查 frontmatter.json 的 platforms）")
 
 
-def _skills_dir(platform: str) -> Path:
-    """The skills install dir for a platform (from platforms.json), or empty."""
-    spec = _platform_spec(platform)
-    entry = (spec.get("paths", {})
-             .get(_current_os()) or spec.get("paths", {}).get("macos") or {})
-    tpl = entry.get("skills_dir", "")
-    return _resolve_path(tpl) if tpl else Path()
-
-
 def _agent_target_path(platform: str) -> Path:
-    """Where the agent/skill file is written for a platform (user's dir).
+    """Where the agent file is written for a platform (user's dir).
 
-    Enchante uses a skill file at ``~/.agents/skills/myknowledge/SKILL.md``;
-    all other platforms use ``<agents_dir>/MyKnowledge-agent.md``.
+    All platforms use ``<agents_dir>/MyKnowledge-agent.md``.  (Enchante no longer
+    writes a local agent/skill file — its agent installs via the ``agent-deeplink``
+    deeplink, so ``write_kind('Enchante','agent')`` short-circuits to a deeplink
+    hint and never reaches this path.)
     """
-    if platform == "Enchante":
-        return _skills_dir(platform) / "SKILL.md"
     return _platform_paths(platform)["agents_dir"] / "MyKnowledge-agent.md"
 
 
 def _agent_file_exists(platform: str, p: dict | None = None) -> bool:
-    """True if the platform's agent/skill file already exists on disk."""
-    if platform == "Enchante":
-        target = _agent_target_path(platform)
-        return target.is_file()
+    """True if the platform's agent file already exists on disk."""
     path = (p or _platform_paths(platform))["agents_dir"] / "MyKnowledge-agent.md"
     return path.exists()
-
-
-def _skill_template() -> str:
-    """Read the Enchante SKILL.md prompt body from the templates dir."""
-    tpl = _aiclient_config_dir() / "agents" / "SKILL.md"
-    if not tpl.is_file():
-        raise RuntimeError(
-            f"缺失 SKILL 模板: {tpl}（backend/AiClientConfig/agents/SKILL.md）")
-    return tpl.read_text(encoding="utf-8")
-
-
-def _skill_content() -> str:
-    """Enchante SKILL.md: minimal frontmatter (name+description) + body."""
-    body = _skill_template()
-    return (
-        "---\n"
-        "name: MyKnowledge\n"
-        "description: MyKnowledge 知识管理平台协作 Skill：通过 MCP 检索与维护本地知识库\n"
-        "---\n\n"
-        f"{body}"
-    )
 
 
 def agent_content(platform: str) -> str:
@@ -534,10 +501,7 @@ def agent_content(platform: str) -> str:
 
     The frontmatter is read from ``frontmatter.json`` (not hardcoded), so adding
     a platform or changing its format requires only a data edit, no code change.
-    Enchante uses the SKILL.md format (minimal frontmatter + body) instead.
     """
-    if platform == "Enchante":
-        return _skill_content()
     prompt = _agent_template()
     fm_lines = ["---"]
     for key, value in _frontmatter_for(platform).items():
@@ -637,8 +601,12 @@ def detect_platform(platform: str) -> dict:
         )
 
     if "agent" in kinds:
-        # Enchante uses a SKILL.md in its skills dir; others use MyKnowledge-agent.md.
-        result["agent"] = _agent_file_exists(platform, p)
+        if platform == "Enchante":
+            # Enchante agent 走 deeplink 安装（无本地 agent 文件）；检测反映为 false，
+            # 前端用 usesDeeplink('Enchante','agent') 识别其安装方式。
+            result["agent"] = False
+        else:
+            result["agent"] = _agent_file_exists(platform, p)
     return result
 
 
@@ -697,6 +665,11 @@ def write_kind(platform: str, kind: str) -> dict:
                 "status": "written", "detected": True}
 
     # agent
+    if platform == "Enchante":
+        # Enchante 不再写本地 agent/skill 文件——agent 走 deeplink 安装。
+        return {"platform": platform, "kind": "agent", "file": "",
+                "status": "deeplink", "detected": False,
+                "message": "Enchante Agent 通过 deeplink 安装（GET /api/client-config/Enchante/agent-deeplink）"}
     path = _agent_target_path(platform)
     if path.exists():
         return {"platform": platform, "kind": "agent", "file": str(path),
@@ -752,6 +725,11 @@ def remove_kind(platform: str, kind: str) -> dict:
                 "status": "removed"}
 
     # agent
+    if platform == "Enchante":
+        # Enchante Agent 走 deeplink，无本地 agent 文件可删（在 Enchanté 内手动移除）。
+        return {"platform": platform, "kind": "agent", "file": "",
+                "status": "deeplink",
+                "message": "Enchante Agent 在 Enchanté 设置内手动移除（无本地文件）"}
     path = _agent_target_path(platform)
     if path.exists():
         path.unlink()

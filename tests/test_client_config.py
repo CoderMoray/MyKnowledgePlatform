@@ -598,21 +598,24 @@ class TestEnchante:
                             lambda: True)
         assert client_installed("Enchante") is True
 
-    def test_skill_write_path(self, fake_home: Path) -> None:
-        """Enchante agent target is ~/.agents/skills/myknowledge/SKILL.md."""
-        target = _agent_target_path("Enchante")
-        assert str(target).endswith(
-            ".agents/skills/myknowledge/SKILL.md")
+    def test_write_agent_short_circuits_to_deeplink(self, fake_home: Path) -> None:
+        """Enchante agent is installed via deeplink — write_kind short-circuits,
+        does NOT write a local SKILL.md (no standalone skill is shipped)."""
+        res = write_kind("Enchante", "agent")
+        assert res["status"] == "deeplink"
+        assert res["file"] == ""
+        # nothing written under ~/.agents
+        assert not (fake_home / ".agents" / "skills" / "myknowledge").exists()
 
-    def test_skill_content_format(self, fake_home: Path) -> None:
-        """Enchante SKILL.md has minimal frontmatter (name+description)."""
-        content = agent_content("Enchante")
-        fm = content.split("---")[1]
-        assert "name: MyKnowledge" in fm
-        assert "description:" in fm
-        # no tools/model/agentMode in the minimal skill frontmatter
-        assert "tools:" not in fm
-        assert "agentMode" not in fm
+    def test_remove_agent_deeplink_noop(self, fake_home: Path) -> None:
+        """Enchante remove agent reports deeplink (no local file to delete)."""
+        res = remove_kind("Enchante", "agent")
+        assert res["status"] == "deeplink"
+
+    def test_detect_agent_false_for_enchante(self, fake_home: Path) -> None:
+        """Enchante agent is deeplink-installed (no local agent file) → agent=false."""
+        res = detect_platform("Enchante")
+        assert res["agent"] is False
 
     def test_deeplink_generation(self, fake_home: Path) -> None:
         import base64
