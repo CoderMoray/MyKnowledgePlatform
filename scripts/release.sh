@@ -31,7 +31,7 @@ done
 echo "=============================================="
 echo " MyKnowledge 桌面打包"
 if [ -n "$ENTERPRISE" ]; then
-  echo " 企业: $ENTERPRISE（desktop/enterprises/${ENTERPRISE}.json）"
+  echo " 企业: ${ENTERPRISE}（desktop/enterprises/${ENTERPRISE}.json）"
 else
   echo " 企业: 默认（全平台）"
 fi
