@@ -43,7 +43,7 @@ if [ -n "$ENTERPRISE" ]; then
     echo "  可用配置: $(ls desktop/enterprises/*.json 2>/dev/null | xargs -n1 basename | tr '\n' ' ')" >&2
     exit 1
   fi
-  echo "  ✓ 企业定制: $ENTERPRISE（$ENTERPRISE_FILE）"
+  echo "  ✓ 企业定制: ${ENTERPRISE}（${ENTERPRISE_FILE}）"
   ENTERPRISE_DIR="$(mktemp -d)"
   trap 'rm -rf "$ENTERPRISE_DIR"' EXIT
 fi
