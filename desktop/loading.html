@@ -93,11 +93,11 @@
       animation: splash-text-in 0.3s ease both;
     }
     /* 文本延迟到绿条展开（height 3px→26px，0.6s）完成后再显示，
-       避免在低高度下被挤压/错位 */
+       避免在低高度下被挤压/错位。仅 animation-delay 推迟开始；
+       不另设 opacity:0（与 animation: ... both 冲突会覆盖 to 态 → 文本永久不可见） */
     .splash__bar-fill--done .splash__bar-text {
       display: block;
       animation-delay: 0.55s;
-      opacity: 0;
     }
     @keyframes splash-text-in {
       from { opacity: 0; transform: translateY(4px); }

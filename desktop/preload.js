@@ -52,3 +52,9 @@ contextBridge.exposeInMainWorld("__mykInitClosePreference__", (payload) => {
 contextBridge.exposeInMainWorld("__mykOnCloseChoice__", (payload) => {
   ipcRenderer.send("close-choice-pref", payload);
 });
+
+// deeplink 系统级打开（enchante:// 等非 http 协议走主进程 shell.openExternal，
+// 避免 setWindowOpenHandler 对非 http(s) 的 deny 拦截）
+contextBridge.exposeInMainWorld("__mykOpenExternal__", (url) => {
+  return ipcRenderer.invoke("open-external", url);
+});

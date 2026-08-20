@@ -53,6 +53,37 @@ class TestStage3StaticStructure:
         assert "getClientConfigAgentDeeplink" in js, "Missing api.getClientConfigAgentDeeplink()"
         assert "/agent-deeplink" in js, "Missing agent-deeplink endpoint (Enchante Agent)"
 
+    def test_deeplink_open_desktop_vs_web(self):
+        """deeplink 打开分支：桌面端走 IPC（open-external），网页端保持 a.click()
+
+        回归：Electron 主窗口 setWindowOpenHandler 只放行 http/https，
+        enchante:// 被 deny → 需主进程 shell.openExternal 系统级打开；
+        网页端无 Electron 环境，必须保留原 a.click()（浏览器原生路由 enchante://）。
+        """
+        js = STORE.read_text(encoding="utf-8")
+        # 桌面分支：__MYK_APP_MODE__ 下调用 __mykOpenExternal__（IPC 桥）
+        assert "__mykOpenExternal__" in js, "Missing desktop IPC bridge usage in store.js"
+        assert "__MYK_APP_MODE__" in js, "Missing desktop-mode gate in generateEnchanteDeeplink"
+        # 网页端兜底：保留隐藏 a + click（无 Electron 时浏览器原生处理 enchante://）
+        assert 'document.createElement("a")' in js, "Missing web fallback a.click()"
+        assert 'a.target = "_blank"' in js, "Missing web fallback target=_blank"
+
+    def test_deeplink_main_process_ipc(self):
+        """主进程 open-external IPC：协议校验 + shell.openExternal 系统级打开"""
+        main_js = ROOT / "desktop" / "main.js"
+        js = main_js.read_text(encoding="utf-8")
+        assert 'ipcMain.handle("open-external"' in js, "Missing open-external IPC handler"
+        assert "shell.openExternal(url)" in js, "Missing shell.openExternal in handler"
+        # 安全校验：仅放行协议链接，禁止 file:// 任意打开本地文件
+        assert 'url.startsWith("file:")' in js, "Missing file:// block"
+
+    def test_deeplink_preload_bridge(self):
+        """preload 暴露 __mykOpenExternal__ 桥（渲染层 → 主进程）"""
+        preload_js = ROOT / "desktop" / "preload.js"
+        js = preload_js.read_text(encoding="utf-8")
+        assert 'exposeInMainWorld("__mykOpenExternal__"' in js, "Missing preload bridge"
+        assert 'ipcRenderer.invoke("open-external"' in js, "Missing ipcRenderer.invoke"
+
     def test_store_stage3_state_and_methods(self):
         """store.js 暴露阶段三状态与方法"""
         js = STORE.read_text(encoding="utf-8")
@@ -477,21 +508,27 @@ class TestStage3Browser:
             row = page.locator(f".ai-platform-row[data-platform='{plat}'][data-kind='agent']")
             expect(row).to_be_visible(timeout=3000)
             expect(row.locator(".toggle")).to_be_visible(timeout=3000)
-        # Hooks 分组：Enchante 不出现（kinds=["mcp","agent"] 无 hooks）。
-        # 注意 settings 三卡（MCP/Hooks/Agents）均在 DOM，x-show 切显隐——故断言 Hooks 卡内无 Enchante 行，
-        # 且所有 Enchante 行（MCP/Agents 卡里的）当前均不可见
+        # Hooks 分组：三页一致（2026-08-20）—— 不支持 hooks 的平台（Enchante/ClaudeDesktop）
+        # 仍显示但整行置灰（ai-platform-row--unsupported），状态文字「平台原生不支持」。
+        # 注意 settings 三卡（MCP/Hooks/Agents）均在 DOM，x-show 切显隐——故断言 Hooks 卡内
+        # Enchante/ClaudeDesktop 行存在且置灰，其他 Enchante 行（MCP/Agents 卡）不可见。
         page.locator(".settings-nav__item", has_text="Hooks").click()
         page.wait_for_timeout(400)
         hooks_card = page.locator(".settings-card", has_text="Hooks 服务状态")
-        expect(hooks_card.locator(".ai-platform-row[data-platform='Enchante']")).to_have_count(0)
+        enchante_hooks = hooks_card.locator(".ai-platform-row[data-platform='Enchante'][data-kind='hooks']")
+        expect(enchante_hooks).to_be_visible(timeout=3000)
+        expect(enchante_hooks).to_have_class("ai-platform-row ai-platform-row--unsupported")
+        expect(enchante_hooks.locator(".ai-platform-row__state")).to_have_text("平台原生不支持")
+        claude_desktop_hooks = hooks_card.locator(".ai-platform-row[data-platform='ClaudeDesktop'][data-kind='hooks']")
+        expect(claude_desktop_hooks).to_be_visible(timeout=3000)
+        expect(claude_desktop_hooks).to_have_class("ai-platform-row ai-platform-row--unsupported")
         enchante_rows = page.locator(".ai-platform-row[data-platform='Enchante']")
-        expect(enchante_rows.first).not_to_be_visible(timeout=3000)
+        # MCP/Agents 卡内的 Enchante 行当前不可见（x-show 切到 Hooks 卡）
+        expect(enchante_rows).to_have_count(3)  # mcp + agent + hooks 三行均在 DOM
         # 现有平台在 Hooks 分组仍显示（不回归）
         expect(page.locator(".ai-platform-row[data-platform='CodeBuddyIDE'][data-kind='hooks']")).to_be_visible(timeout=3000)
         expect(page.locator(".ai-platform-row[data-platform='ClaudeCode'][data-kind='hooks']")).to_be_visible(timeout=3000)
         expect(page.locator(".ai-platform-row[data-platform='WorkBuddy'][data-kind='hooks']")).to_be_visible(timeout=3000)
-        # ClaudeDesktop 仅 MCP：Hooks 卡内不出现（kinds=["mcp"]）
-        expect(hooks_card.locator(".ai-platform-row[data-platform='ClaudeDesktop']")).to_have_count(0)
 
     def test_guide_wizard_four_pages(self, static_server, page, backend_running):
         """引导页重设计（4 页 3 步 + 大 modal）：从配置 modal「重新运行初始化引导」进入。
