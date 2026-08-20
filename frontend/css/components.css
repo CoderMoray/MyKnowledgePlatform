@@ -77,6 +77,13 @@
   background: rgba(168, 85, 247, 0.08);
   flex-shrink: 0;
   white-space: nowrap;
+  /* 与 toggle（20px）对齐：固定高度 + line-height 居中，避免每行高度不齐 */
+  height: 22px;
+  line-height: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
 }
 .btn--deeplink:hover:not(:disabled) {
   background: rgba(168, 85, 247, 0.16);

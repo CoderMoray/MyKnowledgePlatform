@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=76726197d6" />
+  <link rel="stylesheet" href="css/components.css?v=a3e5b1338c" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -2003,10 +2003,11 @@
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
                                       : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
                                          : ($store.app.usesDeeplink(plat.key, kind.key) ? '未配置 · 生成专属链接' : '未配置 · 点击开关开启'))"></span>
-                      <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle -->
+                      <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle。
+                           未安装时禁用（状态文字已显示「请先安装 X」，与引导页结论行一致） -->
                       <button class="btn btn--sm btn--deeplink"
                               x-show="$store.app.usesDeeplink(plat.key, kind.key)"
-                              :disabled="!plat.supported || $store.app.deeplinkBusy"
+                              :disabled="!plat.supported || !$store.app.clientInstalled(plat.key) || $store.app.deeplinkBusy"
                               @click="$store.app.generateEnchanteDeeplink(plat.key, kind.key)">
                         <span x-text="$store.app.deeplinkBusy ? '生成中…' : '⚡ 生成 ' + $store.app._clientKindLabel(kind.key) + ' 链接'"></span>
                       </button>
