@@ -118,7 +118,7 @@ function isPortFree(port) {
   });
 }
 
-async function findFreePort(start = 8080) {
+async function findFreePort(start = 2030) {
   for (let p = start; p < start + 50; p += 1) {
     if (await isPortFree(p)) return p;
   }
