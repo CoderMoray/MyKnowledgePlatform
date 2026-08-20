@@ -77,8 +77,9 @@
   background: rgba(168, 85, 247, 0.08);
   flex-shrink: 0;
   white-space: nowrap;
-  /* 与 toggle（20px）对齐：固定高度 + line-height 居中，避免每行高度不齐 */
-  height: 22px;
+  /* 与 toggle（20px）完全对齐：固定高度 20px + 去掉垂直 padding，
+     12px 字号在 20px 内刚好放下（上下 4px 余量），行高统一 */
+  height: 20px;
   line-height: 20px;
   padding-top: 0;
   padding-bottom: 0;
