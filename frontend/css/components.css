@@ -2341,7 +2341,7 @@
 .guide-conclusion-row__body { display: inline-flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
 .guide-conclusion-row__action { color: var(--text-secondary); flex: 1; text-align: right; }
 .guide-conclusion-row__action--skip { color: var(--text-tertiary); }
-.guide-conclusion-row__action--native { color: var(--text-tertiary); font-style: italic; }
+.guide-conclusion-row__action--native { color: var(--text-secondary); font-style: italic; }
 .guide-conclusion-row__deeplink { flex-shrink: 0; }
 .guide-conclusion-row__hint {
   font-size: var(--text-2xs);
@@ -2526,15 +2526,13 @@
 .ai-platform-row__state--off  { color: var(--text-secondary); }
 .ai-platform-row__state--soft { color: var(--text-muted); }
 .ai-platform-row__state--fail { color: var(--color-danger); }
-/* 平台原生不支持某 kind：整行置灰（dot/名称/状态文字统一淡化，按钮禁用态由 disabled 承担） */
-.ai-platform-row--unsupported {
-  opacity: 0.55;
-}
+/* 平台原生不支持某 kind：dot 保持品牌色，仅名称/状态文字用灰色表达不支持
+   （不用整行 opacity —— 那会把 dot 也淡化，与正常行 dot 不一致） */
 .ai-platform-row--unsupported .ai-platform-row__name {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 .ai-platform-row__state--unsupported {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-style: italic;
 }
 
