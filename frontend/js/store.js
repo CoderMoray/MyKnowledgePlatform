@@ -1362,13 +1362,17 @@ let _tocCollapsedSet = {};
       }
     },
 
-    /** 用后端 /api/platforms-meta 覆盖平台展示名 + 能力集（kinds）+ 按 order 重排。
+    /** 用后端 /api/platforms-meta 过滤 + 覆盖平台展示名/能力集 + 按 order 重排。
+     *  显示受 enable 管理：后端 meta 只含启用平台（企业配置 disabled 的已被过滤），
+     *  前端 clientPlatforms 同步只保留这些平台 → 设置 modal/引导页/结论行全部一致。
      *  kinds 后端权威（platforms.json / 企业配置可定制），前端硬编码仅作离线兜底。
      *  失败静默保留前端硬编码（后端离线时兜底）。 */
     async applyPlatformsMeta() {
       try {
         const meta = await api.getPlatformsMeta();
         if (!meta || typeof meta !== "object") return;
+        // 只保留后端启用平台（企业配置 disabled 的平台从显示列表移除）
+        this.clientPlatforms = this.clientPlatforms.filter(p => meta[p.key]);
         for (const p of this.clientPlatforms) {
           const m = meta[p.key];
           if (m) {
