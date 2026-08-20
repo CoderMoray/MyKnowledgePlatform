@@ -456,6 +456,24 @@ app.whenReady().then(async () => {
     /* 无需主进程处理 */
   });
 
+  // ── deeplink 系统级打开（IPC）────────────────────────────
+  // Enchante 的 enchante:// protocol 不是 http/https，主窗口的
+  // setWindowOpenHandler 只放行 http/https，其余被 deny → 需走 shell.openExternal
+  // 在系统层路由到注册的 Enchante 应用。
+  ipcMain.handle("open-external", (_e, url) => {
+    if (typeof url !== "string" || !url) return { ok: false, error: "empty url" };
+    // 仅放行协议链接（enchante://...），避免渲染层任意打开本地文件/命令
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || url.startsWith("file:")) {
+      return { ok: false, error: "blocked url" };
+    }
+    try {
+      shell.openExternal(url);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
   try {
     if (DEV_BACKEND_URL) {
       // 开发模式：直接连开发者后端

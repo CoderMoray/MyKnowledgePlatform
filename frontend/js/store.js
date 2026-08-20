@@ -1744,15 +1744,22 @@ let _tocCollapsedSet = {};
         if (!link) throw new Error("后端未返回 deeplink");
         const copied = await this._writeClipboard(link);
         if (!copied) showToast("复制失败，请手动复制链接", "error");
-        // 隐藏 a 触发打开（用户浏览器对 enchante:// 的注册应用接管；SPA 不跳转）
-        const a = document.createElement("a");
-        a.href = link;
-        a.target = "_blank";
-        a.rel = "noopener";
-        a.style.display = "none";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => a.remove(), 100);
+        // 打开 deeplink：
+        // - 桌面端：Electron 主窗口 setWindowOpenHandler 只放行 http/https，
+        //   enchante:// 会被 deny → 走 IPC 让主进程 shell.openExternal 系统级打开
+        // - 网页端：隐藏 a.click()，浏览器原生把 enchante:// 路由到注册应用（SPA 不跳转）
+        if (window.__MYK_APP_MODE__ && typeof window.__mykOpenExternal__ === "function") {
+          await window.__mykOpenExternal__(link);
+        } else {
+          const a = document.createElement("a");
+          a.href = link;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => a.remove(), 100);
+        }
         this.deeplinkClicked = { ...this.deeplinkClicked, [kind]: true }; // 结论页按钮态「已生成链接 · 可再次点击」（会话内，不持久化）
         showToast("已生成并复制专属链接，若未自动打开 Enchanté，请粘贴到浏览器地址栏", "success");
       } catch (e) {
