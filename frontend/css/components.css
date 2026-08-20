@@ -2524,7 +2524,7 @@
 }
 .ai-platform-row__state--ok   { color: var(--text-secondary); }
 .ai-platform-row__state--off  { color: var(--text-secondary); }
-.ai-platform-row__state--soft { color: var(--text-muted); }
+.ai-platform-row__state--soft { color: var(--text-secondary); } /* 请先安装/请在安装后使用：统一 --text-secondary */
 .ai-platform-row__state--fail { color: var(--color-danger); }
 /* 平台原生不支持某 kind：dot 保持品牌色，仅名称/状态文字用灰色表达不支持
    （不用整行 opacity —— 那会把 dot 也淡化，与正常行 dot 不一致） */
