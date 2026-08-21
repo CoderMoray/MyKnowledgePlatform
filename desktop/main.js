@@ -490,13 +490,18 @@ app.whenReady().then(async () => {
       backendReady = true;
     }
 
-    // loading 动画兜底：后端就绪后最多再等 3s（loading 页进度慢或 IPC 异常时）
+    // loading 动画兜底：正常由 loading.html 进度走满后触发 loading-done 切主界面。
+    // 此兜底仅在后端就绪后 loading 页仍未完成时强制切，防止卡死。
+    // 此前 3s 太短：后端就绪快（1-3s）时，3s 兜底在 loading 动画（约 3.3s 走满 +
+    // 绿条展开 0.6s + 文本淡入 ≈ 4.7s）完成前/后刚触发，绕过 loading.html 的
+    // __mykLoadingDone__ 延迟，导致「初始化完成」文本来不及完整显示就被切走。
+    // 9s 兜底晚于 loading-done（~5s）正常触发，仅作极端兜底。
     setTimeout(() => {
       if (!loadingDone) {
         loadingDone = true;
         maybeLoad();
       }
-    }, 3000);
+    }, 9000);
 
     maybeLoad();
   } catch (err) {

@@ -116,7 +116,7 @@
     </div>
   </div>
   <script>
-    // 进度 0→100%（约 7s，与后端冷启动同步）；完成态后通知主进程切换
+    // 进度 0→100%（间隔 150ms，约 3.3s 走满，与后端冷启动同步）；完成态后通知主进程切换。
     const bar = document.getElementById("bar");
     let p = 0;
     const timer = setInterval(() => {
