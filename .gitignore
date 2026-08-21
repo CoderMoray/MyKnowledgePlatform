@@ -29,6 +29,7 @@ frontend/index.standalone.html
 dist-backend/
 /build/
 *.spec
+!myknowledge-backend.spec
 desktop/node_modules/
 desktop/dist/
 desktop/assets/icon.icns

@@ -396,6 +396,29 @@ enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLO
 `{role, skillNames: [], mcpServers}` 结构、base64 round-trip、端点 400、Enchante
 agent deeplink 短接）。后端测试 704 全绿。
 
+### Enchante deeplink base64 全转义 + 精简 Agent 模板 + spec 入 git（2026-08-21）
+
+**背景**：Enchante agent deeplink 此前用完整 `MyKnowledge-agent.md` 作 `role`，编码后
+deeplink 达 ~4206 字符；且 `_base64_quote()` 的 safe 集合含 `/`、`=`，base64 的 `/`
+可能裸露在 query value 中，Enchanté 的 Swift `URLComponents` 有歧义风险。
+
+**改动**：
+- `_base64_quote()`：`safe="-._~"`（只留 unreserved 字面量），base64 的 `+`→`%2B`、
+  `/`→`%2F`、`=`→`%3D` **全部** percent-encode，保证无损 round-trip（MCP 与 agent
+  deeplink 共用，改动对两者一致安全）。
+- `_agent_template(platform="")`：按平台选模板——`"Enchante"`→`MyKnowledge-agent-Enchante.md`
+  （精简版，落盘于 backend/AiClientConfig/agents/，内容已定稿勿改文本）；其余/默认→
+  `MyKnowledge-agent.md`（完整版）。`agent_content()`（非 Enchante）仍走默认完整版，零变化。
+- `enchante_agent_deeplink()`：`role` 改用 `_agent_template("Enchante")`；deeplink 长度
+  ~4206 → ~2112（含全转义后 ~2180）。
+- `myknowledge-backend.spec` 纳入 git：`.gitignore` 在 `*.spec` 后加 `!myknowledge-backend.spec`
+  例外 + `git add`（此前被 ignore 未追踪）。spec 是「源」，PyInstaller 不运行时改写；
+  构建后若 `git diff -- myknowledge-backend.spec` 出现 datas 临时路径泄漏（如
+  `/var/folders/.../tmp.sDf5SYTPPa`）需 `git checkout` 还原（曾修过一次该类 bug）。
+
+**测试**：新增 `_base64_quote` 转义 `/`/`=` round-trip、`_agent_template` 精简模板选择
+（Enchante 用精简、其余用完整）、agent deeplink 长度 <4206 且无裸 `/`。后端测试全绿。
+
 ### CLI config 子命令 + 分享配置状态 API（2026-08-18）
 
 **背景**：分享配置（KNOWLEDGE_SHARE_CODE + SHARE_MAP）原先只能手动编辑 `backend/.env`。
