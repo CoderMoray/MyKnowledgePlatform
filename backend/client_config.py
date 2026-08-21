@@ -242,17 +242,22 @@ def enchante_deeplink() -> str:
 def _base64_quote(payload: dict) -> str:
     """URL-quote a JSON dict as an Enchante deeplink ``config`` query value.
 
-    Shared by the MCP and agent deeplinks: base64-encode the JSON, then force
-    ``+``→``%2B`` (Enchanté's Swift ``URLComponents`` would misread a raw ``+``
-    as a space).  Generation only — the actual deeplink capture is handled by
-    the Enchante client, not the backend.
+    Shared by the MCP and agent deeplinks: base64-encode the JSON, then URL-quote
+    it so every character that is not unreserved (``A-Z a-z 0-9 - . _ ~``) is
+    percent-encoded — including ``+``→``%2B``, ``/``→``%2F`` and ``=``→``%3D``.
+    Enchanté's Swift ``URLComponents`` parses the ``config`` query value and
+    would otherwise misread a raw ``+`` as a space or treat a raw ``/``/``=``
+    ambiguously; percent-encoding the whole base64 alphabet guarantees a
+    lossless round-trip.  Generation only — the actual deeplink capture is
+    handled by the Enchante client, not the backend.
     """
     import base64
     import urllib.parse
     enc = base64.b64encode(json.dumps(payload, ensure_ascii=False)
                            .encode("utf-8")).decode("ascii")
-    return urllib.parse.quote(
-        enc, safe="-._~!$&'()*,;=:@/?")
+    # safe="-._~" keeps only unreserved chars literal; base64's + / = all get
+    # percent-encoded (safe set intentionally excludes them).
+    return urllib.parse.quote(enc, safe="-._~")
 
 
 def enchante_agent_deeplink() -> str:
@@ -263,9 +268,11 @@ def enchante_agent_deeplink() -> str:
     Creates a one-click dedicated "MyKnowledge 知识管理专家" role in Enchanté's top
     Agent dropdown.  Payload schema confirmed with Enchante (2026-08-19):
       - ``role``: the agent persona / system instructions, reusing
-        ``_agent_template()`` (``MyKnowledge-agent.md``) **as plain text — no
-        YAML frontmatter** (Enchanté injects it verbatim as the system prompt;
-        tool binding is carried structurally by ``mcpServers``).
+        ``_agent_template("Enchante")`` (``MyKnowledge-agent-Enchante.md``, 精简版)
+        **as plain text — no YAML frontmatter** (Enchanté injects it verbatim as
+        the system prompt; tool binding is carried structurally by ``mcpServers``).
+        The 精简版 keeps the deeplink short (the full template made the encoded
+        link ~4206 chars; the 精简版 drops it to ~2112 / ~2180 re-encoded).
       - ``skillNames``: optional skill whitelist.  **Empty ``[]``** — MyKnowledge
         no longer ships a standalone skill for Enchanté (the agent's full
         capability comes from ``role`` + the ``mcpServers`` MCP tools), so there
@@ -277,13 +284,13 @@ def enchante_agent_deeplink() -> str:
     ``name`` is the **display name** (URL-encoded ``MyKnowledge 知识管理专家``);
     Enchanté assigns the agent an internal UUID as its key, so ``name`` is not an
     ID and Chinese text is fine.  The base64 is URL-quoted via ``_base64_quote``
-    (``+``→``%2B``).  Generation only — the actual install capture is handled by
-    the Enchante client (repeat installs pop a Conflict Resolution float —
-    Replace / Rename / Skip).
+    (``+``→``%2B``, ``/``→``%2F``, ``=``→``%3D``).  Generation only — the actual
+    install capture is handled by the Enchante client (repeat installs pop a
+    Conflict Resolution float — Replace / Rename / Skip).
     """
     import urllib.parse
     bundle = {
-        "role": _agent_template(),
+        "role": _agent_template("Enchante"),
         "skillNames": [],
         "mcpServers": {
             "MyKnowledge": {
@@ -514,16 +521,27 @@ def _agents_dir() -> Path:
     return _aiclient_config_dir() / "agents"
 
 
-def _agent_template() -> str:
-    """Read the agent prompt body from ``backend/AiClientConfig/agents/MyKnowledge-agent.md``.
+def _agent_template(platform: str = "") -> str:
+    """Read the agent prompt body for a platform from ``AiClientConfig/agents/``.
 
     Content is separated from code so edits don't require a code change.
-    Raises a clear ``RuntimeError`` if the template is missing.
+
+    Template selection:
+      - ``platform == "Enchante"`` → ``MyKnowledge-agent-Enchante.md`` (精简版,
+        shipped as the deeplink ``role`` — see ``enchante_agent_deeplink``).
+      - any other / default (``""``) → ``MyKnowledge-agent.md`` (完整版).
+
+    The default (``""``) keeps every existing caller (``agent_content`` for
+    ClaudeCode/CodeBuddy/WorkBuddy/Cursor, and tests) on the full template
+    unchanged.  Raises a clear ``RuntimeError`` if the selected template is
+    missing.
     """
-    tpl = _agents_dir() / "MyKnowledge-agent.md"
+    fname = ("MyKnowledge-agent-Enchante.md" if platform == "Enchante"
+             else "MyKnowledge-agent.md")
+    tpl = _agents_dir() / fname
     if not tpl.is_file():
         raise RuntimeError(
-            f"缺失 Agent 模板: {tpl}（backend/AiClientConfig/agents/MyKnowledge-agent.md）")
+            f"缺失 Agent 模板: {tpl}（backend/AiClientConfig/agents/{fname}）")
     return tpl.read_text(encoding="utf-8")
 
 

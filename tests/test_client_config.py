@@ -370,6 +370,30 @@ class TestAgentTemplate:
         assert body in agent_content("ClaudeCode")
         assert body in agent_content("CodeBuddyIDE")
 
+    def test_agent_template_default_is_full(self, fake_home: Path) -> None:
+        """_agent_template() (no arg / non-Enchante) returns the full template."""
+        full = _agent_template()
+        assert "你是 MyKnowledge 知识管理平台的专业 Agent" in full
+        # Enchante 精简版 is shorter and does not carry the full persona intro
+        assert len(full) > len(_agent_template("Enchante"))
+
+    def test_agent_template_enchante_uses_condensed(self, fake_home: Path) -> None:
+        """_agent_template("Enchante") returns the 精简版 MyKnowledge-agent-Enchante.md.
+
+        The deeplink role must stay short; the condensed template starts with the
+        same '# MyKnowledge Agent' heading but is much shorter than the full one.
+        """
+        cond = _agent_template("Enchante")
+        assert cond.startswith("# MyKnowledge Agent")
+        assert "mcp_get_tool_description" in cond  # condensed still mentions MCP tools
+        full = _agent_template()
+        assert len(cond) < len(full)  # 精简版 strictly shorter
+
+    def test_agent_template_other_platform_full(self, fake_home: Path) -> None:
+        """Non-Enchante platform names still resolve to the full template."""
+        for pl in ("ClaudeCode", "CodeBuddyIDE", "WorkBuddy", "Cursor"):
+            assert _agent_template(pl) == _agent_template()
+
     def test_frontmatter_differs_by_platform(self, fake_home: Path) -> None:
         cl = agent_content("ClaudeCode")
         cb = agent_content("CodeBuddyIDE")
@@ -725,6 +749,63 @@ class TestEnchante:
         assert srv["icon"] == "book.closed"
         assert srv["config"]["args"] == ["-m", "backend.cli", "mcp"]
         assert srv["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
+
+    def test_base64_quote_escapes_slash_and_equals(self, fake_home: Path) -> None:
+        """_base64_quote percent-encodes /, = and + so the query value round-trips.
+
+        The old safe set kept / = ? : etc literal, which is unsafe for Enchanté's
+        Swift URLComponents.  safe="-._~" leaves only unreserved chars literal, so
+        base64's + / = all become %2B %2F %3D.  Verifies lossless round-trip.
+        """
+        import base64
+        import urllib.parse
+        import backend.client_config as cc
+        payload = {"role": "# MyKnowledge Agent\n" * 20, "skillNames": []}
+        quoted = cc._base64_quote(payload)
+        assert "/" not in quoted
+        assert "=" not in quoted
+        assert "+" not in quoted
+        # round-trip: unquote → b64decode → json → equals original
+        bundle = json.loads(
+            base64.b64decode(urllib.parse.unquote(quoted)).decode("utf-8"))
+        assert bundle == payload
+
+    def test_base64_quote_generates_encoded_slash(self, fake_home: Path) -> None:
+        """The base64 output's '/' must become %2F, not stay raw.
+
+        Uses a deterministic dict whose ``json.dumps`` base64 provably contains a
+        '/' (``{"a": "L?4F"}`` → ``eyJhIjogIkw/NEYifQ==``), guarding against a
+        future safe-set regression silently reintroducing a raw slash into the
+        query value.
+        """
+        import base64
+        import urllib.parse
+        import backend.client_config as cc
+        payload = {"a": "L?4F"}
+        # sanity: this exact dict really does yield a '/' in base64
+        raw = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+        assert "/" in raw
+        quoted = cc._base64_quote(payload)
+        assert "%2F" in quoted
+        assert "/" not in quoted
+        assert "%3D" in quoted  # base64 padding '=' is also encoded
+        # round-trip still lossless
+        bundle = json.loads(
+            base64.b64decode(urllib.parse.unquote(quoted)).decode("utf-8"))
+        assert bundle == payload
+
+    def test_agent_deeplink_shorter_than_before(self, fake_home: Path) -> None:
+        """Enchante agent deeplink length drops after using the 精简版 template.
+
+        Full template made the encoded link ~4206 chars; 精简版 + full escaping
+        lands ~2112/~2180.  Asserts it is strictly under the old 4206 baseline.
+        """
+        from backend.client_config import enchante_agent_deeplink
+        link = enchante_agent_deeplink()
+        assert len(link) < 4206
+        # and the new encoding no longer leaks raw '/' (all base64 slashes escaped)
+        enc = link.split("config=")[1]
+        assert "/" not in enc
 
 
 class TestDeeplinkEndpoint:
