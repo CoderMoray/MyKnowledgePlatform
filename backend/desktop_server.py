@@ -45,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
         "--hooks-forward", action="store_true",
         help="run as the CodeBuddy PreToolUse hook forwarder (stdin→hook→stdout)",
     )
+    parser.add_argument(
+        "--mcp", action="store_true",
+        help="run as an MCP stdio server (for agent clients; ignores --port)",
+    )
     args = parser.parse_args(argv)
 
     if args.hooks_forward:
@@ -53,6 +57,19 @@ def main(argv: list[str] | None = None) -> int:
         # Nothing else is initialized — the hook should be fast and side-effect
         # free, and must never block the user when the backend is unreachable.
         return hooks_forward.main()
+
+    if args.mcp:
+        # MCP stdio mode: reuse cli.cmd_mcp verbatim — it auto-initializes the
+        # KB (_auto_init), does the identity check, GC, heartbeat reporting and
+        # app.run(transport="stdio"). --root is None by default here, so
+        # resolve_root(None) inside cmd_mcp falls through to the
+        # MYKNOWLEDGE_ROOT env (injected by the client config) then
+        # ~/.myknowledge — matching the webserver resolution. --port is ignored
+        # in this mode (stdio has no HTTP).
+        import argparse as _argparse
+        ns = _argparse.Namespace(root=args.root)
+        from backend.cli import cmd_mcp
+        return cmd_mcp(ns)
 
     kb_root = resolve_root(args.root)
     os.environ["MYKNOWLEDGE_ROOT"] = str(kb_root)

@@ -89,6 +89,40 @@ class TestMCPIncrementalMerge:
         assert data["mcpServers"]["MyKnowledge"]["command"] != "OLD"
         assert "ardot" in data["mcpServers"]
 
+    def test_mcp_entry_non_frozen_unchanged(self, fake_home: Path) -> None:
+        """Non-frozen path is locked to sys.executable -m backend.cli mcp.
+
+        The dev/PyPI (non-frozen) command must stay byte-for-byte identical —
+        existing Claude/CodeBuddy/Trae/WorkBuddy/Enchante MCP installs depend on
+        it.  Only the frozen branch may differ.
+        """
+        import backend.client_config as cc
+        cc.sys.frozen = False
+        entry = mcp_entry("CodeBuddyIDE")
+        assert entry["command"] == sys.executable
+        assert entry["args"] == ["-m", "backend.cli", "mcp"]
+        assert entry["env"]["MYKNOWLEDGE_CLIENT"] == "CodeBuddyIDE"
+        assert "MYKNOWLEDGE_ROOT" in entry["env"]
+
+    def test_mcp_entry_frozen_uses_binary_mcp(self, fake_home: Path) -> None:
+        """Frozen build: command is the binary itself with --mcp (no -m module).
+
+        In a PyInstaller onedir bundle there is no standalone python, so the MCP
+        entry points at the frozen binary (sys.executable) with the --mcp
+        subcommand — same shape the hooks command uses for --hooks-forward.
+        """
+        import backend.client_config as cc
+        cc.sys.frozen = True
+        try:
+            entry = mcp_entry("Enchante")
+            assert entry["command"] == sys.executable
+            assert entry["args"] == ["--mcp"]
+            assert entry["type"] == "stdio"
+            assert entry["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
+            assert "MYKNOWLEDGE_ROOT" in entry["env"]
+        finally:
+            cc.sys.frozen = False
+
 
 class TestHooksIncremental:
     def test_creates_hooks_object_when_missing(self, fake_home: Path) -> None:
