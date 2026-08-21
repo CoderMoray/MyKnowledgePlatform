@@ -75,6 +75,34 @@ class TestMainDispatch:
         assert rc == 0
         assert captured["root"] is None
 
+    def test_mcp_positional_routes_to_cmd_mcp(self, monkeypatch) -> None:
+        """Bare positional ``mcp`` (no leading ``--``) also routes to cmd_mcp.
+
+        Some MCP client integrations (e.g. an Enchante config copied from the
+        pip-installed ``myknowledge mcp`` docs) spawn the frozen binary with
+        ``mcp`` as a plain positional instead of the ``--mcp`` flag — this
+        previously hit ``error: unrecognized arguments: mcp`` since the parser
+        only defined ``--mcp``. Both forms must work identically.
+        """
+        captured: dict = {}
+
+        def fake_cmd_mcp(ns) -> int:
+            captured["root"] = ns.root
+            return 7
+
+        import backend.cli as cli
+        monkeypatch.setattr(cli, "cmd_mcp", fake_cmd_mcp)
+        monkeypatch.setattr(ds, "uvicorn", None, raising=False)
+
+        rc = ds.main(["mcp", "--root", "/tmp/Some KB"])
+        assert rc == 7
+        assert captured == {"root": "/tmp/Some KB"}
+
+    def test_unknown_positional_still_rejected(self) -> None:
+        """Only ``mcp`` is accepted as a positional — typos still error out."""
+        with pytest.raises(SystemExit):
+            ds.main(["nonsense"])
+
     def test_hooks_forward_still_routes(self, monkeypatch) -> None:
         """Existing --hooks-forward branch is untouched by the --mcp addition."""
         monkeypatch.setattr(

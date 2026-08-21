@@ -34,6 +34,14 @@ from backend.main import app  # noqa: F401 — importing registers all routes
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="myknowledge-desktop-backend")
     parser.add_argument(
+        "subcommand", nargs="?", default=None, choices=["mcp"],
+        help="alternate form of --mcp — some MCP client integrations "
+             "(e.g. Enchante configs copied from the pip-installed `myknowledge "
+             "mcp` docs) spawn the binary with a bare `mcp` positional instead "
+             "of the `--mcp` flag; accept both so the frozen binary works "
+             "either way",
+    )
+    parser.add_argument(
         "--port", type=int, default=8080,
         help="listen port (default 8080)",
     )
@@ -58,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         # free, and must never block the user when the backend is unreachable.
         return hooks_forward.main()
 
-    if args.mcp:
+    if args.mcp or args.subcommand == "mcp":
         # MCP stdio mode: reuse cli.cmd_mcp verbatim — it auto-initializes the
         # KB (_auto_init), does the identity check, GC, heartbeat reporting and
         # app.run(transport="stdio"). --root is None by default here, so
