@@ -10,6 +10,7 @@ __pycache__/
 .workbuddy/
 .vscode/
 .idea/
+.codegraph/
 *.swp
 *.swo
 *~
@@ -20,6 +21,7 @@ Thumbs.db
 
 # Test / local KB
 .myknowledge_test/
+.pytest_cache/
 
 # Build artifacts
 frontend/index.standalone.html
