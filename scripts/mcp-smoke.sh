@@ -9,7 +9,7 @@
 #   ./scripts/mcp-smoke.sh                    # 用 python -m backend.cli mcp（dev 路径）
 #   ./scripts/mcp-smoke.sh --bin /path/to/myknowledge-backend   # 用 frozen 二进制 --mcp
 #   ./scripts/mcp-smoke.sh --root /path/to/kb # 指定 KB 根（默认临时目录）
-#   ./scripts/mcp-smoke.sh --timeout 5        # 无响应判定超时（秒，默认 8）
+#   ./scripts/mcp-smoke.sh --timeout 5        # 无响应判定超时（秒，默认 30）
 #
 # 原理：
 #   MCP stdio server 是阻塞长驻进程（app.run(transport="stdio") 读到 stdin EOF 才退出）。
@@ -20,14 +20,14 @@ set -euo pipefail
 
 BIN_CMD=""            # 留空 = python -m backend.cli mcp（dev 路径）
 ROOT=""               # 留空 = 临时目录（避免污染真实 KB）
-TIMEOUT=8
+TIMEOUT=30            # 冷启动较慢的 frozen 二进制需要更宽裕的判定窗口
 PYTHON="${PYTHON:-python3}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --bin) BIN_CMD="${2:-}"; shift 2 ;;
     --root) ROOT="${2:-}"; shift 2 ;;
-    --timeout) TIMEOUT="${2:-8}"; shift 2 ;;
+    --timeout) TIMEOUT="${2:-30}"; shift 2 ;;
     *) echo "✗ 未知参数: ${1}（支持 --bin / --root / --timeout）" >&2; exit 1 ;;
   esac
 done
