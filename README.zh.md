@@ -137,7 +137,7 @@ pytest tests/ -v
 
 ## 版本
 
-- **系统版本**：定义在 `backend/__version__.py`（当前 0.7.6）
+- **系统版本**：定义在 `backend/__version__.py`（当前 0.7.7）
 - **知识库版本**：从 `agent-commit.txt` checkpoint 读取的 git commit hash
 
 ## 许可
