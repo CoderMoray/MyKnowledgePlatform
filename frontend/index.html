@@ -2002,7 +2002,7 @@
                                     : !$store.app.clientInstalled(plat.key)
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
                                       : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
-                                         : ($store.app.usesDeeplink(plat.key, kind.key) ? '未配置 · 生成专属链接' : '未配置 · 点击开关开启'))"></span>
+                                         : ($store.app.usesDeeplink(plat.key, kind.key) ? '生成专属链接' : '未配置 · 点击开关开启'))"></span>
                       <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle。
                            未安装时禁用（状态文字已显示「请先安装 X」，与引导页结论行一致） -->
                       <button class="btn btn--sm btn--deeplink"
