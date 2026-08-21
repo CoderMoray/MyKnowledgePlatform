@@ -214,9 +214,22 @@ echo "    ✓ PyInstaller 完成 ($(( $(date +%s) - T1 ))s)"
 
 chmod +x "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 
+# ── MCP stdio 冒烟（自动执行）─────────────────────────────────────────
+# 唯一能在真实 frozen 二进制上验证 --mcp 生效的地方（单测只能 mock sys.frozen，
+# 而 PyInstaller 静态追踪 / datas 打包只有真跑产物才能暴露）。逻辑在
+# scripts/mcp-smoke.sh（可独立手动运行，无需打包）；此处指向 frozen 二进制。
+# MCP stdio server 是阻塞长驻进程，冒烟脚本用 select 非阻塞读 + close(stdin)
+# 优雅退出 + wait(timeout) 兜底，保证不挂起。
+step 4 4 "MCP stdio 冒烟（--mcp 自动验证）"
+"${PYTHON}" scripts/mcp-smoke.sh --bin "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
+if [ $? -ne 0 ]; then
+  echo "    MCP 冒烟失败（见上方错误）。" >&2
+  exit 1
+fi
+
 step 4 4 "完成"
-echo "    后端: ${OUT_DIR}/myknowledge-backend/myknowledge-backend"
-echo "    冒烟测试: ${OUT_DIR}/myknowledge-backend/myknowledge-backend --port 8099"
+echo "    后端: ${BIN}"
+echo "    手动冒烟: ${BIN} --port 8099"
 if [ -n "$ENTERPRISE" ]; then
   echo "    企业定制: $ENTERPRISE"
 fi

@@ -186,6 +186,16 @@ EOF
 
 > **注意**：如果 `myknowledge` 不在 PATH 中，使用 `python3 -m backend.cli mcp` 代替。
 
+> **桌面版（macOS Electron app）**：打包后的二进制（PyInstaller onedir）内没有独立
+> Python，其 MCP 入口由 `mcp_entry()` 在 `sys.frozen` 分支下自动生成，指向二进制本身
+> 并带 `--mcp` 子命令（等价于 `python3 -m backend.cli mcp`）：
+> ```json
+> { "type": "stdio", "command": "<path>/myknowledge-backend",
+>   "args": ["--mcp"], "env": {} }
+> ```
+> 该二进制在 stdio 模式下同样会复用 `cli.cmd_mcp` 的完整逻辑（自动初始化 KB、身份检查、
+> GC、心跳上报），无需单独运行 `myknowledge mcp`。
+
 ---
 
 ## 步骤 7：最终验证

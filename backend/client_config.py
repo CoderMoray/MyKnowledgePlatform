@@ -309,11 +309,32 @@ def mcp_entry(platform: str) -> dict:
     identify which client launched it when reporting heartbeats.  Each platform
     gets its own entry (env is per-server, so platforms never overwrite one
     another).
+
+    Environment-aware command generation:
+      - **development / PyPI install** (not frozen): ``sys.executable -m
+        backend.cli mcp`` — the module is located by the installed ``backend``
+        package, so the entry survives moving/copying the KB config or an
+        installed wheel.
+      - **PyInstaller desktop app** (``sys.frozen``): there is no standalone
+        python in an onedir bundle, so we reuse the *frozen backend binary
+        itself* (``sys.executable``) with the ``--mcp`` subcommand.  The MCP
+        ``command``/``args`` are separate JSON list elements that the client
+        spawns directly (no shell), so a space-containing binary path needs no
+        quoting — unlike the hooks shell command (``_hooks_command_codebuddy``).
+        PyInstaller traces the ``from backend.cli import cmd_mcp`` import in
+        ``desktop_server.py`` into the PYZ bundle, so the binary can run the
+        MCP server in-process.
     """
+    if getattr(sys, "frozen", False):
+        cmd = sys.executable      # packaged myknowledge-backend binary
+        args = ["--mcp"]
+    else:
+        cmd = sys.executable
+        args = ["-m", "backend.cli", "mcp"]
     return {
         "type": "stdio",
-        "command": sys.executable,
-        "args": ["-m", "backend.cli", "mcp"],
+        "command": cmd,
+        "args": args,
         "env": {
             "MYKNOWLEDGE_ROOT": str(resolve_root()),
             "MYKNOWLEDGE_CLIENT": platform,
