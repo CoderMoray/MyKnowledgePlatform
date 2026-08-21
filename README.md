@@ -137,7 +137,7 @@ MyKnowledge comes with a complete AI installation guide (`docs/AI-SETUP.md`). Co
 
 ## Versioning
 
-- **System version**: defined in `backend/__version__.py` (currently 0.7.6)
+- **System version**: defined in `backend/__version__.py` (currently 0.7.7)
 - **KB version**: git commit hash from `agent-commit.txt` checkpoint
 
 ## License

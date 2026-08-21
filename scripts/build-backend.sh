@@ -221,7 +221,7 @@ chmod +x "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 # MCP stdio server 是阻塞长驻进程，冒烟脚本用 select 非阻塞读 + close(stdin)
 # 优雅退出 + wait(timeout) 兜底，保证不挂起。
 step 4 4 "MCP stdio 冒烟（--mcp 自动验证）"
-"${PYTHON}" scripts/mcp-smoke.sh --bin "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
+bash scripts/mcp-smoke.sh --bin "${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 if [ $? -ne 0 ]; then
   echo "    MCP 冒烟失败（见上方错误）。" >&2
   exit 1
