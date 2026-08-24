@@ -1,7 +1,7 @@
 # ── Runtime dependencies (same as pyproject.toml) ──────────
 
 # MCP protocol
-mcp>=1.0.0
+mcp[cli]>=1.0.0
 
 # YAML frontmatter
 pyyaml>=6.0
