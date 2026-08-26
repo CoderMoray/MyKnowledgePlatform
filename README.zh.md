@@ -135,6 +135,45 @@ pip install -e .
 pytest tests/ -v
 ```
 
+## 桌面 App 与企业定制打包
+
+### 桌面 App
+
+```bash
+cd desktop
+npm install        # 首次
+npm run release    # 默认打包（全平台）→ desktop/dist/
+```
+
+### 企业定制
+
+企业打包会把每家客户启用的平台白名单（`enabled`/`display` 覆盖）合并进打包
+产物的 `platforms.json`。
+
+1. **创建企业配置** `desktop/enterprises/<企业名>.json`，参照
+   `desktop/enterprises/template.json` 编写。
+   > 企业配置被 git 忽略（`desktop/enterprises/*.json`，只有 `template.json`
+   > 入库）——**企业配置永远不会进代码仓库**。
+2. **显式声明打包**（企业配置不会被自动使用）：
+
+   ```bash
+   cd desktop
+   npm run release -- --enterprise <企业名>
+   # 或直接：
+   bash scripts/release.sh --enterprise <企业名>
+   ```
+
+3. **可选：本地 shell alias**（不入库）实现一键打包——每个企业一条：
+
+   ```bash
+   # ~/.zshrc
+   alias release:apple='cd /path/to/MyKnowledge_PlatForm/desktop && npm run release -- --enterprise Apple'
+   alias release:xiaomi='cd /path/to/MyKnowledge_PlatForm/desktop && npm run release -- --enterprise Xiaomi'
+   ```
+
+   之后直接 `release:apple` / `release:xiaomi`。多个企业配置可共存于
+   `desktop/enterprises/`，按名字显式选择。
+
 ## 版本
 
 - **系统版本**：定义在 `backend/__version__.py`（当前 0.7.7）
