@@ -1744,7 +1744,11 @@
                           :class="{ 'guide-conclusion-row__dot--skip': !$store.app.clientInstalled(plat.key) }"></span>
                     <span class="guide-conclusion-row__name" x-text="plat.label"></span>
                     <!-- Enchante：MCP 走专属 deeplink 安装；Agent deeplink 在真机验证不可靠
-                         （2026-08-26），改为置灰不可点开关 + 引导看使用手册，不再生成安装链接。 -->
+                         （2026-08-26），改为纯文字引导看使用手册，不再生成安装链接，也不放
+                         置灰开关（不可点的开关本身无信息量，2026-08-26 真机测试反馈去掉）。
+                         注意：文案不复用 .guide-conclusion-row__action（flex:1）——那个类是
+                         给「需手动安装」用的，两个 flex:1 元素会互相挤占空间，之前就是这样把
+                         「参考使用手册」挤没了，只剩开关可见。 -->
                     <template x-if="plat.key === 'Enchante'">
                       <span class="guide-conclusion-row__body">
                         <span class="guide-conclusion-row__action">需手动安装</span>
@@ -1754,10 +1758,7 @@
                           <span x-text="$store.app.deeplinkBusy ? '生成中…'
                                         : ($store.app.deeplinkClickedFor('mcp') ? 'MCP 已生成 · 可再次点击' : '⚡ 生成 MCP 链接')"></span>
                         </button>
-                        <button class="toggle toggle--off" disabled aria-label="Enchante Agent：参考使用手册">
-                          <span class="toggle__knob"></span>
-                        </button>
-                        <span class="guide-conclusion-row__action guide-conclusion-row__action--native">参考使用手册</span>
+                        <span class="guide-conclusion-row__action--native">配置 Agent 参考使用手册</span>
                         <a class="ai-platform-row__manual-link"
                            href="#" @click.prevent="$store.app.openEnchanteAgentManual()">查看手册</a>
                         <span class="guide-conclusion-row__hint"
