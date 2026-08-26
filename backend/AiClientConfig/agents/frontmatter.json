@@ -7,7 +7,7 @@
       "frontmatter": {
         "name": "MyKnowledge 知识管理专家",
         "description": "MyKnowledge 知识管理平台协作 Agent：通过 MCP 检索与维护本地知识库",
-        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose",
+        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose, maint__check_uncommitted",
         "model": "inherit"
       }
     },
@@ -16,7 +16,7 @@
       "frontmatter": {
         "name": "MyKnowledge 知识管理专家",
         "description": "MyKnowledge 知识管理平台协作 Agent：通过 MCP 检索与维护本地知识库",
-        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose",
+        "tools": "mcp_get_tool_description, mcp_call_tool, nav__list_dir, nav__get_document, nav__find, write__create_document, write__update_document, maint__knowledgebase_diagnose, maint__check_uncommitted",
         "model": "inherit",
         "agentMode": "manual",
         "enabled": true,
