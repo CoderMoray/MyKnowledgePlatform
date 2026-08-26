@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=77f20937a1" />
+  <link rel="stylesheet" href="css/components.css?v=a560dd30c4" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=e8407d2f87"></script>
+  <script src="js/store.js?v=72bb9afc4a"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=5c96193949"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1743,7 +1743,12 @@
                     <span class="guide-conclusion-row__dot" :style="'background:' + plat.dot"
                           :class="{ 'guide-conclusion-row__dot--skip': !$store.app.clientInstalled(plat.key) }"></span>
                     <span class="guide-conclusion-row__name" x-text="plat.label"></span>
-                    <!-- Enchante：专属 deeplink 安装入口（MCP / Agent 两个按钮，各自四态） -->
+                    <!-- Enchante：MCP 走专属 deeplink 安装；Agent deeplink 在真机验证不可靠
+                         （2026-08-26），改为纯文字引导看使用手册，不再生成安装链接，也不放
+                         置灰开关（不可点的开关本身无信息量，2026-08-26 真机测试反馈去掉）。
+                         注意：文案不复用 .guide-conclusion-row__action（flex:1）——那个类是
+                         给「需手动安装」用的，两个 flex:1 元素会互相挤占空间，之前就是这样把
+                         「参考使用手册」挤没了，只剩开关可见。 -->
                     <template x-if="plat.key === 'Enchante'">
                       <span class="guide-conclusion-row__body">
                         <span class="guide-conclusion-row__action">需手动安装</span>
@@ -1753,12 +1758,9 @@
                           <span x-text="$store.app.deeplinkBusy ? '生成中…'
                                         : ($store.app.deeplinkClickedFor('mcp') ? 'MCP 已生成 · 可再次点击' : '⚡ 生成 MCP 链接')"></span>
                         </button>
-                        <button class="btn btn--sm btn--deeplink guide-conclusion-row__deeplink"
-                                :disabled="$store.app.deeplinkBusy || !$store.app.clientInstalled('Enchante')"
-                                @click="$store.app.generateEnchanteDeeplink('Enchante', 'agent')">
-                          <span x-text="$store.app.deeplinkBusy ? '生成中…'
-                                        : ($store.app.deeplinkClickedFor('agent') ? 'Agent 已生成 · 可再次点击' : '⚡ 生成 Agent 链接')"></span>
-                        </button>
+                        <span class="guide-conclusion-row__action--native">配置 Agent 参考使用手册</span>
+                        <a class="ai-platform-row__manual-link"
+                           href="#" @click.prevent="$store.app.openEnchanteAgentManual()">查看手册</a>
                         <span class="guide-conclusion-row__hint"
                               x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
                       </span>
@@ -2013,7 +2015,7 @@
                 <div class="settings-card__desc" x-text="'为各 AI 客户端配置 ' + kind.label + '；开关关闭 = 移除配置'"></div>
                 <template x-for="plat in $store.app.platformsForKind(kind.key)" :key="kind.key + '-' + plat.key">
                   <div>
-                    <div class="ai-platform-row" :class="{ 'ai-platform-row--unsupported': !plat.supported }"
+                    <div class="ai-platform-row" :class="{ 'ai-platform-row--unsupported': !plat.supported || $store.app.isEnchanteAgentManual(plat.key, kind.key) }"
                          :data-platform="plat.key" :data-kind="kind.key">
                       <span class="status-indicator__dot"
                             :class="$store.app.clientStatus(plat.key, kind.key) === true ? 'status-indicator__dot--success'
@@ -2022,18 +2024,25 @@
                             :style="$store.app.clientStatus(plat.key, kind.key) !== null && !$store.app.clientInstalled(plat.key) ? 'opacity:0.5' : ''"></span>
                       <span class="ai-platform-row__name" x-text="plat.label"></span>
                       <span class="ai-platform-row__state"
-                            :class="!plat.supported ? 'ai-platform-row__state--unsupported'
+                            :class="$store.app.isEnchanteAgentManual(plat.key, kind.key) ? 'ai-platform-row__state--unsupported'
+                                   : !plat.supported ? 'ai-platform-row__state--unsupported'
                                    : $store.app.clientStatus(plat.key, kind.key) === null ? 'ai-platform-row__state--fail'
                                    : !$store.app.clientInstalled(plat.key) ? 'ai-platform-row__state--soft'
                                    : ($store.app.clientStatus(plat.key, kind.key) ? 'ai-platform-row__state--ok' : 'ai-platform-row__state--off')"
-                            x-text="!plat.supported ? '平台原生不支持'
+                            x-text="$store.app.isEnchanteAgentManual(plat.key, kind.key) ? '参考使用手册'
+                                    : !plat.supported ? '平台原生不支持'
                                     : $store.app.clientStatus(plat.key, kind.key) === null
                                     ? '检测失败 · 重新检测'
                                     : !$store.app.clientInstalled(plat.key)
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
                                       : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
                                          : ($store.app.usesDeeplink(plat.key, kind.key) ? '生成专属链接' : '未配置 · 点击开关开启'))"></span>
-                      <!-- deeplink 平台（当前 Enchante MCP/Agent）：单按钮「生成专属链接」，不走 toggle。
+                      <!-- Enchante Agent：deeplink 在真机验证不可靠，改为引导看使用手册（置灰
+                           不可点开关 + 手册链接），不再生成安装链接。 -->
+                      <a class="ai-platform-row__manual-link"
+                         x-show="$store.app.isEnchanteAgentManual(plat.key, kind.key)"
+                         href="#" @click.prevent="$store.app.openEnchanteAgentManual()">查看手册</a>
+                      <!-- deeplink 平台（当前仅 Enchante MCP）：单按钮「生成专属链接」，不走 toggle。
                            未安装时禁用（状态文字已显示「请先安装 X」，与引导页结论行一致） -->
                       <button class="btn btn--sm btn--deeplink"
                               x-show="$store.app.usesDeeplink(plat.key, kind.key)"
@@ -2043,12 +2052,13 @@
                       </button>
                       <button class="toggle"
                               x-show="!$store.app.usesDeeplink(plat.key, kind.key)"
-                              :class="!plat.supported ? 'toggle--off'
+                              :class="$store.app.isEnchanteAgentManual(plat.key, kind.key) ? 'toggle--off'
+                                     : !plat.supported ? 'toggle--off'
                                      : $store.app.clientStatus(plat.key, kind.key) === null ? 'toggle--failed'
                                      : !$store.app.clientInstalled(plat.key)
                                        ? ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on-soft' : 'toggle--off-soft')
                                        : ($store.app.clientStatus(plat.key, kind.key) ? 'toggle--on' : 'toggle--off')"
-                              :disabled="!plat.supported || $store.app.clientStatus(plat.key, kind.key) === null || $store.app.isClientConfiguring(plat.key, kind.key)"
+                              :disabled="$store.app.isEnchanteAgentManual(plat.key, kind.key) || !plat.supported || $store.app.clientStatus(plat.key, kind.key) === null || $store.app.isClientConfiguring(plat.key, kind.key)"
                               @click="$store.app.clientStatus(plat.key, kind.key) === null
                                       ? $store.app.loadClientConfig()
                                       : $store.app.configureClient(plat.key, kind.key)">
