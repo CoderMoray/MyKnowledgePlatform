@@ -723,12 +723,14 @@ class TestEnchante:
         assert bundle["config"]["env"]["MYKNOWLEDGE_CLIENT"] == "Enchante"
 
     def test_agent_deeplink(self, fake_home: Path) -> None:
-        """Agent deeplink (schema confirmed with Enchante 2026-08-19).
+        """Agent deeplink (schema confirmed with Enchante 2026-08-19, amended
+        2026-08-26: top-level ``name`` added after a real-device install failed
+        silently without it — see ``enchante_agent_deeplink`` docstring).
 
         Pins the URL scheme, display name ``MyKnowledge 知识管理专家``, the shared
-        '+'→'%2B' quoting + base64 round-trip, and the confirmed payload schema
-        ``{role, skillNames, mcpServers}`` (role reuses the agent template, the
-        mcpServers bundle reuses mcp_entry("Enchante")).
+        '+'→'%2B' quoting + base64 round-trip, and the payload schema
+        ``{name, role, skillNames, mcpServers}`` (role reuses the agent template,
+        the mcpServers bundle reuses mcp_entry("Enchante")).
         """
         import base64
         import urllib.parse
@@ -741,6 +743,9 @@ class TestEnchante:
         assert "+" not in enc  # '+'→'%2B'
         bundle = json.loads(
             base64.b64decode(urllib.parse.unquote(enc)).decode("utf-8"))
+        # top-level name must match the outer ?name= query param exactly —
+        # Enchante requires it duplicated inside the JSON, not only outside.
+        assert bundle["name"] == "MyKnowledge 知识管理专家"
         assert bundle["role"].startswith("# MyKnowledge Agent")
         # no standalone skill is shipped anymore → skillNames stays empty
         assert bundle["skillNames"] == []
