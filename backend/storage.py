@@ -126,7 +126,14 @@ class ReadmeMeta:
 # ══════════════════════════════════════════════════════════════
 
 class Storage:
-    """File operations bound to a specific knowledge base root."""
+    """File operations bound to a specific knowledge base root.
+
+    Args:
+        kb_root: the knowledge base root **as a ``Path``** (not a str — it is
+            resolved via ``Path.resolve()``).  A plain ``str`` raises
+            ``AttributeError``.  Use ``storage.kb_root`` (a Path) when passing
+            the root elsewhere, e.g. ``GitManager(repo_root=storage.kb_root)``.
+    """
 
     def __init__(self, kb_root: Path, templates_dir: Optional[Path] = None) -> None:
         self.kb_root = kb_root.resolve()

@@ -42,7 +42,14 @@ def _is_system_noise(path: str) -> bool:
 
 
 class GitManager:
-    """Wrap ``git`` operations for a knowledge base directory."""
+    """Wrap ``git`` operations for a knowledge base directory.
+
+    Args:
+        repo_root: the git repository root **as a ``Path``** (usually
+            ``storage.kb_root``), NOT a ``Storage`` instance.  Passing a
+            ``Storage`` object here raises ``AttributeError`` (it has no
+            ``resolve``).
+    """
 
     def __init__(self, repo_root: Path) -> None:
         self.repo = repo_root.resolve()

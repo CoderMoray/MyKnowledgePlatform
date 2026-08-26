@@ -1234,6 +1234,15 @@ def create_mcp_app(storage: Storage,
         storage: ``Storage`` instance for the KB.
         gen:     ``ReadmeGenerator`` (enables write-through).
         gm:      ``GitManager`` (enables diff & checkpoint tools).
+
+    Direct-invocation contract (for tests / ad-hoc scripts, NOT the MCP wire):
+      ``await app.call_tool(name, args)`` returns a **tuple**
+      ``(list_of_TextContent, meta_dict)``.  The human-readable text of the
+      first result is ``result[0][0].text`` (a ``TextContent``).  Helper
+      pattern used across tests::
+
+          result = asyncio.run(app.call_tool("maint__check_uncommitted", {}))
+          text = result[0][0].text
     """
 
     mcp = FastMCP("MyKnowledge")
