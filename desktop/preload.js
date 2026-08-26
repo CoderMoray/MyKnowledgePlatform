@@ -58,8 +58,3 @@ contextBridge.exposeInMainWorld("__mykOnCloseChoice__", (payload) => {
 contextBridge.exposeInMainWorld("__mykOpenExternal__", (url) => {
   return ipcRenderer.invoke("open-external", url);
 });
-
-// 使用手册系统级打开（本地文件，路径由主进程硬编码，渲染层不传参，避免任意路径注入）
-contextBridge.exposeInMainWorld("__mykOpenManual__", () => {
-  return ipcRenderer.invoke("open-manual");
-});

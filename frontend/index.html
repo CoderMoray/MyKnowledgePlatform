@@ -47,7 +47,7 @@
   <link rel="stylesheet" href="css/sidebar.css?v=a098a49cbe" />
   <link rel="stylesheet" href="css/viewer.css?v=326a61002d" />
   <link rel="stylesheet" href="css/editor.css?v=e811a96156" />
-  <link rel="stylesheet" href="css/components.css?v=a560dd30c4" />
+  <link rel="stylesheet" href="css/components.css?v=6bb8efbf3b" />
   <link rel="stylesheet" href="css/markdown-content.css?v=6c10b2632f" />
 
   <!-- highlight.js 主题 -->
@@ -69,7 +69,7 @@
   <script src="js/converter.js?v=d8110f4a62"></script>
   <script src="js/renderer.js?v=95b7ca304e"></script>
   <script src="js/splash.js?v=9bc7eee6bd"></script>
-  <script src="js/store.js?v=72bb9afc4a"></script>
+  <script src="js/store.js?v=7e579b12ba"></script>
   <script src="js/router.js?v=a1968069d7"></script>
   <script src="js/app.js?v=5c96193949"></script>
   <script src="js/components/doc.js?v=16de8d15b7"></script>
@@ -1759,8 +1759,6 @@
                                         : ($store.app.deeplinkClickedFor('mcp') ? 'MCP 已生成 · 可再次点击' : '⚡ 生成 MCP 链接')"></span>
                         </button>
                         <span class="guide-conclusion-row__action--native">配置 Agent 参考使用手册</span>
-                        <a class="ai-platform-row__manual-link"
-                           href="#" @click.prevent="$store.app.openEnchanteAgentManual()">查看手册</a>
                         <span class="guide-conclusion-row__hint"
                               x-show="!$store.app.clientInstalled('Enchante')">请先安装 Enchanté</span>
                       </span>
@@ -2037,11 +2035,8 @@
                                       ? ($store.app.clientStatus(plat.key, kind.key) ? '请在安装 ' + plat.label + ' 后使用' : '请先安装 ' + plat.label)
                                       : ($store.app.clientStatus(plat.key, kind.key) ? '已配置'
                                          : ($store.app.usesDeeplink(plat.key, kind.key) ? '生成专属链接' : '未配置 · 点击开关开启'))"></span>
-                      <!-- Enchante Agent：deeplink 在真机验证不可靠，改为引导看使用手册（置灰
-                           不可点开关 + 手册链接），不再生成安装链接。 -->
-                      <a class="ai-platform-row__manual-link"
-                         x-show="$store.app.isEnchanteAgentManual(plat.key, kind.key)"
-                         href="#" @click.prevent="$store.app.openEnchanteAgentManual()">查看手册</a>
+                      <!-- Enchante Agent：deeplink 在真机验证不可靠，改为置灰不可点开关 +「参考
+                           使用手册」纯文字提示，不再生成安装链接，也不带任何手册链接。 -->
                       <!-- deeplink 平台（当前仅 Enchante MCP）：单按钮「生成专属链接」，不走 toggle。
                            未安装时禁用（状态文字已显示「请先安装 X」，与引导页结论行一致） -->
                       <button class="btn btn--sm btn--deeplink"
