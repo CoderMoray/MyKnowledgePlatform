@@ -64,16 +64,36 @@ class TestStage3StaticStructure:
         # 桌面分支：__MYK_APP_MODE__ 下调用 __mykOpenExternal__（IPC 桥）
         assert "__mykOpenExternal__" in js, "Missing desktop IPC bridge usage in store.js"
         assert "__MYK_APP_MODE__" in js, "Missing desktop-mode gate in generateEnchanteDeeplink"
+        # 失败检测：主进程返回 {ok:false}（系统无应用注册 enchante://）→ 常驻红色 toast + 确认按钮
+        assert 'res && res.ok === false' in js, "Missing openExternal failure detection in store.js"
+        assert "showStickyToast" in js, "Missing sticky error toast in store.js"
+        assert "正确版本的 Enchanté" in js, "Missing Enchante-not-installed error message"
+        assert "知道了" in js, "Missing confirm button text in sticky toast"
         # 网页端兜底：保留隐藏 a + click（无 Electron 时浏览器原生处理 enchante://）
         assert 'document.createElement("a")' in js, "Missing web fallback a.click()"
         assert 'a.target = "_blank"' in js, "Missing web fallback target=_blank"
 
+    def test_utils_sticky_toast(self):
+        """utils.js 提供常驻确认 toast（showStickyToast / dismissToast）+ CSS 按钮样式"""
+        utils_js = ROOT / "frontend" / "js" / "utils.js"
+        js = utils_js.read_text(encoding="utf-8")
+        assert "function showStickyToast" in js, "Missing showStickyToast in utils.js"
+        assert "toast--sticky" in js, "Missing sticky toast class in utils.js"
+        assert "function dismissToast" in js, "Missing dismissToast in utils.js"
+        css = (ROOT / "frontend" / "css" / "components.css").read_text(encoding="utf-8")
+        assert ".toast__confirm" in css, "Missing sticky toast confirm button style"
+
     def test_deeplink_main_process_ipc(self):
-        """主进程 open-external IPC：协议校验 + shell.openExternal 系统级打开"""
+        """主进程 open-external IPC：协议校验 + async await shell.openExternal 系统级打开
+
+        回归：Electron 新版 shell.openExternal 返回 Promise，系统层失败（如 macOS
+        无应用注册该 scheme，kLSApplicationNotFoundErr）是异步 reject —— 必须
+        await + catch，否则失败被吞，前端永远以为打开成功。
+        """
         main_js = ROOT / "desktop" / "main.js"
         js = main_js.read_text(encoding="utf-8")
         assert 'ipcMain.handle("open-external"' in js, "Missing open-external IPC handler"
-        assert "shell.openExternal(url)" in js, "Missing shell.openExternal in handler"
+        assert "await shell.openExternal(url)" in js, "Missing await shell.openExternal in handler"
         # 安全校验：仅放行协议链接，禁止 file:// 任意打开本地文件
         assert 'url.startsWith("file:")' in js, "Missing file:// block"
 

@@ -189,12 +189,46 @@ function showToast(message, type = "info", duration = 900) {
   toast.textContent = message;
   container.appendChild(toast);
 
-  setTimeout(() => {
-    toast.style.opacity = "0";
-    toast.style.transform = "translateY(8px)";
-    toast.style.transition = "opacity 0.2s ease, transform 0.2s ease";
-    setTimeout(() => toast.remove(), 200);
-  }, duration);
+  setTimeout(() => dismissToast(toast), duration);
+}
+
+/**
+ * 常驻 Toast（带确认按钮）：不自动消失，用户点「确认」后才关闭。
+ * 用于必须明确告知且需用户确认的错误（如未检测到可打开 enchante:// 的应用）。
+ * @param {string} message
+ * @param {{type?: 'success'|'error'|'warning'|'info', confirmText?: string,
+ *          onConfirm?: Function}} [options]
+ * @returns {HTMLElement} toast 元素（可手动 dismissToast 提前关闭）
+ */
+function showStickyToast(message, { type = "error", confirmText = "知道了", onConfirm } = {}) {
+  const container =
+    document.querySelector(".toast-container") || createToastContainer();
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${type} toast--sticky`;
+  const text = document.createElement("span");
+  text.className = "toast__message";
+  text.textContent = message;
+  const btn = document.createElement("button");
+  btn.className = "toast__confirm";
+  btn.type = "button";
+  btn.textContent = confirmText;
+  btn.addEventListener("click", () => {
+    dismissToast(toast);
+    if (typeof onConfirm === "function") onConfirm();
+  });
+  toast.appendChild(text);
+  toast.appendChild(btn);
+  container.appendChild(toast);
+  return toast;
+}
+
+/** 移除一个 toast（带淡出动画），供常驻 toast 确认后调用 */
+function dismissToast(toast) {
+  if (!toast || !toast.parentNode) return;
+  toast.style.opacity = "0";
+  toast.style.transform = "translateY(8px)";
+  toast.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+  setTimeout(() => toast.remove(), 200);
 }
 
 /**

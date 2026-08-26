@@ -460,14 +460,17 @@ app.whenReady().then(async () => {
   // Enchante 的 enchante:// protocol 不是 http/https，主窗口的
   // setWindowOpenHandler 只放行 http/https，其余被 deny → 需走 shell.openExternal
   // 在系统层路由到注册的 Enchante 应用。
-  ipcMain.handle("open-external", (_e, url) => {
+  ipcMain.handle("open-external", async (_e, url) => {
     if (typeof url !== "string" || !url) return { ok: false, error: "empty url" };
     // 仅放行协议链接（enchante://...），避免渲染层任意打开本地文件/命令
     if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || url.startsWith("file:")) {
       return { ok: false, error: "blocked url" };
     }
+    // Electron 新版 shell.openExternal 返回 Promise，系统层失败（如 macOS 无应用注册
+    // 该 scheme，kLSApplicationNotFoundErr）是异步 reject —— 必须 await + catch，
+    // 否则失败被吞，前端永远以为打开成功。
     try {
-      shell.openExternal(url);
+      await shell.openExternal(url);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: String(err) };
