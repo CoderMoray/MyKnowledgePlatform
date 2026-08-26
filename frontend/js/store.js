@@ -1749,7 +1749,17 @@ let _tocCollapsedSet = {};
         //   enchante:// 会被 deny → 走 IPC 让主进程 shell.openExternal 系统级打开
         // - 网页端：隐藏 a.click()，浏览器原生把 enchante:// 路由到注册应用（SPA 不跳转）
         if (window.__MYK_APP_MODE__ && typeof window.__mykOpenExternal__ === "function") {
-          await window.__mykOpenExternal__(link);
+          // 主进程 await shell.openExternal：系统无应用注册该 scheme（如未安装
+          // Enchanté）时返回 {ok:false} → 常驻红色 toast + 确认按钮（不自动消失），
+          // 避免「只复制、无提示」。链接已复制，用户确认后自行处理。
+          const res = await window.__mykOpenExternal__(link);
+          if (res && res.ok === false) {
+            showStickyToast(
+              "未检测到可打开 enchante:// 链接的应用，请确认已安装正确版本的 Enchanté，安装后重新点击生成链接。",
+              { type: "error", confirmText: "知道了" }
+            );
+            return;
+          }
         } else {
           const a = document.createElement("a");
           a.href = link;
