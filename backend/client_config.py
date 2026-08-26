@@ -266,7 +266,13 @@ def enchante_agent_deeplink() -> str:
     ``enchante://agent/install?name=MyKnowledge 知识管理专家&config=<base64>``
 
     Creates a one-click dedicated "MyKnowledge 知识管理专家" role in Enchanté's top
-    Agent dropdown.  Payload schema confirmed with Enchante (2026-08-19):
+    Agent dropdown.  Payload schema confirmed with Enchante (2026-08-19), amended
+    2026-08-26 after a real-device install failed silently — Enchanté requires
+    the display name **inside** the base64 JSON too (top-level ``name``), not
+    only as the outer ``?name=`` query param; without it, deserialization/
+    validation fails silently and the deeplink never surfaces an install prompt:
+      - ``name``: same display string as the outer query param, duplicated at
+        the JSON top level (Enchanté's requirement, not redundant on our side).
       - ``role``: the agent persona / system instructions, reusing
         ``_agent_template("Enchante")`` (``MyKnowledge-agent-Enchante.md``, 精简版)
         **as plain text — no YAML frontmatter** (Enchanté injects it verbatim as
@@ -289,7 +295,9 @@ def enchante_agent_deeplink() -> str:
     Conflict Resolution float — Replace / Rename / Skip).
     """
     import urllib.parse
+    display_name = "MyKnowledge 知识管理专家"
     bundle = {
+        "name": display_name,
         "role": _agent_template("Enchante"),
         "skillNames": [],
         "mcpServers": {
@@ -301,7 +309,7 @@ def enchante_agent_deeplink() -> str:
             }
         },
     }
-    name = urllib.parse.quote("MyKnowledge 知识管理专家")
+    name = urllib.parse.quote(display_name)
     return (f"enchante://agent/install?name={name}&config="
             f"{_base64_quote(bundle)}")
 
