@@ -86,6 +86,36 @@
     $store.app.init();
   "
 >
+  <!-- ════════════════════════════════════════════════════════════════════
+       index.html 分区速查表（维护时先看这里，用 ⌘F 搜「VIEW:」/「MODAL:」跳转）
+       ──────────────────────────────────────────────────────────────────
+       [89-101]   加载屏 splash
+       [103-~390] App Shell 壳（sidebar + 顶部玻璃条 + main-area）
+       [110-393]  Sidebar 侧边栏（导航 / 项目树 / TOC）
+       [394-563]  Top Header 顶部玻璃条（面包屑 / 删除 / 用户菜单）
+       [564-~1380] Content Panel 动态视图（x-data 组件切换）
+         ├ [567-732]   VIEW: Dashboard 仪表盘
+         ├ [733-862]   VIEW: Project 项目
+         ├ [863-1035]  VIEW: Document 阅读+编辑（docComponent，共享 header/refs）
+         ├ [1036-1153] VIEW: Status + Trash 状态 / 垃圾箱
+         └ [1154-~1380] VIEW: Health 知识健康检查
+       [~1382-~2140] Modals 弹窗层（x-data="modalComponent"）
+         ├ [1388]   MODAL: new-doc
+         ├ [1451]   MODAL: delete-project
+         ├ [1472]   MODAL: delete-doc
+         ├ [1494]   MODAL: trash-empty
+         ├ [1514]   MODAL: rename-doc
+         ├ [1537]   MODAL: rename-project
+         ├ [1560]   MODAL: edit-identity
+         ├ [1589]   MODAL: share-export
+         ├ [1636]   MODAL: setup 引导（4 页 3 步：身份 → 平台多选 → 执行+结论）
+         ├ [1845]   MODAL: settings 配置（account/general/mcp/hooks/agent）
+         └ [2125]   MODAL: desktop-close（桌面专属关闭询问）
+       ════════════════════════════════════════════════════════════════════
+       约定：a) 行号随改动漂移，仅作快速参考，以「VIEW:」/「MODAL:」标记为准；
+             b) 本注释不含资源版本号（防 build 的 _strip_versions 误删）；
+             c) JS 逻辑在 js/ 与 js/components/ 下按模块组织，HTML 仅模板。
+       ════════════════════════════════════════════════════════════════════ -->
   <!-- 加载屏 -->
   <div class="splash" x-show="$store.app.loading"
        x-transition:leave="splash-out"
@@ -1354,7 +1384,7 @@
 
   <div x-data="modalComponent">
 
-    <!-- 新建文档 -->
+    <!-- MODAL: new-doc 新建文档 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'new-doc'"
          x-cloak
@@ -1417,7 +1447,7 @@
       </div>
     </div>
 
-    <!-- 项目删除确认（移入垃圾箱） -->
+    <!-- MODAL: delete-project 删除项目 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'delete-project'"
          x-cloak
@@ -1438,7 +1468,7 @@
       </div>
     </div>
 
-    <!-- 删除确认 -->
+    <!-- MODAL: delete-doc 删除文档 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'delete-doc'"
          x-cloak
@@ -1460,7 +1490,7 @@
       </div>
     </div>
 
-    <!-- 清空垃圾箱确认 -->
+    <!-- MODAL: trash-empty 清空垃圾箱 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'trash-empty'"
          x-cloak
@@ -1480,7 +1510,7 @@
       </div>
     </div>
 
-    <!-- 文档改名 -->
+    <!-- MODAL: rename-doc 重命名文档 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'rename-doc'"
          x-cloak
@@ -1503,7 +1533,7 @@
       </div>
     </div>
 
-    <!-- 项目改名 -->
+    <!-- MODAL: rename-project 重命名项目 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'rename-project'"
          x-cloak
@@ -1526,7 +1556,7 @@
       </div>
     </div>
 
-    <!-- 编辑个人信息 -->
+    <!-- MODAL: edit-identity 编辑个人信息 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'edit-identity'"
          x-cloak
@@ -1555,7 +1585,7 @@
       </div>
     </div>
 
-    <!-- 分享导出 -->
+    <!-- MODAL: share-export 分享导出 -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'share-export'"
          x-transition:enter="modal-enter"
@@ -1602,7 +1632,7 @@
       </div>
     </div>
 
-    <!-- 首次登录初始化引导（阶段三：4 页 3 步 身份 → 2.1 平台多选 → 2.2 执行+结论 → 完成；大 modal） -->
+    <!-- MODAL: setup 首次登录初始化引导（阶段三：4 页 3 步 身份 → 2.1 平台多选 → 2.2 执行+结论 → 完成；大 modal） -->
     <div class="modal-overlay"
          x-show="$store.app.currentView === 'setup'"
          x-cloak
@@ -1811,7 +1841,7 @@
       </div>
     </div>
 
-    <!-- 配置 modal（阶段三：左导航 5 平级 + 右分组页，MCP/Hooks/Agents 页内 toggle 表达配置状态） -->
+    <!-- MODAL: settings 配置（阶段三：左导航 5 平级 account/general/mcp/hooks/agent + 右分组页，toggle 表达配置状态） -->
     <div class="modal-overlay"
          x-show="$store.app.modal === 'settings'"
          x-cloak
@@ -2091,7 +2121,7 @@
       </div>
     </div>
 
-    <!-- 桌面关闭询问 modal（仅桌面模式：__MYK_APP_MODE__ 门控，网页端恒不显示） -->
+    <!-- MODAL: desktop-close 桌面关闭询问（仅桌面模式：__MYK_APP_MODE__ 门控，网页端恒不显示） -->
     <div class="modal-overlay desktop-close-overlay"
          x-show="window.__MYK_APP_MODE__ && $store.app.desktopCloseChoice.show"
          x-cloak
