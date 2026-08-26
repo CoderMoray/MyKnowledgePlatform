@@ -64,4 +64,19 @@ if [ "$py_ver" != "$js_ver" ] \
 fi
 
 echo "✓ 版本一致：v$py_ver"
+
+# 版本守门通过后，同步 CodeGraph 索引（增量更新，成本低）。
+# codegraph 不存在或 sync 失败时均不阻断 push（仅告警）。
+if command -v codegraph >/dev/null 2>&1; then
+  echo "→ 同步 CodeGraph 索引（codegraph sync）..."
+  # codegraph sync 的 path 是位置参数（非 --path 选项）；-q 为 git hook 场景设计。
+  if codegraph sync -q "$ROOT"; then
+    echo "✓ CodeGraph 索引已更新"
+  else
+    echo "⚠ codegraph sync 失败，索引可能过期（不影响 push），可稍后手动运行 codegraph sync" >&2
+  fi
+else
+  echo "→ codegraph 未安装，跳过索引同步"
+fi
+
 exit 0
