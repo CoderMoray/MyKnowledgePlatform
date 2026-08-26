@@ -147,10 +147,13 @@ class TestStage3StaticStructure:
         """kind 过滤升级：platformsForKind/platformKinds 按每平台 kinds 数组过滤（与后端 platforms.json 一致）：
         Enchante 出现在 MCP + Agent，Hooks 不出现；现有 4 平台分组不回归"""
         js = STORE.read_text(encoding="utf-8")
-        # usesDeeplink 判定（当前仅 Enchante MCP + Agent：均无配置文件，走客户端捕获链接）
-        assert 'return platform === "Enchante" && (kind === "mcp" || kind === "agent")' in js, \
-            "Missing usesDeeplink Enchante MCP/Agent rule"
-        # deeplink 流程 + 状态
+        # usesDeeplink 判定（2026-08-26 起仅 Enchante MCP：Agent deeplink 真机验证不可靠，
+        # 已停用改为「参考使用手册」，见 isEnchanteAgentManual）
+        assert 'return platform === "Enchante" && kind === "mcp"' in js, \
+            "Missing usesDeeplink Enchante MCP-only rule"
+        assert "isEnchanteAgentManual" in js, "Missing isEnchanteAgentManual (Enchante Agent 停用判定)"
+        assert "openEnchanteAgentManual" in js, "Missing openEnchanteAgentManual (使用手册打开入口)"
+        # deeplink 流程 + 状态（MCP 仍在用）
         assert "generateEnchanteDeeplink" in js, "Missing generateEnchanteDeeplink"
         assert "deeplinkBusy" in js, "Missing deeplinkBusy state"
         assert "deeplinkClickedFor" in js, "Missing deeplinkClickedFor(kind) helper"
@@ -207,14 +210,17 @@ class TestStage3StaticStructure:
         assert "guide-progress" in html, "Missing guide-progress (执行进度条)"
         assert "正在为" in html, "Missing 执行文案"
         assert "guide-conclusion-row" in html, "Missing guide-conclusion-row (结论行)"
-        # Enchante 专属 deeplink 入口：MCP + Agent 两个按钮（各自调 /deeplink 与 /agent-deeplink）
+        # Enchante 专属入口：MCP 走 deeplink；Agent（2026-08-26 起）改为置灰开关 + 使用手册链接
         assert "⚡ 生成 MCP 链接" in html, "Missing Enchante MCP deeplink 按钮"
-        assert "⚡ 生成 Agent 链接" in html, "Missing Enchante Agent deeplink 按钮"
+        assert "⚡ 生成 Agent 链接" not in html, "Enchante Agent deeplink 按钮应已移除（改为使用手册引导）"
         assert "deeplinkClickedFor" in html, "Missing deeplinkClickedFor (Enchante 点击后态，按 kind)"
         assert "generateEnchanteDeeplink('Enchante', 'mcp')" in html, "Missing MCP deeplink handler (kind=mcp)"
-        assert "generateEnchanteDeeplink('Enchante', 'agent')" in html, "Missing Agent deeplink handler (kind=agent)"
+        assert "generateEnchanteDeeplink('Enchante', 'agent')" not in html, \
+            "Agent deeplink handler 调用应已移除（改为 openEnchanteAgentManual）"
         assert "需手动安装" in html, "Missing Enchante「需手动安装」说明"
         assert "请先安装 Enchanté" in html, "Missing Enchante 未安装防御提示"
+        assert "参考使用手册" in html, "Missing Enchante Agent「参考使用手册」文案"
+        assert "openEnchanteAgentManual" in html, "Missing openEnchanteAgentManual (使用手册打开入口)"
 
     def test_index_settings_modal_markup(self):
         """配置 modal：settings-nav 5 平级 + settings-body 分组页 + 5 态开关"""
@@ -375,7 +381,8 @@ class TestStage3Build:
             "connectionClass", "connectionLabel", "connectionTooltip",
             "connection-tip", "connection-dot",
             "guide-modal", "guideStep1Valid", "guide-platform-row", "guide-progress",
-            "⚡ 生成 MCP 链接", "⚡ 生成 Agent 链接", "企业名称", "组织代码", "guideExecute", "deeplinkClickedFor",
+            "⚡ 生成 MCP 链接", "参考使用手册", "openEnchanteAgentManual",
+            "企业名称", "组织代码", "guideExecute", "deeplinkClickedFor",
             # 桌面壳隔离片段（sidebar-titlebar / 关闭 modal / 关闭行为卡）
             "sidebar-titlebar", "desktop-close-modal", "desktopCloseChoice",
             "关闭行为", "记住我的选择",
@@ -626,15 +633,18 @@ class TestStage3Browser:
         # 被选平台的结论行可见（未选平台行隐藏，仅 selected 平台 x-show 显示）
         expect(page.locator(".guide-conclusion-row:visible").first).to_be_visible(timeout=3000)
         expect(page.locator(".guide-modal", has_text="你可以在 设置 → MCP / Hooks / Agent 中查看或调整")).to_be_visible(timeout=3000)
-        # 若选了 Enchante，结论行显示专属 deeplink 入口（MCP + Agent 两个按钮，初始态「⚡ 生成 MCP/Agent 链接」）
+        # 若选了 Enchante：结论行 MCP 仍是专属 deeplink 按钮（初始态「⚡ 生成 MCP 链接」）；
+        # Agent（2026-08-26 起）改为置灰不可点开关 +「参考使用手册」+ 手册链接，不再生成安装链接。
         enchante_row = page.locator(".guide-conclusion-row", has_text="Enchanté")
         if selected_key == "Enchante":
-            mcp_btn = enchante_row.locator(".btn--deeplink").nth(0)
-            agent_btn = enchante_row.locator(".btn--deeplink").nth(1)
+            mcp_btn = enchante_row.locator(".btn--deeplink")
+            expect(mcp_btn).to_have_count(1)  # 只剩 MCP 一个 deeplink 按钮，Agent 按钮已移除
             expect(mcp_btn).to_be_visible(timeout=3000)
             expect(mcp_btn).to_contain_text("⚡ 生成 MCP 链接")  # 初始态（未点击）
-            expect(agent_btn).to_be_visible(timeout=3000)
-            expect(agent_btn).to_contain_text("⚡ 生成 Agent 链接")  # 初始态（未点击）
+            agent_toggle = enchante_row.locator(".toggle--off[disabled]")
+            expect(agent_toggle).to_be_visible(timeout=3000)
+            expect(enchante_row).to_contain_text("参考使用手册")
+            expect(enchante_row.locator(".ai-platform-row__manual-link")).to_be_visible(timeout=3000)
         # 2.2 完成后「下一步」enabled → Step3 完成
         expect(vnext()).to_be_enabled(timeout=3000)
         vnext().click()

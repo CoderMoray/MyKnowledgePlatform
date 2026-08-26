@@ -477,6 +477,28 @@ app.whenReady().then(async () => {
     }
   });
 
+  // ── 使用手册系统级打开（IPC）──────────────────────────────
+  // Enchante 的 Agent deeplink 在真机验证不可靠（2026-08-26），改为引导用户看使用
+  // 手册。手册是本地文件，open-external 专门 block 了 file: 前缀（避免渲染层任意打
+  // 开本地文件/命令），所以走独立的、路径由主进程硬编码（渲染层不传路径）的 IPC 通
+  // 道，用 shell.openPath 交给系统默认程序（.html → 默认浏览器）打开。
+  //
+  // TODO(分发前替换)：MANUAL_PATH 目前是本机开发路径占位，正式版应改为打包进 app
+  // 资源目录的手册文件（如 path.join(process.resourcesPath, "docs", "MyKnowledge使用手册.html")），
+  // 并把手册一并加入 electron-builder 的 extraResources / build-backend datas。
+  const MANUAL_PATH =
+    "/Users/chenyida/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_6qcy1jhgv90312_a764/msg/file/2026-08/MyKnowledge使用手册3_2.html";
+  ipcMain.handle("open-manual", async () => {
+    try {
+      const err = await shell.openPath(MANUAL_PATH);
+      // shell.openPath 失败时返回非空错误字符串（不像 openExternal 那样 reject）
+      if (err) return { ok: false, error: err };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
   try {
     if (DEV_BACKEND_URL) {
       // 开发模式：直接连开发者后端
