@@ -124,6 +124,46 @@ Run tests:
 pytest tests/ -v
 ```
 
+## Desktop App & Enterprise Packaging
+
+### Desktop App
+
+```bash
+cd desktop
+npm install        # once
+npm run release    # default build (all platforms) → desktop/dist/
+```
+
+### Enterprise Customization
+
+Enterprise builds merge per-customer platform whitelists (`enabled`/`display`
+overrides) into the packaged `platforms.json`.
+
+1. **Create the enterprise config** `desktop/enterprises/<name>.json`, modeled
+   on `desktop/enterprises/template.json`.
+   > Enterprise configs are git-ignored (`desktop/enterprises/*.json`, only
+   > `template.json` is tracked) — they never enter the repository.
+2. **Build explicitly** (enterprise configs are never auto-applied):
+
+   ```bash
+   cd desktop
+   npm run release -- --enterprise <name>
+   # or directly:
+   bash scripts/release.sh --enterprise <name>
+   ```
+
+3. **Optional: local shell aliases** (not committed) for one-word builds —
+   one alias per enterprise:
+
+   ```bash
+   # ~/.zshrc
+   alias release:apple='cd /path/to/MyKnowledge_PlatForm/desktop && npm run release -- --enterprise Apple'
+   alias release:xiaomi='cd /path/to/MyKnowledge_PlatForm/desktop && npm run release -- --enterprise Xiaomi'
+   ```
+
+   Then run `release:apple` / `release:xiaomi`. Multiple enterprise configs can
+   coexist in `desktop/enterprises/`; each is selected explicitly by name.
+
 ## Self-Installation
 
 MyKnowledge comes with a complete AI installation guide (`docs/AI-SETUP.md`). Copy it to any MCP-compatible AI agent, and it will:
