@@ -1714,9 +1714,10 @@ let _tocCollapsedSet = {};
       }));
     },
 
-    /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP/Agent：无配置文件，客户端捕获链接） */
+    /** 该平台该 kind 是否走 deeplink 安装（当前仅 Enchante MCP：无配置文件，客户端捕获链接。
+     *  Enchante Agent 已改为「参考使用手册」，见 isEnchanteAgentManual）。 */
     usesDeeplink(platform, kind) {
-      return platform === "Enchante" && (kind === "mcp" || kind === "agent");
+      return platform === "Enchante" && kind === "mcp";
     },
 
     /** 正在生成 deeplink（Enchante deeplink 按钮 spinner / 防重复点击） */
@@ -1725,6 +1726,30 @@ let _tocCollapsedSet = {};
     /** 某 kind 的 deeplink 是否已点击（「已生成链接 · 可再次点击」态） */
     deeplinkClickedFor(kind) {
       return !!(this.deeplinkClicked && this.deeplinkClicked[kind]);
+    },
+
+    /** Enchante 的 Agent 安装入口已停用（deeplink 在真机上验证不可靠，2026-08-26
+     *  决定改为引导用户看使用手册）——设置页 Agent 分组行 + 引导结论页命中该判断时，
+     *  一律渲染为置灰不可点开关 +「参考使用手册」+ 手册链接，不再走 usesDeeplink。 */
+    isEnchanteAgentManual(platform, kind) {
+      return platform === "Enchante" && kind === "agent";
+    },
+
+    /** 打开 MyKnowledge 使用手册（桌面端走现有 IPC 系统级打开外链，同 enchante:// deeplink
+     *  的机制）。手册路径当前是占位符，分发前需替换为打包进 app 资源目录的真实路径。 */
+    openEnchanteAgentManual() {
+      // TODO(分发前替换)：这是本机路径，占位用；正式版应指向打包进 app 的手册文件
+      // （如 resources/docs/MyKnowledge使用手册.html），由主进程解析，不应硬编码本机用户路径。
+      const url = "file:///Users/chenyida/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_6qcy1jhgv90312_a764/msg/file/2026-08/MyKnowledge%E4%BD%BF%E7%94%A8%E6%89%8B%E5%86%8C3_2.html";
+      if (window.__MYK_APP_MODE__ && typeof window.__mykOpenManual__ === "function") {
+        window.__mykOpenManual__().then((res) => {
+          if (res && res.ok === false) {
+            showToast("打开使用手册失败，请联系管理员确认手册路径", "error");
+          }
+        });
+      } else {
+        window.open(url, "_blank", "noopener");
+      }
     },
 
     /**

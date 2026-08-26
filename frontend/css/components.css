@@ -2561,6 +2561,18 @@
   color: var(--text-secondary);
   font-style: italic;
 }
+/* Enchante Agent「参考使用手册」行内链接：与置灰状态文字同级，不额外抢视觉焦点 */
+.ai-platform-row__manual-link {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ai-platform-row__manual-link:hover {
+  color: var(--accent-hover, var(--accent));
+}
 
 /* ── 连接态（MCP 卡平台行右，平台级四态：not_connected/connected/inactive/lost；置灰仅 !installed） ── */
 .ai-platform-row__connection {
