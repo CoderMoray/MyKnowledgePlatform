@@ -228,6 +228,7 @@ if [ $? -ne 0 ]; then
 fi
 
 step 4 4 "完成"
+BIN="${OUT_DIR}/myknowledge-backend/myknowledge-backend"
 echo "    后端: ${BIN}"
 echo "    手动冒烟: ${BIN} --port 8099"
 if [ -n "$ENTERPRISE" ]; then
