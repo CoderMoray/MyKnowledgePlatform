@@ -1570,7 +1570,15 @@ let _tocCollapsedSet = {};
       this.guideExecPercent = 100;
       for (const platform of selected) {
         if (platform === "Enchante") continue; // deeplink 手动安装，结论页处理
-        for (const kind of this.platformKinds(platform)) {
+        for (const kindMeta of this.platformKinds(platform)) {
+          // platformKinds() 返回 {key,label,desc} 元信息对象；configureClient / 后端
+          // 需要的是 kind 字符串（mcp/hooks/agent）。漏取 .key 会让 URL 变成
+          // /api/client-config/<platform>/[object Object] → 后端 400 → 引导一个配置都写不进去。
+          const kind = kindMeta.key;
+          // 引导只做「确保开启」：configureClient 是双向开关，对已配置的 kind 再调用会把它
+          // 关掉——「重新运行初始化引导」时会误删已有配置。已开启则跳过（写操作幂等，
+          // 未开启才走 configureClient 写入）。
+          if (this.clientStatus(platform, kind) === true) continue;
           try {
             await this.configureClient(platform, kind);
           } catch (e) {
