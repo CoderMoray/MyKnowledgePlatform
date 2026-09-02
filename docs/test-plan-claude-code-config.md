@@ -1,27 +1,30 @@
-# 测试方案：Claude Code 平台 MCP / Hooks / Agent 配置写入 + 设置页开关双向联动
+# 测试方案：MVP AI 平台（Claude Code / CodeBuddy IDE）MCP / Hooks / Agent 配置写入 + 设置页开关双向联动
 
 > 状态：待 mentor 审阅
 > 分支：`test/claude-code-config-verify`
+> 覆盖平台：**ClaudeCode + CodeBuddyIDE**（`backend/client_config.py` 注释里写明的 MVP
+> 两平台，共用同一套 `configureClient` 增量合并逻辑，仅落盘目录不同）。
+> WorkBuddy（代码标 not built）/ Cursor / ClaudeDesktop / Enchante 本方案不覆盖。
 > 自动化测试：
-> - `tests/test_claude_code_config_verify.py`（后端 / API 层，27 例）
-> - `tests/frontend/test_claude_code_config.py`（前端静态 9 例 + 浏览器 5 例）
+> - `tests/test_client_config_verify.py`（后端 / API 层，参数化 ×2 平台，56 例）
+> - `tests/frontend/test_client_config_toggle.py`（前端静态 12 例 + 浏览器 12 例 = 6 用例 ×2 平台）
 
 ---
 
 ## 1. 验证目标
 
-验证并保证「Claude Code」这个 AI 平台在**初始化配置后**：
+验证并保证「Claude Code」「CodeBuddy IDE」两个 AI 平台在**初始化配置后**：
 
-1. **配置写入正确**：MCP / Hooks / Agent 三种配置分别正确写入 Claude Code 对应的配置文件。
+1. **配置写入正确**：MCP / Hooks / Agent 三种配置分别正确写入平台对应的配置文件。
 2. **设置页开关双向控制**：设置页里这三个开关能正确双向控制
    - 开 → 写入配置
    - 关 → 移除配置
    - 再开 → 恢复写入
 3. **三个开关互相独立**，互不串扰。
 
-> **重要前提**：Claude Code 本身在国内网络下无法联网运行，但这**不影响本任务**——
+> **重要前提**：Claude Code / CodeBuddy IDE 本身在国内网络下无法联网运行，但这**不影响本任务**——
 > 要验的是「配置文件写入」和「设置页开关读写逻辑」，**全部纯本地验证**
-> （检查配置文件内容 + 前端逻辑），不需要真的把 Claude Code 跑起来联网。
+> （检查配置文件内容 + 前端逻辑），不需要真的把它们跑起来联网。
 
 ---
 
@@ -72,6 +75,29 @@
 **Agent 文件**（`~/.claude/agents/MyKnowledge-agent.md`）：正文取自
 `backend/AiClientConfig/agents/MyKnowledge-agent.md`，frontmatter 取自
 `agents/frontmatter.json` 里 ClaudeCode 对应 variant（`name` / `description` / `tools` / `model: inherit`）。
+
+### 2.1b CodeBuddy IDE 的三种配置（对照 Claude Code）
+
+单一来源：`backend/AiClientConfig/platforms.json` → `platforms.CodeBuddyIDE`（macOS）。
+落盘逻辑、增量合并、`write_kind` / `remove_kind` / `detect_platform` 与 Claude Code **完全同一套代码**，
+只是目录与格式细节不同：
+
+| kind | Claude Code | CodeBuddy IDE |
+|------|-------------|---------------|
+| **mcp** 文件 | `~/.claude.json` | `~/.codebuddy/mcp.json` |
+| mcp 键 / 形式 | `mcpServers.MyKnowledge`（stdio；`args=["-m","backend.cli","mcp"]`；`env.MYKNOWLEDGE_CLIENT="ClaudeCode"`） | `mcpServers.MyKnowledge`（同结构；`env.MYKNOWLEDGE_CLIENT="CodeBuddyIDE"`） |
+| **hooks** 文件 | `~/.claude/settings.json` | `~/.codebuddy/settings.json` |
+| hooks matcher | `"Bash\|Write\|Edit"` | `"*"`（match 所有工具；`hooks.py` 内部放行 MCP 调用，宽 matcher 安全） |
+| hooks command | `curl -s -X POST …/hooks/pre-tool-use … -d @-`（curl 读 stdin） | dev：`python3 -m backend.hooks_forward`；桌面 App(frozen)：`"<二进制>" --hooks-forward`（转发脚本读 stdin） |
+| **agent** 文件 | `~/.claude/agents/MyKnowledge-agent.md` | `~/.codebuddy/agents/MyKnowledge-agent.md` |
+| agent frontmatter | `name` / `description` / `tools` / `model: inherit` | 同上 **+** `agentMode: manual` / `enabled: true` / `enabledAutoRun: true` / `mcpServers: MyKnowledge`（CodeBuddy 专属字段，`frontmatter.json` variant 提供） |
+
+其余一致：三类落在三个不同文件（`~/.codebuddy/mcp.json` / `~/.codebuddy/settings.json` /
+`~/.codebuddy/agents/…`）→ 天然隔离；关 = 物理删除（`pop` / 移除 matcher / `unlink`），非停用标记；
+只动 MyKnowledge 条目，用户其他配置保留；再开 = 增量合并写回，内容逐字段等价。
+
+设置页三个 CodeBuddy IDE 开关走的前端代码路径与 Claude Code **完全相同**
+（`configureClient(plat.key, kind.key)` + `clientStatus`），见 2.2；仅 `plat.key` 不同。
 
 ### 2.2 设置页三个开关如何读写这些配置
 
@@ -132,47 +158,52 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
 ## 3. 三次核心检验
 
 每次都对比「设置页开关状态」（`GET /api/client-config` 的结果，= 开关视觉态数据源）
-↔「Claude Code 实际配置文件」，两者**必须一致**。
+↔「平台实际配置文件」，两者**必须一致**。**每条检验对 ClaudeCode 与 CodeBuddyIDE
+两个平台各跑一遍**（后端测试用 `@pytest.fixture(params=["ClaudeCode","CodeBuddyIDE"])`
+参数化，前端浏览器测试用 `@pytest.mark.parametrize("plat", [...])`）。
+
+下表以 Claude Code 为例；CodeBuddy IDE 的对应文件 / 格式见 §2.1b，检验项与断言逻辑相同。
 
 ### 检验一：初始化后
 
-| 项 | 预期 |
-|----|------|
-| `~/.claude.json` | `mcpServers.MyKnowledge` 存在，`type=stdio`，`args=["-m","backend.cli","mcp"]`，`env.MYKNOWLEDGE_CLIENT="ClaudeCode"` |
-| `~/.claude/settings.json` | `hooks.PreToolUse[]` 含 1 个 matcher，`matcher="Bash\|Write\|Edit"`，command 为 `curl … -d @-` |
-| `~/.claude/agents/MyKnowledge-agent.md` | 文件存在，以 `---`(frontmatter) 开头，正文含 `# MyKnowledge Agent` |
-| `GET /api/client-config` → `ClaudeCode` | `{mcp: true, hooks: true, agent: true}` |
-| 设置页三个开关 | 均显示为**开** |
+| 项 | 预期（ClaudeCode） | 预期（CodeBuddyIDE） |
+|----|------|------|
+| mcp 文件 | `~/.claude.json` → `mcpServers.MyKnowledge`，`type=stdio`，`args=["-m","backend.cli","mcp"]`，`env.MYKNOWLEDGE_CLIENT="ClaudeCode"` | `~/.codebuddy/mcp.json` → 同结构，`env.MYKNOWLEDGE_CLIENT="CodeBuddyIDE"` |
+| hooks 文件 | `~/.claude/settings.json` → `PreToolUse[]` 含 1 个我们的 matcher，`matcher="Bash\|Write\|Edit"`，`curl … -d @-` | `~/.codebuddy/settings.json` → 同，`matcher="*"`，command 含 `hooks_forward` / `--hooks-forward` |
+| agent 文件 | `~/.claude/agents/MyKnowledge-agent.md` 存在，`---` frontmatter 开头，正文含 `# MyKnowledge Agent` | `~/.codebuddy/agents/MyKnowledge-agent.md` 存在，额外含 `agentMode:` / `enabled:` / `mcpServers:` frontmatter |
+| `GET /api/client-config` → `<平台>` | `{mcp: true, hooks: true, agent: true}` | 同 |
+| 设置页三个开关 | 均显示为**开** | 同 |
 
-自动化：`test_claude_code_config_verify.py::TestCheck1_InitializedState`（6 例）、
-`test_claude_code_config.py::TestClaudeCodeToggleBrowser::test_switch_reflects_backend_state`。
+自动化：`test_client_config_verify.py::TestCheck1_InitializedState`（6 例 ×2 平台）、
+`test_client_config_toggle.py::TestConfigToggleBrowser::test_switch_reflects_backend_state`（×2 平台）。
 
 ### 检验二：关掉某开关
 
-对 mcp / hooks / agent 分别：`DELETE /api/client-config/ClaudeCode/<kind>`
+对 mcp / hooks / agent 分别：`DELETE /api/client-config/<平台>/<kind>`
 
 | 项 | 预期 |
 |----|------|
 | 对应配置文件 | 该 kind 的 MyKnowledge 条目**被移除**（键删除 / matcher 删除 / 文件删除），非停用标记 |
 | 用户其他配置 | 保留（其他 mcpServers、其他 hooks、PostToolUse、无关设置项都在） |
-| `GET /api/client-config` → `ClaudeCode[kind]` | `false` |
+| `GET /api/client-config` → `<平台>[kind]` | `false` |
 | 该开关 | 显示为**关**；另外两个开关**不变** |
 
-自动化：`TestCheck2_ToggleOff`（5 例，含「关=删除非停用」「保留用户其他配置」「幂等」）、
-`test_claude_code_config.py::…::test_toggle_off_sends_delete_then_on_sends_post`。
+自动化：`TestCheck2_ToggleOff`（5 例 ×2 平台，含「关=删除非停用」「保留用户其他配置」「幂等」）、
+`test_client_config_toggle.py::…::test_toggle_off_sends_delete_then_on_sends_post`（×2 平台）。
 
 ### 检验三：再次打开
 
-`POST /api/client-config/ClaudeCode/<kind>`
+`POST /api/client-config/<平台>/<kind>`
 
 | 项 | 预期 |
 |----|------|
 | 对应配置文件 | 条目**恢复写入**，内容与初次写入**逐字段等价** |
-| `GET /api/client-config` → `ClaudeCode[kind]` | `true` |
+| `GET /api/client-config` → `<平台>[kind]` | `true` |
 | 该开关 | 恢复为**开** |
 | 多轮 关→开→关→开 | 状态稳定，无漂移 |
 
-自动化：`TestCheck3_ToggleBackOn`（3 例，含「恢复内容等价」「多轮循环稳定」）。
+自动化：`TestCheck3_ToggleBackOn`（3 例 ×2 平台，含「恢复内容等价」「多轮循环稳定」）、
+`test_client_config_toggle.py::…::test_full_off_on_cycle_via_ui`（浏览器逐个关再逐个开，×2 平台）。
 
 ### 补充：三个开关各自独立、互不影响
 
@@ -183,9 +214,11 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
 | 关 agent | mcp / hooks 不变 |
 | 开某个关着的 kind | 不会顺带打开另外两个 |
 | 8 种开/关组合矩阵 | 设置页开关矩阵 ↔ 配置文件矩阵**逐一完全一致** |
+| ClaudeCode ↔ CodeBuddyIDE | 同一 home 下两平台配置各写各的，关掉一个平台全部不影响另一个 |
 
-自动化：`TestCheck4_SwitchIndependence`（4 例，含 `test_independent_state_matrix` 遍历 8 组合）、
-`test_claude_code_config.py::…::test_three_switches_independent`（浏览器点关 hooks，断言只对 hooks 发一次 DELETE）。
+自动化：`TestCheck4_SwitchIndependence`（4 例 ×2 平台，含 `test_independent_state_matrix` 遍历 8 组合）、
+`TestCrossPlatformIsolation`（2 例，两平台互不干扰）、
+`test_client_config_toggle.py::…::test_three_switches_independent`（浏览器点关 hooks，断言只对 hooks 发一次 DELETE，×2 平台）。
 
 ---
 
@@ -193,25 +226,26 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
 
 ### 自动化覆盖
 
-| 层 | 文件 | 覆盖 |
+| 层 | 文件 | 覆盖（ClaudeCode + CodeBuddyIDE 均参数化 ×2） |
 |----|------|------|
-| **后端 / API** | `tests/test_claude_code_config_verify.py`（`fake_home` 隔离 + `TestClient` 打真实路由） | 三次核心检验的**配置文件内容 + 检测态 + 开关联动**全链路；关=删除非停用；保留用户配置；独立性 8 组合矩阵；引导契约护栏（拒绝非法 kind、重复初始化保持开启） |
-| **前端 · 静态** | `tests/frontend/test_claude_code_config.py::TestClaudeCodeConfigStatic`（源码断言，总是运行） | 开关视觉态绑定 `clientStatus`；点击调 `configureClient(plat.key, kind.key)`；`configureClient` 双向取反 + POST/DELETE 分支 + 回读；单写锁；`guideExecute` 用 `.key` 且只「确保开启」 |
-| **前端 · 浏览器** | `tests/frontend/test_claude_code_config.py::TestClaudeCodeToggleBrowser`（Playwright，全量 mock `/api/**`，真跑 Alpine，不碰真实 `~/.claude`、不需 8080 后端） | 开关 on/off class ↔ mock 配置态一致；点击发对方向 HTTP 动词并回读翻转；三开关独立；`guideExecute` 不误删已配置项 / 未配置时写全三种 |
+| **后端 / API** | `tests/test_client_config_verify.py`（`fake_home` 隔离 + `TestClient` 打真实路由；`params=["ClaudeCode","CodeBuddyIDE"]`） | 三次核心检验的**配置文件内容 + 检测态 + 开关联动**全链路；关=删除非停用；保留用户配置；独立性 8 组合矩阵；两平台互不干扰；引导契约护栏（拒绝非法 kind、重复初始化保持开启） |
+| **前端 · 静态** | `tests/frontend/test_client_config_toggle.py::TestConfigToggleStatic`（源码断言，总是运行） | 开关视觉态绑定 `clientStatus`；点击调 `configureClient(plat.key, kind.key)`；`configureClient` 双向取反 + POST/DELETE 分支 + 回读；单写锁；`guideExecute` 用 `.key` 且只「确保开启」；两平台 `kinds` 与 toggle 标记平台无关 |
+| **前端 · 浏览器** | `tests/frontend/test_client_config_toggle.py::TestConfigToggleBrowser`（Playwright，全量 mock `/api/**`，真跑 Alpine，不碰真实 `~/.claude` / `~/.codebuddy`、不需 8080 后端；`@parametrize("plat", ["ClaudeCode","CodeBuddyIDE"])`） | 开关 on/off class ↔ mock 配置态一致；点击发对方向 HTTP 动词并回读翻转；三开关独立；关→开完整循环；`guideExecute` 不误删已配置项 / 未配置时写全三种 |
 
 **为什么前端写路径用 mock 而不用真后端**：仓库既有前端浏览器测试（`test_stage3.py`）明确
 「只 GET 检测 + 渲染，不实际 POST 写入用户全局配置」——真后端会写到跑测试这台机器的真实
-`~/.claude`。本方案用 `page.route` 拦截全部 `/api/**`，内存态模拟后端，既真实驱动 Alpine
-开关逻辑，又零副作用。
+`~/.claude` / `~/.codebuddy`。本方案用 `page.route` 拦截全部 `/api/**`，内存态模拟后端，
+既真实驱动 Alpine 开关逻辑，又零副作用。
 
 ### 需手动验证（自动化未覆盖 / 不适合自动化）
 
 | 项 | 手动步骤 |
 |----|----------|
-| 桌面 App 内引导页真机走查 | `myknowledge serve` → 浏览器打开 → 初始化引导选 Claude Code → 走完 → 去 `~/.claude.json` / `~/.claude/settings.json` / `~/.claude/agents/` 核对三份文件 |
-| 设置页开关视觉/交互细节 | 设置 → MCP/Hooks/Agents 三页，逐个点开关，观察 knob 滑动动画、toast 文案（「已就绪 / 已关闭」）、失败时行内 fallback |
-| Claude Code 真机联调（**国内网络不可行，出于完整性列出**） | 有外网环境时：配置写入后启动 Claude Code，确认它能加载 MyKnowledge MCP server（`/mcp` 列出工具）、PreToolUse hook 生效、`@MyKnowledge-agent` 可用 |
-| 「重新运行初始化引导」回归 | 已配置 Claude Code → 设置→通用→重新运行初始化引导→选 Claude Code→走完 → 确认三份配置**仍在**（不被清掉） |
+| 桌面 App 内引导页真机走查 | `myknowledge serve` → 浏览器打开 → 初始化引导选 Claude Code / CodeBuddy IDE → 走完 → 去 `~/.claude*` / `~/.codebuddy*` 核对三份文件 |
+| 设置页开关视觉/交互细节 | 设置 → MCP/Hooks/Agents 三页，对两个平台逐个点开关，观察 knob 滑动动画、toast 文案（「已就绪 / 已关闭」）、失败时行内 fallback |
+| Claude Code / CodeBuddy IDE 真机联调（**国内网络不可行，出于完整性列出**） | 有外网环境时：配置写入后启动客户端，确认它能加载 MyKnowledge MCP server、PreToolUse hook 生效、专用 Agent 可用 |
+| 「重新运行初始化引导」回归 | 已配置某平台 → 设置→通用→重新运行初始化引导→选同一平台→走完 → 确认三份配置**仍在**（不被清掉） |
+| DMG 真机安装 | 见 §6（本次已打包，供 mentor 安装验证六平台默认配置） |
 
 ---
 
@@ -230,12 +264,13 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
     （`test_no_modal_visible_on_load` / `test_dashboard_shows_title` / `test_trash_view_renders`）
     **改动前即失败**（缺少 `backend_running` skip 守卫，无 8080 后端时 dashboard 无数据 →
     标题区 `x-show` 隐藏）。**与本次改动无关**，改动后仍是同样这 3 例失败，无新增失败。
-- 改动后：
-  - `tests/test_claude_code_config_verify.py`：`27 passed`
-  - `tests/frontend/test_claude_code_config.py`：`14 passed`（静态 9 + 浏览器 5）
+- 改动后（含第二部分补的 CodeBuddy IDE 覆盖）：
+  - `tests/test_client_config_verify.py`：`56 passed`（ClaudeCode + CodeBuddyIDE 参数化 + 两平台互不干扰）
+  - `tests/frontend/test_client_config_toggle.py`：`24 passed`（静态 12 + 浏览器 12 = 6 用例 ×2 平台）
   - `tests/frontend/test_stage3.py`：`17 passed, 8 skipped`（不变）
   - `tests/test_client_config.py`：不变全绿
-  - 后端全量 `758 passed`
+  - 后端全量 `787 passed`（基线 758 + 新增 29）
+  - `tests/frontend/` 全量：`88 passed, 115 skipped, 3 failed`（3 failed = 上述 `test_smoke.py` 既有失败，无新增）
   - `frontend/check_build.py`：`28/29`（唯一失败 `⑤ 编辑保存往返测试` 缺 `frontend/node_modules`
     的 turndown，**改动前即如此**，CI 会装依赖）；`④ ?v= 版本化一致性` ✓
 
@@ -268,9 +303,9 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
       try { await this.configureClient(platform, kind); } catch (e) { /* 不中断后续 */ }
   }
   ```
-- **验证**：`test_claude_code_config.py::…::test_guide_execute_writes_all_three_when_unconfigured`
+- **验证**：`test_client_config_toggle.py::…::test_guide_execute_writes_all_three_when_unconfigured`
   （改前红：`guideExecute` 对 ClaudeCode 发出的是非法 kind、0 个有效 POST；改后绿：mcp/hooks/agent 各一个 POST）。
-  后端护栏 `test_claude_code_config_verify.py::TestGuideExecuteContract::test_object_like_kind_is_rejected`。
+  后端护栏 `test_client_config_verify.py::TestGuideExecuteContract::test_object_like_kind_is_rejected`。
 
 ### 问题 #2：重新运行初始化引导会把已配置的项**误关掉**
 
@@ -283,15 +318,44 @@ index.html  @click="$store.app.configureClient(plat.key, kind.key)"
 - **修复**：同上一处，加一行 `if (this.clientStatus(platform, kind) === true) continue;`——
   引导只对**尚未开启**的 kind 调 `configureClient`（写操作幂等，POST 已开启项本也安全，
   这里直接跳过更省一次往返）。**不改 `configureClient` 本身**（设置页开关仍需要它的双向语义）。
-- **验证**：`test_claude_code_config.py::…::test_guide_reexecute_does_not_remove_configured`
+- **验证**：`test_client_config_toggle.py::…::test_guide_reexecute_does_not_remove_configured`
   （改前红：对已配置 ClaudeCode 发 DELETE；改后绿：零 DELETE，配置保持）。
   静态断言 `test_guide_execute_only_ensures_on`。
-  后端护栏 `test_claude_code_config_verify.py::TestGuideExecuteContract::test_reinit_keeps_config_on`。
+  后端护栏 `test_client_config_verify.py::TestGuideExecuteContract::test_reinit_keeps_config_on`。
 
-### 未发现问题的部分
+### CodeBuddy IDE：未发现新问题（第二部分）
+
+把 CodeBuddyIDE 纳入同一套参数化验收后：
+
+- **三次核心检验 + 开关独立性 + 两平台互不干扰全部通过**，无 CodeBuddyIDE 专属 bug。
+- 问题 #1 / #2（`guideExecute`）**同样影响 CodeBuddyIDE**——它是所有非 Enchante 平台共用的
+  引导执行路径。已由问题 #1/#2 的**同一处修复**覆盖；新增的浏览器用例对 CodeBuddyIDE 也参数化
+  跑了一遍（改前红、改后绿），确认修复对两平台都生效。
+- CodeBuddyIDE 的 hooks 命令是环境相关的（dev `python3 -m backend.hooks_forward` / frozen
+  `"<二进制>" --hooks-forward`），`detect_platform` 与 `_hooks_cmd_for` 用的是同一个当前环境
+  命令，因此测试里始终自洽——已通过 `_matcher_is_mine` 签名识别（与后端 detect 同源）验证。
+
+### 未发现问题的部分（两平台通用）
 
 - **设置页三个开关本身**（`configureClient` + `index.html` toggle 绑定）逻辑**正确**：
   开→POST、关→DELETE、再开→POST，回读 `loadClientConfig` 权威刷新，单写锁防串扰。
-  三次核心检验在开关这条路径上全部通过，无需修改。
+  三次核心检验在开关这条路径上、两个平台全部通过，无需修改。
 - **后端 `write_kind` / `remove_kind` / `detect_platform`** 逻辑**正确**：增量合并、只删自己的条目、
-  幂等、恢复内容等价、三文件天然隔离。既有 `tests/test_client_config.py` + 本次新增均通过。
+  幂等、恢复内容逐字段等价、三文件天然隔离、两平台各写各的。既有 `tests/test_client_config.py`
+  + 本次新增（ClaudeCode + CodeBuddyIDE）均通过。
+
+---
+
+## 6. 打包产物（供 mentor 真机验证）
+
+用当前分支代码打了一个**默认配置（6 平台）**的 macOS DMG：
+
+- 打包流程：`cd desktop && npm run build:backend`（`scripts/build-backend.sh`，PyInstaller onedir
+  + MCP 冒烟）→ `npm run build:app`（`scripts/build-desktop.sh`，electron-builder）。
+- 产物：`desktop/dist/MyKnowledge-0.7.7-arm64.dmg`，并复制一份到代码项目目录：
+  **`~/Desktop/Apple internship/08_代码项目/MyKnowledge-0.7.7-arm64-0903.dmg`**
+- 未签名（adhoc）：首次打开若被 Gatekeeper 拦，执行
+  `xattr -dr com.apple.quarantine "/Applications/MyKnowledge.app"` 后再打开。
+- 验证建议：打开 App → 初始化引导选 Claude Code / CodeBuddy IDE → 走完 →
+  终端看 `~/.claude*` / `~/.codebuddy*` 三份文件；再「设置 → 通用 → 重新运行初始化引导」
+  重跑一遍，确认配置**没被清掉**（问题 #2 的修复）。

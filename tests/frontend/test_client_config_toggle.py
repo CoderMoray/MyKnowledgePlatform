@@ -1,10 +1,13 @@
-"""前端验收：Claude Code 平台 MCP / Hooks / Agent 设置页开关的读写逻辑。
+"""前端验收：MVP AI 平台（ClaudeCode / CodeBuddyIDE）MCP / Hooks / Agent 设置页开关的读写逻辑。
 
 配套测试方案：``docs/test-plan-claude-code-config.md``。
 
+设置页开关逻辑与平台无关（``configureClient(plat.key, kind.key)`` + ``clientStatus``），
+浏览器用例参数化跑 ClaudeCode 和 CodeBuddyIDE 两个平台。
+
 分两层：
 
-1. ``TestClaudeCodeConfigStatic`` —— 静态源码断言（不依赖后端 / 浏览器，总是运行）。
+1. ``TestConfigToggleStatic`` —— 静态源码断言（不依赖后端 / 浏览器，总是运行）。
    钉死 store.js / api.js / index.html 里开关的双向逻辑：
      - 开关视觉态绑定 ``clientStatus(platform, kind)``（= 后端 detect 结果）；
      - 点击调 ``configureClient(plat.key, kind.key)``；
@@ -14,9 +17,10 @@
      - ``guideExecute``（重新运行初始化引导）用 ``kindMeta.key`` 字符串、且只
        「确保开启」不误关已配置项 —— 见测试方案「发现的问题」#1 #2。
 
-2. ``TestClaudeCodeToggleBrowser`` —— Playwright，全量 mock ``/api/**``（不碰真实
-   ``~/.claude``、不需要 8080 后端），真跑 Alpine：验证开关 UI ↔ mock 配置态一致、
-   点击发对方向的 HTTP 动词、``guideExecute`` 不误删已配置项。
+2. ``TestConfigToggleBrowser`` —— Playwright，全量 mock ``/api/**``（不碰真实
+   ``~/.claude`` / ``~/.codebuddy``、不需要 8080 后端），真跑 Alpine：验证开关
+   UI ↔ mock 配置态一致、点击发对方向的 HTTP 动词、三开关独立、
+   ``guideExecute`` 不误删已配置项 / 未配置时写全三种。
 """
 
 from __future__ import annotations
@@ -38,7 +42,7 @@ INDEX = ROOT / "frontend" / "index.html"
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestClaudeCodeConfigStatic:
+class TestConfigToggleStatic:
     def test_api_has_write_and_remove_methods(self) -> None:
         js = API.read_text(encoding="utf-8")
         assert "async setClientConfig(platform, kind)" in js
@@ -111,10 +115,19 @@ class TestClaudeCodeConfigStatic:
         pk = pk[:pk.index("},")]
         assert "this.clientKinds.filter" in pk
 
-    def test_claude_code_supports_all_three_kinds(self) -> None:
+    @pytest.mark.parametrize("plat", ["ClaudeCode", "CodeBuddyIDE"])
+    def test_mvp_platform_supports_all_three_kinds(self, plat: str) -> None:
         js = STORE.read_text(encoding="utf-8")
-        row = next(l for l in js.splitlines() if '"ClaudeCode"' in l and "kinds:" in l)
+        row = next(l for l in js.splitlines() if f'"{plat}"' in l and "kinds:" in l)
         assert '"mcp", "hooks", "agent"' in row
+
+    @pytest.mark.parametrize("plat", ["ClaudeCode", "CodeBuddyIDE"])
+    def test_settings_toggle_markup_is_platform_generic(self, plat: str) -> None:
+        """设置页每个 kind 页对每个平台渲染同一套 toggle（x-for plat，绑定 plat.key）——
+        CodeBuddyIDE 与 ClaudeCode 走完全相同的开关代码路径。"""
+        html = INDEX.read_text(encoding="utf-8")
+        assert "x-for=\"plat in $store.app.platformsForKind(kind.key)\"" in html
+        assert ":data-platform=\"plat.key\"" in html and ":data-kind=\"kind.key\"" in html
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -219,7 +232,15 @@ def _open_settings(page, group: str) -> None:
     page.wait_for_timeout(400)
 
 
-class TestClaudeCodeToggleBrowser:
+
+MVP_PLATFORMS = ["ClaudeCode", "CodeBuddyIDE"]
+_NAV = {"mcp": "MCP", "hooks": "Hooks", "agent": "Agents"}
+
+
+@pytest.mark.parametrize("plat", MVP_PLATFORMS)
+class TestConfigToggleBrowser:
+    """全量 mock /api/**，真跑 Alpine。两个 MVP 平台跑同一套开关用例。"""
+
     def _boot(self, page, static_server, mock: _MockBackend):
         mock.install(page)
         page.goto(f"{static_server}#dashboard")
@@ -228,114 +249,133 @@ class TestClaudeCodeToggleBrowser:
         except Exception:
             pytest.skip("前端未能在 mock 环境下启动（Alpine/资源加载）")
 
-    def test_switch_reflects_backend_state(self, mock_page, static_server):
+    def _row(self, page, plat: str, kind: str):
+        return page.locator(
+            f".settings-modal .ai-platform-row[data-platform='{plat}'][data-kind='{kind}']")
+
+    def test_switch_reflects_backend_state(self, mock_page, static_server, plat):
         """检验一/二/三 的 UI 侧：开关 on/off class 与 mock 的 clientConfig 一致。"""
         mock = _MockBackend()
-        mock.cfg["ClaudeCode"].update(mcp=True, hooks=False, agent=True)
+        mock.cfg[plat].update(mcp=True, hooks=False, agent=True)
         self._boot(mock_page, static_server, mock)
         _open_settings(mock_page, "MCP")
 
-        def toggle(kind_nav, plat="ClaudeCode"):
-            mock_page.locator(".settings-nav__item", has_text=kind_nav).click()
+        def cls(kind):
+            mock_page.locator(".settings-nav__item", has_text=_NAV[kind]).click()
             mock_page.wait_for_timeout(250)
-            return mock_page.locator(
-                f".settings-modal .ai-platform-row[data-platform='{plat}'][data-kind="
-                f"'{ {'MCP':'mcp','Hooks':'hooks','Agents':'agent'}[kind_nav] }'] .toggle")
+            return self._row(mock_page, plat, kind).locator(".toggle").get_attribute("class")
 
-        cls_mcp = toggle("MCP").get_attribute("class")
-        cls_hooks = toggle("Hooks").get_attribute("class")
-        cls_agent = toggle("Agents").get_attribute("class")
-        assert "toggle--on" in cls_mcp and "toggle--off" not in cls_mcp.replace("toggle--off-soft", "")
-        assert "toggle--off" in cls_hooks
-        assert "toggle--on" in cls_agent
+        assert "toggle--on" in cls("mcp")
+        assert "toggle--off" in cls("hooks")
+        assert "toggle--on" in cls("agent")
 
-    def test_toggle_off_sends_delete_then_on_sends_post(self, mock_page, static_server):
+    def test_toggle_off_sends_delete_then_on_sends_post(self, mock_page, static_server, plat):
         """开关双向：当前为开 → 点击发 DELETE；当前为关 → 点击发 POST。回读后 class 翻转。"""
         mock = _MockBackend()
-        mock.cfg["ClaudeCode"]["mcp"] = True
+        mock.cfg[plat]["mcp"] = True
         self._boot(mock_page, static_server, mock)
         _open_settings(mock_page, "MCP")
 
-        row = mock_page.locator(
-            ".settings-modal .ai-platform-row[data-platform='ClaudeCode'][data-kind='mcp']")
-        tog = row.locator(".toggle")
+        tog = self._row(mock_page, plat, "mcp").locator(".toggle")
         assert "toggle--on" in tog.get_attribute("class")
 
         tog.click()  # 开 → 关
         mock_page.wait_for_timeout(600)
-        assert ("DELETE", "ClaudeCode", "mcp") in mock.calls
-        assert mock.cfg["ClaudeCode"]["mcp"] is False
+        assert ("DELETE", plat, "mcp") in mock.calls
+        assert mock.cfg[plat]["mcp"] is False
         assert "toggle--off" in tog.get_attribute("class")
 
         mock.calls.clear()
         tog.click()  # 关 → 开
         mock_page.wait_for_timeout(600)
-        assert ("POST", "ClaudeCode", "mcp") in mock.calls
-        assert mock.cfg["ClaudeCode"]["mcp"] is True
+        assert ("POST", plat, "mcp") in mock.calls
+        assert mock.cfg[plat]["mcp"] is True
         assert "toggle--on" in tog.get_attribute("class")
 
-    def test_three_switches_independent(self, mock_page, static_server):
+    def test_three_switches_independent(self, mock_page, static_server, plat):
         """关 hooks 不影响 mcp / agent（只对 hooks 发一次 DELETE）。"""
         mock = _MockBackend()
-        mock.cfg["ClaudeCode"].update(mcp=True, hooks=True, agent=True)
+        mock.cfg[plat].update(mcp=True, hooks=True, agent=True)
         self._boot(mock_page, static_server, mock)
         _open_settings(mock_page, "Hooks")
 
-        mock_page.locator(
-            ".settings-modal .ai-platform-row[data-platform='ClaudeCode'][data-kind='hooks'] .toggle"
-        ).click()
+        self._row(mock_page, plat, "hooks").locator(".toggle").click()
         mock_page.wait_for_timeout(600)
 
-        kinds_touched = {(mth, k) for (mth, p, k) in mock.calls if p == "ClaudeCode"}
-        assert kinds_touched == {("DELETE", "hooks")}, kinds_touched
-        assert mock.cfg["ClaudeCode"] == {
+        touched = {(mth, k) for (mth, p, k) in mock.calls if p == plat}
+        assert touched == {("DELETE", "hooks")}, touched
+        assert mock.cfg[plat] == {
             "client_installed": True, "connection": "not_connected",
             "mcp": True, "hooks": False, "agent": True}
 
-    def test_guide_reexecute_does_not_remove_configured(self, mock_page, static_server):
-        """回归 #1+#2：已完整配置 ClaudeCode 时再跑 guideExecute（重新运行初始化引导），
-        不得对 ClaudeCode 发任何 DELETE，也不得用非法 kind（[object Object]）。"""
+    def test_full_off_on_cycle_via_ui(self, mock_page, static_server, plat):
+        """检验二+三 UI 全链路：三个开关逐个关（发 DELETE）再逐个开（发 POST），
+        每步 class 与 mock 配置态一致。"""
         mock = _MockBackend()
-        mock.cfg["ClaudeCode"].update(mcp=True, hooks=True, agent=True)
+        mock.cfg[plat].update(mcp=True, hooks=True, agent=True)
+        self._boot(mock_page, static_server, mock)
+        _open_settings(mock_page, "MCP")
+
+        for kind in ("mcp", "hooks", "agent"):
+            mock_page.locator(".settings-nav__item", has_text=_NAV[kind]).click()
+            mock_page.wait_for_timeout(250)
+            tog = self._row(mock_page, plat, kind).locator(".toggle")
+            tog.click()
+            mock_page.wait_for_timeout(500)
+            assert ("DELETE", plat, kind) in mock.calls
+            assert "toggle--off" in tog.get_attribute("class")
+        assert not any(mock.cfg[plat][k] for k in ("mcp", "hooks", "agent"))
+
+        mock.calls.clear()
+        for kind in ("mcp", "hooks", "agent"):
+            mock_page.locator(".settings-nav__item", has_text=_NAV[kind]).click()
+            mock_page.wait_for_timeout(250)
+            tog = self._row(mock_page, plat, kind).locator(".toggle")
+            tog.click()
+            mock_page.wait_for_timeout(500)
+            assert ("POST", plat, kind) in mock.calls
+            assert "toggle--on" in tog.get_attribute("class")
+        assert all(mock.cfg[plat][k] for k in ("mcp", "hooks", "agent"))
+
+    def test_guide_reexecute_does_not_remove_configured(self, mock_page, static_server, plat):
+        """回归 #1+#2：已完整配置时再跑 guideExecute（重新运行初始化引导），
+        不得对该平台发任何 DELETE，也不得用非法 kind（[object Object]）。"""
+        mock = _MockBackend()
+        mock.cfg[plat].update(mcp=True, hooks=True, agent=True)
         self._boot(mock_page, static_server, mock)
 
         mock_page.evaluate(
-            """async () => {
+            """async (plat) => {
                 const s = Alpine.store('app');
-                s.clientConfig = JSON.parse(JSON.stringify({
-                  ClaudeCode: { client_installed: true, connection: 'not_connected',
-                                mcp: true, hooks: true, agent: true } }));
-                s.guideSelected = ['ClaudeCode'];
+                const cc = {}; cc[plat] = { client_installed: true, connection: 'not_connected',
+                    mcp: true, hooks: true, agent: true };
+                s.clientConfig = JSON.parse(JSON.stringify(cc));
+                s.guideSelected = [plat];
                 await s.guideExecute();
-            }"""
-        )
+            }""", plat)
         mock_page.wait_for_timeout(300)
 
-        cc_calls = [(m, k) for (m, p, k) in mock.calls if p == "ClaudeCode"]
-        assert all(m != "DELETE" for (m, k) in cc_calls), f"引导误发 DELETE: {cc_calls}"
-        assert all(k in ("mcp", "hooks", "agent") for (m, k) in cc_calls), \
-            f"引导用了非法 kind: {cc_calls}"
-        assert mock.cfg["ClaudeCode"]["mcp"] and mock.cfg["ClaudeCode"]["hooks"] \
-            and mock.cfg["ClaudeCode"]["agent"]
+        calls = [(m, k) for (m, p, k) in mock.calls if p == plat]
+        assert all(m != "DELETE" for (m, k) in calls), f"引导误发 DELETE: {calls}"
+        assert all(k in ("mcp", "hooks", "agent") for (m, k) in calls), f"引导用了非法 kind: {calls}"
+        assert all(mock.cfg[plat][k] for k in ("mcp", "hooks", "agent"))
 
-    def test_guide_execute_writes_all_three_when_unconfigured(self, mock_page, static_server):
+    def test_guide_execute_writes_all_three_when_unconfigured(self, mock_page, static_server, plat):
         """回归 #1 正向：全未配置时 guideExecute 应把 mcp/hooks/agent 三个都 POST 写入。"""
         mock = _MockBackend()
         self._boot(mock_page, static_server, mock)
 
         mock_page.evaluate(
-            """async () => {
+            """async (plat) => {
                 const s = Alpine.store('app');
-                s.clientConfig = JSON.parse(JSON.stringify({
-                  ClaudeCode: { client_installed: true, connection: 'not_connected',
-                                mcp: false, hooks: false, agent: false } }));
-                s.guideSelected = ['ClaudeCode'];
+                const cc = {}; cc[plat] = { client_installed: true, connection: 'not_connected',
+                    mcp: false, hooks: false, agent: false };
+                s.clientConfig = JSON.parse(JSON.stringify(cc));
+                s.guideSelected = [plat];
                 await s.guideExecute();
-            }"""
-        )
+            }""", plat)
         mock_page.wait_for_timeout(300)
 
-        posts = sorted(k for (m, p, k) in mock.calls if p == "ClaudeCode" and m == "POST")
+        posts = sorted(k for (m, p, k) in mock.calls if p == plat and m == "POST")
         assert posts == ["agent", "hooks", "mcp"], f"引导写入不全: {mock.calls}"
-        assert mock.cfg["ClaudeCode"]["mcp"] and mock.cfg["ClaudeCode"]["hooks"] \
-            and mock.cfg["ClaudeCode"]["agent"]
+        assert all(mock.cfg[plat][k] for k in ("mcp", "hooks", "agent"))
