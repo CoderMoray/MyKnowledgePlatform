@@ -1,0 +1,48 @@
+name: Deploy manual to GitHub Pages
+
+# 只发布 docs/manual/ 这一个目录作为 Pages 站点根。
+# 其余 docs/（内部设计文档、任务笔记等）完全不参与发布，也不触发 Jekyll。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/manual/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时刻只跑一个部署；不打断进行中的部署。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        # enablement: true —— 首次运行时自动把 Pages 源切到 "GitHub Actions"，
+        # 无需手动去 Settings 开。若组织策略禁止自动开启，改为手动在
+        # Settings → Pages → Source 选 "GitHub Actions" 后重跑本 workflow。
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload artifact (docs/manual only)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/manual
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
