@@ -764,17 +764,49 @@
     .scenario .scenario-text,
     .scenario.reverse .scenario-text { flex: none; width: 100%; max-width: 100%; order: 2; padding-left: 0; }
   }
+
+  /* ═══════════ #home panel (welcome + flow chart) ═══════════ */
+  section#home.panel { padding: 8px 0 64px; }
+  #home .hero { padding: 24px 0 8px; overflow: visible; }
+  #home .hero .wrap { max-width: 100%; padding: 0; margin: 0; }
+  #home .hero-glow { display: none; }               /* decorative blur relied on a wide full-bleed hero */
+  #home .hero-actions { margin-bottom: 40px; }
+  #home .hero-illustration {
+    max-width: 680px;
+    margin: 0 auto;
+    overflow: visible;                               /* never clip the 5-branch flow chart */
+  }
+  #home .flow-branches { max-width: 100%; }
+  @media (max-width: 900px) {
+    #home .hero { padding-top: 16px; }
+  }
+  /* narrow screens: let the flow-chart nodes wrap so nothing is clipped or
+     forces a horizontal scroll (the nodes were nowrap + clipped before) */
+  @media (max-width: 620px) {
+    #home .hero-illustration { padding: 26px 14px 22px; }
+    #home .flow-node { white-space: normal; text-align: left; }
+    #home .flow-node-hub { font-weight: 600; }
+  }
 </style>
 </head>
 <body>
 <nav class="nav">
   <div class="nav-inner">
-    <a href="#install" class="brand" data-target="install"><span class="brand-mark"></span>MyKnowledge 使用手册</a>
+    <a href="#home" class="brand" data-target="home"><span class="brand-mark"></span>MyKnowledge 使用手册</a>
   </div>
 </nav>
 
-<div id="top"></div>
-
+<div class="app-shell">
+  <aside class="sidebar">
+    <nav class="sidebar-nav" aria-label="板块导航">
+      <a href="#home" data-target="home"><span class="s-idx">01</span>首页</a>
+      <a href="#install" data-target="install"><span class="s-idx">02</span>安装</a>
+      <a href="#usage" data-target="usage"><span class="s-idx">03</span>使用</a>
+      <a href="#faq" data-target="faq"><span class="s-idx">04</span>FAQ</a>
+    </nav>
+  </aside>
+  <div class="content">
+<section id="home" class="panel is-active">
 <header class="hero">
   <div class="hero-glow"></div>
   <div class="wrap">
@@ -783,7 +815,7 @@
     <p class="hero-sub">MyKnowledge 作为 MCP 装在 enchanté 里，由 AI 自动帮你管理一个专属知识库——随口记录、随时恢复、打开 App 就能查看和修改，还能安全分享给同事。</p>
     <div class="hero-actions">
       <a href="#install" class="btn btn-primary">开始安装</a>
-      <a href="#usage" class="btn btn-secondary">看看能用来做什么</a>
+      <a href="#usage" class="btn btn-secondary">看看怎么用</a>
     </div>
 
     <div class="hero-illustration reveal">
@@ -843,18 +875,8 @@
     </div>
   </div>
 </header>
-
-
-<div class="app-shell">
-  <aside class="sidebar">
-    <nav class="sidebar-nav" aria-label="板块导航">
-      <a href="#install" data-target="install"><span class="s-idx">01</span>安装</a>
-      <a href="#usage" data-target="usage"><span class="s-idx">02</span>使用</a>
-      <a href="#faq" data-target="faq"><span class="s-idx">03</span>FAQ</a>
-    </nav>
-  </aside>
-  <div class="content">
-<section id="install" class="panel is-active">
+</section>
+<section id="install" class="panel">
   <div class="wrap">
     <div class="section-head reveal">
       <p class="section-kicker">Step by step</p>
@@ -1291,7 +1313,7 @@
 
 <script>
 (function () {
-  var PANELS = ['install', 'usage', 'faq'];
+  var PANELS = ['home', 'install', 'usage', 'faq'];
   var sideLinks = Array.prototype.slice.call(document.querySelectorAll('.sidebar-nav a'));
 
   function panelEl(id) { return document.getElementById(id); }
@@ -1305,7 +1327,7 @@
   }
 
   function showPanel(id, updateHash, scroll) {
-    if (PANELS.indexOf(id) === -1) id = 'install';
+    if (PANELS.indexOf(id) === -1) id = 'home';
     PANELS.forEach(function (p) {
       var el = panelEl(p);
       if (el) el.classList.toggle('is-active', p === id);
@@ -1332,7 +1354,7 @@
     if (!a) return;
     var href = a.getAttribute('href') || '';
     var raw = href.slice(1);
-    var id = (raw === '' || raw === 'top') ? 'install' : raw;
+    var id = (raw === '' || raw === 'top') ? 'home' : raw;
     if (PANELS.indexOf(id) === -1) return;   // unknown anchor -> leave default behaviour
     e.preventDefault();
     showPanel(id, true, true);
@@ -1340,12 +1362,12 @@
 
   window.addEventListener('hashchange', function () {
     var id = location.hash.slice(1);
-    showPanel(PANELS.indexOf(id) === -1 ? 'install' : id, false, false);
+    showPanel(PANELS.indexOf(id) === -1 ? 'home' : id, false, false);
   });
 
   // initial view from the hash (deep-link friendly), no forced scroll
   var initial = location.hash.slice(1);
-  showPanel(PANELS.indexOf(initial) === -1 ? 'install' : initial, false, false);
+  showPanel(PANELS.indexOf(initial) === -1 ? 'home' : initial, false, false);
 
   // ---- scroll reveal (hero + first-seen panel) ----
   var els = document.querySelectorAll('.reveal');
