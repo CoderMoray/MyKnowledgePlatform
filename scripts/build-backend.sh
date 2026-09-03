@@ -97,7 +97,7 @@ T0=$(date +%s)
 echo "    ✓ 前端构建完成 ($(( $(date +%s) - T0 ))s)"
 
 # ── 企业配置合并（仅 --enterprise 时）────────────────────────────────
-AICLIENT_SRC="backend/AiClientConfig"
+AICLIENT_SRC="${PWD}/backend/AiClientConfig"
 if [ -n "$ENTERPRISE" ]; then
   step 2 4 "合并企业配置 → 临时 AiClientConfig"
   AICLIENT_SRC="${ENTERPRISE_DIR}/AiClientConfig"
@@ -145,6 +145,8 @@ T1=$(date +%s)
 # 实时抓 PyInstaller 进度行，换算成 0-100% 进度条。
 # 按构建里程碑估算权重：分析(10%) → 生成 PYZ(20%) → 收集依赖(35%) →
 # 打包 EXE(25%) → 生成 COLLECT(10%)，完成后置 100%。
+# 注意：--specpath build 会把 add-data 的相对路径改为相对 build/ 解析，
+# 因此下面必须用 $PWD 绝对路径。
 "${PYTHON}" -m PyInstaller \
   --name myknowledge-backend \
   --collect-all uvicorn \
@@ -156,14 +158,14 @@ T1=$(date +%s)
   --collect-submodules multipart \
   --collect-submodules fastapi \
   --collect-submodules starlette \
-  --add-data "frontend/index.standalone.html:frontend" \
-  --add-data "frontend/index.html:frontend" \
-  --add-data "frontend/js:frontend/js" \
-  --add-data "frontend/css:frontend/css" \
-  --add-data "frontend/vendor:frontend/vendor" \
-  --add-data "frontend/tiptap-bundle.mjs:frontend" \
-  --add-data "backend/hooks_forward.py:backend" \
-  --add-data "backend/templates:backend/templates" \
+  --add-data "${PWD}/frontend/index.standalone.html:frontend" \
+  --add-data "${PWD}/frontend/index.html:frontend" \
+  --add-data "${PWD}/frontend/js:frontend/js" \
+  --add-data "${PWD}/frontend/css:frontend/css" \
+  --add-data "${PWD}/frontend/vendor:frontend/vendor" \
+  --add-data "${PWD}/frontend/tiptap-bundle.mjs:frontend" \
+  --add-data "${PWD}/backend/hooks_forward.py:backend" \
+  --add-data "${PWD}/backend/templates:backend/templates" \
   --add-data "${AICLIENT_SRC}:backend/AiClientConfig" \
   --exclude-module matplotlib \
   --exclude-module PIL \
@@ -179,6 +181,7 @@ T1=$(date +%s)
   --strip \
   --distpath "${OUT_DIR}" \
   --workpath build \
+  --specpath build \
   --clean \
   --noconfirm \
   backend/desktop_server.py \

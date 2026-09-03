@@ -103,13 +103,15 @@ cd desktop && npm run release
 
 **后端瘦身（`_internal` 140MB → 55MB）**：
 
-三个优化点（`myknowledge-backend.spec` 与 `scripts/build-backend.sh` 同步生效）：
+三个优化点（均通过 `scripts/build-backend.sh` 的 PyInstaller 参数生效）：
 
 1. **前端只拷运行时文件**：原 `datas=[('frontend','frontend')]` 整目录拷贝，把 node_modules（24MB 构建期依赖，jsdom/turndown 供测试用）也打进包；改为精确拷贝 6 项（index.html / index.standalone.html / js / css / vendor / tiptap-bundle.mjs），前端共 2.4MB
 2. **excludes 排除无关大库**：matplotlib(12M) / PIL(12M) / lxml(8.8M) / jedi(8.1M) / numpy(6.6M) / gevent(3.6M) / pandas / scipy——backend/ 源码 grep 零引用，PyInstaller 依赖收集过宽收进来的，约 50MB
 3. **strip=True**：EXE 与 COLLECT 去符号表
 
-> ⚠️ **两处配置必须同步维护**：PyInstaller 命令行参数（`scripts/build-backend.sh`）与 spec 文件（`myknowledge-backend.spec`）。改动任一处的 datas/excludes/strip，另一处必须同步，否则体积会回弹。构建时 `python3 -m PyInstaller myknowledge-backend.spec` 会自动重写 spec，注意检查是否覆盖了手动修改。
+> ℹ️ **打包参数唯一来源是 `scripts/build-backend.sh`**。PyInstaller 每次构建会用命令行
+> 参数自动生成 spec 到 `build/`（`--specpath build`，2026-09-03 起），项目根不再保留
+> spec 文件——改动 datas/excludes/strip 只需改脚本一处。
 
 ## 6. 关键工程决策
 

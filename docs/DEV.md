@@ -396,6 +396,23 @@ enchante://agent/install?name=<URL_ENCODED_AGENT_NAME>&config=<BASE64_JSON_PAYLO
 `{role, skillNames: [], mcpServers}` 结构、base64 round-trip、端点 400、Enchante
 agent deeplink 短接）。后端测试 704 全绿。
 
+### spec 移出 git + 构建脚本 --specpath 隔离（2026-09-03）
+
+**背景**：`scripts/build-backend.sh` 构建时传命令行参数而非读取 spec，PyInstaller
+每次跑完都会自动重写项目根的 `myknowledge-backend.spec`（构建本身不读它，spec 只是
+"上次构建的副产品"）。`--enterprise` 构建时 `mktemp -d` 临时目录路径会被烙进
+datas（如 `/var/folders/.../T/tmp.XXXX/AiClientConfig`），造成反复出现的
+git diff 噪音与误提交风险（DEV.md 2026-08-21 条目的"git checkout 还原" workaround）。
+
+**改动**：
+- `scripts/build-backend.sh`：PyInstaller 参数加 `--specpath build`，生成的 spec
+  写入 `build/`（每次构建前已 `rm -rf build`），项目根 spec 不再被触碰。
+- `.gitignore`：移除 `!myknowledge-backend.spec` 反排除。
+- 删除仓库根 `myknowledge-backend.spec`（纯生成物，可从脚本参数完全推导）。
+
+**影响**：桌面端打包参数唯一来源是 `scripts/build-backend.sh`；`docs/DESKTOP_APP.md`
+瘦身说明已同步改为只引用脚本。若需查看 spec，跑一次构建后在 `build/myknowledge-backend.spec`。
+
 ### Enchante deeplink base64 全转义 + 精简 Agent 模板 + spec 入 git（2026-08-21）
 
 **背景**：Enchante agent deeplink 此前用完整 `MyKnowledge-agent.md` 作 `role`，编码后
